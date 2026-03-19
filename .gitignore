@@ -1,0 +1,16 @@
+node_modules
+.pnpm-store
+.env
+.env.local
+.env.*.local
+target
+dist
+.next
+coverage
+.anchor
+.DS_Store
+*.log
+test-ledger
+.cursor
+.idea
+.vscode

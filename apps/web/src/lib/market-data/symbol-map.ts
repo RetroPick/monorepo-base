@@ -1,0 +1,35 @@
+export const COINGECKO_TO_BINANCE_USDT: Record<string, string> = {
+  bitcoin: "BTCUSDT",
+  ethereum: "ETHUSDT",
+  binancecoin: "BNBUSDT",
+  solana: "SOLUSDT",
+  ripple: "XRPUSDT",
+  dogecoin: "DOGEUSDT",
+  cardano: "ADAUSDT",
+  tron: "TRXUSDT",
+  "the-open-network": "TONUSDT",
+  avalanche: "AVAXUSDT",
+  "shiba-inu": "SHIBUSDT",
+  chainlink: "LINKUSDT",
+  polkadot: "DOTUSDT",
+  stellar: "XLMUSDT",
+  "bitcoin-cash": "BCHUSDT",
+  litecoin: "LTCUSDT",
+  "hedera-hashgraph": "HBARUSDT",
+  sui: "SUIUSDT",
+  monero: "XMRUSDT",
+  pepe: "PEPEUSDT",
+  aptos: "APTUSDT",
+  near: "NEARUSDT",
+  "internet-computer": "ICPUSDT",
+  uniswap: "UNIUSDT",
+  filecoin: "FILUSDT",
+  arbitrum: "ARBUSDT",
+  optimism: "OPUSDT",
+  sei: "SEIUSDT",
+  "render-token": "RENDERUSDT",
+};
+
+export function mapCoinGeckoIdToBinanceSymbol(id: string) {
+  return COINGECKO_TO_BINANCE_USDT[id] ?? null;
+}
