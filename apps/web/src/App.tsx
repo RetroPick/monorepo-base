@@ -1,74 +1,56 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+
 import ErrorBoundary from "@/components/ErrorBoundary";
-import RetroErrorState from "@/components/RetroErrorState";
+import AppProviders from "@/app/AppProviders";
+import Activity from "@/pages/Activity";
+import AboveBelowDashboard from "@/pages/AboveBelowDashboard";
+import Leaderboard from "@/pages/Leaderboard";
+import Login from "@/pages/Login";
+import MarketDetail from "@/pages/MarketDetail";
+import MarketsAll from "@/pages/MarketsAll";
+import NotFound from "@/pages/NotFound";
+import Portfolio from "@/pages/Portfolio";
+import PredictionDashboard from "@/pages/PredictionDashboard";
+import Resolution from "@/pages/Resolution";
 
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
-import Index from "./pages/Index";
-import PredictionDashboard from "./pages/PredictionDashboard";
-import AboveBelowDashboard from "./pages/AboveBelowDashboard";
-import MarketDetail from "./pages/MarketDetail";
-import MarketsAll from "./pages/MarketsAll";
-import Portfolio from "./pages/Portfolio";
-import Login from "./pages/Login";
-import NotFound from "./pages/NotFound";
-import LandingPage from "./pages/LandingPage";
-import { Web3ModalProvider } from "@/context/Web3ModalProvider";
-
-import { OnboardingProvider } from "@/context/OnboardingContext";
-
-import { LanguageProvider } from "@/context/LanguageContext";
-import { MarketProvider } from "@/context/MarketContext";
-import { AllMarketsProvider } from "@/context/AllMarketsContext";
-import { AssetProvider } from "@/context/AssetContext";
-import Activity from "./pages/Activity";
-import Leaderboard from "./pages/Leaderboard";
-import Resolution from "./pages/Resolution";
-
-const App = () => (
-  <Web3ModalProvider>
-    <TooltipProvider>
-      <LanguageProvider>
-        <OnboardingProvider>
-          <MarketProvider>
-            <AllMarketsProvider>
-              <AssetProvider>
-                <Toaster />
-                <Sonner />
-                <BrowserRouter>
-                  <ErrorBoundary fallback={<RetroErrorState onRefresh={() => window.location.reload()} />}>
-                  <Routes>
-                    {/* Public Landing Page */}
-                    <Route path="/" element={<LandingPage />} />
-
-                    {/* Main App Routes */}
-                    <Route path="/app" element={<Navigate to="/app/markets/all" replace />} />
-                    <Route path="/app/markets/updown" element={<PredictionDashboard />} />
-                    <Route path="/app/markets/abovebelow" element={<AboveBelowDashboard />} />
-                    <Route path="/app/markets" element={<Index />} />
-                    <Route path="/app/markets/all" element={<MarketsAll />} />
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/app/market/:id" element={<MarketDetail />} />
-                    <Route path="/app/portfolio" element={<Portfolio />} />
-                    <Route path="/app/activity" element={<Activity />} />
-                    <Route path="/app/history" element={<Activity />} />
-                    <Route path="/app/leaderboard" element={<Leaderboard />} />
-                    <Route path="/app/resolution" element={<Resolution />} />
-
-                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </ErrorBoundary>
-                </BrowserRouter>
-              </AssetProvider>
-            </AllMarketsProvider>
-          </MarketProvider>
-        </OnboardingProvider>
-      </LanguageProvider>
-    </TooltipProvider>
-  </Web3ModalProvider>
-);
+function App() {
+  return (
+    <BrowserRouter>
+      <ErrorBoundary
+        fallback={
+          <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-8 text-foreground">
+            <h1 className="text-2xl font-bold">Something went wrong</h1>
+            <p className="max-w-md text-center text-muted-foreground">
+              An unexpected error occurred. Please refresh the page or try again later.
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="rounded-lg bg-primary px-4 py-2 text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Refresh page
+            </button>
+          </div>
+        }
+      >
+        <Routes>
+          <Route element={<AppProviders />}>
+            <Route path="/" element={<Navigate to="/app/markets/all" replace />} />
+            <Route path="/app" element={<Navigate to="/app/markets/all" replace />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/app/markets/all" element={<MarketsAll />} />
+            <Route path="/app/markets/updown" element={<PredictionDashboard />} />
+            <Route path="/app/markets/abovebelow" element={<AboveBelowDashboard />} />
+            <Route path="/app/market/:id" element={<MarketDetail />} />
+            <Route path="/app/portfolio" element={<Portfolio />} />
+            <Route path="/app/activity" element={<Activity />} />
+            <Route path="/app/leaderboard" element={<Leaderboard />} />
+            <Route path="/app/resolution" element={<Resolution />} />
+            <Route path="*" element={<NotFound />} />
+          </Route>
+        </Routes>
+      </ErrorBoundary>
+    </BrowserRouter>
+  );
+}
 
 export default App;

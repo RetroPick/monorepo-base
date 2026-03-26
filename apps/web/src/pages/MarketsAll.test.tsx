@@ -20,7 +20,9 @@ describe("MarketsAll", () => {
     );
 
     expect(screen.getByText("Today's Key Levels")).toBeInTheDocument();
-    expect(screen.getByText("Catch the next move.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Strongest daily threshold markets and the main habit-loop entry point."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Highest volume")).toBeInTheDocument();
   });
 });

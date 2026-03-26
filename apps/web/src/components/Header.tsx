@@ -1,10 +1,11 @@
-import { useRef, type WheelEvent as ReactWheelEvent } from "react";
+import { lazy, Suspense, useRef, type WheelEvent as ReactWheelEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAssetContext } from "@/context/AssetContext";
-import WalletButton from "./WalletButton";
-import Logo from "@/landing_components/Logo";
+import Logo from "@/components/Logo";
 import { ModeToggle } from "./mode-toggle";
+
+const WalletButton = lazy(() => import("./WalletButton"));
 
 interface HeaderProps {
   discoveryNav?: {
@@ -87,7 +88,13 @@ const Header = ({ discoveryNav }: HeaderProps) => {
               <div className="rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur">
                 <ModeToggle />
               </div>
-              <WalletButton />
+              <Suspense
+                fallback={
+                  <div className="h-10 w-[132px] rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur" />
+                }
+              >
+                <WalletButton />
+              </Suspense>
             </div>
           </div>
 

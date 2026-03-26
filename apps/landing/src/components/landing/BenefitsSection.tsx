@@ -29,12 +29,12 @@ export function BenefitsSection() {
             })}
           </div>
           <div className="mt-8 flex items-center gap-4">
-            <a href="#final-cta" className="btn-primary">
+            <a href="https://retropickevent.vercel.app/app/markets/updown" className="btn-primary">
               Launch App
             </a>
-            <Link href="/how-it-works" className="text-[#0B0C10] underline underline-offset-4 transition-colors hover:text-[#00D4FF]">
+            <a href="https://retropickevent.vercel.app/app/markets/all" className="text-[#0B0C10] underline underline-offset-4 transition-colors hover:text-[#00D4FF]">
               View Markets
-            </Link>
+            </a>
           </div>
         </div>
 

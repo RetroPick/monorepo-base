@@ -35,12 +35,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="scroll-smooth" suppressHydrationWarning>
-      <body
-        suppressHydrationWarning
-        className={`${inter.variable} ${spaceGrotesk.variable} ${plexMono.variable}`}
-      >
-        {children}
-      </body>
+      <body suppressHydrationWarning className={`${inter.variable} ${spaceGrotesk.variable} ${plexMono.variable}`}>{children}</body>
     </html>
   );
 }

@@ -26,12 +26,12 @@ export function CtaSection() {
           your pick?
         </h2>
         <div className="cta-buttons mt-10 flex items-center gap-4 max-md:flex-col">
-          <a href="#final-cta" className="btn-primary px-8 py-4 text-lg">
+          <a href="https://retropickevent.vercel.app/app/markets/updown" className="btn-primary px-8 py-4 text-lg">
             Launch App
           </a>
-          <Link href="/how-it-works" className="btn-secondary px-8 py-4 text-lg">
+          <a href="https://retropickevent.vercel.app/app/markets/all" className="btn-secondary px-8 py-4 text-lg">
             Browse Live Markets
-          </Link>
+          </a>
         </div>
       </div>
     </section>

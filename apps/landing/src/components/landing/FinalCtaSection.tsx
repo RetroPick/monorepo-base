@@ -16,10 +16,10 @@ export function FinalCtaSection() {
                 No install, no waiting. Jump straight into live markets, make your pick, and stay in the action from any device.
               </p>
               <div className="flex flex-col gap-3">
-                <a href="/#hero" className="flex items-center justify-center gap-3 rounded-xl bg-white px-6 py-3 text-[#0B0C10] transition-colors hover:bg-gray-100">
+                <a href="https://retropickevent.vercel.app/app/markets/updown" className="flex items-center justify-center gap-3 rounded-xl bg-white px-6 py-3 text-[#0B0C10] transition-colors hover:bg-gray-100">
                   <span className="font-semibold">Launch Web App</span>
                 </a>
-                <a href="/#features" className="flex items-center justify-center gap-3 rounded-xl bg-white px-6 py-3 text-[#0B0C10] transition-colors hover:bg-gray-100">
+                <a href="https://retropickevent.vercel.app/app/markets/all" className="flex items-center justify-center gap-3 rounded-xl bg-white px-6 py-3 text-[#0B0C10] transition-colors hover:bg-gray-100">
                   <span className="font-semibold">See Live Markets</span>
                 </a>
               </div>

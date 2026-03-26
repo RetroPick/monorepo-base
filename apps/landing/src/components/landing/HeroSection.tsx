@@ -23,7 +23,7 @@ export function HeroSection() {
           <a href="#benefits" className="text-sm text-[#5A6270] transition-colors hover:text-[#0B0C10]">
             Benefits
           </a>
-          <a href="#final-cta" className="btn-primary px-5 py-2 text-sm">
+          <a href="https://retropickevent.vercel.app/app/markets/updown" className="btn-primary px-5 py-2 text-sm">
             Play
           </a>
         </div>
@@ -43,7 +43,7 @@ export function HeroSection() {
               <a href="#benefits" className="rounded-xl px-3 py-2 text-sm text-[#3D4654] transition-colors hover:bg-[#F4F6FA] hover:text-[#0B0C10]">
                 Benefits
               </a>
-              <a href="#final-cta" className="btn-primary mt-2 px-4 py-2 text-center text-sm">
+              <a href="https://retropickevent.vercel.app/app/markets/updown" className="btn-primary mt-2 px-4 py-2 text-center text-sm">
                 Play
               </a>
             </div>
@@ -62,7 +62,7 @@ export function HeroSection() {
               Quick market rounds for one sharp call at a time.
             </p>
             <div className="hero-cta mt-8 flex items-center gap-4">
-              <a href="#final-cta" className="btn-primary flex items-center gap-2">
+              <a href="https://retropickevent.vercel.app/app/markets/updown" className="btn-primary flex items-center gap-2">
                 Start a Round
                 <ChevronRight className="h-5 w-5" />
               </a>

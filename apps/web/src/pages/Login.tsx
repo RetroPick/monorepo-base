@@ -27,7 +27,7 @@ import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
 // Dialog imports removed as we use native AppKit modal
 import Icon from "@/components/Icon";
-import Logo from "@/landing_components/Logo";
+import Logo from "@/components/Logo";
 import { IDKitWidget, VerificationLevel, ISuccessResult } from '@worldcoin/idkit';
 import { useToast } from "@/components/ui/use-toast";
 import { useAppKit } from "@reown/appkit/react";

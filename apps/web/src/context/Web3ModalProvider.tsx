@@ -23,10 +23,16 @@ createAppKit({
     defaultNetwork: customFuji,
     projectId,
     metadata,
+    enableEmbedded: true,
     enableReconnect: false, // Prevent wallet popup on page load
     allowUnsupportedChain: true, // Don't show Switch Network modal on load when wallet is on BSC/etc
+    defaultAccountTypes: {
+        eip155: 'smartAccount'
+    },
     features: {
-        analytics: true // Optional - defaults to your Cloud configuration
+        analytics: true,
+        email: false,
+        socials: ['google']
     }
 })
 

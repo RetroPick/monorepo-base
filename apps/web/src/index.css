@@ -9,13 +9,10 @@
 
 @layer base {
   :root {
-    /* Light Mode (White, Blue, Gray) - Refined */
     --background: 210 20% 97%;
-    /* Light Blue-Grey Background */
     --foreground: 222.2 84% 4.9%;
 
     --card: 0 0% 100%;
-    /* Pure White Card */
     --card-foreground: 222.2 84% 4.9%;
     --card-hover: 210 40% 96.1%;
 
@@ -29,7 +26,6 @@
     --secondary-foreground: 222.2 47.4% 11.2%;
 
     --muted: 210 40% 90%;
-    /* Darker muted for visibility */
     --muted-foreground: 215.4 16.3% 40%;
 
     --accent: 210 40% 94%;
@@ -39,7 +35,6 @@
     --destructive-foreground: 210 40% 98%;
 
     --border: 215 20% 75%;
-    /* Visible Stroke/Border */
     --input: 215 20% 75%;
     --ring: 221.2 83.2% 53.3%;
 
@@ -58,14 +53,12 @@
     --sidebar-border: 220 13% 85%;
     --sidebar-ring: 217 91% 60%;
 
-    /* Light Mode Custom Accents */
     --accent-magenta: 292 84% 45%;
     --accent-green: 160 84% 39%;
     --accent-cyan: 187 92% 40%;
   }
 
   .dark {
-    /* Dark Mode (Original) */
     --background: 240 6% 4%;
     --foreground: 0 0% 100%;
 
@@ -236,29 +229,6 @@
     }
   }
 
-  @keyframes campaign-glow {
-    0% {
-      background-position: 0% 50%;
-      filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.18)) drop-shadow(0 0 22px rgba(239, 68, 68, 0.34)) drop-shadow(0 0 34px rgba(59, 130, 246, 0.18));
-    }
-    25% {
-      background-position: 100% 40%;
-      filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.22)) drop-shadow(0 0 28px rgba(59, 130, 246, 0.52)) drop-shadow(0 0 46px rgba(34, 197, 94, 0.24));
-    }
-    50% {
-      background-position: 15% 100%;
-      filter: drop-shadow(0 0 12px rgba(255, 255, 255, 0.22)) drop-shadow(0 0 26px rgba(34, 197, 94, 0.48)) drop-shadow(0 0 42px rgba(37, 99, 235, 0.22));
-    }
-    75% {
-      background-position: 85% 10%;
-      filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.24)) drop-shadow(0 0 30px rgba(37, 99, 235, 0.56)) drop-shadow(0 0 50px rgba(220, 38, 38, 0.28));
-    }
-    100% {
-      background-position: 0% 50%;
-      filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.18)) drop-shadow(0 0 22px rgba(239, 68, 68, 0.34)) drop-shadow(0 0 34px rgba(59, 130, 246, 0.18));
-    }
-  }
-
   @keyframes text-shimmer {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.85; }
@@ -266,226 +236,5 @@
 
   .animate-text-shimmer {
     animation: text-shimmer 3s ease-in-out infinite;
-  }
-
-  @keyframes dashboard-orb-drift {
-    0%, 100% {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    33% {
-      transform: translate3d(24px, -18px, 0) scale(1.08);
-    }
-    66% {
-      transform: translate3d(-18px, 12px, 0) scale(0.96);
-    }
-  }
-
-  @keyframes dashboard-band-wave {
-    0%, 100% {
-      transform: translateX(-50%) translateY(0) scaleX(1);
-      opacity: 0.55;
-    }
-    50% {
-      transform: translateX(-50%) translateY(-8px) scaleX(1.08);
-      opacity: 0.9;
-    }
-  }
-
-  @keyframes retro-error-float {
-    0%, 100% {
-      transform: translate3d(0, 0, 0);
-    }
-    50% {
-      transform: translate3d(0, -10px, 0);
-    }
-  }
-
-  @keyframes retro-rabbit-bob {
-    0%, 100% {
-      transform: translate3d(0, 0, 0) rotate(0deg);
-    }
-    25% {
-      transform: translate3d(-3px, -5px, 0) rotate(-1deg);
-    }
-    75% {
-      transform: translate3d(3px, -8px, 0) rotate(1deg);
-    }
-  }
-
-  @keyframes retro-error-pulse {
-    0%, 100% {
-      transform: scale(1);
-      box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.18);
-    }
-    50% {
-      transform: scale(1.08);
-      box-shadow: 0 0 0 10px rgba(245, 158, 11, 0);
-    }
-  }
-
-  @keyframes retro-error-progress {
-    0% {
-      transform: translateX(-18%);
-    }
-    50% {
-      transform: translateX(6%);
-    }
-    100% {
-      transform: translateX(-18%);
-    }
-  }
-
-  @keyframes retro-error-blink {
-    0%, 100% {
-      opacity: 0.55;
-    }
-    50% {
-      opacity: 1;
-    }
-  }
-
-  @keyframes retro-error-nose {
-    0%, 100% {
-      transform: translateX(-50%) scale(1);
-    }
-    50% {
-      transform: translateX(-50%) scale(1.08);
-    }
-  }
-
-  .retro-error-float {
-    animation: retro-error-float 3.4s ease-in-out infinite;
-  }
-
-  .retro-error-float-delayed {
-    animation: retro-error-float 4.2s ease-in-out infinite;
-    animation-delay: 0.5s;
-  }
-
-  .retro-rabbit-bob {
-    animation: retro-rabbit-bob 3.8s ease-in-out infinite;
-    transform-origin: center bottom;
-  }
-
-  .retro-error-pulse {
-    animation: retro-error-pulse 2.2s ease-in-out infinite;
-  }
-
-  .retro-error-progress {
-    animation: retro-error-progress 2.8s ease-in-out infinite;
-  }
-
-  .retro-error-blink {
-    animation: retro-error-blink 1.6s ease-in-out infinite;
-  }
-
-  .retro-error-blink-delayed {
-    animation: retro-error-blink 1.6s ease-in-out infinite;
-    animation-delay: 0.45s;
-  }
-
-  .retro-error-nose {
-    animation: retro-error-nose 1.8s ease-in-out infinite;
-  }
-
-  @keyframes asset-logo-float {
-    0%, 100% {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-      transform: translate3d(0, -3px, 0) scale(1.03);
-    }
-  }
-
-  @keyframes asset-logo-orbit {
-    0% {
-      opacity: 0.35;
-      transform: scale(0.88);
-    }
-    50% {
-      opacity: 0.08;
-      transform: scale(1.1);
-    }
-    100% {
-      opacity: 0.35;
-      transform: scale(0.88);
-    }
-  }
-
-  .asset-logo-shell {
-    animation: asset-logo-float 3s ease-in-out infinite;
-  }
-
-  .asset-logo-orbit {
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.2), transparent 68%);
-    animation: asset-logo-orbit 2.6s ease-in-out infinite;
-  }
-
-  .asset-logo-image {
-    filter: drop-shadow(0 5px 12px rgba(15, 23, 42, 0.18));
-  }
-
-  @keyframes dashboard-mesh-shift {
-    0%, 100% {
-      transform: translate3d(0, 0, 0) scale(1);
-      filter: saturate(1) hue-rotate(0deg);
-    }
-    33% {
-      transform: translate3d(2%, -2%, 0) scale(1.04);
-      filter: saturate(1.1) hue-rotate(-8deg);
-    }
-    66% {
-      transform: translate3d(-2%, 1%, 0) scale(0.98);
-      filter: saturate(1.08) hue-rotate(6deg);
-    }
-  }
-
-  .dashboard-bg-orb {
-    animation: dashboard-orb-drift 18s ease-in-out infinite;
-    will-change: transform;
-  }
-
-  .dashboard-bg-orb-slow {
-    animation-duration: 24s;
-  }
-
-  .dashboard-bg-orb-fast {
-    animation-duration: 14s;
-  }
-
-  .dashboard-bg-band {
-    animation: dashboard-band-wave 16s ease-in-out infinite;
-    will-change: transform, opacity;
-  }
-
-  .dashboard-bg-band-reverse {
-    animation-duration: 20s;
-    animation-direction: reverse;
-  }
-
-  .dashboard-bg-stage {
-    isolation: isolate;
-    overflow: hidden;
-  }
-
-  .dashboard-bg-mesh {
-    background:
-      radial-gradient(circle at 12% 68%, rgba(34, 211, 238, 0.34), transparent 26%),
-      radial-gradient(circle at 32% 84%, rgba(59, 130, 246, 0.4), transparent 30%),
-      radial-gradient(circle at 62% 70%, rgba(16, 185, 129, 0.28), transparent 24%),
-      radial-gradient(circle at 84% 58%, rgba(96, 165, 250, 0.32), transparent 26%),
-      linear-gradient(180deg, rgba(59, 130, 246, 0.04) 0%, rgba(59, 130, 246, 0.1) 32%, rgba(16, 185, 129, 0.12) 100%);
-    animation: dashboard-mesh-shift 18s ease-in-out infinite;
-    will-change: transform, filter;
-    mask-image: linear-gradient(to top, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.78) 58%, transparent 100%);
-  }
-
-  .dark .dashboard-bg-mesh {
-    background:
-      radial-gradient(circle at 12% 68%, rgba(34, 211, 238, 0.26), transparent 26%),
-      radial-gradient(circle at 32% 84%, rgba(59, 130, 246, 0.3), transparent 30%),
-      radial-gradient(circle at 62% 70%, rgba(16, 185, 129, 0.2), transparent 24%),
-      radial-gradient(circle at 84% 58%, rgba(96, 165, 250, 0.24), transparent 26%),
-      linear-gradient(180deg, rgba(15, 23, 42, 0.02) 0%, rgba(29, 78, 216, 0.12) 36%, rgba(8, 145, 178, 0.12) 72%, rgba(5, 150, 105, 0.12) 100%);
   }
 }
