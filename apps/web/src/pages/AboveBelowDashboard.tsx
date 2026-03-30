@@ -307,7 +307,7 @@ export default function AboveBelowDashboard() {
 
         <Header />
 
-        <main className="relative mx-auto max-w-[1440px] px-4 pb-14 pt-40 lg:px-8">
+        <main className="relative mx-auto max-w-[1440px] px-4 pb-14 pt-8 lg:px-8">
           <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
             <div className="min-w-0">
               <div className="h-[360px]">

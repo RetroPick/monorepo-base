@@ -19,10 +19,8 @@ describe("MarketsAll", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText("Today's Key Levels")).toBeInTheDocument();
-    expect(
-      screen.getByText("Strongest daily threshold markets and the main habit-loop entry point."),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Highest volume")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Markets" })).toBeInTheDocument();
+    expect(screen.getByText(/Browse live threshold markets/i)).toBeInTheDocument();
+    expect(screen.getByText("Most volume")).toBeInTheDocument();
   });
 });

@@ -36,11 +36,13 @@ cat .gas-snapshot
 
 Use `EpochGasTest:test_gas_*` for Manual paths and `MarketEngineRollingTest:test_gas_*` for Rolling; multiply by your sequencer’s gas price and (on OP Stack) the L1 fee from `eth_estimateGas` / block explorer “L1 gas used” fields.
 
-**Also batch**: `openEpochsBatch`, `lockEpochsBatch`, and `resolveEpochsBatch` amortize fixed per-tx overhead when one keeper maintains many templates in one block.
+**Also batch**: `openEpochsBatch`, `lockEpochsBatch`, and `resolveEpochsBatch` amortize fixed per-tx overhead when one keeper maintains many templates in one block; rolling templates use `executeRollingRoundBatch`.
 
 **Rolling mode** (Direction-only): `genesisStartRolling` → `genesisLockRolling` → repeating `executeRollingRound` bundles resolve + lock + open into **one keeper tx** per tick—see [DEPLOYMENT_AND_EPOCHS.md](./DEPLOYMENT_AND_EPOCHS.md#rolling-execution-mode-keeper-cost-reduction).
 
-**Production bytecode**: `FOUNDRY_PROFILE=production forge build` uses `optimizer_runs = 1_000_000` in [`foundry.toml`](foundry.toml) (smaller runtime, larger bytecode). For deploy-size experiments use `FOUNDRY_PROFILE=deploybudget`. Compare with `forge build --sizes`.
+**Ops defaults for lower cost:** recurring **Direction** → prefer **Rolling**; multi-template keepers → **batch** APIs; align **Pyth** update cadence with `oracleConfig.maxDelaySeconds` so keeper txs do not revert on stale prices—see [Cost-conscious operations defaults](./DEPLOYMENT_AND_EPOCHS.md#cost-conscious-operations-defaults-recommended).
+
+**Compiler profiles**: [`foundry.toml`](foundry.toml) defines **`default`** (200 runs), **`production`** (1M runs — often **better runtime gas**, but `MarketEngine` typically **fails EIP-170** at that setting), and **`deploybudget`** (80 runs — smaller bytecode, higher runtime gas). **Deploy** `MarketEngine` with **`default`** or **`deploybudget`**, not `production`. CI runs [`script/check-contract-sizes.sh`](script/check-contract-sizes.sh) to enforce **minimum EIP-170 headroom** on those deployable profiles and to print an **informational** `production` build result.
 
 ## Deploy (chain-agnostic)
 

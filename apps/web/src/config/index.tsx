@@ -1,16 +1,9 @@
-
 import { cookieStorage, createStorage, http } from '@wagmi/core'
 import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
 import { mainnet, arbitrum, sepolia, type AppKitNetwork } from '@reown/appkit/networks'
 
-// Get projectId from https://cloud.reown.com
-export const projectId = 'f39121ec755731ed58c1605658872bce' // Public testing ID, user should replace
+export const projectId = 'f39121ec755731ed58c1605658872bce'
 
-if (!projectId) {
-    throw new Error('Project ID is not defined')
-}
-
-// Custom configuration for explicit wallet behavior
 export const customFuji: AppKitNetwork = {
     id: 43113,
     name: 'Avalanche Fuji Testnet',
@@ -22,19 +15,22 @@ export const customFuji: AppKitNetwork = {
         default: { name: 'SnowTrace', url: 'https://testnet.snowtrace.io' },
     },
     caipNetworkId: 'eip155:43113',
-    chainNamespace: 'eip155'
+    chainNamespace: 'eip155',
+    testnet: true,
 }
 
 export const networks: [AppKitNetwork, ...AppKitNetwork[]] = [customFuji, mainnet, arbitrum, sepolia]
 
-//Set up the Wagmi Adapter (Config)
 export const wagmiAdapter = new WagmiAdapter({
     storage: createStorage({
-        storage: cookieStorage
+        storage: cookieStorage,
     }),
-    ssr: true,
+    ssr: false,
     projectId,
-    networks
+    networks,
+    transports: {
+        [customFuji.id]: http(customFuji.rpcUrls.default.http[0]),
+    },
 })
 
-export const config = wagmiAdapter.wagmiConfig
+export const wagmiConfig = wagmiAdapter.wagmiConfig

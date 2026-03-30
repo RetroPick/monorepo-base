@@ -23,22 +23,22 @@ const ERC20_ABI = [
 ];
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
-// Dialog imports removed as we use native AppKit modal
 import Icon from "@/components/Icon";
 import Logo from "@/components/Logo";
 import { IDKitWidget, VerificationLevel, ISuccessResult } from '@worldcoin/idkit';
 import { useToast } from "@/components/ui/use-toast";
-import { useAppKit } from "@reown/appkit/react";
+import { useWalletConnection } from "@/hooks/useWalletConnection";
+
+const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : "Unexpected error";
 
 const Login = () => {
     const { isConnected, address, chain } = useAccount();
-    const { open: openAppKit } = useAppKit();
     const { switchChain } = useSwitchChain();
     const fujiChainId = 43113; // Avalanche Fuji Testnet
     const navigate = useNavigate();
     const { toast } = useToast();
+    const { connectCoinbase, connectInjected, hasInjectedConnector, isPending, pendingConnector } = useWalletConnection();
     const [isVerified, setIsVerified] = useState(false);
     const [isTradingEnabled, setIsTradingEnabled] = useState(false);
 
@@ -95,28 +95,46 @@ const Login = () => {
                 user: address as `0x${string}`,
             } as const;
 
-            const signature = await signTypedDataAsync({ domain, types, primaryType: "SessionSignIn", message } as any);
+            const signRequest = { domain, types, primaryType: "SessionSignIn", message } as Parameters<typeof signTypedDataAsync>[0];
+            const signature = await signTypedDataAsync(signRequest);
             if (import.meta.env.DEV) console.log("Derived Session Signature:", signature);
             toast({ title: "Session Signed", description: "You have securely entered the Yellow Session off-chain." });
 
             // 2. Approve Token
-            await approveAsync({
+            const approveRequest = {
                 address: TEST_TOKEN_ADDRESS as `0x${string}`,
                 abi: ERC20_ABI,
                 functionName: "approve",
                 args: [SETTLEMENT_VAULT_ADDRESS, 2n ** 256n - 1n], // Max uint256
                 account: address,
                 chain: undefined,
-            } as any);
+            } as Parameters<typeof approveAsync>[0];
+            await approveAsync(approveRequest);
 
-        } catch (error: any) {
+        } catch (error) {
             console.error(error);
-            toast({ title: "Setup Failed", description: error.message, variant: "destructive" });
+            toast({ title: "Setup Failed", description: getErrorMessage(error), variant: "destructive" });
         }
     };
 
     const onSuccess = () => {
         setIsVerified(true);
+    };
+
+    const handleConnectCoinbase = async () => {
+        try {
+            await connectCoinbase();
+        } catch (error) {
+            toast({ title: "Coinbase Wallet failed", description: getErrorMessage(error), variant: "destructive" });
+        }
+    };
+
+    const handleConnectInjected = async () => {
+        try {
+            await connectInjected();
+        } catch (error) {
+            toast({ title: "Wallet connection failed", description: getErrorMessage(error), variant: "destructive" });
+        }
     };
 
     return (
@@ -178,13 +196,24 @@ const Login = () => {
                             transition={{ delay: 0.4 }}
                         >
                             <Button
-                                onClick={() => openAppKit()}
+                                onClick={handleConnectCoinbase}
                                 variant="outline"
                                 className="w-full border-2 border-dashed border-blue-200 bg-blue-50/30 text-blue-600 hover:bg-blue-50/80 hover:border-blue-300 h-14 font-medium transition-all hover:scale-[1.01]"
+                                disabled={isPending}
                             >
                                 <Icon name={isConnected ? "check_circle" : "account_balance_wallet"} className="mr-2 text-xl" />
-                                {isConnected ? `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}` : "1. Connect Web3 Wallet"}
+                                {isConnected ? `Connected: ${address?.slice(0, 6)}...${address?.slice(-4)}` : pendingConnector?.id === 'coinbaseWalletSDK' ? "Opening Coinbase Wallet..." : "1. Connect Coinbase Wallet"}
                             </Button>
+                            {!isConnected && (
+                                <Button
+                                    onClick={handleConnectInjected}
+                                    variant="ghost"
+                                    className="w-full mt-3 text-slate-500 hover:text-slate-700"
+                                    disabled={!hasInjectedConnector || isPending}
+                                >
+                                    {hasInjectedConnector ? "Use Browser Wallet Instead" : "No Browser Wallet Detected"}
+                                </Button>
+                            )}
                         </motion.div>
 
                         {/* 2. Add / Switch Network (Only shows if wrong network) */}

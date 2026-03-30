@@ -17,11 +17,18 @@ interface HeaderProps {
   };
 }
 
+/** Symbols that have threshold markets on Discover; avoids empty grid when rail coins (e.g. BNB) mismatch catalog. */
+const DISCOVERY_ASSET_ORDER = ["BTC", "ETH", "SOL"] as const;
+
 const Header = ({ discoveryNav }: HeaderProps) => {
   const location = useLocation();
   const { assets, selectedSymbol, setSelectedSymbol } = useAssetContext();
   const railRef = useRef<HTMLDivElement>(null);
   const isMarketsAllPage = location.pathname === "/app/markets/all";
+
+  const discoveryRailAssets = DISCOVERY_ASSET_ORDER.map((symbol) => assets.find((a) => a.symbol === symbol)).filter(
+    (a): a is NonNullable<typeof a> => Boolean(a),
+  );
 
   const navItems = [
     { name: "Discover", path: "/app/markets/all" },
@@ -40,21 +47,21 @@ const Header = ({ discoveryNav }: HeaderProps) => {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4">
-      <div className="mx-auto max-w-7xl">
-        <div className="overflow-hidden rounded-[28px] border border-border/60 bg-background/85 shadow-[0_14px_36px_-28px_rgba(5,12,30,0.45)] backdrop-blur-xl">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3">
-            <div className="flex justify-start">
-              <Link to="/app/markets/all" className="flex min-w-0 items-center gap-4">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-transparent">
-                  <Logo className="size-9" />
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">RetroPick</div>
-                </div>
-              </Link>
-            </div>
+    <header className="sticky inset-x-0 top-0 z-50 border-b border-border/60 bg-background/95 backdrop-blur-xl supports-[backdrop-filter]:bg-background/80">
+      <div className="mx-auto max-w-7xl px-4">
+        <div className="flex min-h-16 items-center justify-between gap-3 py-3">
+          <div className="flex min-w-0 items-center gap-4">
+            <Link to="/app/markets/all" className="flex min-w-0 items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-transparent">
+                <Logo className="size-9" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">RetroPick</div>
+              </div>
+            </Link>
+          </div>
 
+          <div className="hidden min-w-0 flex-1 justify-center lg:flex">
             <nav className="flex items-center justify-center gap-2">
               {navItems.map((item) => {
                 const isActive = item.path === "/app/markets/all"
@@ -83,22 +90,56 @@ const Header = ({ discoveryNav }: HeaderProps) => {
                 );
               })}
             </nav>
-
-            <div className="flex items-center justify-end gap-2">
-              <div className="rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur">
-                <ModeToggle />
-              </div>
-              <Suspense
-                fallback={
-                  <div className="h-10 w-[132px] rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur" />
-                }
-              >
-                <WalletButton />
-              </Suspense>
-            </div>
           </div>
 
-          <div className="border-t border-border/50 bg-gradient-to-r from-slate-100/85 via-white/75 to-slate-100/85 px-4 py-2 dark:from-slate-950/70 dark:via-slate-900/60 dark:to-slate-950/70">
+          <div className="flex items-center justify-end gap-2">
+            <div className="rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur">
+              <ModeToggle />
+            </div>
+            <Suspense
+              fallback={
+                <div className="h-10 w-[132px] rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur" />
+              }
+            >
+              <WalletButton />
+            </Suspense>
+          </div>
+        </div>
+
+        <div className="border-t border-border/50 py-2 lg:hidden">
+          <nav className="-mx-1 overflow-x-auto no-scrollbar overscroll-contain px-1">
+            <div className="flex min-w-max items-center gap-2">
+              {navItems.map((item) => {
+                const isActive = item.path === "/app/markets/all"
+                  ? isMarketsAllPage
+                  : location.pathname === item.path;
+
+                return (
+                  <div key={item.path} className="flex items-center">
+                    {item.withSeparator ? (
+                      <span className="px-2 text-muted-foreground/60 select-none" aria-hidden="true">
+                        |
+                      </span>
+                    ) : null}
+                    <Link
+                      to={item.path}
+                      className={cn(
+                        "shrink-0 rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] transition-colors",
+                        isActive
+                          ? "bg-foreground text-background"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      {item.name}
+                    </Link>
+                  </div>
+                );
+              })}
+            </div>
+          </nav>
+        </div>
+
+        <div className="border-t border-border/50 bg-gradient-to-r from-slate-100/85 via-white/75 to-slate-100/85 py-2 dark:from-slate-950/70 dark:via-slate-900/60 dark:to-slate-950/70">
             {isMarketsAllPage && discoveryNav ? (
               <div
                 ref={railRef}
@@ -137,7 +178,7 @@ const Header = ({ discoveryNav }: HeaderProps) => {
                     All Assets
                   </button>
 
-                  {assets.map((asset) => (
+                  {discoveryRailAssets.map((asset) => (
                     <button
                       key={asset.id}
                       onClick={() => discoveryNav.onAssetFilterChange(asset.symbol)}
@@ -220,7 +261,6 @@ const Header = ({ discoveryNav }: HeaderProps) => {
                 </div>
               </div>
             )}
-          </div>
         </div>
       </div>
     </header>

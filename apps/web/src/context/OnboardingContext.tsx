@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { useAppKitAccount } from "@reown/appkit/react";
+import { useAccount } from "wagmi";
 import OnboardingModal from "@/components/auth/OnboardingModal";
 
 interface OnboardingContextType {
@@ -13,7 +13,7 @@ interface OnboardingContextType {
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
 
 export const OnboardingProvider = ({ children }: { children: React.ReactNode }) => {
-    const { isConnected, address } = useAppKitAccount();
+    const { isConnected, address } = useAccount();
     const [isOnboarded, setIsOnboarded] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [isWorldIDVerified, setIsWorldIDVerified] = useState(false);

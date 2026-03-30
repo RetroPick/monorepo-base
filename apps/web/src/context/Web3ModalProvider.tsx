@@ -2,43 +2,45 @@
 import { createAppKit } from '@reown/appkit/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode } from 'react'
-import { projectId, networks, wagmiAdapter, customFuji } from '../config'
 import { WagmiProvider } from 'wagmi'
+import { customFuji, networks, projectId, wagmiAdapter } from '../config'
 
-// Setup queryClient
 const queryClient = new QueryClient()
-
-// Create general metadata
 const metadata = {
     name: 'RetroPick',
     description: 'Decentralized Prediction Market',
-    url: 'https://retropick.app', // origin must match your domain & subdomain
-    icons: ['https://avatars.githubusercontent.com/u/179229932']
+    url: 'https://retropick.app',
+    icons: ['https://avatars.githubusercontent.com/u/179229932'],
 }
 
-// Create the modal
-createAppKit({
-    adapters: [wagmiAdapter],
-    networks,
-    defaultNetwork: customFuji,
-    projectId,
-    metadata,
-    enableEmbedded: true,
-    enableReconnect: false, // Prevent wallet popup on page load
-    allowUnsupportedChain: true, // Don't show Switch Network modal on load when wallet is on BSC/etc
-    defaultAccountTypes: {
-        eip155: 'smartAccount'
-    },
-    features: {
-        analytics: true,
-        email: false,
-        socials: ['google']
-    }
-})
+let isAppKitInitialized = false
+
+if (typeof window !== 'undefined' && !isAppKitInitialized) {
+    createAppKit({
+        adapters: [wagmiAdapter],
+        networks,
+        defaultNetwork: customFuji,
+        projectId,
+        metadata,
+        enableEmbedded: true,
+        enableReconnect: false,
+        allowUnsupportedChain: true,
+        defaultAccountTypes: {
+            eip155: 'smartAccount',
+        },
+        features: {
+            analytics: true,
+            email: false,
+            socials: ['google'],
+        },
+    })
+
+    isAppKitInitialized = true
+}
 
 export function Web3ModalProvider({ children, cookies }: { children: ReactNode; cookies?: string }) {
     return (
-        <WagmiProvider config={wagmiAdapter.wagmiConfig as any} reconnectOnMount={false}>
+        <WagmiProvider config={wagmiAdapter.wagmiConfig as typeof wagmiAdapter.wagmiConfig} reconnectOnMount={false}>
             <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
         </WagmiProvider>
     )

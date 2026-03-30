@@ -19,7 +19,7 @@ const Index = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
 
-      <main className="mx-auto max-w-[1440px] px-4 pb-14 pt-52 lg:px-8">
+      <main className="mx-auto max-w-[1440px] px-4 pb-14 pt-8 lg:px-8">
         <section className="rounded-[32px] border border-border/70 bg-card p-6 shadow-[0_30px_90px_-60px_rgba(5,12,30,0.9)] lg:p-8">
           <div className="max-w-3xl">
             <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground">

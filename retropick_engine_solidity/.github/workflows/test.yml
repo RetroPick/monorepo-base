@@ -31,8 +31,8 @@ jobs:
       - name: Run Forge fmt
         run: forge fmt --check
 
-      - name: Run Forge build
-        run: forge build --sizes
+      - name: Contract size gate (EIP-170)
+        run: bash script/check-contract-sizes.sh
 
       - name: Run Forge tests
         run: forge test -vvv

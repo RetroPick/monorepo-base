@@ -64,6 +64,39 @@ Reference Pancake V3 prediction shape (Chainlink, single market): [`reference/Pa
 
 **User ops while halted:** `depositToSide` / `switchSide` **`revert RollingHaltedUserOps`** on rolling templates. **`claim`** remains available for resolved / cancelled epochs.
 
+### Cost-conscious operations defaults (recommended)
+
+These defaults **preserve** on-chain logic; they reduce **recurring spend** (especially **L1 data fees** on rollups) and **wasted keeper txs**.
+
+1. **Recurring `Direction` markets → prefer `ExecutionMode.Rolling`**  
+   Same cadence as Manual Direction but **one** keeper tx per interval in steady state (`executeRollingRound`) instead of **three** (`openEpoch` + `lockEpoch` + `resolveEpoch`). See [Cost and specification overview](#cost-and-specification-overview).
+
+2. **Several templates in one keeper run → use batch entrypoints**  
+   - Rolling: [`executeRollingRoundBatch`](src/MarketEngine.sol)  
+   - Manual: [`openEpochsBatch`](src/MarketEngine.sol), [`lockEpochsBatch`](src/MarketEngine.sol), [`resolveEpochsBatch`](src/MarketEngine.sol)  
+
+   Batching amortizes **fixed per-tx overhead**. **L1 calldata** grows with the number of `templateId`s and arrays—on some chains a **single fat tx** is still cheaper than many small txs; on others, split batches—**measure** on your target L2.
+
+3. **Pyth freshness vs `oracleConfig.maxDelaySeconds` (`initializeConfig`)**  
+   [`PythAdapter`](src/adapters/PythAdapter.sol) uses `getPriceNoOlderThan(feedId, maxAgeSeconds)`. If the on-chain price is older than `maxDelaySeconds`, **lock / resolve / rolling execute** revert or (rolling) may **halt** after failed oracle paths—those txs still cost gas/L1. **Ops checklist:**  
+   - Run **`updatePriceFeeds` (or equivalent)** so prices are fresh **before** keeper windows.  
+   - Set `maxDelaySeconds` **no tighter** than your realistic update cadence (tighter = stricter safety, but more **failed** txs if updates lag).  
+   - Align **market interval** with how often you are willing to pay for **Pyth update txs** plus **engine** txs.
+
+4. **Cadence**  
+   Shorter epochs **linearly** increase keeper (and often oracle-update) tx count. Choose product cadence with **budget and feed update frequency** in mind.
+
+### Bytecode size gate (EIP-170) and Phase C (deferred)
+
+[`MarketEngine`](src/MarketEngine.sol) is a **large** monolith (one deployment serves all templates). The Ethereum **contract runtime code** limit is **24576** bytes (EIP-170). CI runs [`script/check-contract-sizes.sh`](script/check-contract-sizes.sh): it **requires** **`default`** and **`deploybudget`** to produce a `MarketEngine` under the limit with at least **`MIN_HEADROOM`** bytes free (default **384**). The **`production`** profile (`optimizer_runs = 1_000_000`) is **informational only** in that script—it often **fails EIP-170** for `MarketEngine`; **do not deploy** that bytecode; use **`default`** or **`deploybudget`** for deployment.
+
+**Phase C (only when needed — not implemented by default):** If `MarketEngine` approaches the size cap **or** the product requires **upgradeable** deployments, plan explicitly for one of:
+
+- **UUPS / transparent proxy** + implementation (upgrade policy, storage layout, audit), or  
+- **Modular split** (additional contracts / facets) with a **storage layout** spec and migration tests.
+
+Do **not** inline the Pyth adapter into `MarketEngine` solely to save one deploy address—it **increases** engine bytecode and worsens the EIP-170 margin.
+
 ## Cost and specification overview
 
 **Scope:** one-time deployment through recurring keeper epochs and user claims. Single reference table below. **Gas** figures are from [`.gas-snapshot`](.gas-snapshot) (regenerate with `forge snapshot`): [`test/gas/EpochGas.t.sol`](test/gas/EpochGas.t.sol) for **Manual** paths, [`test/MarketEngineRolling.t.sol`](test/MarketEngineRolling.t.sol) for **Rolling** paths—**mock oracle**, cold `openEpoch`, typical single-position deposits where the gas tests use them. **Measure on your chain** before budgeting. **USD** uses illustrative inputs only: execution gas price **0.05 gwei**, **$3,000** ETH—**execution only**, no L1 data fee, no Pyth update txs.

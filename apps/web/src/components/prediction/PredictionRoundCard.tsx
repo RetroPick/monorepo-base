@@ -153,94 +153,81 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
     const potentialWin = Number.isFinite(parsedEntryAmount) && parsedEntryAmount > 0 ? parsedEntryAmount * selectedPayout : null;
 
     return (
-      <div className="min-w-[300px] max-w-[320px] [perspective:1600px]">
+      <div className="min-w-[280px] max-w-[320px] aspect-square">
         <div
-          className="relative min-h-[382px] transition-transform duration-500 [transform-style:preserve-3d]"
+          className="relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d]"
           style={{ transform: entrySide ? "rotateY(180deg)" : "rotateY(0deg)" }}
         >
           <div
             className={cn(
-              "absolute inset-0 overflow-hidden rounded-[26px] border border-sky-400/20 bg-[linear-gradient(180deg,rgba(34,74,154,0.98),rgba(10,23,52,0.98))] p-3 text-white shadow-[0_28px_80px_-42px_rgba(37,99,235,0.65)]",
+              "absolute inset-0 overflow-hidden rounded-[28px] border border-sky-400/20 bg-gradient-to-b from-slate-900 via-slate-900 to-sky-900 text-white shadow-[0_24px_60px_-40px_rgba(15,23,42,0.65)]",
               entrySide ? "pointer-events-none" : "pointer-events-auto",
             )}
             style={{ backfaceVisibility: "hidden" }}
           >
-            <div className="pointer-events-none absolute inset-x-8 top-8 h-40 bg-[radial-gradient(circle,rgba(56,189,248,0.22),transparent_70%)]" />
-            <div className="relative flex h-full flex-col">
-              <div className="flex items-start justify-between gap-3">
+            <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_top,rgba(14,165,233,0.35),transparent_65%)]" />
+            <div className="relative flex h-full flex-col justify-between gap-3 px-5 py-4">
+              <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.2em]">
                 <div className="flex items-center gap-2">
                   {round.assetImage ? (
-                    <img src={round.assetImage} alt="" className="size-8 rounded-full object-cover ring-1 ring-white/15" />
+                    <img src={round.assetImage} alt="" className="h-8 w-8 rounded-full object-cover ring-1 ring-white/25" />
                   ) : null}
-                  <div className="inline-flex items-center gap-2 rounded-full border border-sky-300/30 bg-sky-300/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.22em] text-sky-100">
-                    <PlayCircle className="size-3.5" />
+                  <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] tracking-[0.35em] text-white/70">
+                    <PlayCircle className="h-3.5 w-3.5 text-white" />
                     Next
                   </div>
                 </div>
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-white/70">
+                <div className="rounded-full border border-white/20 bg-white/10 px-3 py-0.5 text-[11px] font-semibold text-white/70">
                   {marketTag}
                 </div>
               </div>
 
-              <div className="mt-2.5">
-                <div className="grid grid-cols-[1fr_auto] items-end gap-3">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/55">Open Bias</div>
-                    <div className="mt-1 flex items-center gap-1.5 text-emerald-300">
-                      <ArrowUpRight className="size-4" />
-                      <span className="text-[1.25rem] font-semibold tracking-tight text-white">Up {nextUpPercent}%</span>
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-white/55">Use current price</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">Down</div>
-                    <div className="mt-1 text-lg font-semibold tracking-tight text-white">{nextDownPercent}%</div>
-                  </div>
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-[0.15em] text-white/60">
+                  <span>Open Bias</span>
+                  <span className="text-white">Use current price</span>
                 </div>
-              </div>
-
-              <div className="mt-2.5 border-t border-white/10 pt-2.5">
-                <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em]">
+                <div className="flex items-center justify-between text-xl font-black tracking-tight">
                   <span className="text-emerald-300">Up {nextUpPercent}%</span>
                   <span className="text-rose-300">Down {nextDownPercent}%</span>
                 </div>
-                <div className="flex h-2 overflow-hidden rounded-full bg-white/10">
+                <div className="flex h-2.5 overflow-hidden rounded-full bg-white/10">
                   <div
                     style={{ width: `${nextUpPercent}%` }}
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300"
+                    className="h-full bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300"
                   />
                   <div
                     style={{ width: `${nextDownPercent}%` }}
-                    className="h-full rounded-full bg-gradient-to-r from-rose-500 via-red-500 to-red-600"
+                    className="h-full bg-gradient-to-r from-rose-500 via-red-500 to-red-600"
                   />
                 </div>
               </div>
 
-              <div className="mt-2.5 grid grid-cols-2 gap-4 border-t border-white/10 pt-2.5 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-white/70">
                 <div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">Price</div>
-                  <div className="mt-0.5 text-sm font-semibold text-white">
+                  <div className="text-[10px] text-white/50">Price</div>
+                  <div className="mt-1 text-lg text-white">
                     {round.lastPrice !== undefined ? formatPrice(round.lastPrice) : "--"}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">Prize Pool</div>
-                  <div className="mt-0.5 text-sm font-semibold text-white">{round.prizePool}</div>
+                <div>
+                  <div className="text-[10px] text-white/50">Prize Pool</div>
+                  <div className="mt-1 text-lg text-white">{round.prizePool}</div>
                 </div>
               </div>
 
-              <div className="relative z-10 mt-auto grid gap-2 border-t border-white/10 pt-2.5">
+              <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => setEntrySide("Up")}
-                  className="rounded-[15px] bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 px-5 py-2.5 text-sm font-black text-white transition hover:brightness-105"
+                  className="w-full rounded-[14px] border border-white/20 bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 py-2 text-sm font-black text-white transition hover:ring-2 hover:ring-emerald-200/60"
                 >
                   Enter Up
                 </button>
                 <button
                   type="button"
                   onClick={() => setEntrySide("Down")}
-                  className="rounded-[15px] bg-gradient-to-r from-rose-500 via-red-500 to-red-600 px-5 py-2.5 text-sm font-black text-white transition hover:brightness-105"
+                  className="w-full rounded-[14px] border border-white/20 bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 py-2 text-sm font-black text-white transition hover:ring-2 hover:ring-rose-200/60"
                 >
                   Enter Down
                 </button>
@@ -250,41 +237,22 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
 
           <div
             className={cn(
-              "absolute inset-0 overflow-hidden rounded-[26px] border border-sky-400/20 bg-[linear-gradient(180deg,rgba(34,74,154,0.98),rgba(10,23,52,0.98))] text-white shadow-[0_28px_80px_-42px_rgba(37,99,235,0.65)]",
+              "absolute inset-0 h-full w-full overflow-hidden rounded-[28px] border border-sky-400/20 bg-gradient-to-b from-slate-950 via-slate-950 to-sky-900 text-white shadow-[0_24px_60px_-40px_rgba(15,23,42,0.65)]",
               entrySide ? "pointer-events-auto" : "pointer-events-none",
             )}
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <div className="flex items-center justify-between bg-white/6 px-4 py-3">
-              <button
-                type="button"
-                onClick={() => setEntrySide(null)}
-                className="inline-flex items-center gap-2 text-lg font-bold text-white/90 transition hover:text-white"
-              >
-                <ArrowLeft className="size-5" />
-                Set Position
-              </button>
-              <button
-                type="button"
-                onClick={() => setEntrySide(isUp ? "Down" : "Up")}
-                className={cn(
-                  "rounded-xl border border-white/10 px-4 py-2 text-xs font-black uppercase transition",
-                  isUp
-                    ? "bg-emerald-400 text-white shadow-[0_12px_30px_-18px_rgba(52,211,153,0.9)]"
-                    : "bg-rose-500 text-white shadow-[0_12px_30px_-18px_rgba(244,63,94,0.9)]",
-                )}
-              >
-                {entrySide}
-              </button>
-            </div>
-
-            <div className="px-4 py-3">
-              <div className="flex items-center justify-between text-base font-bold text-white/70">
-                <span>Commit:</span>
-                <span>USD</span>
+            <div className="flex h-full flex-col justify-between gap-3 px-4 py-4">
+              <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                <button type="button" onClick={() => setEntrySide(null)} className="flex items-center gap-1 text-base font-black text-white">
+                  <ArrowLeft className="h-4 w-4" />
+                  Set Position
+                </button>
+                <span className="text-xs text-white/60">{entrySide}</span>
               </div>
 
-              <div className="mt-2">
+              <div className="flex flex-col gap-2">
+                <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">Commit (USD)</label>
                 <Input
                   id={`entry-amount-${round.id}`}
                   value={entryAmount}
@@ -295,36 +263,32 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
                   pattern="[0-9]*[.]?[0-9]{0,2}"
                   placeholder={isEntryFocused ? "" : "Enter Amount"}
                   dir="ltr"
-                  className="h-12 border-0 bg-transparent px-0 text-left text-[1.7rem] font-black text-white placeholder:text-left placeholder:text-[1.7rem] placeholder:font-black placeholder:text-white/35 focus-visible:ring-0 focus-visible:ring-offset-0 md:text-[1.9rem] md:placeholder:text-[1.9rem]"
+                  className="h-10 border-0 bg-white/10 p-0 text-[1.3rem] font-black text-white placeholder:text-white/60 focus-visible:ring-0 md:text-[1.4rem]"
                 />
               </div>
 
-              <div className="mt-2.5">
-                <div className="grid grid-cols-4 gap-2">
+              <div className="space-y-2">
+                <div className="grid grid-cols-4 gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
                   {["0.5", "1", "10", "100"].map((value) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => setQuickAmount(value)}
-                      className="rounded-full border border-white/8 bg-white/8 px-3 py-1.5 text-xs font-bold text-white/70 transition hover:bg-white/14 hover:text-white"
+                      className="rounded-full border border-white/20 bg-white/10 py-1 text-xs font-black text-white/80 transition hover:border-white/50 hover:text-white"
                     >
                       +${value}
                     </button>
                   ))}
                 </div>
-              </div>
 
-              <div className="mt-2.5 rounded-[16px] border border-white/10 bg-white/6 px-4 py-2.5">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/45">To Win</div>
-                    <div className="mt-1 text-xl font-black text-white">
-                      {potentialWin ? formatUsd(potentialWin) : "--"}
-                    </div>
+                <div className="rounded-[16px] border border-white/20 bg-white/5 p-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
+                  <div className="flex items-center justify-between text-base">
+                    <span className="text-white/80">To Win</span>
+                    <span className="text-white">{potentialWin ? formatUsd(potentialWin) : "--"}</span>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/45">Payout</div>
-                    <div className="mt-1 text-base font-bold text-white/85">{selectedPayout.toFixed(2)}x</div>
+                  <div className="mt-1 flex items-center justify-between text-sm">
+                    <span>{selectedPayout.toFixed(2)}x</span>
+                    <span className="text-white/80">Payout</span>
                   </div>
                 </div>
               </div>
@@ -339,15 +303,15 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
                   }
                 }}
                 className={cn(
-                  "relative z-10 mt-3 w-full rounded-[16px] px-5 py-3 text-lg font-black transition duration-200 will-change-transform hover:-translate-y-0.5 hover:scale-[1.01] hover:brightness-110 hover:shadow-[0_16px_38px_-18px_rgba(15,23,42,0.45)] active:translate-y-0 active:scale-[0.995]",
-                  isUp ? "bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 text-white" : "bg-gradient-to-r from-rose-500 via-red-500 to-red-600 text-white",
+                  "w-full rounded-[16px] px-4 py-3 text-lg font-black text-white transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:brightness-110",
+                  isUp ? "bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300" : "bg-gradient-to-r from-rose-500 via-red-500 to-rose-600",
                 )}
               >
                 {!isConnected ? "Connect Wallet" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
               </button>
 
-              <p className="mt-1.5 text-xs font-semibold leading-4 text-white/55">
-                You won&apos;t be able to remove or change your position once you enter it.
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
+                You won’t be able to remove or change your position once entered.
               </p>
             </div>
           </div>

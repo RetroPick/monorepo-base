@@ -3,18 +3,42 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import LoginModal from "./LoginModal";
 
+const connectWalletMock = vi.fn();
+const openAppKitMock = vi.fn();
 const executeSocialLoginMock = vi.fn();
-const openMock = vi.fn();
 const toastMock = vi.fn();
-const useAppKitAccountMock = vi.fn();
+const useAccountMock = vi.fn();
+
+vi.mock("wagmi", () => ({
+  useAccount: () => useAccountMock(),
+}));
 
 vi.mock("@reown/appkit/react", () => ({
-  useAppKit: () => ({ open: openMock }),
-  useAppKitAccount: () => useAppKitAccountMock(),
+  useAppKit: () => ({
+    open: (...args: unknown[]) => openAppKitMock(...args),
+  }),
 }));
 
 vi.mock("@reown/appkit-controllers/utils", () => ({
   executeSocialLogin: (...args: unknown[]) => executeSocialLoginMock(...args),
+}));
+
+vi.mock("@/hooks/useWalletConnection", () => ({
+  useWalletConnection: () => ({
+    connectWallet: (...args: unknown[]) => connectWalletMock(...args),
+    isPending: false,
+    pendingConnector: undefined,
+    walletOptions: [
+      {
+        label: "Coinbase Wallet",
+        connector: { id: "coinbaseWalletSDK", name: "Coinbase Wallet" },
+      },
+      {
+        label: "Browser Wallet",
+        connector: { id: "injected", name: "Injected" },
+      },
+    ],
+  }),
 }));
 
 vi.mock("@/components/ui/use-toast", () => ({
@@ -23,40 +47,54 @@ vi.mock("@/components/ui/use-toast", () => ({
 
 describe("LoginModal", () => {
   beforeEach(() => {
+    connectWalletMock.mockReset();
+    openAppKitMock.mockReset();
     executeSocialLoginMock.mockReset();
-    openMock.mockReset();
     toastMock.mockReset();
-    useAppKitAccountMock.mockReset();
+    useAccountMock.mockReset();
 
-    useAppKitAccountMock.mockReturnValue({
+    useAccountMock.mockReturnValue({
       isConnected: false,
-      embeddedWalletInfo: undefined,
     });
   });
 
-  it("starts AppKit Google social login when the Google CTA is clicked", async () => {
+  it("starts Coinbase Wallet when its tile is clicked", async () => {
+    connectWalletMock.mockResolvedValue(undefined);
+
+    render(<LoginModal isOpen onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /coinbase wallet/i }));
+
+    await waitFor(() => {
+      expect(connectWalletMock).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "coinbaseWalletSDK" }),
+      );
+    });
+  });
+
+  it("starts Google social login from the account abstraction tile", async () => {
     executeSocialLoginMock.mockResolvedValue(undefined);
 
     render(<LoginModal isOpen onClose={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    fireEvent.click(screen.getByRole("button", { name: /google/i }));
 
     await waitFor(() => {
       expect(executeSocialLoginMock).toHaveBeenCalledWith("google");
     });
   });
 
-  it("surfaces an error toast when Google social login setup fails", async () => {
-    executeSocialLoginMock.mockRejectedValue(new Error("Popup blocked"));
+  it("surfaces an error toast when wallet setup fails", async () => {
+    connectWalletMock.mockRejectedValue(new Error("Popup blocked"));
 
     render(<LoginModal isOpen onClose={vi.fn()} />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+    fireEvent.click(screen.getByRole("button", { name: /coinbase wallet/i }));
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: "Google sign-in failed",
+          title: "Wallet connection failed",
           description: "Popup blocked",
           variant: "destructive",
         }),

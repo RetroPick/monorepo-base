@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useAppKitAccount } from '@reown/appkit/react';
+import { useAccount } from 'wagmi';
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,7 @@ const steps = [
 ];
 
 const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModalProps) => {
-    const { address } = useAppKitAccount();
+    const { address } = useAccount();
     const [currentStep, setCurrentStep] = useState(0);
     const [username, setUsername] = useState("");
     const [email, setEmail] = useState("");
@@ -168,7 +168,7 @@ const OnboardingModal = ({ isOpen, onClose, onComplete }: OnboardingModalProps) 
                         <div>
                             <h3 className="text-xl font-bold">Deposit Funds</h3>
                             <p className="text-muted-foreground text-sm mt-1">
-                                Send SOL to your trading wallet to start.
+                                Send AVAX to your trading wallet to start.
                             </p>
                             <div className="mt-4 p-3 bg-secondary rounded-lg font-mono text-xs break-all border border-border">
                                 {address || "0x..."}

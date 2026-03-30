@@ -65,7 +65,7 @@ export default function Resolution() {
         <div className="min-h-screen bg-background text-slate-900 dark:text-gray-100 font-sans transition-colors duration-300 pb-20">
             <Header />
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-10">
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-10">
                 {/* Header */}
                 <div className="mb-8">
                     <div className="flex items-center gap-3 mb-2">

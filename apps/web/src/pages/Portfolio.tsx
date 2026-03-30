@@ -97,7 +97,7 @@ const Portfolio = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
 
-      <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-52 lg:px-8">
+      <main className="mx-auto max-w-[1440px] px-4 pb-16 pt-8 lg:px-8">
         <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <KpiCard
             label="Realized PnL"
