@@ -16,5 +16,8 @@
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down -v"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts-upgradeable": "^5.6.1"
   }
 }

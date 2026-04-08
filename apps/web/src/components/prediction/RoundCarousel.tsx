@@ -109,7 +109,7 @@ export function RoundCarousel({ rounds }: RoundCarouselProps) {
       </button>
       <div
         ref={scrollRef}
-        className="flex cursor-grab gap-3 overflow-x-auto overscroll-x-contain overscroll-y-contain no-scrollbar px-10 py-2 active:cursor-grabbing"
+        className="flex cursor-grab gap-2 overflow-x-auto overscroll-x-contain overscroll-y-contain no-scrollbar px-10 py-2 active:cursor-grabbing"
         style={{
           scrollbarWidth: "none",
           overscrollBehaviorX: "contain",

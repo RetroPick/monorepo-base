@@ -2,13 +2,16 @@ import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 import { ArrowDownRight, ArrowLeft, ArrowUpRight, Clock3, PlayCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
 import type { PredictionRound } from "@/types/prediction";
 
 interface PredictionRoundCardProps {
   round: PredictionRound;
   onRequestLogin?: () => void;
 }
+
+/** Fixed 1:1 tile used by the carousel so every round card aligns. */
+const ROUND_CARD_SQUARE =
+  "aspect-square w-[min(100%,320px)] min-w-[260px] max-w-[320px] shrink-0";
 
 const statusStyles: Record<string, {
   badge: string;
@@ -152,46 +155,45 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
     const parsedEntryAmount = Number(entryAmount);
     const potentialWin = Number.isFinite(parsedEntryAmount) && parsedEntryAmount > 0 ? parsedEntryAmount * selectedPayout : null;
 
+    const nextFaceShell =
+      "absolute inset-0 overflow-hidden rounded-[28px] border border-sky-400/20 bg-gradient-to-b from-slate-900 via-slate-900 to-sky-900 text-white shadow-[0_24px_60px_-40px_rgba(15,23,42,0.65)]";
+    const hasCommitAmount = entryAmount.trim().length > 0;
+
     return (
-      <div className="min-w-[280px] max-w-[320px] aspect-square">
+      <div className={ROUND_CARD_SQUARE}>
         <div
           className="relative h-full w-full transition-transform duration-500 [transform-style:preserve-3d]"
           style={{ transform: entrySide ? "rotateY(180deg)" : "rotateY(0deg)" }}
         >
           <div
-            className={cn(
-              "absolute inset-0 overflow-hidden rounded-[28px] border border-sky-400/20 bg-gradient-to-b from-slate-900 via-slate-900 to-sky-900 text-white shadow-[0_24px_60px_-40px_rgba(15,23,42,0.65)]",
-              entrySide ? "pointer-events-none" : "pointer-events-auto",
-            )}
+            className={cn(nextFaceShell, entrySide ? "pointer-events-none" : "pointer-events-auto")}
             style={{ backfaceVisibility: "hidden" }}
           >
             <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_top,rgba(14,165,233,0.35),transparent_65%)]" />
-            <div className="relative flex h-full flex-col justify-between gap-3 px-5 py-4">
-              <div className="flex items-center justify-between gap-3 text-[11px] font-semibold uppercase tracking-[0.2em]">
-                <div className="flex items-center gap-2">
+            <div className="relative flex h-full min-h-0 flex-col gap-3 px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
                   {round.assetImage ? (
-                    <img src={round.assetImage} alt="" className="h-8 w-8 rounded-full object-cover ring-1 ring-white/25" />
+                    <img src={round.assetImage} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-white/20" />
                   ) : null}
-                  <div className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] tracking-[0.35em] text-white/70">
-                    <PlayCircle className="h-3.5 w-3.5 text-white" />
-                    Next
+                  <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-sky-100">
+                    <PlayCircle className="h-4 w-4 shrink-0 text-sky-300" aria-hidden />
+                    <span>Next</span>
                   </div>
                 </div>
-                <div className="rounded-full border border-white/20 bg-white/10 px-3 py-0.5 text-[11px] font-semibold text-white/70">
-                  {marketTag}
-                </div>
+                <span className="shrink-0 text-sm font-medium tabular-nums text-white/55">{marketTag}</span>
               </div>
 
-              <div className="flex flex-col gap-2 text-sm">
-                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-[0.15em] text-white/60">
-                  <span>Open Bias</span>
-                  <span className="text-white">Use current price</span>
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-white/50">Open bias</span>
+                  <span className="font-medium text-white/90">Use current price</span>
                 </div>
-                <div className="flex items-center justify-between text-xl font-black tracking-tight">
+                <div className="flex items-center justify-between text-lg font-semibold tracking-tight">
                   <span className="text-emerald-300">Up {nextUpPercent}%</span>
                   <span className="text-rose-300">Down {nextDownPercent}%</span>
                 </div>
-                <div className="flex h-2.5 overflow-hidden rounded-full bg-white/10">
+                <div className="flex h-2 overflow-hidden rounded-full bg-white/10">
                   <div
                     style={{ width: `${nextUpPercent}%` }}
                     className="h-full bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300"
@@ -203,116 +205,142 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-white/70">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                 <div>
-                  <div className="text-[10px] text-white/50">Price</div>
-                  <div className="mt-1 text-lg text-white">
-                    {round.lastPrice !== undefined ? formatPrice(round.lastPrice) : "--"}
+                  <div className="text-xs font-medium text-white/45">Price</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums text-white">
+                    {round.lastPrice !== undefined ? formatPrice(round.lastPrice) : "—"}
                   </div>
                 </div>
-                <div>
-                  <div className="text-[10px] text-white/50">Prize Pool</div>
-                  <div className="mt-1 text-lg text-white">{round.prizePool}</div>
+                <div className="text-right">
+                  <div className="text-xs font-medium text-white/45">Prize pool</div>
+                  <div className="mt-1 text-lg font-semibold tabular-nums text-white">{round.prizePool}</div>
                 </div>
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="mt-auto flex flex-col gap-2.5">
                 <button
                   type="button"
                   onClick={() => setEntrySide("Up")}
-                  className="w-full rounded-[14px] border border-white/20 bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 py-2 text-sm font-black text-white transition hover:ring-2 hover:ring-emerald-200/60"
+                  className="w-full rounded-xl bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300/50"
                 >
-                  Enter Up
+                  Enter up
                 </button>
                 <button
                   type="button"
                   onClick={() => setEntrySide("Down")}
-                  className="w-full rounded-[14px] border border-white/20 bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 py-2 text-sm font-black text-white transition hover:ring-2 hover:ring-rose-200/60"
+                  className="w-full rounded-xl bg-gradient-to-r from-rose-500 via-red-500 to-rose-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300/50"
                 >
-                  Enter Down
+                  Enter down
                 </button>
               </div>
             </div>
           </div>
 
           <div
-            className={cn(
-              "absolute inset-0 h-full w-full overflow-hidden rounded-[28px] border border-sky-400/20 bg-gradient-to-b from-slate-950 via-slate-950 to-sky-900 text-white shadow-[0_24px_60px_-40px_rgba(15,23,42,0.65)]",
-              entrySide ? "pointer-events-auto" : "pointer-events-none",
-            )}
+            className={cn(nextFaceShell, entrySide ? "pointer-events-auto" : "pointer-events-none")}
             style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
           >
-            <div className="flex h-full flex-col justify-between gap-3 px-4 py-4">
-              <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.2em] text-white/70">
-                <button type="button" onClick={() => setEntrySide(null)} className="flex items-center gap-1 text-base font-black text-white">
-                  <ArrowLeft className="h-4 w-4" />
-                  Set Position
+            <div className="absolute inset-0 opacity-40 [background-image:radial-gradient(circle_at_top,rgba(14,165,233,0.35),transparent_65%)]" />
+            <div className="relative flex h-full min-h-0 flex-col gap-3 px-4 pb-4 pt-3 sm:gap-4 sm:pb-5 sm:pt-4">
+              <div className="flex shrink-0 items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEntrySide(null)}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-white transition hover:text-white/85"
+                >
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                  Set position
                 </button>
-                <span className="text-xs text-white/60">{entrySide}</span>
+                <button
+                  type="button"
+                  onClick={() => setEntrySide(isUp ? "Down" : "Up")}
+                  className={cn(
+                    "min-h-[2rem] shrink-0 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.12em] transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.98] sm:px-3.5 sm:text-xs sm:tracking-[0.16em]",
+                    isUp
+                      ? "bg-emerald-500/35 text-emerald-50 outline-emerald-400/50 focus-visible:outline-emerald-300/60"
+                      : "bg-rose-500/35 text-rose-50 outline-rose-400/50 focus-visible:outline-rose-300/60",
+                  )}
+                  aria-pressed={true}
+                  aria-label={isUp ? "Side: Up. Click to switch to Down." : "Side: Down. Click to switch to Up."}
+                >
+                  {entrySide}
+                </button>
               </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">Commit (USD)</label>
-                <Input
-                  id={`entry-amount-${round.id}`}
-                  value={entryAmount}
-                  onChange={(event) => setEntryAmount(sanitizeAmountInput(event.target.value))}
-                  onFocus={() => setIsEntryFocused(true)}
-                  onBlur={() => setIsEntryFocused(false)}
-                  inputMode="decimal"
-                  pattern="[0-9]*[.]?[0-9]{0,2}"
-                  placeholder={isEntryFocused ? "" : "Enter Amount"}
-                  dir="ltr"
-                  className="h-10 border-0 bg-white/10 p-0 text-[1.3rem] font-black text-white placeholder:text-white/60 focus-visible:ring-0 md:text-[1.4rem]"
-                />
-              </div>
+              <div className="flex min-h-0 flex-1 flex-col justify-start gap-3 sm:gap-3.5">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor={`entry-amount-${round.id}`} className="sr-only">
+                    Amount in USD
+                  </label>
+                  <div className="flex min-h-[2.5rem] items-center sm:min-h-[2.75rem]">
+                    <input
+                      id={`entry-amount-${round.id}`}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      spellCheck={false}
+                      value={entryAmount}
+                      onChange={(event) => setEntryAmount(sanitizeAmountInput(event.target.value))}
+                      onFocus={() => setIsEntryFocused(true)}
+                      onBlur={() => setIsEntryFocused(false)}
+                      pattern="[0-9]*[.]?[0-9]{0,2}"
+                      placeholder={isEntryFocused && !hasCommitAmount ? "" : "Enter amount"}
+                      dir="ltr"
+                      className={cn(
+                        "m-0 block w-full min-w-0 appearance-none bg-transparent p-0",
+                        "border-0 shadow-none outline-none ring-0 ring-offset-0",
+                        "rounded-none focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0",
+                        "[color-scheme:dark]",
+                        "font-mono text-[1.65rem] font-semibold tabular-nums tracking-tight leading-none sm:text-[1.85rem] md:text-[2.15rem]",
+                        "caret-sky-300",
+                        hasCommitAmount ? "text-white" : "text-white/88 placeholder:font-sans placeholder:font-medium placeholder:text-white/34",
+                      )}
+                    />
+                  </div>
 
-              <div className="space-y-2">
-                <div className="grid grid-cols-4 gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/60">
-                  {["0.5", "1", "10", "100"].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setQuickAmount(value)}
-                      className="rounded-full border border-white/20 bg-white/10 py-1 text-xs font-black text-white/80 transition hover:border-white/50 hover:text-white"
-                    >
-                      +${value}
-                    </button>
-                  ))}
+                  <div className="flex flex-wrap gap-2">
+                    {["0.5", "1", "10", "100"].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setQuickAmount(value)}
+                        className="min-w-[3.25rem] flex-1 rounded-lg bg-white/10 py-2 text-xs font-medium text-white/85 transition hover:bg-white/16"
+                      >
+                        +${value}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
-                <div className="rounded-[16px] border border-white/20 bg-white/5 p-3 text-xs font-semibold uppercase tracking-[0.18em] text-white/70">
-                  <div className="flex items-center justify-between text-base">
-                    <span className="text-white/80">To Win</span>
-                    <span className="text-white">{potentialWin ? formatUsd(potentialWin) : "--"}</span>
+                <div className="flex flex-col gap-2 border-t border-white/15 pt-3 sm:gap-2 sm:pt-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs text-white/55 sm:text-sm">To win</span>
+                    <span className="text-lg font-semibold tabular-nums text-white sm:text-xl">
+                      {potentialWin ? formatUsd(potentialWin) : "—"}
+                    </span>
                   </div>
-                  <div className="mt-1 flex items-center justify-between text-sm">
-                    <span>{selectedPayout.toFixed(2)}x</span>
-                    <span className="text-white/80">Payout</span>
-                  </div>
+                  <p className="text-xs text-white/45 sm:text-sm">
+                    {selectedPayout.toFixed(2)}× payout
+                  </p>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => {
+                      if (!isConnected) {
+                        onRequestLogin?.();
+                        return;
+                      }
+                    }}
+                    className={cn(
+                      "mt-1 w-full rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-105 sm:py-3 sm:text-base",
+                      isUp ? "bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300" : "bg-gradient-to-r from-rose-500 via-red-500 to-rose-600",
+                    )}
+                  >
+                    {!isConnected ? "Connect wallet" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
+                  </button>
                 </div>
               </div>
-
-              <button
-                type="button"
-                onPointerDown={(event) => event.stopPropagation()}
-                onClick={() => {
-                  if (!isConnected) {
-                    onRequestLogin?.();
-                    return;
-                  }
-                }}
-                className={cn(
-                  "w-full rounded-[16px] px-4 py-3 text-lg font-black text-white transition duration-200 hover:-translate-y-0.5 hover:scale-[1.01] hover:brightness-110",
-                  isUp ? "bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300" : "bg-gradient-to-r from-rose-500 via-red-500 to-rose-600",
-                )}
-              >
-                {!isConnected ? "Connect Wallet" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
-              </button>
-
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/60">
-                You won’t be able to remove or change your position once entered.
-              </p>
             </div>
           </div>
         </div>
@@ -330,16 +358,17 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
     : "";
 
   return (
-    <div
-      className={cn(
-        "group relative min-w-[272px] max-w-[292px] overflow-hidden rounded-[24px] border p-3.5 text-slate-950 transition-all duration-300 hover:-translate-y-1 dark:text-white",
-        isExpired ? expiredOutcomeTheme : statusStyle.frame,
-        statusStyle.glow,
-        mutedCard && "opacity-85 saturate-75",
-      )}
-    >
-      <div className={cn("pointer-events-none absolute inset-y-5 left-0 w-1 rounded-r-full opacity-90", statusStyle.accent)} />
-      <div className="relative flex items-start justify-between gap-3">
+    <div className={ROUND_CARD_SQUARE}>
+      <div
+        className={cn(
+          "group relative flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border p-3 text-slate-950 transition-all duration-300 hover:-translate-y-1 dark:text-white",
+          isExpired ? expiredOutcomeTheme : statusStyle.frame,
+          statusStyle.glow,
+          mutedCard && "opacity-85 saturate-75",
+        )}
+      >
+      <div className={cn("pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full opacity-90", statusStyle.accent)} />
+      <div className="relative flex shrink-0 items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           {round.assetImage ? (
             <img src={round.assetImage} alt="" className="size-8 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15" />
@@ -354,7 +383,7 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
         </div>
       </div>
 
-      <div className="relative mt-3">
+      <div className="relative mt-2 flex min-h-0 flex-1 flex-col gap-0">
         {isExpired ? (
           <div className="grid gap-3">
             <div className="flex items-start justify-between gap-3">
@@ -492,9 +521,17 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
           )}
 
           {isLive && (
-            <div className="col-span-2 text-sm">
-              <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Prize Pool</div>
-              <div className="mt-1 font-semibold text-slate-950 dark:text-white">{round.prizePool}</div>
+            <div className="col-span-2 flex items-end justify-between gap-3 text-sm">
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Prize Pool</div>
+                <div className="mt-1 font-semibold text-slate-950 dark:text-white">{round.prizePool}</div>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 rounded-2xl border border-blue-200/70 bg-white/55 px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] text-blue-900 transition-colors hover:bg-blue-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-blue-100 dark:hover:bg-white/[0.06]"
+              >
+                Details
+              </button>
             </div>
           )}
 
@@ -508,10 +545,11 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
           )}
         </div>
 
-        <div className="mt-3 border-t border-slate-200/80 pt-3 dark:border-white/10">
-          {mutedCard ? (
+        {mutedCard ? (
+          <div className="mt-auto border-t border-slate-200/80 pt-3 dark:border-white/10">
             <div className="ml-auto flex items-center justify-between gap-3">
               <button
+                type="button"
                 className={cn(
                   "rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] transition-colors",
                   "border border-slate-300/80 bg-slate-200/70 text-slate-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-300",
@@ -521,16 +559,9 @@ export function PredictionRoundCard({ round, onRequestLogin }: PredictionRoundCa
                 {isLater ? "Waiting" : "Settled"}
               </button>
             </div>
-          ) : (
-            <div className="ml-auto flex items-center justify-between gap-3">
-              <button
-                className="border border-blue-200/70 bg-white/55 text-blue-900 hover:bg-blue-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-blue-100 dark:hover:bg-white/[0.06] rounded-2xl px-4 py-2.5 text-xs font-black uppercase tracking-[0.18em] transition-colors"
-              >
-                Details
-              </button>
-            </div>
-          )}
-        </div>
+          </div>
+        ) : null}
+      </div>
       </div>
     </div>
   );

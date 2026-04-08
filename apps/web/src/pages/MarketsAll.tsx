@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, Search, TrendingUp } from "lucide-react";
+import { ArrowUpRight, ChevronRight, TrendingUp } from "lucide-react";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import { AssetLogo } from "@/components/AssetLogo";
@@ -9,15 +9,12 @@ import { Market } from "@/types/market";
 
 type DiscoveryTab = "All" | "Today" | "This Week" | "Ending Soon" | "Featured" | "My Positions";
 type AssetFilter = "All assets" | string;
-type ScheduleFilter = "All schedules" | "Daily" | "Weekly";
 type NarrativeFilter =
   | "All narratives"
   | "Above Yesterday Close"
   | "Above Daily Open"
   | "Below Weekly Open"
   | "Weekly Breakout Watch";
-type StateFilter = "All states" | "Open" | "Locked" | "Resolving";
-type SortFilter = "Featured first" | "Ending soon" | "Closest to threshold" | "Largest pool";
 
 type DiscoveryMarket = Market & {
   assetSymbol: "BTC" | "ETH" | "SOL";
@@ -25,7 +22,7 @@ type DiscoveryMarket = Market & {
   timeBucket: "Today" | "This Week" | "Ending Soon";
   schedule: "Daily" | "Weekly";
   narrativeFamily: Exclude<NarrativeFilter, "All narratives">;
-  stateCategory: Exclude<StateFilter, "All states">;
+  stateCategory: "Open" | "Locked" | "Resolving";
   thresholdLabel: string;
   thresholdValue: number;
   currentPrice: number;
@@ -41,25 +38,6 @@ type DiscoveryMarket = Market & {
 };
 
 const TABS: DiscoveryTab[] = ["All", "Today", "This Week", "Ending Soon", "Featured", "My Positions"];
-const ASSET_FILTERS: AssetFilter[] = ["All assets", "BTC", "ETH", "SOL"];
-const SCHEDULE_FILTERS: ScheduleFilter[] = ["All schedules", "Daily", "Weekly"];
-const NARRATIVE_FILTERS: NarrativeFilter[] = [
-  "All narratives",
-  "Above Yesterday Close",
-  "Above Daily Open",
-  "Below Weekly Open",
-  "Weekly Breakout Watch",
-];
-const STATE_FILTERS: StateFilter[] = ["All states", "Open", "Locked", "Resolving"];
-const SORT_FILTERS: SortFilter[] = ["Featured first", "Ending soon", "Closest to threshold", "Largest pool"];
-const FEATURED_MARKET_IDS = [
-  "btc-daily-yesterday-close",
-  "sol-daily-yesterday-close",
-  "btc-weekly-open",
-  "sol-weekly-open",
-  "eth-daily-yesterday-close",
-  "eth-weekly-breakout",
-];
 
 const discoveryStatusStyles: Record<
   DiscoveryMarket["stateCategory"],
@@ -68,13 +46,13 @@ const discoveryStatusStyles: Record<
   }
 > = {
   Open: {
-    badge: "border-emerald-500/18 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+    badge: "border-[#1f4e39] bg-[#193629] text-[#7df0b6]",
   },
   Locked: {
-    badge: "border-amber-500/18 bg-amber-500/10 text-amber-600 dark:text-amber-300",
+    badge: "border-[#5b4720] bg-[#3b3120] text-[#f7cf6a]",
   },
   Resolving: {
-    badge: "border-sky-500/18 bg-sky-500/10 text-sky-600 dark:text-sky-300",
+    badge: "border-[#1f4764] bg-[#163246] text-[#7bc7ff]",
   },
 };
 
@@ -102,6 +80,21 @@ function formatCountdown(targetIso: string, nowMs: number) {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+
+function yesPercentFromPools(market: DiscoveryMarket) {
+  const t = market.yesPoolValue + market.noPoolValue;
+  if (t <= 0) return 50;
+  return Math.round((market.yesPoolValue / t) * 100);
+}
+
+function thresholdSubtitle(market: DiscoveryMarket) {
+  const v = market.thresholdValue;
+  const price =
+    v >= 1000
+      ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
+      : `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+  return `${price} · ${market.thresholdLabel}`;
 }
 
 function getDiscoveryMarkets(nowMs: number): DiscoveryMarket[] {
@@ -1019,7 +1012,7 @@ function getDiscoveryMarkets(nowMs: number): DiscoveryMarket[] {
   }));
 }
 
-function MarketListRow({
+function DiscoveryMarketCard({
   market,
   onOpen,
 }: {
@@ -1035,152 +1028,212 @@ function MarketListRow({
 
   return (
     <article
+      role="button"
+      tabIndex={0}
       onClick={() => onOpen(market)}
-      className="group flex cursor-pointer flex-col gap-3 border-b border-border py-4 pl-1 pr-1 text-left transition-colors last:border-b-0 hover:bg-muted/25 sm:flex-row sm:items-center sm:gap-4 sm:py-5"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(market);
+        }
+      }}
+      className={cn(
+        "group relative flex cursor-pointer flex-col overflow-hidden rounded-[26px] border text-left outline-none transition-all duration-200",
+        "border-[#222b35] bg-[#161c22] text-white shadow-[0_18px_40px_-28px_rgba(0,0,0,0.65)]",
+        "hover:-translate-y-0.5 hover:border-[#2f3a46] hover:bg-[#192028] hover:shadow-[0_28px_60px_-32px_rgba(0,0,0,0.78)]",
+        "focus-visible:ring-2 focus-visible:ring-emerald-400/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      )}
     >
-      <div className="flex min-w-0 flex-1 items-start gap-3">
-        <AssetLogo symbol={market.assetSymbol} className="size-9 shrink-0 sm:size-10" />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={cn("rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide", style.badge)}>
-              {market.stateCategory}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              {market.assetSymbol} · {market.countdownLabel}
-            </span>
+      <div className="relative flex flex-1 flex-col p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <AssetLogo symbol={market.assetSymbol} className="size-11 shrink-0 rounded-xl border border-white/8 bg-white/5 p-1.5" />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="truncate text-sm font-semibold tracking-tight text-white">{market.assetName}</span>
+                <span className="text-xs font-semibold text-white/45">{market.assetSymbol}</span>
+                <span
+                  className={cn(
+                    "inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                    style.badge,
+                  )}
+                >
+                  {market.stateCategory}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] font-medium tabular-nums text-white/48 sm:text-xs">
+                {market.countdownLabel}
+              </p>
+            </div>
           </div>
-          <h3 className="mt-1.5 text-[15px] font-medium leading-snug text-foreground sm:text-base">{market.title}</h3>
-          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
-            {formatCompactCurrency(totalPool)} vol · {market.narrativeFamily}
-          </p>
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-white/8 bg-white/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/62"
+            title="Settled on Solana"
+          >
+            <span className="size-1.5 rounded-full bg-gradient-to-br from-[#9945FF] to-[#14F195]" aria-hidden />
+            Solana
+          </span>
         </div>
-      </div>
 
-      <div className="flex shrink-0 items-center gap-2 sm:pl-2">
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen(market);
-          }}
-          className="min-w-[4.5rem] rounded-md border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-center text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-500/15 dark:text-emerald-300"
-        >
-          Yes {yesPct}%
-        </button>
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen(market);
-          }}
-          className="min-w-[4.5rem] rounded-md border border-rose-500/35 bg-rose-500/10 px-3 py-2 text-center text-sm font-medium text-rose-700 transition-colors hover:bg-rose-500/15 dark:text-rose-300"
-        >
-          No {noPct}%
-        </button>
-        <ChevronRight className="ml-1 hidden size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 sm:block" aria-hidden />
+        <h3 className="mt-4 line-clamp-2 text-[15px] font-semibold leading-snug tracking-tight text-white sm:text-[17px]">
+          {market.title}
+        </h3>
+        <p className="mt-2 line-clamp-1 text-sm text-white/50">
+          {market.narrativeFamily}
+        </p>
+
+        <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/6 bg-black/10 px-3 py-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/36">Chance</p>
+            <p className="mt-1 text-lg font-bold tabular-nums text-white">{yesPct}%</p>
+          </div>
+          <div className="flex h-2.5 w-28 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full bg-[#22c55e] transition-[width] duration-300"
+              style={{ width: `${yesPct}%` }}
+            />
+            <div
+              className="h-full bg-[#ef4444] transition-[width] duration-300"
+              style={{ width: `${noPct}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(market);
+            }}
+            className="rounded-2xl border border-[#1f4e39] bg-[#193629] px-3 py-3 text-left transition-colors hover:border-[#2b6b4f] hover:bg-[#1f4231]"
+          >
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#6dd3a1]">Yes</span>
+            <span className="mt-1 block text-lg font-bold tabular-nums text-[#7df0b6]">{yesPct}%</span>
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen(market);
+            }}
+            className="rounded-2xl border border-[#5a2629] bg-[#3b2427] px-3 py-3 text-left transition-colors hover:border-[#773439] hover:bg-[#47292d]"
+          >
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ff7f84]">No</span>
+            <span className="mt-1 block text-lg font-bold tabular-nums text-[#ff9fa3]">{noPct}%</span>
+          </button>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between border-t border-white/6 pt-3">
+          <div>
+            <span className="block text-sm font-medium text-white/78">{market.volume} Vol.</span>
+            <span className="mt-0.5 block text-xs text-white/38">{thresholdSubtitle(market)}</span>
+          </div>
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-white/78 transition-colors group-hover:text-white">
+            View market
+            <ArrowUpRight className="size-3.5 opacity-70" aria-hidden />
+          </span>
+        </div>
       </div>
     </article>
   );
 }
 
-function FilterSelect({
-  title,
-  value,
-  options,
-  onChange,
-}: {
-  title: string;
-  value: string;
-  options: string[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{title}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground outline-none transition-colors focus:border-foreground/40"
-      >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function SidebarMarketList({
-  title,
-  items,
-  onOpen,
-}: {
-  title: string;
-  items: DiscoveryMarket[];
-  onOpen: (market: DiscoveryMarket) => void;
-}) {
-  if (items.length === 0) return null;
-
-  return (
-    <section className="rounded-lg border border-border bg-card p-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
-      <div className="mt-3 space-y-2">
-        {items.map((market, index) => (
-          <button
-            key={market.id}
-            type="button"
-            onClick={() => onOpen(market)}
-            className="flex w-full items-start gap-3 rounded-[18px] border border-transparent px-2 py-2 text-left transition-colors hover:border-border/60 hover:bg-background"
-          >
-            <span className="mt-0.5 text-[11px] font-medium text-muted-foreground">{index + 1}</span>
-            <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 text-[13px] font-semibold leading-5 text-foreground">{market.title}</div>
-              <div className="mt-1 text-[11px] text-muted-foreground">{market.assetSymbol} • {market.countdownLabel}</div>
-            </div>
-            <div className="shrink-0 text-[12px] font-semibold text-foreground">
-              {formatCompactCurrency(market.yesPoolValue + market.noPoolValue)}
-            </div>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function DiscoverSidebar({
-  featuredMarkets,
-  highestVolumeMarkets,
+  trendingMarkets,
   onOpenUpDown,
   onOpen,
 }: {
-  featuredMarkets: DiscoveryMarket[];
-  highestVolumeMarkets: DiscoveryMarket[];
+  trendingMarkets: DiscoveryMarket[];
   onOpenUpDown: () => void;
   onOpen: (market: DiscoveryMarket) => void;
 }) {
+  const list = trendingMarkets.slice(0, 7);
+
   return (
-    <aside className="space-y-4 lg:sticky lg:top-28">
-      <button
-        type="button"
-        onClick={onOpenUpDown}
-        className="flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-left text-sm transition-colors hover:bg-muted/40"
-      >
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-md border border-border bg-background">
-            <TrendingUp className="size-4 text-foreground" />
-          </div>
-          <div>
-            <div className="font-medium text-foreground">Up or Down</div>
-            <div className="text-xs text-muted-foreground">Short intraday markets</div>
+    <aside className="w-full space-y-5 lg:sticky lg:top-28 lg:w-80">
+      {/* Kalshi-style promo strip */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-slate-950 p-4 text-white shadow-lg ring-1 ring-emerald-500/25">
+        <div
+          className="pointer-events-none absolute -right-6 -top-6 size-28 rounded-full bg-emerald-400/15 blur-2xl"
+          aria-hidden
+        />
+        <p className="relative text-[10px] font-semibold uppercase tracking-[0.2em] text-emerald-200/80">
+          Crypto thresholds
+        </p>
+        <h2 className="relative mt-2 text-lg font-bold leading-tight tracking-tight">Up or Down</h2>
+        <p className="relative mt-1 text-xs leading-relaxed text-emerald-100/75">
+          Short intraday markets on Solana
+        </p>
+        <div className="relative mt-4 flex justify-center">
+          <div className="flex gap-1 rounded-full bg-emerald-500/20 px-3 py-2 ring-1 ring-emerald-400/20">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <span
+                key={i}
+                className="size-2 rounded-full bg-emerald-400/90 shadow-[0_0_12px_rgba(52,211,153,0.7)]"
+                style={{ opacity: 0.35 + i * 0.13 }}
+                aria-hidden
+              />
+            ))}
           </div>
         </div>
-        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-      </button>
+        <button
+          type="button"
+          onClick={onOpenUpDown}
+          className="relative mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-2.5 text-sm font-semibold text-emerald-950 shadow-sm transition hover:bg-emerald-50"
+        >
+          Trade now
+          <ChevronRight className="size-4 opacity-70" aria-hidden />
+        </button>
+      </div>
 
-      <SidebarMarketList title="Featured" items={featuredMarkets.slice(0, 5)} onOpen={onOpen} />
-      <SidebarMarketList title="Most volume" items={highestVolumeMarkets.slice(0, 5)} onOpen={onOpen} />
+      {/* Trending — numbered rows, question + level, % + skew */}
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <div className="flex items-center justify-between border-b border-border/70 px-3 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-semibold text-foreground">Trending</span>
+            <TrendingUp className="size-3.5 text-emerald-500" aria-hidden />
+          </div>
+          <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden />
+        </div>
+        <ul className="divide-y divide-border/60">
+          {list.map((market, index) => {
+            const yesPct = yesPercentFromPools(market);
+            const yesProb = market.outcomes.find((o) => o.id === "yes")?.probability ?? yesPct;
+            const skew = Math.round(yesProb - 50);
+            const trendUp = skew >= 0;
+            return (
+              <li key={market.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(market)}
+                  className="flex w-full gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40"
+                >
+                  <span className="w-5 shrink-0 pt-0.5 text-center text-[13px] font-medium tabular-nums text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">{market.title}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{thresholdSubtitle(market)}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[15px] font-semibold tabular-nums text-foreground">{yesProb}%</div>
+                    <div
+                      className={cn(
+                        "mt-0.5 flex items-center justify-end gap-0.5 text-[11px] font-semibold tabular-nums",
+                        trendUp ? "text-emerald-500" : "text-rose-500",
+                      )}
+                    >
+                      <span aria-hidden>{trendUp ? "▲" : "▼"}</span>
+                      {Math.abs(skew)}
+                    </div>
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </aside>
   );
 }
@@ -1189,12 +1242,6 @@ const MarketsAll = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<DiscoveryTab>("All");
   const [assetFilter, setAssetFilter] = useState<AssetFilter>("All assets");
-  const [scheduleFilter, setScheduleFilter] = useState<ScheduleFilter>("All schedules");
-  const [narrativeFilter, setNarrativeFilter] = useState<NarrativeFilter>("All narratives");
-  const [stateFilter, setStateFilter] = useState<StateFilter>("All states");
-  const [sortFilter, setSortFilter] = useState<SortFilter>("Featured first");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [openOnly, setOpenOnly] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
 
   useEffect(() => {
@@ -1210,55 +1257,25 @@ const MarketsAll = () => {
     if (activeTab === "Ending Soon" && market.timeBucket !== "Ending Soon") return false;
     if (activeTab === "Featured" && !market.isFeaturedDiscovery) return false;
     if (assetFilter !== "All assets" && market.assetSymbol !== assetFilter) return false;
-    if (scheduleFilter !== "All schedules" && market.schedule !== scheduleFilter) return false;
-    if (narrativeFilter !== "All narratives" && market.narrativeFamily !== narrativeFilter) return false;
-    if (stateFilter !== "All states" && market.stateCategory !== stateFilter) return false;
-    if (openOnly && market.stateCategory !== "Open") return false;
-
-    const needle = searchTerm.trim().toLowerCase();
-    if (needle) {
-      const haystack = `${market.title} ${market.assetSymbol} ${market.narrativeFamily} ${market.thresholdLabel}`.toLowerCase();
-      if (!haystack.includes(needle)) return false;
-    }
 
     return true;
   });
 
   filteredMarkets = [...filteredMarkets].sort((a, b) => {
-    if (sortFilter === "Ending soon") {
-      return new Date(a.endAt).getTime() - new Date(b.endAt).getTime();
-    }
-    if (sortFilter === "Closest to threshold") {
-      return Math.abs(a.distancePct) - Math.abs(b.distancePct);
-    }
-    if (sortFilter === "Largest pool") {
-      return b.yesPoolValue + b.noPoolValue - (a.yesPoolValue + a.noPoolValue);
-    }
     if (a.isFeaturedDiscovery === b.isFeaturedDiscovery) {
       return new Date(a.endAt).getTime() - new Date(b.endAt).getTime();
     }
     return a.isFeaturedDiscovery ? -1 : 1;
   });
-
-  const featuredStripMarkets = filteredMarkets.filter((market) => FEATURED_MARKET_IDS.includes(market.id)).slice(0, 5);
-  const endingSoonMarkets = filteredMarkets
-    .filter((market) => market.timeBucket === "Ending Soon")
-    .sort((a, b) => new Date(a.endAt).getTime() - new Date(b.endAt).getTime())
-    .slice(0, 5);
-  const featuredThresholdMarkets = filteredMarkets.filter((market) => market.isFeaturedDiscovery);
-  const highestVolumeMarkets = [...filteredMarkets]
+  const trendingMarkets = [...(filteredMarkets.length > 0 ? filteredMarkets : discoveryMarkets)]
     .sort((a, b) => b.yesPoolValue + b.noPoolValue - (a.yesPoolValue + a.noPoolValue))
-    .slice(0, 5);
-  const totalLiquidity = filteredMarkets.reduce((sum, market) => sum + market.yesPoolValue + market.noPoolValue, 0);
-  const openCount = filteredMarkets.filter((market) => market.stateCategory === "Open").length;
-  const endingSoonCount = filteredMarkets.filter((market) => market.timeBucket === "Ending Soon").length;
-
+    .slice(0, 7);
   const openMarket = (market: DiscoveryMarket) => {
     navigate(`/app/market/${market.id}`, { state: { market: market as Market } });
   };
 
   const openUpDownMarket = () => {
-    navigate("/app/markets/updown");
+    navigate("/app/markets/updown/crypto");
   };
 
   return (
@@ -1273,95 +1290,19 @@ const MarketsAll = () => {
         }}
       />
 
-      <main className="mx-auto max-w-6xl px-4 pb-16 pt-8 lg:px-8">
-        <header className="mb-6 border-b border-border pb-6">
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Markets</h1>
-          <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-            Browse live threshold markets—clean list, quick Yes / No. {filteredMarkets.length} active
-            {openCount !== filteredMarkets.length ? ` · ${openCount} open` : ""}
-            {endingSoonCount ? ` · ${endingSoonCount} ending soon` : ""} · {formatCompactCurrency(totalLiquidity)} in pools.
-          </p>
-
-          <div className="mt-4 flex h-10 w-full max-w-md items-center gap-2 rounded-md border border-border bg-card px-3">
-            <Search className="size-4 shrink-0 text-muted-foreground" />
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search markets..."
-              className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-
-          <details className="mt-4 group">
-            <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-foreground">
-              Filters & sort
-            </summary>
-            <div className="mt-4 grid gap-4 border-t border-border pt-4 md:grid-cols-2 lg:grid-cols-3">
-              <FilterSelect title="Asset" value={assetFilter} options={ASSET_FILTERS} onChange={(value) => setAssetFilter(value as AssetFilter)} />
-              <FilterSelect title="Schedule" value={scheduleFilter} options={SCHEDULE_FILTERS} onChange={(value) => setScheduleFilter(value as ScheduleFilter)} />
-              <FilterSelect title="Narrative" value={narrativeFilter} options={NARRATIVE_FILTERS} onChange={(value) => setNarrativeFilter(value as NarrativeFilter)} />
-              <FilterSelect title="State" value={stateFilter} options={STATE_FILTERS} onChange={(value) => setStateFilter(value as StateFilter)} />
-              <div className="md:col-span-2 lg:col-span-2">
-                <span className="mb-2 block text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">Sort</span>
-                <div className="flex flex-wrap gap-2">
-                  {SORT_FILTERS.map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setSortFilter(option)}
-                      className={cn(
-                        "rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors",
-                        sortFilter === option
-                          ? "border-foreground bg-foreground text-background"
-                          : "border-border bg-background text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-                <label className="mt-3 inline-flex items-center gap-2 text-xs text-foreground">
-                  <input
-                    type="checkbox"
-                    checked={openOnly}
-                    onChange={(event) => setOpenOnly(event.target.checked)}
-                    className="size-3.5 rounded border-border"
-                  />
-                  Open only
-                </label>
-              </div>
-            </div>
-          </details>
-        </header>
-
+      <main className="mx-auto max-w-6xl px-4 pb-16 pt-4 lg:px-8">
         <div className="flex flex-col gap-8 lg:flex-row lg:gap-10">
           <section className="min-w-0 flex-1">
-            {featuredStripMarkets.length > 0 ? (
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {featuredStripMarkets.map((market) => (
-                  <button
-                    key={market.id}
-                    type="button"
-                    onClick={() => openMarket(market)}
-                    className="rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted/70"
-                  >
-                    {market.assetSymbol}: {market.heroTag}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="rounded-lg border border-border bg-card">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {filteredMarkets.map((market) => (
-                <MarketListRow key={market.id} market={market} onOpen={openMarket} />
+                <DiscoveryMarketCard key={market.id} market={market} onOpen={openMarket} />
               ))}
             </div>
           </section>
 
-          <div className="shrink-0 lg:w-72">
+          <div className="shrink-0 lg:w-80">
             <DiscoverSidebar
-              featuredMarkets={featuredThresholdMarkets.length > 0 ? featuredThresholdMarkets : featuredStripMarkets}
-              highestVolumeMarkets={highestVolumeMarkets.length > 0 ? highestVolumeMarkets : endingSoonMarkets}
+              trendingMarkets={trendingMarkets}
               onOpenUpDown={openUpDownMarket}
               onOpen={openMarket}
             />
@@ -1372,7 +1313,7 @@ const MarketsAll = () => {
           <section className="mt-8 rounded-lg border border-dashed border-border bg-muted/20 px-6 py-10 text-center">
             <h2 className="text-lg font-semibold text-foreground">No markets match</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Try clearing search, setting asset to &quot;All assets&quot;, or opening Filters & sort to reset options.
+              Try a different time tab or set the header asset filter to All assets.
             </p>
           </section>
         )}

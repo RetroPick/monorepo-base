@@ -1,11 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
+import { LineChartPanel } from "@/components/markets/LineChartPanel";
 import { TradingChart } from "@/components/markets/TradingChart";
 import { ThresholdRoundCarousel } from "@/components/threshold/ThresholdRoundCarousel";
 import { useAssetContext } from "@/context/AssetContext";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
-import { AssetUniverseEntry, CandlePoint, KlineInterval } from "@/lib/market-data/types";
+import { isValidAssetClassParam, parseAssetClassParam } from "@/lib/market-data/asset-class-params";
+import { loadReferenceChartData } from "@/lib/market-data/reference-series";
+import type { AssetClass, AssetUniverseEntry, CandlePoint, KlineInterval, LinePoint, ReferenceChartResult } from "@/lib/market-data/types";
 import type { ThresholdRound } from "@/types/threshold";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +54,7 @@ const templateOptions = [
 
 type TemplateLabel = (typeof templateOptions)[number]["label"];
 
-const TRADING_CHART_HEIGHT = 360;
+const TRADING_CHART_HEIGHT = 280;
 
 function formatRoundTime(timestampMs: number) {
   return new Date(timestampMs).toLocaleTimeString("en-US", {
@@ -103,6 +107,50 @@ function formatPrice(value: number) {
   }).format(value);
 }
 
+function formatReferenceValue(value: number) {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function linePointsToSyntheticCandles(points: LinePoint[]): CandlePoint[] {
+  return points.map((p) => ({
+    time: p.time,
+    open: p.value,
+    high: p.value,
+    low: p.value,
+    close: p.value,
+  }));
+}
+
+function makePseudoAssetForReference(assetClass: AssetClass, meta: { title: string; subtitle: string }): AssetUniverseEntry {
+  const sym =
+    assetClass === "fx"
+      ? "EUR"
+      : assetClass === "macro"
+        ? "MACRO"
+        : assetClass === "benchmarks"
+          ? "SPX"
+          : assetClass === "commodity"
+            ? "OIL"
+            : assetClass === "weather"
+              ? "WX"
+              : "REF";
+  return {
+    id: `ref-${assetClass}`,
+    symbol: sym,
+    name: meta.title,
+    rank: 12,
+    priceUsd: 1,
+    marketCapUsd: 0,
+    volume24hUsd: 0,
+    high24hUsd: null,
+    low24hUsd: null,
+    priceChange24h: null,
+    priceChangePct24h: null,
+    exchangeSymbol: sym,
+    displayPair: meta.subtitle,
+  };
+}
+
 function formatCompactCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -139,6 +187,7 @@ function buildThresholdRounds(
   interval: KlineInterval,
   livePriceUsd: number | undefined,
   templateLabel: TemplateLabel,
+  formatThreshold: (value: number) => string = formatPrice,
 ): ThresholdRound[] {
   if (!asset) return [];
 
@@ -157,8 +206,7 @@ function buildThresholdRounds(
   };
 
   const titleBase = `${asset.symbol} above or below ${template.thresholdLabel.toLowerCase()} by ${template.resolutionLabel.toLowerCase()}?`;
-  const subtitleBase = `Above resolves if final oracle price is at or above ${formatPrice(thresholdValue)}. Below resolves if final price finishes under it.`;
-  const ruleText = `Above wins if the final oracle price is at or above ${formatPrice(thresholdValue)} at ${template.resolutionLabel.toLowerCase()}. Below wins if it finishes under ${formatPrice(thresholdValue)}.`;
+  const subtitleBase = `Above resolves if final oracle price is at or above ${formatThreshold(thresholdValue)}. Below resolves if final price finishes under it.`;
 
   const rounds: ThresholdRound[] = [];
   const expiredCandles = recentCandles.slice(Math.max(0, recentCandles.length - 4), Math.max(0, recentCandles.length - 1));
@@ -197,7 +245,7 @@ function buildThresholdRounds(
       belowPayout: Number((100 / belowPercent).toFixed(2)),
       lockTime: formatRoundTime(lockTimeMs),
       resolveTime: formatRoundTime(closeTimeMs),
-      ruleText: `Above wins if the final oracle price is at or above ${formatPrice(localThreshold)} at ${template.resolutionLabel.toLowerCase()}.`,
+      ruleText: `Above wins if the final oracle price is at or above ${formatThreshold(localThreshold)} at ${template.resolutionLabel.toLowerCase()}.`,
     });
   });
 
@@ -230,7 +278,7 @@ function buildThresholdRounds(
     belowPayout: Number((100 / liveBelowPercent).toFixed(2)),
     lockTime: formatRoundTime(liveLockTimeMs),
     resolveTime: formatRoundTime(liveCloseTimeMs),
-    ruleText,
+    ruleText: `Above wins if the final oracle price is at or above ${formatThreshold(liveThreshold)} at ${template.resolutionLabel.toLowerCase()}. Below wins if it finishes under ${formatThreshold(liveThreshold)}.`,
   });
 
   const futureStatuses: ThresholdRound["status"][] = ["next", "later", "later"];
@@ -264,7 +312,7 @@ function buildThresholdRounds(
       startsIn: status === "later" ? formatStartsIn(lockTimeMs - now, interval) : undefined,
       startsInTargetMs: status === "later" ? lockTimeMs : undefined,
       startsInFormat: status === "later" ? getStartsInFormat(interval) : undefined,
-      ruleText: `Above wins if the final oracle price is at or above ${formatPrice(referencePrice)} at ${template.resolutionLabel.toLowerCase()}.`,
+      ruleText: `Above wins if the final oracle price is at or above ${formatThreshold(referencePrice)} at ${template.resolutionLabel.toLowerCase()}.`,
     });
   });
 
@@ -272,22 +320,100 @@ function buildThresholdRounds(
 }
 
 export default function AboveBelowDashboard() {
+  const { assetClass: rawParam } = useParams<{ assetClass: string }>();
+  const assetClassInvalid = rawParam !== undefined && !isValidAssetClassParam(rawParam);
+  const assetClass = parseAssetClassParam(rawParam);
+
   const { selectedAsset } = useAssetContext();
   const [templateLabel, setTemplateLabel] = useState<TemplateLabel>("YDAY CLOSE");
 
   const selectedTemplate = templateOptions.find((option) => option.label === templateLabel) ?? templateOptions[0];
   const interval = selectedTemplate.interval as KlineInterval;
-  const { data: detail, loading: detailLoading } = useAssetDetail(selectedAsset?.symbol, interval);
+  const { data: detail, loading: detailLoading } = useAssetDetail(selectedAsset?.symbol, interval, {
+    enabled: assetClass === "crypto",
+  });
+
+  const [referenceResult, setReferenceResult] = useState<ReferenceChartResult | null>(null);
+  const [referenceLoading, setReferenceLoading] = useState(assetClass !== "crypto");
+
+  useEffect(() => {
+    if (assetClass === "crypto") {
+      setReferenceResult(null);
+      setReferenceLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setReferenceLoading(true);
+    loadReferenceChartData(assetClass)
+      .then((r) => {
+        if (!cancelled) setReferenceResult(r);
+      })
+      .finally(() => {
+        if (!cancelled) setReferenceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetClass]);
+
+  const referenceCandles = useMemo(() => {
+    if (!referenceResult || referenceResult.kind !== "line") return undefined;
+    if (referenceResult.points.length === 0) return undefined;
+    return linePointsToSyntheticCandles(referenceResult.points);
+  }, [referenceResult]);
+
+  const referenceLivePrice = useMemo(() => {
+    if (!referenceResult || referenceResult.kind !== "line") return undefined;
+    const pts = referenceResult.points;
+    return pts[pts.length - 1]?.value;
+  }, [referenceResult]);
+
+  const pseudoAsset = useMemo(() => {
+    if (assetClass === "crypto") return undefined;
+    if (!referenceResult || referenceResult.kind === "unavailable") return undefined;
+    const meta = referenceResult.meta;
+    return makePseudoAssetForReference(assetClass, { title: meta.title, subtitle: meta.subtitle });
+  }, [assetClass, referenceResult]);
+
+  const formatThreshold = assetClass === "crypto" ? formatPrice : formatReferenceValue;
+
   const rounds = useMemo(
-    () => buildThresholdRounds(selectedAsset ?? detail?.asset, detail?.candles, interval, detail?.livePriceUsd, templateLabel),
-    [detail?.asset, detail?.candles, detail?.livePriceUsd, interval, selectedAsset, templateLabel],
+    () =>
+      buildThresholdRounds(
+        assetClass === "crypto" ? selectedAsset ?? detail?.asset : pseudoAsset,
+        assetClass === "crypto" ? detail?.candles : referenceCandles,
+        interval,
+        assetClass === "crypto" ? detail?.livePriceUsd : referenceLivePrice,
+        templateLabel,
+        formatThreshold,
+      ),
+    [
+      assetClass,
+      detail?.asset,
+      detail?.candles,
+      detail?.livePriceUsd,
+      interval,
+      pseudoAsset,
+      referenceCandles,
+      referenceLivePrice,
+      selectedAsset,
+      templateLabel,
+    ],
   );
 
   const activeRound = rounds.find((round) => round.status === "live" || round.status === "locked") ?? rounds[0];
-  const activePrice = activeRound?.currentPrice ?? detail?.livePriceUsd ?? selectedAsset?.priceUsd ?? 0;
+  const activePrice =
+    activeRound?.currentPrice
+    ?? (assetClass === "crypto" ? detail?.livePriceUsd : referenceLivePrice)
+    ?? selectedAsset?.priceUsd
+    ?? 0;
   const gapPct = activeRound?.thresholdValue
     ? ((activePrice - activeRound.thresholdValue) / activeRound.thresholdValue) * 100
     : 0;
+
+  if (assetClassInvalid) {
+    return <Navigate to="/app/markets/abovebelow/crypto" replace />;
+  }
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background text-foreground">
@@ -305,42 +431,99 @@ export default function AboveBelowDashboard() {
           </div>
         </div>
 
-        <Header />
+        <Header
+          marketFamilyAssetClassNav={{
+            basePath: "/app/markets/abovebelow",
+            activeClass: assetClass,
+          }}
+        />
 
-        <main className="relative mx-auto max-w-[1440px] px-4 pb-14 pt-8 lg:px-8">
-          <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
+        <main className="relative mx-auto max-w-[1440px] px-4 pb-14 pt-2 lg:px-8">
+          {assetClass !== "crypto" ? (
+            <p className="mb-2 text-center text-[11px] text-muted-foreground">
+              Illustrative threshold rounds — reference data only; not on-chain settlement.
+            </p>
+          ) : null}
+          <section className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
             <div className="min-w-0">
-              <div className="h-[360px]">
-                {detailLoading || !detail || !activeRound ? (
+              <div className="h-[280px]">
+                {assetClass === "crypto" ? (
+                  detailLoading || !detail || !activeRound ? (
+                    <div className="flex h-full items-center justify-center rounded-[28px] border border-border bg-card text-sm font-medium text-muted-foreground shadow-[0_24px_64px_-40px_rgba(15,23,42,0.18)] dark:border-slate-800 dark:bg-[#0b0d12]">
+                      Loading threshold market...
+                    </div>
+                  ) : (
+                    <TradingChart
+                      candles={detail.candles}
+                      height={TRADING_CHART_HEIGHT}
+                      pair={selectedAsset?.displayPair ?? detail.asset.displayPair}
+                      assetName={selectedAsset?.name ?? detail.asset.name}
+                      interval={interval}
+                      livePriceUsd={detail.livePriceUsd}
+                      priceLines={[
+                        {
+                          price: activeRound.thresholdValue,
+                          title: activeRound.thresholdLabel,
+                          color: "rgba(16,185,129,0.95)",
+                        },
+                      ]}
+                    />
+                  )
+                ) : referenceLoading ? (
                   <div className="flex h-full items-center justify-center rounded-[28px] border border-border bg-card text-sm font-medium text-muted-foreground shadow-[0_24px_64px_-40px_rgba(15,23,42,0.18)] dark:border-slate-800 dark:bg-[#0b0d12]">
-                    Loading threshold market...
+                    Loading reference series...
                   </div>
-                ) : (
-                  <TradingChart
-                    candles={detail.candles}
+                ) : referenceResult?.kind === "unavailable" ? (
+                  <div className="flex h-full flex-col justify-center rounded-[28px] border border-border bg-card px-6 py-8 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">{referenceResult.message}</p>
+                    {referenceResult.reason === "missing_fred_key" ? (
+                      <p className="mt-2 font-mono text-xs">
+                        Set <code className="rounded bg-muted px-1">VITE_FRED_API_KEY</code> in{" "}
+                        <code className="rounded bg-muted px-1">.env</code> for FRED-backed charts.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : referenceResult?.kind === "line" && pseudoAsset ? (
+                  <LineChartPanel
+                    points={referenceResult.points}
                     height={TRADING_CHART_HEIGHT}
-                    pair={selectedAsset?.displayPair ?? detail.asset.displayPair}
-                    assetName={selectedAsset?.name ?? detail.asset.name}
-                    interval={interval}
-                    livePriceUsd={detail.livePriceUsd}
-                    priceLines={[
-                      {
-                        price: activeRound.thresholdValue,
-                        title: activeRound.thresholdLabel,
-                        color: "rgba(16,185,129,0.95)",
-                      },
-                    ]}
+                    title={referenceResult.meta.title}
+                    subtitle={referenceResult.meta.subtitle}
+                    sourceLine={`${referenceResult.meta.sourceName} · ${referenceResult.meta.valueUnit ?? "series"}`}
+                    formatValue={referenceResult.formatValue}
                   />
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-[28px] border border-border bg-card text-sm text-muted-foreground">
+                    No chart data
+                  </div>
                 )}
               </div>
 
               <div className="mt-1 flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
-                <span>{detail ? `Chart source: ${detail.chartSource} · Settlement source: ${detail.settlementSource} · Threshold fixed at ${activeRound?.thresholdReferenceAt}` : "Preparing threshold data..."}</span>
-                <span className="font-mono text-accent-cyan">{selectedAsset?.displayPair ?? "BTC/USDT"}</span>
+                {assetClass === "crypto" ? (
+                  <>
+                    <span>
+                      {detail
+                        ? `Chart source: ${detail.chartSource} · Settlement source: ${detail.settlementSource} · Threshold fixed at ${activeRound?.thresholdReferenceAt}`
+                        : "Preparing threshold data..."}
+                    </span>
+                    <span className="font-mono text-accent-cyan">{selectedAsset?.displayPair ?? "BTC/USDT"}</span>
+                  </>
+                ) : referenceResult && referenceResult.kind !== "unavailable" ? (
+                  <>
+                    <span>
+                      Data: {referenceResult.meta.sourceName} · {referenceResult.meta.subtitle}
+                      {activeRound ? ` · Ref ${activeRound.thresholdReferenceAt}` : ""}
+                    </span>
+                    <span className="font-mono text-accent-cyan">{pseudoAsset?.displayPair ?? "—"}</span>
+                  </>
+                ) : (
+                  <span>Reference chart</span>
+                )}
               </div>
             </div>
 
-            <aside className="flex min-h-[360px] flex-col justify-start xl:px-3">
+            <aside className="flex min-h-[240px] flex-col justify-start xl:px-2">
               <div className="p-1 text-foreground">
                 <div className="space-y-4">
                   <div className="grid gap-3 rounded-[20px] border border-border/50 bg-background/65 p-4">
@@ -353,11 +536,11 @@ export default function AboveBelowDashboard() {
                     </div>
                     <div className="flex items-center justify-between gap-4 text-sm">
                       <span className="text-muted-foreground">Above Wins</span>
-                      <span className="text-right font-semibold text-foreground">{activeRound ? `>= ${formatPrice(activeRound.thresholdValue)}` : "--"}</span>
+                      <span className="text-right font-semibold text-foreground">{activeRound ? `>= ${formatThreshold(activeRound.thresholdValue)}` : "--"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 text-sm">
                       <span className="text-muted-foreground">Below Wins</span>
-                      <span className="text-right font-semibold text-foreground">{activeRound ? `< ${formatPrice(activeRound.thresholdValue)}` : "--"}</span>
+                      <span className="text-right font-semibold text-foreground">{activeRound ? `< ${formatThreshold(activeRound.thresholdValue)}` : "--"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-4 text-sm">
                       <span className="text-muted-foreground">Resolve Time</span>
@@ -390,7 +573,13 @@ export default function AboveBelowDashboard() {
           </section>
 
           <section className="relative -mt-1">
-            <ThresholdRoundCarousel rounds={rounds} />
+            {rounds.length > 0 ? (
+              <ThresholdRoundCarousel rounds={rounds} />
+            ) : (
+              <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+                No threshold rounds to display for this reference series yet.
+              </div>
+            )}
           </section>
         </main>
       </div>

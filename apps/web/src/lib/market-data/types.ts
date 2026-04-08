@@ -43,6 +43,49 @@ export interface CandlePoint {
   volume?: number;
 }
 
+/** Unix seconds + scalar value for line charts (FX, FRED, weather). */
+export interface LinePoint {
+  time: number;
+  value: number;
+}
+
+/** Discover header + reference chart asset class toggles. */
+export type AssetClass = "crypto" | "commodity" | "fx" | "macro" | "benchmarks" | "weather";
+
+export type ReferenceChartKind = "candles" | "line";
+
+export interface ReferenceChartMeta {
+  title: string;
+  subtitle: string;
+  sourceName: string;
+  sourceUrl: string;
+  /** Y-axis / legend hint */
+  valueUnit?: string;
+}
+
+export type ReferenceChartResult =
+  | {
+      kind: "candles";
+      candles: CandlePoint[];
+      interval: KlineInterval;
+      pairLabel: string;
+      assetName: string;
+      meta: ReferenceChartMeta;
+    }
+  | {
+      kind: "line";
+      points: LinePoint[];
+      meta: ReferenceChartMeta;
+      /** e.g. compact currency */
+      formatValue?: (n: number) => string;
+    }
+  | {
+      kind: "unavailable";
+      reason: "missing_fred_key" | "fetch_failed";
+      message: string;
+      meta: ReferenceChartMeta;
+    };
+
 export interface AssetDetailResponse {
   asset: AssetUniverseEntry;
   candles: CandlePoint[];

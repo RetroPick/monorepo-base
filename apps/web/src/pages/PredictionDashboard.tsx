@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, useParams } from "react-router-dom";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import { InfoCard } from "@/components/prediction/InfoCard";
+import { LineChartPanel } from "@/components/markets/LineChartPanel";
 import { TradingChart } from "@/components/markets/TradingChart";
 import { RoundCarousel } from "@/components/prediction/RoundCarousel";
 import { useAssetContext } from "@/context/AssetContext";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
-import { AssetUniverseEntry, CandlePoint, KlineInterval } from "@/lib/market-data/types";
+import { isValidAssetClassParam, parseAssetClassParam } from "@/lib/market-data/asset-class-params";
+import { loadReferenceChartData } from "@/lib/market-data/reference-series";
+import type { AssetClass, AssetUniverseEntry, CandlePoint, KlineInterval, LinePoint, ReferenceChartResult } from "@/lib/market-data/types";
 import type { PredictionRound } from "@/types/prediction";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +23,7 @@ const timeframeOptions = [
 type ChartTimeframeLabel = (typeof timeframeOptions)[number]["label"];
 
 const ROUND_COUNT = 7;
-const TRADING_CHART_HEIGHT = 360;
+const TRADING_CHART_HEIGHT = 280;
 
 function formatRoundTime(timestampMs: number) {
   return new Date(timestampMs).toLocaleTimeString("en-US", {
@@ -80,6 +84,46 @@ function clamp(value: number, min: number, max: number) {
 function makeRoundNumericId(asset: AssetUniverseEntry, seed: number) {
   const symbolHash = asset.symbol.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return String((seed + symbolHash * 97) % 90000 + 10000);
+}
+
+function linePointsToSyntheticCandles(points: LinePoint[]): CandlePoint[] {
+  return points.map((p) => ({
+    time: p.time,
+    open: p.value,
+    high: p.value,
+    low: p.value,
+    close: p.value,
+  }));
+}
+
+function makePseudoAssetForReference(assetClass: AssetClass, meta: { title: string; subtitle: string }): AssetUniverseEntry {
+  const sym =
+    assetClass === "fx"
+      ? "EUR"
+      : assetClass === "macro"
+        ? "MACRO"
+        : assetClass === "benchmarks"
+          ? "SPX"
+          : assetClass === "commodity"
+            ? "OIL"
+            : assetClass === "weather"
+              ? "WX"
+              : "REF";
+  return {
+    id: `ref-${assetClass}`,
+    symbol: sym,
+    name: meta.title,
+    rank: 12,
+    priceUsd: 1,
+    marketCapUsd: 0,
+    volume24hUsd: 0,
+    high24hUsd: null,
+    low24hUsd: null,
+    priceChange24h: null,
+    priceChangePct24h: null,
+    exchangeSymbol: sym,
+    displayPair: meta.subtitle,
+  };
 }
 
 function TradingChartLoadingState() {
@@ -219,26 +263,85 @@ function buildPredictionRounds(
 }
 
 export default function PredictionDashboard() {
+  const { assetClass: rawParam } = useParams<{ assetClass: string }>();
+  const assetClassInvalid = rawParam !== undefined && !isValidAssetClassParam(rawParam);
+  const assetClass = parseAssetClassParam(rawParam);
+
   const { selectedAsset } = useAssetContext();
   const [timeframe, setTimeframe] = useState<ChartTimeframeLabel>("1 HOUR");
 
   const interval = timeframeOptions.find((option) => option.label === timeframe)?.interval as KlineInterval;
-  const { data: detail, loading: detailLoading } = useAssetDetail(selectedAsset?.symbol, interval);
-  const rounds = useMemo(
-    () => buildPredictionRounds(selectedAsset ?? detail?.asset, detail?.candles, interval, detail?.livePriceUsd),
-    [detail?.asset, detail?.candles, detail?.livePriceUsd, interval, selectedAsset],
-  );
+  const { data: detail, loading: detailLoading } = useAssetDetail(selectedAsset?.symbol, interval, {
+    enabled: assetClass === "crypto",
+  });
+
+  const [referenceResult, setReferenceResult] = useState<ReferenceChartResult | null>(null);
+  const [referenceLoading, setReferenceLoading] = useState(assetClass !== "crypto");
+
+  useEffect(() => {
+    if (assetClass === "crypto") {
+      setReferenceResult(null);
+      setReferenceLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setReferenceLoading(true);
+    loadReferenceChartData(assetClass)
+      .then((r) => {
+        if (!cancelled) setReferenceResult(r);
+      })
+      .finally(() => {
+        if (!cancelled) setReferenceLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [assetClass]);
+
+  const referenceCandles = useMemo(() => {
+    if (!referenceResult || referenceResult.kind !== "line") return undefined;
+    if (referenceResult.points.length === 0) return undefined;
+    return linePointsToSyntheticCandles(referenceResult.points);
+  }, [referenceResult]);
+
+  const referenceLivePrice = useMemo(() => {
+    if (!referenceResult || referenceResult.kind !== "line") return undefined;
+    const pts = referenceResult.points;
+    return pts[pts.length - 1]?.value;
+  }, [referenceResult]);
+
+  const pseudoAsset = useMemo(() => {
+    if (assetClass === "crypto") return undefined;
+    if (!referenceResult || referenceResult.kind === "unavailable") return undefined;
+    const meta = referenceResult.meta;
+    return makePseudoAssetForReference(assetClass, { title: meta.title, subtitle: meta.subtitle });
+  }, [assetClass, referenceResult]);
+
+  const rounds = useMemo(() => {
+    if (assetClass === "crypto") {
+      return buildPredictionRounds(selectedAsset ?? detail?.asset, detail?.candles, interval, detail?.livePriceUsd);
+    }
+    if (!pseudoAsset || !referenceCandles) return [];
+    return buildPredictionRounds(pseudoAsset, referenceCandles, interval, referenceLivePrice);
+  }, [assetClass, detail?.asset, detail?.candles, detail?.livePriceUsd, interval, pseudoAsset, referenceCandles, referenceLivePrice, selectedAsset]);
 
   const infoCards = [
     {
       title: "My Position",
       items: [
         { label: "Active Positions", value: "0" },
-        { label: "Selected", value: selectedAsset?.symbol ?? "BTC" },
+        {
+          label: "Selected",
+          value: assetClass === "crypto" ? selectedAsset?.symbol ?? "BTC" : pseudoAsset?.symbol ?? assetClass,
+        },
         { label: "Total PnL", value: "+2.5 SOL" },
       ],
     },
   ];
+
+  if (assetClassInvalid) {
+    return <Navigate to="/app/markets/updown/crypto" replace />;
+  }
 
   return (
     <div className="flex min-h-screen flex-col overflow-x-hidden bg-background text-foreground">
@@ -256,33 +359,83 @@ export default function PredictionDashboard() {
           </div>
         </div>
 
-        <Header />
+        <Header
+          marketFamilyAssetClassNav={{
+            basePath: "/app/markets/updown",
+            activeClass: assetClass,
+          }}
+        />
 
-        <main className="relative mx-auto max-w-[1440px] px-4 pb-14 pt-8 lg:px-8">
-          <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
+        <main className="relative mx-auto max-w-[1440px] px-4 pb-14 pt-2 lg:px-8">
+          {assetClass !== "crypto" ? (
+            <p className="mb-2 text-center text-[11px] text-muted-foreground">
+              Illustrative rounds — reference data only; not on-chain settlement.
+            </p>
+          ) : null}
+          <section className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
             <div className="min-w-0">
-              <div className="h-[360px]">
-                {detailLoading || !detail ? (
+              <div className="h-[280px]">
+                {assetClass === "crypto" ? (
+                  detailLoading || !detail ? (
+                    <TradingChartLoadingState />
+                  ) : (
+                    <TradingChart
+                      candles={detail.candles}
+                      height={TRADING_CHART_HEIGHT}
+                      pair={selectedAsset?.displayPair ?? detail.asset.displayPair}
+                      assetName={selectedAsset?.name ?? detail.asset.name}
+                      interval={interval}
+                      livePriceUsd={detail.livePriceUsd}
+                    />
+                  )
+                ) : referenceLoading ? (
                   <TradingChartLoadingState />
-                ) : (
-                  <TradingChart
-                    candles={detail.candles}
+                ) : referenceResult?.kind === "unavailable" ? (
+                  <div className="flex h-full flex-col justify-center rounded-[28px] border border-border bg-card px-6 py-8 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">{referenceResult.message}</p>
+                    {referenceResult.reason === "missing_fred_key" ? (
+                      <p className="mt-2 font-mono text-xs">
+                        Set <code className="rounded bg-muted px-1">VITE_FRED_API_KEY</code> in{" "}
+                        <code className="rounded bg-muted px-1">.env</code> for FRED-backed charts.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : referenceResult?.kind === "line" && pseudoAsset ? (
+                  <LineChartPanel
+                    points={referenceResult.points}
                     height={TRADING_CHART_HEIGHT}
-                    pair={selectedAsset?.displayPair ?? detail.asset.displayPair}
-                    assetName={selectedAsset?.name ?? detail.asset.name}
-                    interval={interval}
-                    livePriceUsd={detail.livePriceUsd}
+                    title={referenceResult.meta.title}
+                    subtitle={referenceResult.meta.subtitle}
+                    sourceLine={`${referenceResult.meta.sourceName} · ${referenceResult.meta.valueUnit ?? "series"}`}
+                    formatValue={referenceResult.formatValue}
                   />
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-[28px] border border-border bg-card text-sm text-muted-foreground">
+                    No chart data
+                  </div>
                 )}
               </div>
 
               <div className="mt-1 flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-muted-foreground">
-                <span>{detail ? `Chart source: ${detail.chartSource} · Settlement source: ${detail.settlementSource}` : "Preparing market data..."}</span>
-                <span className="font-mono text-accent-cyan">{selectedAsset?.displayPair ?? "BTC/USDT"}</span>
+                {assetClass === "crypto" ? (
+                  <>
+                    <span>{detail ? `Chart source: ${detail.chartSource} · Settlement source: ${detail.settlementSource}` : "Preparing market data..."}</span>
+                    <span className="font-mono text-accent-cyan">{selectedAsset?.displayPair ?? "BTC/USDT"}</span>
+                  </>
+                ) : referenceResult && referenceResult.kind !== "unavailable" ? (
+                  <>
+                    <span>
+                      Data: {referenceResult.meta.sourceName} · {referenceResult.meta.subtitle}
+                    </span>
+                    <span className="font-mono text-accent-cyan">{pseudoAsset?.displayPair ?? "—"}</span>
+                  </>
+                ) : (
+                  <span>Reference chart</span>
+                )}
               </div>
             </div>
 
-            <aside className="flex min-h-[360px] flex-col justify-center gap-4 xl:px-3">
+            <aside className="flex min-h-[240px] flex-col justify-center gap-3 xl:px-2">
               {infoCards.map((card) => (
                 <InfoCard key={card.title} title={card.title} items={card.items} />
               ))}
@@ -309,7 +462,13 @@ export default function PredictionDashboard() {
           </section>
 
           <section className="relative -mt-1">
-            <RoundCarousel rounds={rounds} />
+            {rounds.length > 0 ? (
+              <RoundCarousel rounds={rounds} />
+            ) : (
+              <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center text-sm text-muted-foreground">
+                No rounds to display for this reference series yet.
+              </div>
+            )}
           </section>
         </main>
       </div>

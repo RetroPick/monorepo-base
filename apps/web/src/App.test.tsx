@@ -59,8 +59,8 @@ describe("App routing", () => {
     expect(await screen.findByText("Markets Dashboard")).toBeInTheDocument();
   });
 
-  it("renders the up/down trading dashboard route directly", async () => {
-    window.history.pushState({}, "", "/app/markets/updown");
+  it("renders the up/down trading dashboard route with asset class segment", async () => {
+    window.history.pushState({}, "", "/app/markets/updown/crypto");
 
     render(<App />);
 

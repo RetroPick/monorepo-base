@@ -39,7 +39,7 @@ const MarketDetail = () => {
     <div className="min-h-screen bg-background text-foreground">
       <Header />
 
-      <main className="mx-auto max-w-[1440px] px-4 pb-14 pt-8 lg:px-8">
+      <main className="mx-auto max-w-[1440px] px-4 pb-14 pt-3 lg:px-8">
         <button
           onClick={() => navigate(-1)}
           className="mb-6 flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"

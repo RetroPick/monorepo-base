@@ -60,7 +60,7 @@ const WalletButton = () => {
             <>
                 <Button
                     onClick={() => setIsLoginOpen(true)}
-                    className="h-10 rounded-full border border-border/60 bg-background/75 px-5 py-2 font-semibold text-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted"
+                    className="h-9 rounded-full border border-border/60 bg-background/75 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted sm:h-10"
                 >
                     Connect Wallet
                 </Button>
@@ -74,7 +74,7 @@ const WalletButton = () => {
             {/* Wallet Profile */}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <div className="flex items-center gap-3 bg-secondary border border-border rounded-full px-3 py-1.5 hover:bg-secondary/80 transition-colors cursor-pointer group">
+                    <div className="flex min-h-9 items-center gap-3 rounded-full border border-border bg-secondary px-3 py-2 hover:bg-secondary/80 cursor-pointer transition-colors group sm:min-h-10 sm:px-3.5">
                         <div className="flex flex-col items-end hidden md:flex">
                             <span className="text-[9px] text-muted-foreground uppercase font-bold leading-none mb-0.5">
                                 {t('balance')}

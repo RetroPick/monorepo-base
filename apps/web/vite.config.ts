@@ -18,6 +18,13 @@ export default defineConfig(({ mode }) => ({
         rewrite: (path) => path.replace(/^\/api\/polymarket/, ''),
         timeout: 60000,
       },
+      // FRED API — avoids browser CORS; client passes api_key via VITE_FRED_API_KEY
+      '/api/fred': {
+        target: 'https://api.stlouisfed.org/fred',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/fred/, ''),
+        timeout: 60000,
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

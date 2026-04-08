@@ -19,8 +19,9 @@ describe("MarketsAll", () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole("heading", { name: "Markets" })).toBeInTheDocument();
-    expect(screen.getByText(/Browse live threshold markets/i)).toBeInTheDocument();
-    expect(screen.getByText("Most volume")).toBeInTheDocument();
+    expect(screen.getByText("Up or Down")).toBeInTheDocument();
+    expect(screen.getAllByText("View market").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("BTC at or above yesterday close by today close").length).toBeGreaterThan(0);
+    expect(screen.queryByText("BTC: Today's key level")).not.toBeInTheDocument();
   });
 });

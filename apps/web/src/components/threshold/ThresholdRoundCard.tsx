@@ -10,6 +10,9 @@ interface ThresholdRoundCardProps {
   onRequestLogin?: () => void;
 }
 
+const THRESHOLD_CARD_SQUARE =
+  "aspect-square w-[min(100%,320px)] min-w-[260px] max-w-[320px] shrink-0";
+
 const statusStyles: Record<ThresholdRound["status"], { badge: string; frame: string; glow: string }> = {
   live: {
     badge: "border-emerald-500/30 bg-emerald-500/12 text-emerald-700 dark:text-emerald-300",
@@ -148,27 +151,27 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
 
   if (round.status === "later" && !entrySide) {
     return (
-      <div className="min-w-[308px] max-w-[330px]">
-        <div className={cn("min-h-[390px] rounded-[28px] border p-4", style.frame, style.glow)}>
-          <div className="flex h-full flex-col">
-            <div className="flex items-start justify-between gap-3">
+      <div className={THRESHOLD_CARD_SQUARE}>
+        <div className={cn("flex h-full min-h-0 flex-col rounded-[28px] border p-3", style.frame, style.glow)}>
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex items-start justify-between gap-2">
               <div>
                 <div className={cn("inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em]", style.badge)}>
                   Later
                 </div>
-                <div className="mt-3 text-[12px] font-bold text-muted-foreground">{marketTag}</div>
+                <div className="mt-2 text-[12px] font-bold text-muted-foreground">{marketTag}</div>
               </div>
               {round.assetImage ? <img src={round.assetImage} alt="" className="size-9 rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10" /> : null}
             </div>
 
-            <div className="mt-6">
+            <div className="mt-4 min-h-0 flex-1">
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Time Left</div>
-              <div className="mt-2 text-[2rem] font-black tracking-[-0.05em] text-foreground">{liveStartsIn}</div>
+              <div className="mt-1.5 text-[1.65rem] font-black leading-none tracking-[-0.05em] text-foreground">{liveStartsIn}</div>
             </div>
 
-            <div className="mt-auto rounded-[20px] border border-border/60 bg-background/70 px-4 py-3">
+            <div className="mt-auto rounded-2xl border border-border/60 bg-background/70 px-3 py-2.5">
               <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Status</div>
-              <div className="mt-1 text-[1rem] font-semibold text-foreground">Waiting</div>
+              <div className="mt-0.5 text-sm font-semibold text-foreground">Waiting</div>
             </div>
           </div>
         </div>
@@ -178,10 +181,10 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
 
   if (!entrySide) {
     return (
-      <div className="min-w-[308px] max-w-[330px]">
-        <div className={cn("min-h-[390px] overflow-hidden rounded-[28px] border p-4 text-card-foreground", resolvedTheme, style.glow)}>
-          <div className="flex h-full flex-col">
-            <div className="flex items-start justify-between gap-3">
+      <div className={THRESHOLD_CARD_SQUARE}>
+        <div className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border p-3 text-card-foreground", resolvedTheme, style.glow)}>
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex shrink-0 items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   {round.assetImage ? <img src={round.assetImage} alt="" className="size-8 rounded-full object-cover ring-1 ring-black/5 dark:ring-white/10" /> : null}
@@ -190,7 +193,7 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
                     {round.status}
                   </span>
                 </div>
-                <h3 className="mt-2.5 line-clamp-2 text-[0.98rem] font-black leading-[1.12] tracking-[-0.03em] text-foreground">
+                <h3 className="mt-2 line-clamp-2 text-[0.95rem] font-black leading-[1.12] tracking-[-0.03em] text-foreground">
                   {round.title}
                 </h3>
               </div>
@@ -199,8 +202,8 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
               </div>
             </div>
 
-            <div className="mt-2.5">
-              <div className="grid grid-cols-[1fr_auto] items-end gap-3">
+            <div className="mt-2">
+              <div className="grid grid-cols-[1fr_auto] items-end gap-2">
                 <div>
                   <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{round.familyLabel}</div>
                   <div className={cn("mt-1 flex items-center gap-1.5", isAboveThreshold ? "text-emerald-600 dark:text-emerald-300" : "text-rose-600 dark:text-rose-300")}>
@@ -215,8 +218,8 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
               </div>
             </div>
 
-            <div className="mt-2.5 border-t border-border/60 pt-2.5">
-              <div className="mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em]">
+            <div className="mt-2 border-t border-border/60 pt-2">
+              <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-[0.18em]">
                 <span className="text-emerald-600 dark:text-emerald-300">{round.abovePercent}% Above</span>
                 <span className="text-rose-600 dark:text-rose-300">{round.belowPercent}% Below</span>
               </div>
@@ -226,7 +229,7 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
               </div>
             </div>
 
-            <div className="mt-2.5 grid grid-cols-2 gap-4 border-t border-border/60 pt-2.5 text-sm">
+            <div className="mt-2 grid grid-cols-2 gap-3 border-t border-border/60 pt-2 text-sm">
               <div>
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Threshold</div>
                 <div className="mt-0.5 text-sm font-semibold text-foreground">{formatPrice(round.thresholdValue)}</div>
@@ -237,7 +240,7 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
               </div>
             </div>
 
-            <div className="mt-2.5 rounded-[18px] border border-border/60 bg-background/60 px-3 py-2">
+            <div className="mt-2 rounded-xl border border-border/60 bg-background/60 px-2.5 py-1.5">
               <div className="flex items-center justify-between gap-3 text-[11px]">
                 <div className="flex items-center gap-2 font-bold text-muted-foreground">
                   <Clock3 className="size-3.5" />
@@ -247,7 +250,7 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
               </div>
             </div>
 
-            <div className="mt-auto pt-2.5">
+            <div className="mt-auto pt-2">
               {round.status === "resolved" ? (
                 <div className={cn(
                   "rounded-[18px] border px-4 py-3 text-center",
@@ -272,18 +275,18 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
                   Entry closed at {round.lockTime}
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => requestEntry("Above")}
-                    className="rounded-[18px] bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 px-4 py-2.5 text-sm font-black text-white transition hover:brightness-105"
+                    className="rounded-xl bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300 px-3 py-2 text-sm font-black text-white transition hover:brightness-105"
                   >
                     Above
                   </button>
                   <button
                     type="button"
                     onClick={() => requestEntry("Below")}
-                    className="rounded-[18px] bg-gradient-to-r from-rose-500 via-red-500 to-red-600 px-4 py-2.5 text-sm font-black text-white transition hover:brightness-105"
+                    className="rounded-xl bg-gradient-to-r from-rose-500 via-red-500 to-red-600 px-3 py-2 text-sm font-black text-white transition hover:brightness-105"
                   >
                     Below
                   </button>
@@ -297,10 +300,10 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
   }
 
   return (
-    <div className="min-w-[308px] max-w-[330px]">
-      <div className={cn("min-h-[390px] overflow-hidden rounded-[28px] border p-4 text-card-foreground", style.frame, style.glow)}>
-        <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between">
+    <div className={THRESHOLD_CARD_SQUARE}>
+      <div className={cn("flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border p-3 text-card-foreground", style.frame, style.glow)}>
+        <div className="flex h-full min-h-0 flex-col gap-2">
+          <div className="flex shrink-0 items-center justify-between">
             <button
               type="button"
               onClick={() => setEntrySide(null)}
@@ -317,22 +320,22 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
             </div>
           </div>
 
-          <div className="mt-6">
+          <div className="min-h-0 flex-1">
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Stake</div>
             <Input
               value={entryAmount}
               onChange={(event) => setEntryAmount(sanitizeAmountInput(event.target.value))}
               inputMode="decimal"
               placeholder="Enter Amount"
-              className="mt-2 h-14 rounded-[18px] border-border/70 bg-background/80 px-4 text-[1.4rem] font-black tracking-tight"
+              className="mt-1.5 h-11 rounded-xl border-border/70 bg-background/80 px-3 text-[1.15rem] font-black tracking-tight"
             />
-            <div className="mt-3 grid grid-cols-4 gap-2">
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
               {["1", "10", "25", "100"].map((value) => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => setEntryAmount(value)}
-                  className="rounded-full border border-border/70 bg-background/75 px-2 py-1.5 text-[11px] font-bold text-muted-foreground transition hover:bg-background hover:text-foreground"
+                  className="rounded-full border border-border/70 bg-background/75 px-1.5 py-1 text-[10px] font-bold text-muted-foreground transition hover:bg-background hover:text-foreground"
                 >
                   ${value}
                 </button>
@@ -340,16 +343,16 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
             </div>
           </div>
 
-          <div className="mt-5 rounded-[20px] border border-border/70 bg-background/80 p-4">
-            <div className="flex items-center justify-between text-sm">
+          <div className="rounded-xl border border-border/70 bg-background/80 p-3">
+            <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Threshold</span>
               <span className="font-bold text-foreground">{formatPrice(round.thresholdValue)}</span>
             </div>
-            <div className="mt-2 flex items-center justify-between text-sm">
+            <div className="mt-1.5 flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Potential payout</span>
               <span className="font-bold text-foreground">{potentialWin ? formatUsd(potentialWin) : "--"}</span>
             </div>
-            <div className="mt-2 flex items-center justify-between text-sm">
+            <div className="mt-1.5 flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Resolution</span>
               <span className="font-bold text-foreground">{round.resolveTime}</span>
             </div>
@@ -358,7 +361,7 @@ export function ThresholdRoundCard({ round, onRequestLogin }: ThresholdRoundCard
           <button
             type="button"
             className={cn(
-              "mt-auto rounded-[18px] px-4 py-3 text-sm font-black text-white transition hover:brightness-105",
+              "mt-auto shrink-0 rounded-xl px-4 py-2.5 text-sm font-black text-white transition hover:brightness-105",
               entrySide === "Above"
                 ? "bg-gradient-to-r from-emerald-400 via-emerald-300 to-teal-300"
                 : "bg-gradient-to-r from-rose-500 via-red-500 to-red-600",

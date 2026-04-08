@@ -55,7 +55,7 @@ function getChartColors() {
 
 export function TradingChart({
   candles,
-  height = 360,
+  height = 280,
   pair = "BTC/USDT",
   assetName = "Bitcoin",
   interval,
@@ -119,9 +119,10 @@ export function TradingChart({
       wrapper.style.boxShadow = colors.shadow;
     };
 
+    const chartPaneHeight = Math.max(height - 64, 120);
     const chart = createChart(container, {
       autoSize: true,
-      height: Math.max(height - 64, 220),
+      height: chartPaneHeight,
       layout: {
         background: { type: ColorType.Solid, color: "#ffffff" },
         textColor: "#64748b",
@@ -208,9 +209,9 @@ export function TradingChart({
       className="overflow-hidden rounded-[28px] border border-slate-800 text-slate-100 shadow-[0_28px_80px_-44px_rgba(2,6,23,0.82)]"
       style={{ height }}
     >
-      <div className="border-b px-4 py-2.5" style={{ borderColor: colors.border }}>
-        <div className="text-sm font-semibold" style={{ color: colors.foreground }}>{assetName}</div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: colors.muted }}>
+      <div className="border-b px-3 py-2" style={{ borderColor: colors.border }}>
+        <div className="text-xs font-semibold sm:text-sm" style={{ color: colors.foreground }}>{assetName}</div>
+        <div className="mt-0.5 flex flex-nowrap items-center gap-x-2 overflow-x-auto text-[11px] sm:text-xs" style={{ color: colors.muted }}>
           {pair.replace("/USDT", " / TetherUS")} · {formatInterval(interval)} · Binance
           {current ? (
             <span className="ml-2" style={{ color: change >= 0 ? colors.up : colors.down }}>
@@ -219,7 +220,7 @@ export function TradingChart({
           ) : null}
         </div>
       </div>
-      <div ref={containerRef} className="w-full" style={{ height: Math.max(height - 64, 220) }} />
+      <div ref={containerRef} className="w-full" style={{ height: Math.max(height - 64, 120) }} />
     </div>
   );
 }

@@ -7,15 +7,30 @@ import { AssetDetailResponse, AssetUniverseEntry, KlineInterval } from "@/lib/ma
 const DETAIL_TTL_MS = 15_000;
 const detailCache = new Map<string, { expiresAt: number; value: AssetDetailResponse }>();
 
-export function useAssetDetail(symbol: string | undefined, interval: KlineInterval = "1m") {
-  const cacheKey = symbol ? `${symbol.toUpperCase()}:${interval}` : "";
+type UseAssetDetailOptions = {
+  /** When false, skips fetch (e.g. non-crypto market views use reference data instead). */
+  enabled?: boolean;
+};
+
+export function useAssetDetail(
+  symbol: string | undefined,
+  interval: KlineInterval = "1m",
+  options?: UseAssetDetailOptions,
+) {
+  const enabled = options?.enabled ?? true;
+  const cacheKey = symbol && enabled ? `${symbol.toUpperCase()}:${interval}` : "";
   const cachedValue = cacheKey ? detailCache.get(cacheKey)?.value ?? null : null;
   const [data, setData] = useState<AssetDetailResponse | null>(cachedValue);
-  const [loading, setLoading] = useState(!cachedValue);
+  const [loading, setLoading] = useState(enabled ? !cachedValue : false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!symbol) return;
+    if (!enabled || !symbol) {
+      setData(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let cancelled = false;
     let activeAsset: AssetUniverseEntry | null = null;
     const currentCacheKey = `${symbol.toUpperCase()}:${interval}`;
@@ -90,7 +105,7 @@ export function useAssetDetail(symbol: string | undefined, interval: KlineInterv
       window.clearInterval(fullRefreshId);
       window.clearInterval(liveRefreshId);
     };
-  }, [cacheKey, interval, symbol]);
+  }, [cacheKey, enabled, interval, symbol]);
 
   return { data, loading, error };
 }

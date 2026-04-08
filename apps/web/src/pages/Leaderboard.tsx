@@ -160,7 +160,7 @@ const Leaderboard = () => {
                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
             </div>
 
-            <div className="container mx-auto px-4 pt-8 pb-20 max-w-5xl relative z-10">
+            <div className="container mx-auto px-4 pt-3 pb-20 max-w-5xl relative z-10">
                 {/* Header */}
                 <div className="text-center mb-16">
                     <motion.h1
