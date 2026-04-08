@@ -1,0 +1,26 @@
+# Rust / Anchor
+target/
+**/*.rs.bk
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.cache/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Env
+.env
+.env.local
+
+# Anchor (local validator / ledger — do not commit; exceeds GitHub limits)
+.anchor/
+test-ledger/

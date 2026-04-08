@@ -1,0 +1,27 @@
+{
+  "name": "retropick-market-engine-v5-tests",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "test:single-side": "mocha -r ts-node/register/transpile-only tests/single_side_mode.ts",
+    "test:market-lifecycle": "mocha -r ts-node/register/transpile-only tests/market_lifecycle.cjs",
+    "test:pyth-stale": "mocha -r ts-node/register/transpile-only tests/pyth_stale_flow.cjs",
+    "test:pyth-confidence": "mocha -r ts-node/register/transpile-only tests/pyth_confidence_flow.cjs",
+    "test:ts": "mocha -r ts-node/register/transpile-only tests/**/*.ts"
+  },
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@pythnetwork/hermes-client": "^3.1.0",
+    "@pythnetwork/pyth-solana-receiver": "^0.14.0",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.0",
+    "@types/chai": "^5.2.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^25.5.0",
+    "chai": "^6.2.2",
+    "mocha": "^11.7.5",
+    "rpc-websockets": "7.5.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

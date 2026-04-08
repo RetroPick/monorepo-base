@@ -1,0 +1,16 @@
+[toolchain]
+anchor_version = "0.31.1"
+
+[features]
+seeds = true
+skip-lint = false
+
+[programs.localnet]
+market_engine = "DYx5zh2gM1QuSviJF4WvdcsiGNb4JSxyp2ZhbnqnUuwR"
+
+[provider]
+cluster = "Localnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+test = "pnpm test:single-side"
