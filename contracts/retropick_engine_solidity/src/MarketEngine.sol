@@ -13,8 +13,75 @@ import {IPriceOracle} from "./interfaces/IPriceOracle.sol";
 import {IPriceOracleWithRoundId} from "./interfaces/IPriceOracleWithRoundId.sol";
 
 /// @title MarketEngine
-/// @notice EVM port 
-/// @dev UUPS: deploy `MarketEngine` implementation + ERC1967 proxy (`initialize` in proxy creation calldata). Upgrades: `admin` only via `_authorizeUpgrade`.
+/// @notice RetroPick rolling-rounds prediction market engine (monolithic per-protocol contract).
+/// @dev
+/// NOTES: Core model (Template -> Ledger -> Epoch -> Position)
+/// RetroPick runs many markets inside one engine. A market is identified by a template id (`templateId`)
+/// and has a per-template ledger plus a sequence of epochs (a.k.a. rounds).
+///
+/// - Template (`templates[templateId]`): market definition (type, oracle feed id, fees, execution mode).
+/// - Ledger (`ledgers[templateId]`): per-template cursor + reserves + rolling lifecycle state.
+/// - Epoch (`epochs[templateId][epochId]`): one round lifecycle: open -> lock -> resolve -> claim.
+/// - Position (`positions[positionKey(templateId,epochId)][user]`): user stake per outcome in an epoch.
+///
+/// Epoch ids are `uint64`. Manual-mode epochs must be sequential and fully resolved before the next open.
+/// Rolling-mode epochs use an independent cursor (`rollingNextEpochId`) and can be reset upward after halts.
+///
+/// NOTES: Execution modes
+/// - Manual (`ExecutionMode.Manual`): keeper calls `openEpoch` -> `lockEpoch` -> `resolveEpoch`.
+/// - Rolling (`ExecutionMode.Rolling`, Direction-only): pipeline that advances in one keeper tx per interval:
+///   - `genesisStartRolling` opens epoch k (k starts at 1).
+///   - `genesisLockRolling` locks k (checkpoint A) and opens k+1, entering steady state.
+///   - `executeRollingRound` steady-state: resolves (k-1), locks (k), opens (k+1).
+///
+/// INVARIANT: Rolling steady-state (Direction)
+/// Let `k = ledger.activeEpochId` when rolling is `Live`:
+/// - epoch k is Open (accepting bets)
+/// - epoch k-1 is Locked
+/// - epoch k-2 is already Resolved (or voided/cancelled and claimable)
+///
+/// `executeRollingRound` uses a single oracle sample and applies it to both:
+/// - checkpoint B for epoch (k-1) resolve, and
+/// - checkpoint A for epoch k lock.
+///
+/// NOTES: Oracle model (push oracles like Chainlink)
+/// The oracle adapter returns `(priceE8, publishTime, confidenceE8)`. `publishTime` is the oracle’s own
+/// update timestamp (e.g. Chainlink `updatedAt`), which may be earlier than `lockAt/resolveAt`.
+/// The engine therefore validates freshness vs now and monotonicity rather than requiring
+/// `publishTime >= lockAt/resolveAt`.
+///
+/// NOTES: Oracle sample monotonicity cursor (anti time-travel + feed migration safety)
+/// The engine tracks an `OracleCursor` per (templateId, feedId) in `lastOracleCursorByTemplateFeed`.
+/// Samples must be monotonic:
+/// - `oracleRoundId` must not decrease
+/// - if `oracleRoundId` is unchanged (e.g. adapters without round ids use 0), `publishTime` must not decrease
+///
+/// Example:
+/// - lock: (round=120, publishTime=10:00)
+/// - resolve: (round=121, publishTime=10:05) ✅
+/// - resolve attempt: (round=119, publishTime=09:55) ❌ 
+///
+/// NOTES: Funds and accounting
+/// One ERC20 `stakeToken` is used for staking, fees, and payouts. Per-template vault accounting splits totals into:
+/// - `active`: collateral backing open/locked epochs
+/// - `claims`: reserved for winners/refunds in claimable epochs
+/// - `fees`: reserved protocol fees (withdrawable by `treasury`)
+///
+/// Resolve moves amounts from active→claims and active→fees based on settlement math (`MarketMath`).
+/// Claim moves amounts from claims→user and decrements ledger reserves.
+///
+/// IMPORTANT: Last-claimer remainder rule (per-epoch)
+/// On the last winning claimant for an epoch, payout equals the remaining claim pool for that epoch:
+/// `remainingClaimsForEpoch = epoch.claimLiabilityTotal - epoch.claimedTotal` (not the global claims reserve).
+///
+/// NOTES: Roles
+/// - `admin`: governance; templates, pause, config, executor allowlist, and UUPS upgrades.
+/// - `workerAuthority`: keeper/operator; epoch lifecycle ops (manual or rolling).
+/// - `treasury`: fee receiver; can withdraw accumulated fees.
+///
+/// NOTES: Upgradeability (UUPS)
+/// Deploy `MarketEngine` implementation + ERC1967 proxy (`initialize` via proxy creation calldata).
+/// Upgrades are `admin`-only via `_authorizeUpgrade`. Storage layout is append-only; `__gap` must remain.
 contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeable {
     using SafeERC20 for IERC20;
     using MarketTypes for MarketTypes.Epoch;
@@ -200,10 +267,28 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
+    /// @dev Implementation constructor disables initializers to prevent implementation takeover.
     constructor() {
         _disableInitializers();
     }
 
+    /// @notice Initialize the engine behind a UUPS proxy.
+    /// @dev
+    /// - Must be called exactly once (protected by `initializer` + `onlyProxy`).
+    /// - Rejects non-Chainlink oracle kinds in the current implementation.
+    /// - `maxOutcomes_` is capped by `MarketTypes.MAX_OUTCOMES` (8) to bound outcome arrays in `Epoch/Position`.
+    /// - Fees are basis points: 0..10_000.
+    /// @param stakeToken_ ERC20 used for staking, fees, and payouts.
+    /// @param priceOracle_ Oracle adapter implementing `IPriceOracle` (optionally `IPriceOracleWithRoundId`).
+    /// @param admin_ Governance authority (also authorizes UUPS upgrades).
+    /// @param treasury_ Fee receiver.
+    /// @param worker_ Keeper/operator authority.
+    /// @param defaultSettlementFeeBps_ Default settlement fee basis points.
+    /// @param maxSwitchFeeBps_ Global cap on per-template switch fee basis points.
+    /// @param maxOutcomes_ Global cap on per-template outcomes.
+    /// @param oracleKind_ Global oracle kind (currently Chainlink only).
+    /// @param oracleMaxDelaySeconds_ Global staleness window for oracle `publishTime` freshness validation.
+    /// @param oracleMaxConfidenceBps_ Global confidence cap in basis points relative to \(|price|\).
     function initialize(
         IERC20 stakeToken_,
         IPriceOracle priceOracle_,
@@ -264,6 +349,16 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         uint16 oracleMaxConfidenceBps;
     }
 
+    /// @notice Create or update a template (market definition) keyed by `templateIdFromSlug(p.slug)`.
+    /// @dev
+    /// Template invariants are validated by `_validateTemplate`. Important rules:
+    /// - Direction: binary outcomes (2), `ThresholdRule.None`, and `equalPriceVoids=true`.
+    /// - Threshold: binary outcomes (2) and `ThresholdRule.Absolute`.
+    /// - RangeClose: `outcomeCount >= 2` and `rangeBoundsE8` strictly increasing for the used prefix.
+    /// - Rolling: Direction-only and requires `rollingIntervalSeconds > 0` and `rollingBufferSeconds < rollingIntervalSeconds`.
+    ///
+    /// Integration note:
+    /// - Epochs snapshot template fields at open. Updating a template does not retroactively change existing epochs.
     function upsertTemplate(UpsertTemplateParams calldata p) external onlyAdmin {
         if (bytes(p.slug).length == 0 || bytes(p.slug).length > MarketTypes.SLUG_MAX_LEN) revert InvalidTemplate();
         if (bytes(p.assetSymbol).length == 0 || bytes(p.assetSymbol).length > MarketTypes.ASSET_SYMBOL_MAX_LEN) {
@@ -315,6 +410,8 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         );
     }
 
+    /// @notice Initialize per-template ledger storage (one-time) so epochs can be opened.
+    /// @dev Initializes cursors and reserves to zero and sets rolling lifecycle to `Uninitialized`.
     function initializeMarket(bytes32 templateId) external onlyAdmin {
         MarketTypes.Template storage t = templates[templateId];
         if (t.version == 0) revert InvalidTemplate();
@@ -337,7 +434,18 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit MarketInitialized(templateId);
     }
 
-    /// @notice Pancake-style genesis: open the next rolling epoch id (`rollingNextEpochId`, starts at 1).
+    /// @notice Start a rolling market by opening the genesis epoch (bootstrap step 1/2).
+    /// @dev
+    /// Rolling is Direction-only and uses fixed interval timing:
+    /// - openAt = now
+    /// - lockAt = now + rollingIntervalSeconds
+    /// - resolveAt = now + 2*rollingIntervalSeconds
+    ///
+    /// After this call:
+    /// - `ledger.activeEpochId` becomes the opened epoch id (starting at `ledger.rollingNextEpochId`, initially 1).
+    /// - `ledger.rollingPhase` becomes `GenesisOpen`.
+    ///
+    /// Keepers must follow with `genesisLockRolling` after `lockAt` (within the template buffer window).
     function genesisStartRolling(bytes32 templateId) external onlyWorkerOrAdmin notPausedWorkerOps {
         if (!configInitialized) revert Unauthorized();
         MarketTypes.Template storage t = templates[templateId];
@@ -355,7 +463,16 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         );
     }
 
-    /// @notice Lock the genesis-open epoch and open the next; enters Live rolling phase. Missed buffer or oracle issues halt instead of reverting.
+    /// @notice Lock the genesis epoch and open the next; enter steady-state rolling (bootstrap step 2/2).
+    /// @dev
+    /// Performs:
+    /// - lock epoch k = `ledger.activeEpochId` (writes checkpoint A for Direction)
+    /// - open epoch k+1
+    /// - sets `ledger.rollingPhase = Live`
+    ///
+    /// Liveness-first behavior: buffer misses, oracle failures, or wide confidence halt rolling instead of reverting.
+    ///
+    /// Buffer rule: must be called in `[lockAt, lockAt + rollingBufferSeconds]`.
     function genesisLockRolling(bytes32 templateId) external onlyWorkerOrAdmin notPausedWorkerOps nonReentrant {
         if (!configInitialized) revert Unauthorized();
         MarketTypes.Template storage t = templates[templateId];
@@ -401,7 +518,13 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit RollingGenesisLocked(templateId, k, newOpen);
     }
 
-    /// @notice One keeper tx: resolve (k-1), lock (k), open (k+1). Same oracle sample for lock A and resolve B.
+    /// @notice Rolling tick: resolve (k-1), lock (k), open (k+1) in one keeper transaction.
+    /// @dev
+    /// Uses a single oracle sample for:
+    /// - checkpoint B for epoch (k-1) resolve, and
+    /// - checkpoint A for epoch k lock.
+    ///
+    /// This is the primary keeper entrypoint in rolling steady state.
     function executeRollingRound(bytes32 templateId) external onlyWorkerOrAdmin notPausedWorkerOps nonReentrant {
         _executeRollingRoundCore(templateId);
     }
@@ -577,7 +700,8 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         _openEpoch(templateId, epochId, openAt, lockAt, resolveAt);
     }
 
-    /// @notice Amortizes fixed calldata/base gas for keepers maintaining multiple templates.
+    /// @notice Manual mode: batch open epochs across templates (amortizes base gas/calldata).
+    /// @dev Arrays must be the same length. Each epoch must satisfy manual sequential-open invariants per template.
     function openEpochsBatch(
         bytes32[] calldata templateIds,
         uint64[] calldata epochIds,
@@ -594,6 +718,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @dev Manual open implementation. Snapshots template parameters into the epoch storage.
     function _openEpoch(bytes32 templateId, uint64 epochId, uint64 openAt, uint64 lockAt, uint64 resolveAt) internal {
         if (templates[templateId].executionMode == MarketTypes.ExecutionMode.Rolling) revert ManualModeOnly();
         if (!(openAt < lockAt && lockAt < resolveAt)) revert InvalidTiming();
@@ -651,7 +776,10 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit EpochOpened(templateId, epochId, openAt, lockAt, resolveAt);
     }
 
-    /// @dev Rolling-only open: uses `ledger.rollingNextEpochId`, then advances it. No manual sequential open guard.
+    /// @dev
+    /// Rolling-only open implementation.
+    /// - Uses `ledger.rollingNextEpochId` then advances it.
+    /// - Does not enforce manual sequential-open guard; rolling can restart at a higher epoch id after a halt.
     function _openRollingEpoch(bytes32 templateId, uint64 startTs, MarketTypes.Template storage t)
         internal
         returns (uint64 openedEpochId)
@@ -719,6 +847,8 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit EpochOpened(templateId, epochId, openAt, lockAt, resolveAt);
     }
 
+    /// @dev Enter `RollingPhase.Halted` with a reason and emit `RollingHalted`.
+    /// Rolling halts are used instead of reverts for keeper liveness when conditions are unsafe (buffer miss/oracle issues).
     function _haltRolling(
         bytes32 templateId,
         MarketTypes.Ledger storage ledger,
@@ -732,11 +862,17 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
     }
 
     /// @notice Allowlist contracts that may call `depositToSideFor` (routers / intent settlers).
+    /// @dev Allows UX flows where a router swaps and then deposits into a position owned by the end user.
     function setDepositExecutor(address account, bool allowed) external onlyAdmin {
         isDepositExecutor[account] = allowed;
         emit DepositExecutorSet(account, allowed);
     }
 
+    /// @notice Deposit stake into an outcome for the active epoch (position owned by caller).
+    /// @dev
+    /// - Only valid for the current `ledger.activeEpochId` for the template.
+    /// - Reverts for fee-on-transfer / deflationary tokens by enforcing `received == amount`.
+    /// - Enforces single-side participation if the epoch disallows multi-side positions.
     function depositToSide(bytes32 templateId, uint64 epochId, uint8 outcomeIndex, uint256 amount)
         external
         nonReentrant
@@ -745,8 +881,11 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         _depositToSide(msg.sender, msg.sender, templateId, epochId, outcomeIndex, amount);
     }
 
-    /// @notice Pull stake token from `msg.sender` (must be an allowlisted executor) and credit `beneficiary`.
-    /// @dev Used by routers after swap so the end user receives position ownership without being `msg.sender` on `depositToSide`.
+    /// @notice Deposit stake into an outcome for the active epoch, crediting `beneficiary`.
+    /// @dev
+    /// - Pulls stake token from `msg.sender` (must be allowlisted via `isDepositExecutor`).
+    /// - Credits the position to `beneficiary` (end user), enabling router-based UX.
+    /// - Indexes `beneficiary` in `userEpochs` on first participation in this epoch.
     function depositToSideFor(
         address beneficiary,
         bytes32 templateId,
@@ -759,6 +898,9 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         _depositToSide(msg.sender, beneficiary, templateId, epochId, outcomeIndex, amount);
     }
 
+    /// @dev Internal deposit implementation shared by `depositToSide` and `depositToSideFor`.
+    /// Indexing rule: on first position initialization for `(templateId, beneficiary, epochId)`, append `epochId`
+    /// to `userEpochs[templateId][beneficiary]` and emit `UserEpochIndexed` (no duplicates per epoch).
     function _depositToSide(
         address payer,
         address beneficiary,
@@ -840,6 +982,18 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         nextCursor = end;
     }
 
+    /// @notice Move stake from one outcome to another within the active open epoch, charging a switch fee.
+    /// @dev
+    /// Fee math is implemented in `MarketMath.computeSwitch`:
+    /// - `feeAmount = ceil(grossAmount * switchFeeBps / 10_000)`
+    /// - `netAmount = grossAmount - feeAmount`
+    ///
+    /// Accounting:
+    /// - `feeAmount` is removed from the epoch pool totals and moved from active→fees reserve immediately.
+    ///
+    /// Single-side epochs (`allowMultiSidePositions=false`):
+    /// - user must be fully single-sided on `fromOutcome`, and
+    /// - partial switches are disallowed (must switch the entire stake from that outcome).
     function switchSide(bytes32 templateId, uint64 epochId, uint8 fromOutcome, uint8 toOutcome, uint256 grossAmount)
         external
         nonReentrant
@@ -896,10 +1050,13 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit SideSwitched(templateId, epochId, msg.sender, fromOutcome, toOutcome, grossAmount, feeAmount, netAmount);
     }
 
+    /// @notice Manual mode: lock the active epoch.
+    /// @dev For Direction epochs, writes oracle checkpoint A. For other market types, simply transitions to Locked.
     function lockEpoch(bytes32 templateId, uint64 epochId) external onlyWorkerOrAdmin notPausedWorkerOps {
         _lockEpoch(templateId, epochId);
     }
 
+    /// @notice Manual mode: batch lock epochs across templates.
     function lockEpochsBatch(bytes32[] calldata templateIds, uint64[] calldata epochIds)
         external
         onlyWorkerOrAdmin
@@ -912,6 +1069,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @dev Internal manual lock implementation. Enforces timing; for Direction reads oracle and validates confidence/freshness.
     function _lockEpoch(bytes32 templateId, uint64 epochId) internal {
         if (!configInitialized) revert Unauthorized();
         if (templates[templateId].executionMode == MarketTypes.ExecutionMode.Rolling) revert ManualModeOnly();
@@ -934,7 +1092,12 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
-    /// @dev Shared lock transition; for Direction uses supplied oracle sample (single read in rolling execute).
+    /// @dev
+    /// Shared lock transition.
+    /// - For Direction, writes checkpoint A using the supplied oracle sample (manual: read per lock; rolling: shared read).
+    /// - For other market types, checkpoint A is not written.
+    ///
+    /// Publish-time rule is “push-oracle compatible”: freshness vs now/maxDelaySeconds (does not require publishTime >= lockAt).
     function _applyLock(
         bytes32 templateId,
         uint64 epochId,
@@ -966,6 +1129,10 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @notice Manual mode: resolve the active locked epoch and make it claimable.
+    /// @dev
+    /// Writes checkpoint B (oracle sample at resolve), computes settlement outputs (winning mask or refund-mode),
+    /// moves funds from active→claims/fees reserves, and marks the epoch `claimable=true`.
     function resolveEpoch(bytes32 templateId, uint64 epochId)
         external
         onlyWorkerOrAdmin
@@ -975,6 +1142,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         _resolveEpoch(templateId, epochId);
     }
 
+    /// @notice Manual mode: batch resolve active epochs across templates.
     function resolveEpochsBatch(bytes32[] calldata templateIds, uint64[] calldata epochIds)
         external
         onlyWorkerOrAdmin
@@ -988,6 +1156,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @dev Internal manual resolve implementation. Enforces oracle freshness/confidence before settlement.
     function _resolveEpoch(bytes32 templateId, uint64 epochId) internal {
         if (!configInitialized) revert Unauthorized();
         if (templates[templateId].executionMode == MarketTypes.ExecutionMode.Rolling) revert ManualModeOnly();
@@ -1008,6 +1177,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         _finishResolveEpoch(templateId, epochId, priceE8, publishTime, confidenceE8, oracleRoundId, maxDelay, false, nowTs);
     }
 
+    /// @dev Rolling-only resolve hook invoked by rolling tick with the shared oracle sample.
     function _finishResolveEpochRolling(
         bytes32 templateId,
         uint64 epochId,
@@ -1023,7 +1193,10 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         );
     }
 
-    /// @param rollingLink true: resolve epoch `epochId` where `epochId + 1 == activeEpochId` (rolling pipeline).
+    /// @dev Finalize resolve for an epoch in either manual or rolling linkage.
+    /// @param rollingLink
+    /// - false: manual resolve of `epochId == ledger.activeEpochId`
+    /// - true: rolling resolve where `epochId + 1 == ledger.activeEpochId` (epoch is the locked predecessor)
     function _finishResolveEpoch(
         bytes32 templateId,
         uint64 epochId,
@@ -1060,6 +1233,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         _emitResolveEvents(templateId, epochId, refundMode, winningMask, claimLiabilityTotal, settlementFeeTotal, oracleRoundId);
     }
 
+    /// @dev Apply vault + ledger reserve accounting at resolve by moving computed liabilities out of active collateral.
     function _applyResolveAccounting(
         bytes32 templateId,
         uint64 epochId,
@@ -1095,6 +1269,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         epochId; // silence unused warning in some compile profiles
     }
 
+    /// @dev Set `epoch.remainingWinningStake`, used to detect the final winning claimant for remainder payout.
     function _setRemainingWinningStake(bytes32 templateId, uint64 epochId, bool refundMode) internal {
         MarketTypes.Epoch storage e = epochs[templateId][epochId];
         if (refundMode) {
@@ -1111,6 +1286,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         e.remainingWinningStake = sum;
     }
 
+    /// @dev Emit resolve events, including V2 event carrying oracle round id (0 when unavailable).
     function _emitResolveEvents(
         bytes32 templateId,
         uint64 epochId,
@@ -1158,6 +1334,18 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
             MarketMath.computeEpochClaimLiabilityStorage(e, e.settlementFeeBps, e.feeOnLosingPool);
     }
 
+    /// @notice Cancel an Open/Locked epoch and make user funds claimable as refunds.
+    /// @dev
+    /// Pause semantics:
+    /// - When paused, only `admin` may cancel (worker is blocked).
+    ///
+    /// Rolling restriction:
+    /// - Disallowed while a rolling template is `Live`; use rolling recovery (`cancelRollingEpochWhileHalted`) instead.
+    ///
+    /// Accounting:
+    /// - Moves `e.totalPool` from active→claims reserve and sets `refundMode=true` and `claimable=true`.
+    /// @param reason Cancel reason (must not be None).
+    /// @param voided If true, sets status `Voided` else `Cancelled` (both are refund-mode).
     function cancelEpoch(bytes32 templateId, uint64 epochId, MarketTypes.CancelReason reason, bool voided)
         external
         onlyWorkerOrAdmin
@@ -1204,13 +1392,16 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit EpochCancelled(templateId, epochId, uint8(reason));
     }
 
+    /// @notice Claim payout/refund for a single epoch.
+    /// @dev Transfers stakeToken once for this epoch.
     function claim(bytes32 templateId, uint64 epochId) external nonReentrant {
         uint256 amount = _claimOne(templateId, epochId, msg.sender);
         stakeToken.safeTransfer(msg.sender, amount);
         emit Claimed(templateId, epochId, msg.sender, amount);
     }
 
-    /// @notice Claim multiple epochs in a single token transfer.
+    /// @notice Claim multiple epochs in a single token transfer (gas-optimized UX).
+    /// @dev Emits `Claimed` per epoch and transfers only once for the sum.
     function claimMany(bytes32 templateId, uint64[] calldata epochIds) external nonReentrant {
         uint256 total = 0;
         for (uint256 i = 0; i < epochIds.length; i++) {
@@ -1222,6 +1413,9 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         stakeToken.safeTransfer(msg.sender, total);
     }
 
+    /// @dev Compute and record a single-epoch claim amount (does not transfer tokens).
+    /// Implements the per-epoch “last-claimer remainder” rule by passing:
+    /// `remainingClaimsForEpoch = e.claimLiabilityTotal - e.claimedTotal` into `MarketMath.computeClaimPayoutStorage`.
     function _claimOne(bytes32 templateId, uint64 epochId, address user) internal returns (uint256 amount) {
         if (!configInitialized) revert Unauthorized();
         MarketTypes.Ledger storage ledger = ledgers[templateId];
@@ -1256,6 +1450,8 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         vaults[templateId].claims -= amount;
     }
 
+    /// @notice Withdraw accumulated protocol fees for a template to `treasury`.
+    /// @dev Decrements ledger fee reserve and per-template fees vault.
     function withdrawFees(bytes32 templateId, uint256 amount) external onlyTreasuryOrAdmin nonReentrant {
         if (!configInitialized) revert Unauthorized();
         if (amount == 0) revert NothingToClaim();
@@ -1270,14 +1466,18 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         emit FeesWithdrawn(templateId, amount);
     }
 
+    /// @notice Derive template id from a human-readable slug.
     function templateIdFromSlug(string memory slug) public pure returns (bytes32) {
         return keccak256(bytes(slug));
     }
 
+    /// @notice Derive position key for `(templateId,epochId)` used to index `positions`.
     function positionKey(bytes32 templateId, uint64 epochId) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(templateId, epochId));
     }
 
+    /// @notice Read per-template vault balances (active/claims/fees).
+    /// @dev These are internal accounting totals; the ERC20 balance is shared across templates.
     function getVaultBalances(bytes32 templateId) external view returns (uint256 active, uint256 claims, uint256 fees) {
         MarketTypes.VaultBalances storage v = vaults[templateId];
         return (v.active, v.claims, v.fees);
@@ -1307,12 +1507,15 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         );
     }
 
+    /// @dev Downcast oracle confidence to uint128 for packed checkpoint storage.
     function _toConf128(uint256 confidenceE8) internal pure returns (uint128) {
         if (confidenceE8 > type(uint128).max) revert ConfidenceOverflow();
         // forge-lint: disable-next-line(unsafe-typecast) -- guarded by revert above
         return uint128(confidenceE8);
     }
 
+    /// @dev Check `confidenceE8 <= |priceE8| * maxConfidenceBps / 10_000`.
+    /// Uses wrapping abs via assembly to avoid `type(int256).min` negation overflow.
     function _confidenceWithinBand(int256 priceE8, uint256 confidenceE8, uint16 maxConfidenceBps)
         internal
         pure
@@ -1331,19 +1534,24 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         return confidenceE8 <= limit;
     }
 
+    /// @dev Enforce confidence within band, else revert.
     function _enforceConfidence(int256 priceE8, uint256 confidenceE8, uint16 maxConfidenceBps) internal pure {
         if (!_confidenceWithinBand(priceE8, confidenceE8, maxConfidenceBps)) revert OracleConfidenceTooWide();
     }
 
+    /// @dev Manual sequential-open guard: cannot open next epoch until previous is resolved/cancelled/voided.
     function _requireCanOpenNextEpoch(MarketTypes.Ledger storage ledger, uint64 epochId) internal view {
         if (ledger.activeEpochId != ledger.lastResolvedEpochId) revert PreviousEpochUnresolved();
         if (epochId != ledger.activeEpochId + 1) revert EpochAlreadyExists();
     }
 
+    /// @dev Active epoch guard used for user ops and manual keeper ops.
     function _requireActiveEpoch(MarketTypes.Ledger storage ledger, uint64 epochId) internal view {
         if (epochId != ledger.activeEpochId) revert EpochNotActive();
     }
 
+    /// @dev Enforce oracle sample monotonicity and update per-(template,feed) cursor.
+    /// See file header for rationale and examples.
     function _enforceAndUpdateOracleCursor(bytes32 templateId, bytes32 feedId, uint80 oracleRoundId, uint64 publishTime)
         internal
     {
@@ -1366,6 +1574,8 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @dev Read oracle sample, reverting on adapter failure.
+    /// Tries optional `IPriceOracleWithRoundId` first; falls back to `IPriceOracle` when not supported.
     function _readOracleOrRevert(bytes32 templateId, bytes32 feedId, uint64 maxDelay, uint64 nowTs)
         internal
         returns (int256 priceE8, uint64 publishTime, uint256 confidenceE8, uint80 oracleRoundId)
@@ -1382,6 +1592,8 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @dev Best-effort oracle read used by rolling keepers.
+    /// Returns `(ok=false, ...)` instead of reverting so rolling can halt safely on oracle failures.
     function _tryReadOracle(bytes32 templateId, bytes32 feedId, uint64 maxDelay, uint64 nowTs)
         internal
         returns (bool ok, int256 priceE8, uint64 publishTime, uint256 confidenceE8, uint80 oracleRoundId)
@@ -1401,6 +1613,7 @@ contract MarketEngine is Initializable, ReentrancyGuardTransient, UUPSUpgradeabl
         }
     }
 
+    /// @dev Template validation invoked by `upsertTemplate`.
     function _validateTemplate(MarketTypes.Template storage t) internal view {
         if (t.outcomeCount > maxOutcomes) revert TooManyOutcomes();
         if (t.switchFeeBps > 10_000 || t.settlementFeeBps > 10_000) revert InvalidFeeBps();

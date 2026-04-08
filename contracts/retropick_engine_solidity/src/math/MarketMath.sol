@@ -3,6 +3,20 @@ pragma solidity ^0.8.24;
 
 import {MarketTypes} from "../types/MarketTypes.sol";
 
+/// @title MarketMath
+/// @notice Pure/accounting math used by `MarketEngine` for fees, settlement liabilities, and claim payouts.
+/// @dev
+/// NOTES: Terminology
+/// - totalPool: total stake deposited into an epoch across all outcomes (net of switch fees).
+/// - winningPool: stake deposited on the winning outcome(s).
+/// - losingPool: `totalPool - winningPool`.
+/// - settlementFee: protocol fee charged at resolve (may be assessed on totalPool or losingPool).
+/// - claimLiabilityTotal: total amount reserved into claims for payouts/refunds for an epoch.
+///
+/// INVARIANTS:
+/// - If `winningPool == 0`, the engine prefers liveness/fairness: refund the entire pool and charge no fees.
+/// - Switch fee uses ceil rounding to avoid under-collecting due to integer truncation.
+/// - Claim payout uses a last-claimer remainder rule to avoid dust remaining trapped in an epoch.
 library MarketMath {
     using MarketTypes for MarketTypes.Epoch;
 
@@ -11,6 +25,10 @@ library MarketMath {
 
     uint256 internal constant BPS_DENOMINATOR = MarketTypes.BPS_DENOMINATOR;
 
+    /// @notice Compute switch fee and net transferred stake for `switchSide`.
+    /// @dev Fee rounding is ceiling:
+    /// `fee = ceil(grossAmount * switchFeeBps / 10_000)`.
+    /// This avoids systematic fee under-collection from truncation.
     function computeSwitch(uint256 grossAmount, uint16 switchFeeBps) internal pure returns (uint256 net, uint256 fee) {
         if (switchFeeBps == 0) return (grossAmount, 0);
         fee = (grossAmount * uint256(switchFeeBps) + BPS_DENOMINATOR - 1) / BPS_DENOMINATOR;
@@ -18,6 +36,8 @@ library MarketMath {
         net = grossAmount - fee;
     }
 
+    /// @notice Compute settlement fee charged at resolve.
+    /// @dev If `feeOnLosingPool=true`, fee base is losingPool; otherwise base is totalPool.
     function computeSettlementFee(uint256 totalPool, uint256 losingPool, uint16 feeBps, bool feeOnLosingPool)
         internal
         pure
@@ -39,6 +59,13 @@ library MarketMath {
         }
     }
 
+    /// @notice Decompose resolve outputs into claim liability + settlement fee.
+    /// @dev
+    /// - If `winningPool == 0`, returns `(totalPool, 0, totalPool)` meaning refund everything, no fees.
+    /// - Otherwise:
+    ///   - `settlementFee` is computed from `totalPool` or `losingPool`.
+    ///   - `distributableLosingPool = losingPool - settlementFee`.
+    ///   - `claimLiabilityTotal = winningPool + distributableLosingPool`.
     function computeClaimLiabilityComponents(
         uint256 totalPool,
         uint256 winningPool,
@@ -55,6 +82,7 @@ library MarketMath {
         claimLiabilityTotal = winningPool + distributableLosingPool;
     }
 
+    /// @notice Compute claim liability totals for a resolved epoch (memory variant).
     function computeEpochClaimLiability(MarketTypes.Epoch memory epoch, uint16 feeBps, bool feeOnLosingPool)
         internal
         pure
@@ -64,6 +92,7 @@ library MarketMath {
         return computeClaimLiabilityComponents(epoch.totalPool, wp, feeBps, feeOnLosingPool);
     }
 
+    /// @notice Compute claim liability totals for a resolved epoch (storage variant, avoids memory copy).
     function computeEpochClaimLiabilityStorage(MarketTypes.Epoch storage epoch, uint16 feeBps, bool feeOnLosingPool)
         internal
         view
@@ -90,6 +119,8 @@ library MarketMath {
         }
     }
 
+    /// @notice Compute a user’s total entitlement (stake + share of distributable losing pool) for a resolved epoch.
+    /// @dev Returns 0 if user has no winning stake.
     function computeTotalUserEntitlementResolved(
         MarketTypes.Epoch memory epoch,
         uint256[8] memory stakes,
@@ -105,6 +136,8 @@ library MarketMath {
         return userWinning + proRata;
     }
 
+    /// @notice Compute claim payout for a user position (memory epoch).
+    /// @dev Implements “last-claimer remainder”: if the user is the last remaining winner, payout equals `claimsReserveTotal`.
     function computeClaimPayout(MarketTypes.Epoch memory epoch, uint256[8] memory stakes, uint256 claimsReserveTotal)
         internal
         pure
@@ -124,7 +157,10 @@ library MarketMath {
         return (payout, userWinningStake_);
     }
 
-    /// @dev Avoids copying full `Epoch` to memory on each claim (L2 hot path).
+    /// @notice Compute claim payout for a user position (storage epoch, L2 hot path).
+    /// @dev
+    /// Avoids copying full `Epoch` to memory. Implements per-epoch last-claimer remainder:
+    /// if `epoch.remainingWinningStake == userWinningStake_`, payout equals `remainingClaimsForEpoch`.
     function computeClaimPayoutStorage(
         MarketTypes.Epoch storage epoch,
         uint256[8] memory stakes,
@@ -151,32 +187,40 @@ library MarketMath {
         return (payout, userWinningStake_);
     }
 
+    /// @notice Compute refund amount in refund-mode epochs.
+    /// @dev Currently full refund of `totalStake`.
     function computeRefundTotal(uint256 totalStake) internal pure returns (uint256) {
         return totalStake;
     }
 
+    /// @notice Move `amount` from active collateral to claims reserve (ledger accounting).
     function reserveClaimsFromActive(MarketTypes.Ledger storage ledger, uint256 amount) internal {
         ledger.activeCollateralTotal = _sub(ledger.activeCollateralTotal, amount);
         ledger.claimsReserveTotal += amount;
     }
 
+    /// @notice Move `amount` from active collateral to fee reserve (ledger accounting).
     function reserveFeesFromActive(MarketTypes.Ledger storage ledger, uint256 amount) internal {
         ledger.activeCollateralTotal = _sub(ledger.activeCollateralTotal, amount);
         ledger.feeReserveTotal += amount;
     }
 
+    /// @notice Release claims reserve when paying out a claim/refund.
     function releaseClaimOnWithdraw(MarketTypes.Ledger storage ledger, uint256 amount) internal {
         ledger.claimsReserveTotal = _sub(ledger.claimsReserveTotal, amount);
     }
 
+    /// @notice Release fee reserve when withdrawing fees to treasury.
     function releaseFeeOnWithdraw(MarketTypes.Ledger storage ledger, uint256 amount) internal {
         ledger.feeReserveTotal = _sub(ledger.feeReserveTotal, amount);
     }
 
+    /// @notice Increase active collateral total when depositing into an epoch.
     function increaseActiveCollateral(MarketTypes.Ledger storage ledger, uint256 amount) internal {
         ledger.activeCollateralTotal += amount;
     }
 
+    /// @notice Decrease active collateral total (guarded subtract).
     function decreaseActiveCollateral(MarketTypes.Ledger storage ledger, uint256 amount) internal {
         ledger.activeCollateralTotal = _sub(ledger.activeCollateralTotal, amount);
     }

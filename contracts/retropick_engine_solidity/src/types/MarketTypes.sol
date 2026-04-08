@@ -1,7 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-/// @dev Mirrors `retropick_market_engine_v5` Anchor state + packed storage for L2 gas.
+/// @title MarketTypes
+/// @notice Canonical enums/structs/helpers for RetroPick `MarketEngine`.
+/// @dev
+/// NOTES: Design goals
+/// - Single-engine, many markets: types are keyed by `templateId` and `epochId`.
+/// - Bounded arrays: `MAX_OUTCOMES=8` to keep stake/pool arrays bounded and L2-friendly.
+/// - Packed storage: structs are ordered to minimize slots (especially `OracleCheckpoint`).
+///
+/// NOTES: Epoch lifecycle (conceptual)
+/// Manual mode:
+/// - `Open` → `Locked` → `Resolved` (or `Cancelled` / `Voided`)
+///
+/// Rolling mode:
+/// - Same statuses, but keeper progression follows a pipeline (see `MarketEngine` docs).
+///
+/// NOTES: Push-oracle publishTime semantics
+/// For push oracles like Chainlink, the oracle-provided `publishTime` (e.g. `updatedAt`) can be earlier
+/// than `lockAt/resolveAt` but still be the freshest available data at execution time.
+/// Therefore publishTime validation is based on:
+/// - non-zero, non-future timestamp
+/// - staleness window vs `nowTs` (`maxDelaySeconds`)
+/// - for checkpoint B: monotonicity vs checkpoint A publishTime if checkpoint A exists
+///
+/// This keeps the engine compatible with Chainlink-style feeds and avoids false negatives.
 library MarketTypes {
     uint8 internal constant VERSION = 1;
     uint8 internal constant MAX_OUTCOMES = 8;
@@ -49,7 +72,7 @@ library MarketTypes {
         ManualAdminCancel
     }
 
-    /// @dev Manual = discrete open/lock/resolve txs (Anchor v5 parity). Rolling = Pancake-style pipeline.
+    /// @dev Manual = discrete open/lock/resolve txs (classic lifecycle). Rolling = Pancake-style pipeline.
     enum ExecutionMode {
         Manual,
         Rolling
@@ -79,7 +102,12 @@ library MarketTypes {
         uint16 maxConfidenceBps;
     }
 
-    /// @dev Packed: one slot for price + one slot for conf/publishTime/written (vs ~4 slots naive).
+    /// @notice Oracle sample captured at lock (A) or resolve (B).
+    /// @dev Packed to reduce storage:
+    /// - one slot for `valueE8`
+    /// - one slot for `confidenceE8` + `publishTime` + `written`
+    ///
+    /// `valueE8` is normalized to 8 decimals across the engine.
     struct OracleCheckpoint {
         int256 valueE8;
         uint128 confidenceE8;
@@ -93,7 +121,8 @@ library MarketTypes {
         uint64 resolveAt;
     }
 
-    /// @dev Small fields first for single warm slots; strings last (dynamic).
+    /// @notice Template = market definition keyed by `templateId`.
+    /// @dev Small fields first for packed warm slots; strings last (dynamic).
     struct Template {
         uint8 version;
         MarketType marketType;
@@ -114,7 +143,7 @@ library MarketTypes {
         bytes32 oracleFeedId;
         int256 absoluteThresholdValueE8;
         int256[RANGE_BOUNDS_LEN] rangeBoundsE8;
-        /// @dev 0 = inherit global `Config.oracle_config.max_delay_seconds` (snapshot copied to each epoch at open).
+        /// @dev 0 = inherit global `oracleConfig.maxDelaySeconds` (snapshot copied to each epoch at open).
         uint64 oracleMaxDelaySeconds;
         /// @dev 0 = inherit global `max_confidence_bps`.
         uint16 oracleMaxConfidenceBps;
@@ -141,6 +170,7 @@ library MarketTypes {
         uint256 fees;
     }
 
+    /// @notice Epoch = one round instance for a template.
     /// @dev Hot small fields packed at the front; `timing`+`createdAt` share one slot when possible.
     struct Epoch {
         uint8 version;
@@ -194,25 +224,34 @@ library MarketTypes {
         bool initialized;
     }
 
+    /// @notice True if epoch is open for betting at `nowTs`.
+    /// @dev Requires status `Open` and time window `[openAt, lockAt)`.
     function isEpochOpen(Epoch storage e, uint64 nowTs) internal view returns (bool) {
         return e.status == EpochStatus.Open && nowTs >= e.timing.openAt && nowTs < e.timing.lockAt;
     }
 
+    /// @notice True if epoch can be locked at `nowTs`.
+    /// @dev Requires status `Open` and `nowTs >= lockAt`.
     function isLockable(Epoch storage e, uint64 nowTs) internal view returns (bool) {
         return e.status == EpochStatus.Open && nowTs >= e.timing.lockAt;
     }
 
+    /// @notice True if epoch can be resolved at `nowTs`.
+    /// @dev Requires status `Locked` and `nowTs >= resolveAt`.
     function isResolvable(Epoch storage e, uint64 nowTs) internal view returns (bool) {
         return e.status == EpochStatus.Locked && nowTs >= e.timing.resolveAt;
     }
 
+    /// @notice Whether this market type requires checkpoint A (lock-time oracle sample).
+    /// @dev Direction markets compare checkpoint B vs checkpoint A to determine up/down.
     function requiresCheckpointAOnLock(Epoch storage e) internal view returns (bool) {
         return e.marketType == MarketType.Direction;
     }
 
-    /// @dev Push-oracle compatible freshness check.
-    ///      - rejects future timestamps (publishTime > nowTs)
-    ///      - enforces staleness window (nowTs - publishTime <= maxDelaySeconds)
+    /// @notice Validate publishTime freshness for push oracles.
+    /// @dev Rules:
+    /// - rejects future timestamps (`publishTime > nowTs`)
+    /// - enforces staleness window (`nowTs - publishTime <= maxDelaySeconds`)
     function validatePublishTimeFresh(uint64 publishTime, uint64 nowTs, uint64 maxDelaySeconds)
         internal
         pure
@@ -225,8 +264,9 @@ library MarketTypes {
         }
     }
 
-    /// @dev Checkpoint A time rule for push-oracles: freshness only.
-    ///      (Do NOT require publishTime >= lockAt; Chainlink `updatedAt` may be before lockAt.)
+    /// @notice Validate lock-time checkpoint A publishTime.
+    /// @dev Freshness-only for push-oracles.
+    /// Do NOT require `publishTime >= lockAt`; Chainlink `updatedAt` may be earlier than lockAt while still fresh.
     function validateCheckpointAPublishTime(Epoch storage, uint64 publishTime, uint64 nowTs, uint64 maxDelaySeconds)
         internal
         pure
@@ -235,9 +275,10 @@ library MarketTypes {
         return validatePublishTimeFresh(publishTime, nowTs, maxDelaySeconds);
     }
 
-    /// @dev Checkpoint B time rule for push-oracles:
-    ///      - freshness vs now/maxDelaySeconds
-    ///      - monotonic vs checkpoint A publishTime if A exists
+    /// @notice Validate resolve-time checkpoint B publishTime.
+    /// @dev Rules:
+    /// - freshness vs now/maxDelaySeconds
+    /// - monotonic vs checkpoint A publishTime if checkpoint A exists
     function validateCheckpointBPublishTime(Epoch storage e, uint64 publishTime, uint64 nowTs, uint64 maxDelaySeconds)
         internal
         view
@@ -248,6 +289,7 @@ library MarketTypes {
         return true;
     }
 
+    /// @notice Total pool size across winning outcomes (memory epoch).
     function winningPoolTotal(Epoch memory e) internal pure returns (uint256 sum) {
         for (uint256 i = 0; i < e.outcomeCount; i++) {
             if ((e.winningOutcomeMask >> i) & 1 == 1) {
@@ -256,6 +298,7 @@ library MarketTypes {
         }
     }
 
+    /// @notice Total pool size across winning outcomes (storage epoch).
     function winningPoolTotalStorage(Epoch storage e) internal view returns (uint256 sum) {
         for (uint256 i = 0; i < e.outcomeCount; i++) {
             if ((e.winningOutcomeMask >> i) & 1 == 1) {
@@ -264,7 +307,7 @@ library MarketTypes {
         }
     }
 
-    /// @notice Effective staleness window: epoch snapshot if non-zero, else global (Anchor `effective_oracle_max_delay_seconds`).
+    /// @notice Effective staleness window: epoch snapshot if non-zero, else global.
     function effectiveOracleMaxDelaySeconds(Epoch storage e, uint64 globalDelaySeconds) internal view returns (uint64) {
         if (e.oracleMaxDelaySeconds > 0) return e.oracleMaxDelaySeconds;
         return globalDelaySeconds;

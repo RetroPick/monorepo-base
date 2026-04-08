@@ -7,9 +7,27 @@ import {IPriceOracleWithRoundId} from "../interfaces/IPriceOracleWithRoundId.sol
 
 /// @title ChainlinkAdapter
 /// @notice `IPriceOracle` implementation over Chainlink `AggregatorV3Interface` (push oracle).
-/// @dev L2 deployments must pass a sequencer uptime feed; use `address(0)` on L1 to skip checks.
-///      Sequencer grace behavior follows Chainlink’s L2 sequencer feed guidance:
-///      https://docs.chain.link/data-feeds/l2-sequencer-feeds
+/// @dev
+/// NOTES: feedId encoding
+/// `MarketEngine` stores the oracle feed as `bytes32 feedId` to keep templates generic.
+/// This adapter interprets `feedId` as the Chainlink proxy address encoded as:
+/// `bytes32(uint256(uint160(proxyAddress)))`.
+///
+/// Helpers:
+/// - `feedIdToAddress(feedId)` decodes to `address(uint160(uint256(feedId)))`
+/// - `addressToFeedId(addr)` encodes to `bytes32(uint256(uint160(addr)))`
+///
+/// NOTES: Freshness model
+/// Uses Chainlink `latestRoundData()` and treats `updatedAt` as `publishTime`. Freshness is enforced by:
+/// `block.timestamp - updatedAt <= maxAgeSeconds`.
+///
+/// NOTES: Round completeness
+/// Enforces `answeredInRound >= roundId` to ensure the returned answer is complete for that round.
+///
+/// NOTES: L2 sequencer uptime gating
+/// L2 deployments must pass a sequencer uptime feed; use `address(0)` on L1 to skip checks.
+/// Sequencer grace behavior follows Chainlink guidance: `GRACE_PERIOD_SECONDS=3600` and reverts until strictly after.
+/// See: `https://docs.chain.link/data-feeds/l2-sequencer-feeds`.
 contract ChainlinkAdapter is IPriceOracle, IPriceOracleWithRoundId {
     /// @notice Seconds to wait after sequencer reports “up” before trusting price feeds (answer == 0).
     uint256 public constant GRACE_PERIOD_SECONDS = 3600;
