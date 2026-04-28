@@ -37,7 +37,7 @@ vi.mock("@/lib/api/retropickApi", () => ({
   apiErrorSummary: (e: unknown) => String(e),
 }));
 
-function renderAll(initialVertical: DiscoveryVerticalId = "crypto") {
+function renderAll(initialVertical: DiscoveryVerticalId = "trending") {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });

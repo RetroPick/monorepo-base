@@ -1,0 +1,19 @@
+---
+title: Threshold
+---
+
+**Question:** Will a published number at settlement be **at or above** a fixed level—or **below** it?
+
+The number can be a **price**, **staking APR**, **macro** statistic, **NAV-style** value, and more—depending on the configured feed.
+
+## How it settles
+
+The market is created with a **threshold**. At settlement, the oracle value is compared to that line. **At or above** wins if the reading meets or beats the threshold; otherwise **Below** wins (exact tie-breaking and voids follow the template rules).
+
+## When to use it
+
+You care about a **specific level** rather than direction—yields, macro prints, or “will we cross $X?” style views.
+
+### Technical note
+
+Threshold absorbs several **legacy** threshold-style types; effective thresholds can use **anchor** prices when configured. See `currentSmartContract.md` for **oracle classes** (price, rate, SmartData, macro, …).

@@ -31,7 +31,7 @@ const NON_CRYPTO_VERTICALS: ReadonlySet<MarketDiscoveryVerticalId> = new Set([
 
 type MarketsAllProps = { initialVertical?: DiscoveryVerticalId };
 
-const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
+const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
   const [activeVertical, setActiveVertical] = useState<DiscoveryVerticalId>(initialVertical);
   const [cryptoAssetFilter, setCryptoAssetFilter] = useState<CryptoAssetFilterId>("all");
 

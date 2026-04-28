@@ -13,6 +13,8 @@ import { DISCOVERY_VERTICALS } from "@/lib/discovery-verticals";
 
 const WalletButton = lazy(() => import("./WalletButton"));
 
+const DOCS_SITE_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? "http://localhost:3001/docs";
+
 interface HeaderProps {
   /** Drop the sticky header bottom rule so dense body content (manual market headline) blends with page bg. */
   omitBottomDivider?: boolean;
@@ -89,6 +91,22 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
           </div>
         );
       })}
+      <div className="flex shrink-0 items-center">
+        <span className="hidden shrink-0 px-1.5 text-muted-foreground/35 select-none lg:inline" aria-hidden="true">
+          ·
+        </span>
+        <a
+          href={DOCS_SITE_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cn(
+            "whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium transition-colors max-lg:rounded-md max-lg:px-3 max-lg:py-1.5 max-lg:text-[10px] max-lg:font-semibold max-lg:uppercase max-lg:tracking-[0.12em] sm:px-2.5 sm:py-1.5",
+            "text-muted-foreground hover:text-foreground max-lg:border max-lg:border-transparent max-lg:hover:bg-muted",
+          )}
+        >
+          Docs
+        </a>
+      </div>
       <div className="flex shrink-0 items-center">
         <span className="hidden shrink-0 px-1.5 text-muted-foreground/35 select-none lg:inline" aria-hidden="true">
           ·

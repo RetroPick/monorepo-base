@@ -1,0 +1,17 @@
+---
+title: Direction
+---
+
+**Question:** Will this asset finish **higher or lower** than a **reference price** taken at lock?
+
+## How it settles
+
+At **lock**, a price snapshot is stored. At the **end** of the round, the feed is read again. **Up** wins if the final price is **above** the lock price; **Down** wins if **below**. If the two readings are **exactly equal**, the market **voids** and deposits are refunded.
+
+## Example
+
+- Lock: ETH **$2,500** · Close: **$2,680** → **Up** wins.
+
+## When to use it
+
+You have a simple short-term directional view and want a two-outcome market without extra thresholds or zones.

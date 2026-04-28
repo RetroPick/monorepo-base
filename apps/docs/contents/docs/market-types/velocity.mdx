@@ -1,0 +1,15 @@
+---
+title: Velocity
+---
+
+**Question:** **How much** will price move from the start—**ignoring direction**?
+
+A **+3%** and **-3%** move can land in the **same bucket** because only **magnitude** matters.
+
+## How it settles
+
+Lock stores a **starting price**. At settlement, **absolute** percent change from that start is computed and matched to **movement buckets** (e.g. 0–1%, 1–3%, …).
+
+## When to use it
+
+You expect a **big move** from an event but are **not** sure which way—data prints, liquidations, headline risk.

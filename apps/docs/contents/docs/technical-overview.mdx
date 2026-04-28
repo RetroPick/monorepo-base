@@ -1,0 +1,25 @@
+---
+title: Technical overview
+---
+
+This page is a **compact map** of the on-chain system. For line-by-line behavior, gas tables, and migration notes, use the canonical file in the repository:
+
+**`package/contract/currentSmartContract.md`**
+
+## Glossary
+
+- **Template** — Market definition keyed by `templateId` (type, feeds, fees, execution mode).
+- **Epoch** — One cycle: open → lock → resolve → claim (often called a **round** in the product).
+- **Lock** — Rules and timing are fixed; trading on the outcome typically stops or is restricted per product rules.
+- **Checkpoint A / B** — Oracle samples at lock and/or resolve used by resolvers (meanings depend on market type).
+- **Manual vs rolling** — **Manual**: keepers drive `openEpoch` / `lockEpoch` / `resolveEpoch`. **Rolling**: pipeline advances rounds on a schedule with fewer discrete actions.
+- **Dispatcher + modules** — The live engine uses a **UUPS proxy** with a **dispatcher** boundary; some selectors are **root-owned** (user ops, claims, admin) and others delegate into modules—see the doc above for the current matrix.
+
+## Fees and reserves
+
+Protocol fees and reserves (treasury withdrawal, fee buckets, yield router interactions) are implementation-specific. The contract doc explains **`feeReserveTotal`**, **`claimsReserveTotal`**, and **`withdrawFees`** semantics.
+
+## What to read next
+
+1. **Market types** (this site) — user-facing semantics and void rules.
+2. **`currentSmartContract.md`** — operator narrative, resolver notes, and **MarketType** consolidation/migration history.
