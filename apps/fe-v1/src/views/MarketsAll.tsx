@@ -1,9 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import DiscoverFeaturedHero from "@/components/discover/DiscoverFeaturedHero";
+import { Link } from "react-router-dom";
+import DiscoverMarketTypesStrip from "@/components/discover/DiscoverMarketTypesStrip";
 import DiscoverLeftNav from "@/components/discover/DiscoverLeftNav";
-import DiscoverRightRail from "@/components/discover/DiscoverRightRail";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import MarketCard from "@/components/MarketCard";
@@ -20,11 +19,8 @@ import {
   marketRowToCardMarket,
   sortMarketsByActivity,
 } from "@/lib/market-data/chainDiscover";
-import { formatDiscoverEyebrow } from "@/lib/market-data/discoverMarketClassification";
 import { cn } from "@/lib/utils";
 import type { Market } from "@/types/market";
-
-const UPDOWN_CRYPTO_HREF = "/app/markets/updown/crypto";
 
 const NON_CRYPTO_VERTICALS: ReadonlySet<MarketDiscoveryVerticalId> = new Set([
   "economics",
@@ -36,7 +32,6 @@ const NON_CRYPTO_VERTICALS: ReadonlySet<MarketDiscoveryVerticalId> = new Set([
 type MarketsAllProps = { initialVertical?: DiscoveryVerticalId };
 
 const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
-  const navigate = useNavigate();
   const [activeVertical, setActiveVertical] = useState<DiscoveryVerticalId>(initialVertical);
   const [cryptoAssetFilter, setCryptoAssetFilter] = useState<CryptoAssetFilterId>("all");
 
@@ -82,17 +77,6 @@ const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
     ];
   }, [baseCryptoMarkets]);
 
-  const trendingRailMarkets = useMemo(() => {
-    return [...allMarkets].sort((a, b) => {
-      const aRow = listableRows.find((r) => r.templateId === a.id);
-      const bRow = listableRows.find((r) => r.templateId === b.id);
-      const aL = aRow && chainMarketIsLive(aRow) ? 1 : 0;
-      const bL = bRow && chainMarketIsLive(bRow) ? 1 : 0;
-      if (aL !== bL) return bL - aL;
-      return 0;
-    });
-  }, [allMarkets, listableRows]);
-
   const sourceMarkets: Market[] = (() => {
     if (NON_CRYPTO_VERTICALS.has(activeVertical as MarketDiscoveryVerticalId)) {
       return [];
@@ -125,24 +109,11 @@ const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
     filteredMarkets = [...filteredMarkets].sort((a, b) => a.title.localeCompare(b.title));
   }
 
-  const heroMarket =
-    activeVertical === "trending" && filteredMarkets.length > 0 ? filteredMarkets[0] : null;
-  const gridMarkets =
-    activeVertical === "trending" && heroMarket && filteredMarkets.length > 1
-      ? filteredMarkets.filter((m) => m.id !== heroMarket.id)
-      : filteredMarkets;
+  const gridMarkets = filteredMarkets;
 
   const showCategoryEmpty = NON_CRYPTO_VERTICALS.has(activeVertical as MarketDiscoveryVerticalId);
 
-  const showEmpty = showCategoryEmpty || (gridMarkets.length === 0 && !(activeVertical === "trending" && heroMarket));
-
-  const openChainMarket = (market: Market) => {
-    navigate(chainDetailPath(market.id));
-  };
-
-  const openUpDownMarket = () => {
-    navigate(UPDOWN_CRYPTO_HREF);
-  };
+  const showEmpty = showCategoryEmpty || gridMarkets.length === 0;
 
   const gridClass =
     "grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-2 lg:gap-6 xl:grid-cols-3 xl:gap-5";
@@ -176,20 +147,10 @@ const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
           <p className="text-sm text-muted-foreground">Loading indexed markets…</p>
         ) : null}
         {!marketsQ.isLoading && activeVertical === "trending" ? (
-          <div
-            className="flex flex-col gap-8 xl:grid xl:grid-cols-[1fr_minmax(260px,320px)] xl:items-start xl:gap-10"
-            data-testid="discover-layout-trending"
-          >
+          <div className="flex flex-col gap-8" data-testid="discover-layout-trending">
+            <DiscoverMarketTypesStrip />
             <div className="min-w-0">
-              {heroMarket ? (
-                <DiscoverFeaturedHero
-                  market={heroMarket}
-                  detailHref={chainDetailPath(heroMarket.id)}
-                  eyebrow={formatDiscoverEyebrow(heroMarket)}
-                  onOpen={() => openChainMarket(heroMarket)}
-                />
-              ) : null}
-              <h2 className="mt-8 text-lg font-semibold tracking-tight text-foreground">All markets</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-foreground">All markets</h2>
               <div className={cn("mt-4", gridClass)}>
                 {gridMarkets.map((market) => (
                   <div key={market.id} className="h-full min-h-0">
@@ -197,13 +158,6 @@ const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
                   </div>
                 ))}
               </div>
-            </div>
-            <div className="min-w-0 shrink-0">
-              <DiscoverRightRail
-                trendingMarkets={trendingRailMarkets.slice(0, 7)}
-                onOpenUpDown={openUpDownMarket}
-                onOpen={openChainMarket}
-              />
             </div>
           </div>
         ) : !marketsQ.isLoading && activeVertical === "crypto" ? (
@@ -222,21 +176,7 @@ const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
             <div className="min-w-0 flex-1">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">Crypto</h1>
-                <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm" aria-label="Crypto product links">
-                  <span className="font-medium text-foreground">All</span>
-                  <Link
-                    to={UPDOWN_CRYPTO_HREF}
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    Up vs Down
-                  </Link>
-                  <Link
-                    to="/app/markets/abovebelow/crypto"
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    Above or Below
-                  </Link>
-                </nav>
+                <span className="text-sm text-muted-foreground">Indexed markets only</span>
               </div>
               <div className={gridClass}>
                 {gridMarkets.map((market) => (
@@ -273,8 +213,8 @@ const MarketsAll = ({ initialVertical = "crypto" }: MarketsAllProps = {}) => {
             <h2 className="text-lg font-semibold text-foreground">No markets match</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               No indexed templates yet, or nothing matched your filters. Check{" "}
-              <Link to="/app/chain-markets" className="text-primary underline hover:text-primary/90">
-                on-chain markets
+              <Link to="/app/markets/all" className="text-primary underline hover:text-primary/90">
+                markets
               </Link>{" "}
               for the full list.
             </p>

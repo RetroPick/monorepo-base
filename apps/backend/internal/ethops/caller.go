@@ -168,6 +168,35 @@ func (c *Caller) GetEpochView(ctx context.Context, proxy common.Address, templat
 	return m, bn, nil
 }
 
+// GetOutcomeViews calls getOutcomeViews(templateId, epochId).
+func (c *Caller) GetOutcomeViews(ctx context.Context, proxy common.Address, templateID common.Hash, epochID uint64) (data []map[string]any, blockNum uint64, err error) {
+	input, err := c.marketABI.Pack("getOutcomeViews", templateID, epochID)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw, bn, err := c.call(ctx, proxy, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	var out []OutcomeView
+	if err := c.marketABI.UnpackIntoInterface(&out, "getOutcomeViews", raw); err != nil {
+		return nil, 0, err
+	}
+	normalized, ok := ToJSONMap(out).([]any)
+	if !ok {
+		return nil, 0, fmt.Errorf("unexpected outcome views json type")
+	}
+	rows := make([]map[string]any, 0, len(normalized))
+	for _, item := range normalized {
+		row, ok := item.(map[string]any)
+		if !ok {
+			return nil, 0, fmt.Errorf("unexpected outcome view row type")
+		}
+		rows = append(rows, row)
+	}
+	return rows, bn, nil
+}
+
 // GetPositionView calls getPositionView(templateId, epochId, user) at the MarketEngine proxy.
 func (c *Caller) GetPositionView(ctx context.Context, proxy common.Address, templateID common.Hash, epochID uint64, user common.Address) (out PositionView, blockNum uint64, err error) {
 	input, err := c.marketABI.Pack("getPositionView", templateID, epochID, user)

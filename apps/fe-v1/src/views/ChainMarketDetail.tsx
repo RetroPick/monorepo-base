@@ -6,6 +6,7 @@ import { manualMarketFromChainDetail } from "@/features/manual-market/types";
 import {
   fetchEpochsForMarket,
   fetchMarket,
+  fetchMarketProbabilityHistory,
   fetchMarkets,
   type EpochRow,
   type MarketDetail,
@@ -78,6 +79,13 @@ export default function ChainMarketDetail() {
     staleTime: 5_000,
   });
 
+  const probabilityQ = useQuery({
+    queryKey: ["retropick-api", "probability-history", queryTemplateKey, marketQ.data?.activeEpochId ?? null],
+    queryFn: () => fetchMarketProbabilityHistory(id, marketQ.data?.activeEpochId),
+    enabled: !!id && marketQ.data?.activeEpochId != null,
+    staleTime: 5_000,
+  });
+
   const data = marketQ.data;
   const epochs: EpochRow[] = epochsQ.data ?? [];
 
@@ -85,10 +93,10 @@ export default function ChainMarketDetail() {
     return (
       <div className="min-h-screen bg-background px-4 py-10 text-foreground">
         <Link
-          to="/app/chain-markets"
+          to="/app/markets/all"
           className="text-sm text-muted-foreground hover:text-foreground"
         >
-          ← On-chain markets
+          ← Markets
         </Link>
         <p className="mt-6 text-sm text-destructive">Market not found or API unreachable.</p>
       </div>
@@ -107,7 +115,7 @@ export default function ChainMarketDetail() {
     ? `Idx · block ${data.lastIndexedBlock}`
     : undefined;
 
-  const model = manualMarketFromChainDetail(data, volumeHint);
+  const model = manualMarketFromChainDetail(data, volumeHint, probabilityQ.data?.points ?? []);
 
   const resolutionExtras = (
     <div className="flex flex-col gap-6">
@@ -123,8 +131,8 @@ export default function ChainMarketDetail() {
   return (
     <ManualMarketPage
       model={{ ...model, recentEpochs: epochs, resolutionExtras }}
-      backLabel="On-chain markets"
-      onBack={() => navigate("/app/chain-markets")}
+      backLabel="Markets"
+      onBack={() => navigate("/app/markets/all")}
     />
   );
 }

@@ -133,6 +133,7 @@ export type MarketRow = {
   lastResolvedEpochId?: number;
   rollingNextEpochId?: number;
   haltedAtEpochId?: number;
+  outcomes?: OutcomeView[];
 };
 
 export async function fetchMarkets(): Promise<MarketRow[]> {
@@ -151,6 +152,7 @@ export type MarketDetail = {
   marketType: number;
   outcomeCount: number;
   initialized: boolean;
+  executionMode: number;
   rollingPhase: number;
   rollingHaltReason: number;
   lastIndexedBlock: number;
@@ -167,7 +169,44 @@ export type MarketDetail = {
     resolveAt?: string;
     winningOutcomeMask?: number;
   };
+  outcomes?: OutcomeView[];
+  outcomeViewBlock?: number;
+  outcomesError?: string;
   dataFreshness?: DataFreshness;
+};
+
+export type OutcomeView = {
+  outcomeIndex: number;
+  poolSize: string;
+  impliedProbabilityE6: string;
+  displayPercentE4?: string;
+  isWinner?: boolean;
+  isActiveQuote?: boolean;
+  grossPayoutXe6?: string;
+};
+
+export type ProbabilityHistoryOutcome = {
+  outcomeIndex: number;
+  poolSize: string;
+  impliedProbabilityE6: string;
+};
+
+export type ProbabilityHistoryPoint = {
+  blockNumber: number;
+  txHash: string;
+  logIndex: number;
+  eventName: string;
+  indexedAt?: string | null;
+  totalPool: string;
+  outcomes: ProbabilityHistoryOutcome[];
+};
+
+export type ProbabilityHistoryResponse = {
+  templateId: string;
+  epochId: number;
+  outcomeCount: number;
+  points: ProbabilityHistoryPoint[];
+  source: string;
 };
 
 /** Shapes planned in `.dev/frontend/user/README.md` (implement when backend exposes routes). */
@@ -297,6 +336,7 @@ export async function fetchMarket(templateId: string): Promise<MarketDetail> {
     marketType: typeof raw.marketType === "number" ? raw.marketType : 0,
     outcomeCount: typeof raw.outcomeCount === "number" ? raw.outcomeCount : 2,
     initialized: Boolean(raw.initialized),
+    executionMode: typeof raw.executionMode === "number" ? raw.executionMode : 0,
     rollingPhase: typeof raw.rollingPhase === "number" ? raw.rollingPhase : 0,
     rollingHaltReason: typeof raw.rollingHaltReason === "number" ? raw.rollingHaltReason : 0,
     lastIndexedBlock: typeof raw.lastIndexedBlock === "number" ? raw.lastIndexedBlock : 0,
@@ -304,8 +344,37 @@ export async function fetchMarket(templateId: string): Promise<MarketDetail> {
     activeEpochId: raw.activeEpochId,
     lastResolvedEpochId: raw.lastResolvedEpochId,
     activeEpoch: raw.activeEpoch,
+    outcomes: raw.outcomes,
+    outcomeViewBlock: raw.outcomeViewBlock,
+    outcomesError: raw.outcomesError,
     dataFreshness: raw.dataFreshness,
   };
+}
+
+export async function fetchMarketOutcomes(
+  templateId: string,
+  epochId: bigint | number | string,
+): Promise<OutcomeView[]> {
+  const id = templateId.startsWith("0x") ? templateId : `0x${templateId}`;
+  const data = await getJson<{ outcomes: OutcomeView[] }>(
+    `/api/v1/markets/${encodeURIComponent(id)}/epochs/${String(epochId)}/outcomes`,
+  );
+  return data.outcomes;
+}
+
+export async function fetchMarketProbabilityHistory(
+  templateId: string,
+  epochId?: bigint | number | string | null,
+  limit = 200,
+): Promise<ProbabilityHistoryResponse> {
+  const id = templateId.startsWith("0x") ? templateId : `0x${templateId}`;
+  const params = new URLSearchParams();
+  if (epochId != null) params.set("epochId", String(epochId));
+  if (limit !== 200) params.set("limit", String(limit));
+  const q = params.toString();
+  return getJson<ProbabilityHistoryResponse>(
+    `/api/v1/markets/${encodeURIComponent(id)}/probability-history${q ? `?${q}` : ""}`,
+  );
 }
 
 export type RegistryContractsResponse = {

@@ -2,14 +2,14 @@ import { useLayoutEffect, useRef } from "react";
 
 const VAR_NAME = "--market-page-sticky-top";
 /**
- * When the variable is not set, stickies must still clear the full two-row header (nav + ticker).
- * 9.5rem ≈ 152px is a safe floor before/without measurement.
+ * When the variable is not set, stickies should still clear the desktop header.
+ * The measured value replaces this immediately after mount.
  */
-const CSS_FALLBACK = "9.5rem";
-/** Do not go below this after measuring; protects against an early/wrong getBoundingClientRect. */
-const MIN_STICKY_TOP_PX = 150;
-/** Extra pixels below the measured header (border, subpixel, toolbar rounding). */
-const STICKY_TOP_BUFFER_PX = 10;
+const CSS_FALLBACK = "5rem";
+/** Only used when header height reads implausibly small (layout not ready yet). */
+const MIN_STICKY_TOP_PX_FALLBACK = 124;
+/** Subpixel/header-border alignment; nonzero values create a visible band under `#app-site-header` where scrolled content showed through above the sticky market title row. */
+const STICKY_TOP_BUFFER_PX = 0;
 
 const SITE_HEADER_ID = "app-site-header";
 
@@ -30,8 +30,9 @@ export function useSiteHeaderOffset(): void {
         root.style.setProperty(VAR_NAME, CSS_FALLBACK);
         return;
       }
-      const withBuffer = Math.max(MIN_STICKY_TOP_PX, Math.ceil(px) + STICKY_TOP_BUFFER_PX);
-      const value = `${withBuffer}px`;
+      let hPx = Math.ceil(px) + STICKY_TOP_BUFFER_PX;
+      if (px < 40 || hPx < 80) hPx = MIN_STICKY_TOP_PX_FALLBACK;
+      const value = `${hPx}px`;
       if (lastApplied.current === value) return;
       lastApplied.current = value;
       root.style.setProperty(VAR_NAME, value);

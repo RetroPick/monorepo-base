@@ -4,14 +4,11 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import RetroErrorState from "@/components/RetroErrorState";
 import AppProviders from "@/app/AppProviders";
 import Activity from "@/views/Activity";
-import AboveBelowDashboard from "@/views/AboveBelowDashboard";
 import Leaderboard from "@/views/Leaderboard";
 import Login from "@/views/Login";
-import MarketDetail from "@/views/MarketDetail";
 import MarketsAll from "@/views/MarketsAll";
 import NotFound from "@/views/NotFound";
 import Portfolio from "@/views/Portfolio";
-import PredictionDashboard from "@/views/PredictionDashboard";
 import Resolution from "@/views/Resolution";
 import ChainMarkets from "@/views/ChainMarkets";
 import ChainMarketDetail from "@/views/ChainMarketDetail";
@@ -28,11 +25,11 @@ function App() {
             <Route path="/app" element={<Navigate to="/app/markets/all" replace />} />
             <Route path="/login" element={<Login />} />
             <Route path="/app/markets/all" element={<MarketsAll />} />
-            <Route path="/app/markets/updown" element={<Navigate to="/app/markets/updown/crypto" replace />} />
-            <Route path="/app/markets/abovebelow" element={<Navigate to="/app/markets/abovebelow/crypto" replace />} />
-            <Route path="/app/markets/updown/:assetClass" element={<PredictionDashboard />} />
-            <Route path="/app/markets/abovebelow/:assetClass" element={<AboveBelowDashboard />} />
-            <Route path="/app/market/:id" element={<MarketDetail />} />
+            <Route path="/app/markets/updown" element={<Navigate to="/app/markets/all" replace />} />
+            <Route path="/app/markets/abovebelow" element={<Navigate to="/app/markets/all" replace />} />
+            <Route path="/app/markets/updown/:assetClass" element={<Navigate to="/app/markets/all" replace />} />
+            <Route path="/app/markets/abovebelow/:assetClass" element={<Navigate to="/app/markets/all" replace />} />
+            <Route path="/app/market/:templateId" element={<ChainMarketDetail />} />
             <Route path="/app/portfolio" element={<Portfolio />} />
             <Route path="/app/activity" element={<Activity />} />
             <Route path="/app/leaderboard" element={<Leaderboard />} />

@@ -4,8 +4,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -161,13 +163,40 @@ func registerOpsPrepareRoutes(r chi.Router, eth *ethops.Caller, reg *registry.Re
 	if eth == nil {
 		return
 	}
+	r.Get("/tx/prepare/meta", func(w http.ResponseWriter, req *http.Request) {
+		type row struct {
+			Function            string   `json:"function"`
+			RequiredRole        string   `json:"requiredRole"`
+			RunbookRef          string   `json:"runbookRef"`
+			ExpectedEvents      []string `json:"expectedEvents"`
+			ValidationChecklist []string `json:"validationChecklist"`
+		}
+		var rows []row
+		for fn, meta := range opsPrepareWhitelist {
+			rows = append(rows, row{
+				Function:            fn,
+				RequiredRole:        meta.RequiredRole,
+				RunbookRef:          meta.RunbookRef,
+				ExpectedEvents:      append([]string(nil), meta.ExpectedEvents...),
+				ValidationChecklist: append([]string(nil), meta.Checklist...),
+			})
+		}
+		sort.Slice(rows, func(i, j int) bool { return rows[i].Function < rows[j].Function })
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"functions": rows})
+	})
 	r.Post("/tx/prepare", func(w http.ResponseWriter, req *http.Request) {
+		if !prepareAllow(req) {
+			http.Error(w, `{"error":"rate_limit","message":"too many prepare requests"}`, http.StatusTooManyRequests)
+			return
+		}
 		var body prepareRequest
 		if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
 			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
 			return
 		}
 		fn := strings.TrimSpace(body.Function)
+		log.Printf("ops tx/prepare ip=%s function=%s", clientIP(req), fn)
 		meta, ok := opsPrepareWhitelist[fn]
 		if !ok {
 			http.Error(w, `{"error":"function not allowed for prepare"}`, http.StatusForbidden)

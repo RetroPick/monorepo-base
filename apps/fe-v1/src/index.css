@@ -10,34 +10,36 @@
 @layer components {
   /**
    * Sub-nav under the site header (back + market title). Plain CSS `top` so it always applies
-   * (Tailwind arbitrary `[top:...]` with `var(--a, b)` can be finicky), and it must not sit
-   * under a parent with `overflow-x-clip` — that breaks `position: sticky` in common browsers.
+   * (Tailwind arbitrary `[top:...]` with `var(--a, b)` can be finicky), and it must stay equal
+   * to the measured lower edge of `#app-site-header`.
    */
-  .market-page-sticky-below-chrome {
-    /* Floor keeps title row / trade card below the two-row site header if --var is small or unset */
-    top: max(
-      9.5rem,
-      calc(var(--market-page-sticky-top, 0px) + env(safe-area-inset-top, 0px))
+  .market-page-sticky-offset {
+    --market-page-effective-sticky-top: calc(
+      var(--market-page-sticky-top, 5rem) + env(safe-area-inset-top, 0px)
     );
+    --market-page-effective-trade-top: calc(
+      var(--market-page-effective-sticky-top) + 1rem
+    );
+  }
+
+  .market-page-sticky-below-chrome {
+    top: var(--market-page-effective-sticky-top);
   }
 
   /**
    * Manual / chain market detail: right column trade card.
-   * Sticks below the site header with a constant top offset (see useSiteHeaderOffset).
+   * Sticks below the site header; the market title strip lives in the left column.
    * max-height + overflow-y keep the panel inside the viewport; tall content scrolls inside the column.
    * Do not place overflow-x-clip on an ancestor of this block — that breaks position: sticky.
    */
   @media (min-width: 1024px) {
     .market-manual-trade-aside {
       position: sticky;
-      top: max(
-        9.5rem,
-        calc(var(--market-page-sticky-top, 0px) + env(safe-area-inset-top, 0px))
-      );
+      top: var(--market-page-effective-trade-top);
       align-self: flex-start;
       /* Same vertical space as `top` above, plus bottom margin + safe area */
       max-height: calc(
-        100dvh - 1.25rem - max(9.5rem, calc(var(--market-page-sticky-top, 0px) + env(safe-area-inset-top, 0px))) -
+        100dvh - 1.25rem - var(--market-page-effective-trade-top) -
           env(safe-area-inset-bottom, 0px)
       );
       overflow-y: auto;

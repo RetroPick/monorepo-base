@@ -86,6 +86,17 @@ type EpochView struct {
 	HasCompositeCheckpoints          bool             `abi:"hasCompositeCheckpoints"`
 }
 
+// OutcomeView matches IMarketEngine.getOutcomeViews tuple.
+type OutcomeView struct {
+	OutcomeIndex         uint8    `abi:"outcomeIndex"`
+	PoolSize            *big.Int `abi:"poolSize"`
+	ImpliedProbabilityE6 *big.Int `abi:"impliedProbabilityE6"`
+	DisplayPercentE4     *big.Int `abi:"displayPercentE4"`
+	IsWinner            bool     `abi:"isWinner"`
+	IsActiveQuote       bool     `abi:"isActiveQuote"`
+	GrossPayoutXe6      *big.Int `abi:"grossPayoutXe6"`
+}
+
 // PositionView matches IMarketEngine.getPositionView tuple.
 type PositionView struct {
 	Initialized                 bool         `abi:"initialized"`

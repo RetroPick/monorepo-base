@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
@@ -202,6 +204,7 @@ func main() {
 			"marketType":        row.MarketType,
 			"outcomeCount":      row.OutcomeCount,
 			"initialized":       row.Initialized,
+			"executionMode":     row.ExecutionMode,
 			"rollingPhase":      row.RollingPhase,
 			"rollingHaltReason": row.RollingHaltReason,
 			"lastIndexedBlock":  st.LastBlock,
@@ -237,6 +240,19 @@ func main() {
 					ae["winningOutcomeMask"] = ep.WinningOutcomeMask.Int32
 				}
 				resp["activeEpoch"] = ae
+			}
+			if ethCaller != nil {
+				tid := common.BytesToHash(row.TemplateID)
+				proxy := common.HexToAddress(reg.Contracts.MarketEngineProxy)
+				rpcCtx, cancel := apiLiveRPCContext(r)
+				outcomes, blockNum, err := ethCaller.GetOutcomeViews(rpcCtx, proxy, tid, uint64(row.ActiveEpochID.Int64))
+				cancel()
+				if err == nil {
+					resp["outcomes"] = outcomes
+					resp["outcomeViewBlock"] = blockNum
+				} else {
+					resp["outcomesError"] = err.Error()
+				}
 			}
 		}
 		if row.LastResolvedEpochID.Valid {
@@ -304,6 +320,115 @@ func main() {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"epochs": out})
+	})
+
+	r.Get("/api/v1/markets/{templateId}/epochs/{epochId}/outcomes", func(w http.ResponseWriter, r *http.Request) {
+		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
+		b, err := hex.DecodeString(raw)
+		if err != nil || len(b) != 32 {
+			http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
+			return
+		}
+		eid, err := strconv.ParseUint(chi.URLParam(r, "epochId"), 10, 64)
+		if err != nil {
+			http.Error(w, `{"error":"invalid epochId"}`, http.StatusBadRequest)
+			return
+		}
+		if ethCaller == nil {
+			http.Error(w, `{"error":"eth client unavailable"}`, http.StatusServiceUnavailable)
+			return
+		}
+		q := dbqueries.New(pool)
+		isHid, err := q.IsTemplateFrontendHidden(r.Context(), b)
+		if err != nil {
+			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			return
+		}
+		if isHid {
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		ctx, cancel := apiLiveRPCContext(r)
+		defer cancel()
+		outcomes, blockNum, err := ethCaller.GetOutcomeViews(
+			ctx,
+			common.HexToAddress(reg.Contracts.MarketEngineProxy),
+			common.BytesToHash(b),
+			eid,
+		)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]any{"error": "live_rpc_call_failed", "message": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"source":            "live",
+			"chainId":           reg.ChainID,
+			"blockNumber":       blockNum,
+			"marketEngineProxy": reg.Contracts.MarketEngineProxy,
+			"templateId":        "0x" + hex.EncodeToString(b),
+			"epochId":           eid,
+			"outcomes":          outcomes,
+		})
+	})
+
+	r.Get("/api/v1/markets/{templateId}/probability-history", func(w http.ResponseWriter, r *http.Request) {
+		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
+		b, err := hex.DecodeString(raw)
+		if err != nil || len(b) != 32 {
+			http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
+			return
+		}
+		q := dbqueries.New(pool)
+		row, err := q.GetTemplateLedgerEpoch(r.Context(), b)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+				return
+			}
+			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			return
+		}
+		epochID := row.ActiveEpochID.Int64
+		if es := r.URL.Query().Get("epochId"); es != "" {
+			if parsed, err := strconv.ParseInt(es, 10, 64); err == nil && parsed >= 0 {
+				epochID = parsed
+			} else {
+				http.Error(w, `{"error":"invalid epochId"}`, http.StatusBadRequest)
+				return
+			}
+		}
+		if epochID <= 0 {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"templateId": "0x" + hex.EncodeToString(b),
+				"epochId":    epochID,
+				"points":     []any{},
+				"source":     "indexed-events",
+			})
+			return
+		}
+		limit := int32(200)
+		if ls := r.URL.Query().Get("limit"); ls != "" {
+			if n, err := strconv.ParseInt(ls, 10, 32); err == nil && n > 0 && n <= 1000 {
+				limit = int32(n)
+			}
+		}
+		points, err := probabilityHistoryFromEvents(r.Context(), pool, b, epochID, int(row.OutcomeCount), limit)
+		if err != nil {
+			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"templateId":   "0x" + hex.EncodeToString(b),
+			"epochId":      epochID,
+			"outcomeCount": row.OutcomeCount,
+			"points":       points,
+			"source":       "indexed-events",
+		})
 	})
 
 	r.Get("/api/v1/user/{address}/events", func(w http.ResponseWriter, r *http.Request) {
@@ -401,4 +526,143 @@ func formatTime(t pgtype.Timestamptz) any {
 		return nil
 	}
 	return t.Time.UTC().Format(time.RFC3339)
+}
+
+func apiLiveRPCContext(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(r.Context(), 12*time.Second)
+}
+
+func probabilityHistoryFromEvents(
+	ctx context.Context,
+	pool interface {
+		Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+	},
+	templateID []byte,
+	epochID int64,
+	outcomeCount int,
+	limit int32,
+) ([]map[string]any, error) {
+	if outcomeCount < 2 {
+		outcomeCount = 2
+	}
+	if outcomeCount > 8 {
+		outcomeCount = 8
+	}
+	rows, err := pool.Query(ctx, `
+SELECT block_number, tx_hash, log_index, event_name, payload, indexed_at
+FROM chain_events
+WHERE template_id = $1
+  AND epoch_id = $2
+  AND event_name IN ('EpochOpened', 'PositionDeposited', 'SideSwitched', 'EpochLocked', 'EpochResolved', 'EpochResolvedV2', 'EpochCancelled')
+ORDER BY block_number ASC, log_index ASC
+LIMIT $3
+`, templateID, epochID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	pools := make([]*big.Int, outcomeCount)
+	for i := range pools {
+		pools[i] = new(big.Int)
+	}
+	points := make([]map[string]any, 0)
+	for rows.Next() {
+		var blockNumber int64
+		var txHash string
+		var logIndex int32
+		var eventName string
+		var payloadBytes []byte
+		var indexedAt pgtype.Timestamptz
+		if err := rows.Scan(&blockNumber, &txHash, &logIndex, &eventName, &payloadBytes, &indexedAt); err != nil {
+			return nil, err
+		}
+		var payload map[string]any
+		_ = json.Unmarshal(payloadBytes, &payload)
+
+		switch eventName {
+		case "PositionDeposited":
+			oi, ok0 := jsonInt(payload["outcomeIndex"])
+			amount, ok1 := jsonBig(payload["amount"])
+			if ok0 && ok1 && oi >= 0 && oi < outcomeCount {
+				pools[oi].Add(pools[oi], amount)
+			}
+		case "SideSwitched":
+			from, ok0 := jsonInt(payload["fromOutcome"])
+			to, ok1 := jsonInt(payload["toOutcome"])
+			gross, ok2 := jsonBig(payload["grossAmount"])
+			net, ok3 := jsonBig(payload["netAmount"])
+			if ok0 && ok1 && ok2 && ok3 && from >= 0 && from < outcomeCount && to >= 0 && to < outcomeCount {
+				pools[from].Sub(pools[from], gross)
+				if pools[from].Sign() < 0 {
+					pools[from].SetInt64(0)
+				}
+				pools[to].Add(pools[to], net)
+			}
+		}
+
+		total := new(big.Int)
+		for _, p := range pools {
+			total.Add(total, p)
+		}
+		probs := make([]map[string]any, outcomeCount)
+		for i, p := range pools {
+			probE6 := new(big.Int)
+			if total.Sign() > 0 && p.Sign() > 0 {
+				probE6.Mul(p, big.NewInt(1_000_000))
+				probE6.Div(probE6, total)
+			}
+			probs[i] = map[string]any{
+				"outcomeIndex":         i,
+				"poolSize":             p.String(),
+				"impliedProbabilityE6": probE6.String(),
+			}
+		}
+		points = append(points, map[string]any{
+			"blockNumber": blockNumber,
+			"txHash":      txHash,
+			"logIndex":    logIndex,
+			"eventName":   eventName,
+			"indexedAt":   formatTime(indexedAt),
+			"totalPool":   total.String(),
+			"outcomes":    probs,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return points, nil
+}
+
+func jsonBig(v any) (*big.Int, bool) {
+	switch x := v.(type) {
+	case string:
+		n, ok := new(big.Int).SetString(x, 10)
+		return n, ok
+	case float64:
+		if x < 0 {
+			return nil, false
+		}
+		return big.NewInt(int64(x)), true
+	case json.Number:
+		n, ok := new(big.Int).SetString(x.String(), 10)
+		return n, ok
+	default:
+		return nil, false
+	}
+}
+
+func jsonInt(v any) (int64, bool) {
+	switch x := v.(type) {
+	case float64:
+		return int64(x), true
+	case string:
+		n, err := strconv.ParseInt(x, 10, 64)
+		return n, err == nil
+	case json.Number:
+		n, err := x.Int64()
+		return n, err == nil
+	default:
+		return 0, false
+	}
 }

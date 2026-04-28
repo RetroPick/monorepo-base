@@ -29,7 +29,6 @@ const tradeDown3dClass =
   "w-full rounded-lg border border-rose-800/90 bg-gradient-to-b from-rose-600 to-rose-800 py-3 text-sm font-bold text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_4px_0_0_rgb(100,20,40),0_2px_8px_rgba(0,0,0,0.3)] transition-[opacity,transform,box-shadow,filter,background,colors] duration-200 hover:from-rose-500 hover:to-rose-700 hover:text-zinc-100 hover:opacity-100 hover:brightness-[1.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/80 active:translate-y-px active:from-rose-600 active:to-rose-800 active:text-zinc-300 active:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_0_0_rgb(100,20,40),0_1px_4px_rgba(0,0,0,0.22)] disabled:cursor-not-allowed disabled:opacity-40";
 
 type Tab = "Buy" | "Claim";
-type Side = "YES" | "NO";
 
 interface ManualTradeCardProps {
   outcomes: MarketOutcome[];
@@ -108,7 +107,7 @@ function positionStakeAt(position: PositionViewRow | undefined, index: number): 
 
 export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps) {
   const [tab, setTab] = useState<Tab>("Buy");
-  const [side, setSide] = useState<Side>("YES");
+  const [selectedOutcome, setSelectedOutcome] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [lastSubmitted, setLastSubmitted] = useState<`0x${string}` | undefined>();
   const [approvedBuy, setApprovedBuy] = useState<{
@@ -164,10 +163,10 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const noOutcome = outcomes[1];
   const yesMult = formatPayoutMultiplier(yesOutcome?.probability ?? 50);
   const noMult = formatPayoutMultiplier(noOutcome?.probability ?? 50);
-  const selectedOutcomeIndex = side === "YES" ? 0 : 1;
-  const yesStake = positionStakeAt(activePosition, 0);
-  const noStake = positionStakeAt(activePosition, 1);
-  const hasOpenPosition = yesStake > 0n || noStake > 0n;
+  const selectedOutcomeIndex = Math.max(0, Math.min(selectedOutcome, Math.max(outcomes.length - 1, 0)));
+  const hasOpenPosition =
+    toBigInt(activePosition?.totalStake) > 0n ||
+    outcomes.some((_, index) => positionStakeAt(activePosition, index) > 0n);
 
   const isRollingHalted =
     tc != null &&
@@ -177,7 +176,8 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     tc != null &&
     tc.activeEpochId != null &&
     !isRollingHalted &&
-    (tc.outcomeCount === 2 || outcomes.length >= 2);
+    selectedOutcomeIndex >= 0 &&
+    selectedOutcomeIndex < tc.outcomeCount;
 
   /** On-chain betting window; `status===Open` alone is not enough (see `BettingClosed` / openAt–lockAt). */
   const depositOpen = isEpochBettingOpenNow(epochQ.data);
@@ -209,7 +209,6 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
 
   const commonBlockedReason = (() => {
     if (!tc) return "Indexed on-chain market required.";
-    if (tc.outcomeCount > 2) return "Binary markets only in this trade panel.";
     if (tc.activeEpochId == null) return "No active epoch indexed yet.";
     if (isRollingHalted) return "Rolling market halted.";
     if (epochQ.isFetching && epochStatus === undefined) return "Loading epoch state.";
@@ -385,50 +384,74 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
           {tab !== "Claim" ? (
             <>
               <div className="grid grid-cols-2 gap-3 pt-0.5 sm:gap-4">
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
-                  <span
-                    className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
-                    title="Approx. gross return on $1 if this side wins (from implied %)"
-                  >
-                    {yesMult}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSide("YES")}
-                    className={cn(
-                      tradeUp3dClass,
-                      side === "YES"
-                        ? "opacity-100 ring-2 ring-white/30 ring-offset-2 ring-offset-background"
-                        : "opacity-[0.55]",
-                    )}
-                    aria-pressed={side === "YES"}
-                    aria-label={`${yesOutcome?.label ?? "Yes"} ${yesMult}`}
-                  >
-                    {yesOutcome?.label ?? "Yes"}
-                  </button>
-                </div>
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
-                  <span
-                    className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
-                    title="Approx. gross return on $1 if this side wins (from implied %)"
-                  >
-                    {noMult}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSide("NO")}
-                    className={cn(
-                      tradeDown3dClass,
-                      side === "NO"
-                        ? "opacity-100 ring-2 ring-white/20 ring-offset-2 ring-offset-background"
-                        : "opacity-[0.55]",
-                    )}
-                    aria-pressed={side === "NO"}
-                    aria-label={`${noOutcome?.label ?? "No"} ${noMult}`}
-                  >
-                    {noOutcome?.label ?? "No"}
-                  </button>
-                </div>
+                {outcomes.length <= 2 ? (
+                  <>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
+                      <span
+                        className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
+                        title="Approx. gross return on $1 if this side wins (from implied %)"
+                      >
+                        {yesMult}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOutcome(0)}
+                        className={cn(
+                          tradeUp3dClass,
+                          selectedOutcomeIndex === 0
+                            ? "opacity-100 ring-2 ring-white/30 ring-offset-2 ring-offset-background"
+                            : "opacity-[0.55]",
+                        )}
+                        aria-pressed={selectedOutcomeIndex === 0}
+                        aria-label={`${yesOutcome?.label ?? "Yes"} ${yesMult}`}
+                      >
+                        {yesOutcome?.label ?? "Yes"}
+                      </button>
+                    </div>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
+                      <span
+                        className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
+                        title="Approx. gross return on $1 if this side wins (from implied %)"
+                      >
+                        {noMult}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedOutcome(1)}
+                        className={cn(
+                          tradeDown3dClass,
+                          selectedOutcomeIndex === 1
+                            ? "opacity-100 ring-2 ring-white/20 ring-offset-2 ring-offset-background"
+                            : "opacity-[0.55]",
+                        )}
+                        aria-pressed={selectedOutcomeIndex === 1}
+                        aria-label={`${noOutcome?.label ?? "No"} ${noMult}`}
+                      >
+                        {noOutcome?.label ?? "No"}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-2 grid grid-cols-2 gap-2">
+                    {outcomes.map((outcome, index) => (
+                      <button
+                        key={outcome.id}
+                        type="button"
+                        onClick={() => setSelectedOutcome(index)}
+                        className={cn(
+                          "min-h-12 rounded-lg border px-3 py-2 text-left transition",
+                          selectedOutcomeIndex === index
+                            ? "border-primary bg-primary/10 text-foreground ring-2 ring-primary/20"
+                            : "border-border/70 bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                        aria-pressed={selectedOutcomeIndex === index}
+                      >
+                        <span className="block truncate text-sm font-semibold">{outcome.label}</span>
+                        <span className="block font-mono text-xs">{formatPayoutMultiplier(outcome.probability)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="mt-4 rounded-xl border border-border/70 bg-background/60 p-3 dark:border-white/[0.08]">
@@ -496,13 +519,14 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
           {hasOpenPosition && tab !== "Claim" ? (
             <p className="mt-3 text-center text-xs text-muted-foreground">
               Open{" "}
-              <span className="font-mono text-foreground">
-                {yesOutcome?.label ?? "Yes"} {formatShortToken(yesStake)}
-              </span>
-              <span className="px-1">·</span>
-              <span className="font-mono text-foreground">
-                {noOutcome?.label ?? "No"} {formatShortToken(noStake)}
-              </span>
+              {outcomes.slice(0, tc?.outcomeCount ?? 2).map((outcome, index) => (
+                <span key={outcome.id}>
+                  {index > 0 ? <span className="px-1">·</span> : null}
+                  <span className="font-mono text-foreground">
+                    {outcome.label} {formatShortToken(positionStakeAt(activePosition, index))}
+                  </span>
+                </span>
+              ))}
             </p>
           ) : null}
 

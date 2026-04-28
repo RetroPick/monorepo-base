@@ -130,12 +130,11 @@ export function ManualMarketPage({ model, onBack, backLabel = "Back to Markets" 
   useSiteHeaderOffset();
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground">
-      <Header />
-
+    <div className="market-page-sticky-offset min-h-screen w-full bg-background text-foreground">
+      <Header omitBottomDivider />
       <main className="mx-auto max-w-[1440px] pb-12">
         {/* Polymarket-style: title + main column only; trade panel sits in the right column and never shares the title row width */}
-        <div className="grid items-start gap-6 px-4 pt-3 lg:grid-cols-[minmax(0,1fr)_330px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_352px]">
+        <div className="grid items-start gap-6 px-4 pt-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_352px]">
           {/* `overflow-x-clip` on this column breaks `position:sticky` on MarketPageTitleBar (see index.css). */}
           <div className="min-w-0">
             <MarketPageTitleBar
@@ -148,32 +147,40 @@ export function ManualMarketPage({ model, onBack, backLabel = "Back to Markets" 
               backLabel={backLabel}
               description={isChain ? undefined : model.description}
               showLivePill={isChain}
+              className="mb-6 sm:mb-8"
             />
 
-            {!isChain && model.headerStats.length > 0 ? (
-              <section className="mb-2 border-b border-border/70 pb-5 dark:border-white/[0.07]">
-                <div className="mt-1 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-                  {model.headerStats.map((s) => (
-                    <StatPill key={s.label} {...s} />
-                  ))}
+            <div className="flex flex-col rounded-xl border border-border/60 bg-card dark:border-white/[0.08]">
+              {!isChain && model.headerStats.length > 0 ? (
+                <section className="px-3 py-4 dark:border-white/[0.06] sm:px-4">
+                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
+                    {model.headerStats.map((s) => (
+                      <StatPill key={s.label} {...s} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              <section className="rounded-b-xl border-t border-border/50 px-3 pb-3 pt-3 dark:border-white/[0.06] sm:px-4">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold tracking-tight">Chance</h2>
+                    <p className="mt-0.5 text-xs text-muted-foreground">Market-implied probability over time</p>
+                  </div>
+                  <span className="rounded border border-border/70 px-2 py-1 font-mono text-xs text-muted-foreground dark:border-white/[0.07]">
+                    Vol {model.volumeLabel}
+                  </span>
+                </div>
+                <div className="min-h-[300px]">
+                  <ProbabilityChart
+                    outcomes={model.outcomes}
+                    volume={model.volumeLabel}
+                    history={model.probabilityHistory}
+                    embedded
+                  />
                 </div>
               </section>
-            ) : null}
-
-            <section className="py-2 lg:pt-0">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold tracking-tight">Chance</h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Market-implied probability over time</p>
-                </div>
-                <span className="rounded border border-border/70 px-2 py-1 font-mono text-xs text-muted-foreground dark:border-white/[0.07]">
-                  Vol {model.volumeLabel}
-                </span>
-              </div>
-              <div className="min-h-[300px]">
-                <ProbabilityChart outcomes={model.outcomes} volume={model.volumeLabel} embedded />
-              </div>
-            </section>
+            </div>
 
             {isChain ? (
               <section className="border-t border-border/70 py-4 dark:border-white/[0.07]">

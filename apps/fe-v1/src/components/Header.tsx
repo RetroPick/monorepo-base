@@ -1,8 +1,9 @@
-import { lazy, Suspense, useRef, type WheelEvent as ReactWheelEvent } from "react";
+import { lazy, Suspense, useRef, useState, type WheelEvent as ReactWheelEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAssetContext } from "@/context/AssetContext";
+import HowRetroPickWorksDialog from "@/components/HowRetroPickWorksDialog";
 import Logo from "@/components/Logo";
 import { ModeToggle } from "./mode-toggle";
 import type { AssetClass } from "@/lib/market-data/types";
@@ -13,6 +14,8 @@ import { DISCOVERY_VERTICALS } from "@/lib/discovery-verticals";
 const WalletButton = lazy(() => import("./WalletButton"));
 
 interface HeaderProps {
+  /** Drop the sticky header bottom rule so dense body content (manual market headline) blends with page bg. */
+  omitBottomDivider?: boolean;
   discoveryNav?: {
     verticals: typeof DISCOVERY_VERTICALS;
     activeVerticalId: DiscoveryVerticalId;
@@ -30,32 +33,23 @@ interface HeaderProps {
   };
 }
 
-const Header = ({ discoveryNav, assetClassNav, marketFamilyAssetClassNav }: HeaderProps) => {
+const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAssetClassNav }: HeaderProps) => {
   const location = useLocation();
   const { assets, selectedSymbol, setSelectedSymbol } = useAssetContext();
   const railRef = useRef<HTMLDivElement>(null);
+  const [howRetroPickOpen, setHowRetroPickOpen] = useState(false);
   const isMarketsAllPage = location.pathname === "/app/markets/all";
 
   const navItems = [
-    { name: "Discover", path: "/app/markets/all" },
-    {
-      name: "Rolling · Up / Down",
-      path: "/app/markets/updown/crypto",
-      withSeparator: true,
-      activePrefix: "/app/markets/updown",
-    },
-    {
-      name: "Rolling · Above / Below",
-      path: "/app/markets/abovebelow/crypto",
-      activePrefix: "/app/markets/abovebelow",
-    },
-    { name: "On-chain markets", path: "/app/chain-markets", activePrefix: "/app/chain-markets" },
+    { name: "Markets", path: "/app/markets/all" },
     { name: "Portfolio", path: "/app/portfolio" },
+    { name: "Activity", path: "/app/activity" },
   ] as const;
 
   const isNavItemActive = (item: (typeof navItems)[number]) => {
-    if ("activePrefix" in item && item.activePrefix) {
-      return location.pathname.startsWith(item.activePrefix);
+    const activePrefix = "activePrefix" in item ? (item as { activePrefix?: string }).activePrefix : undefined;
+    if (typeof activePrefix === "string" && activePrefix.length > 0) {
+      return location.pathname.startsWith(activePrefix);
     }
     if (item.path === "/app/markets/all") return isMarketsAllPage;
     return location.pathname === item.path;
@@ -95,13 +89,35 @@ const Header = ({ discoveryNav, assetClassNav, marketFamilyAssetClassNav }: Head
           </div>
         );
       })}
+      <div className="flex shrink-0 items-center">
+        <span className="hidden shrink-0 px-1.5 text-muted-foreground/35 select-none lg:inline" aria-hidden="true">
+          ·
+        </span>
+        <button
+          type="button"
+          onClick={() => setHowRetroPickOpen(true)}
+          className={cn(
+            "whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium transition-colors max-lg:rounded-md max-lg:px-3 max-lg:py-1.5 max-lg:text-[10px] max-lg:font-semibold max-lg:uppercase max-lg:tracking-[0.12em] sm:px-2.5 sm:py-1.5",
+            "text-muted-foreground hover:text-foreground max-lg:border max-lg:border-transparent max-lg:hover:bg-muted",
+          )}
+          aria-label="How RetroPick works"
+          title="How RetroPick works"
+        >
+          How ?
+        </button>
+      </div>
     </>
   );
 
   return (
     <header
       id="app-site-header"
-      className="sticky inset-x-0 top-0 z-50 shrink-0 border-b border-border/40 bg-background/90 backdrop-blur-md dark:border-white/[0.06] dark:bg-background/95"
+      className={cn(
+        "sticky inset-x-0 top-0 z-50 shrink-0 bg-background/90 backdrop-blur-md dark:bg-background/95",
+        omitBottomDivider
+          ? "border-b-0"
+          : "border-b border-border/40 dark:border-white/[0.06]",
+      )}
     >
       <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
         <div className="flex min-h-11 flex-nowrap items-center gap-2 py-1.5 sm:min-h-12 sm:gap-3 sm:py-2">
@@ -354,6 +370,7 @@ const Header = ({ discoveryNav, assetClassNav, marketFamilyAssetClassNav }: Head
           </div>
         </div>
       </div>
+      <HowRetroPickWorksDialog open={howRetroPickOpen} onOpenChange={setHowRetroPickOpen} />
     </header>
   );
 };

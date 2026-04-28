@@ -14,16 +14,12 @@ vi.mock("@/views/MarketsAll", () => ({
   default: () => <div>Markets Dashboard</div>,
 }));
 
-vi.mock("@/views/PredictionDashboard", () => ({
-  default: () => <div>Prediction Dashboard</div>,
+vi.mock("@/views/ChainMarkets", () => ({
+  default: () => <div>Chain Markets</div>,
 }));
 
-vi.mock("@/views/AboveBelowDashboard", () => ({
-  default: () => <div>Above Below Dashboard</div>,
-}));
-
-vi.mock("@/views/MarketDetail", () => ({
-  default: () => <div>Market Detail</div>,
+vi.mock("@/views/ChainMarketDetail", () => ({
+  default: () => <div>Chain Market Detail</div>,
 }));
 
 vi.mock("@/views/Portfolio", () => ({
@@ -59,11 +55,19 @@ describe("App routing", () => {
     expect(await screen.findByText("Markets Dashboard")).toBeInTheDocument();
   });
 
-  it("renders the up/down trading dashboard route with asset class segment", async () => {
+  it("redirects the old up/down mock route to indexed markets", async () => {
     window.history.pushState({}, "", "/app/markets/updown/crypto");
 
     render(<App />);
 
-    expect(await screen.findByText("Prediction Dashboard")).toBeInTheDocument();
+    expect(await screen.findByText("Markets Dashboard")).toBeInTheDocument();
+  });
+
+  it("renders indexed market detail at the canonical market route", async () => {
+    window.history.pushState({}, "", "/app/market/0xabc");
+
+    render(<App />);
+
+    expect(await screen.findByText("Chain Market Detail")).toBeInTheDocument();
   });
 });

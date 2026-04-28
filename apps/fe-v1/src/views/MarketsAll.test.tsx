@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { LanguageProvider } from "@/context/LanguageContext";
@@ -64,15 +64,34 @@ describe("MarketsAll", () => {
     expect(await screen.findByText("Btc Up Down")).toBeInTheDocument();
   });
 
-  it("renders Trending layout with featured hero and right rail", async () => {
+  it("renders Trending layout with market types strip and full-width market grid", async () => {
     renderAll("trending");
 
     await waitFor(() => {
       expect(screen.getByTestId("discover-layout-trending")).toBeInTheDocument();
     });
-    expect(screen.getByTestId("discover-featured-hero")).toBeInTheDocument();
+    expect(screen.getByTestId("discover-market-types-strip")).toBeInTheDocument();
+    expect(screen.getByTestId("discover-market-types-scroll-prev")).toBeInTheDocument();
+    expect(screen.getByTestId("discover-market-types-scroll-next")).toBeInTheDocument();
+    expect(screen.queryByTestId("discover-featured-hero")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Market types" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "All markets" })).toBeInTheDocument();
-    expect(screen.getByText("Up or Down")).toBeInTheDocument();
+
+    const learnBtn = screen.getByRole("button", { name: /Learn how Direction markets work/i });
+    fireEvent.click(learnBtn);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Direction" })).toBeInTheDocument();
+    expect(within(dialog).getByText(/Step 1 of 6/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    expect(within(dialog).getByText(/Step 2 of 6/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("heading", { name: "How you take part", level: 3 })).toBeInTheDocument();
+    for (let i = 0; i < 4; i += 1) {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    }
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
   });
 
   it("shows empty state for non-crypto verticals until API supports tags", async () => {

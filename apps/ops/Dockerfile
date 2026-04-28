@@ -13,6 +13,7 @@ COPY apps/ops apps/ops
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN pnpm install --frozen-lockfile --filter ops... --store-dir=/pnpm/store
+RUN node -e "const fs=require('fs'); for (const name of ['react','react-dom']) { const src=fs.realpathSync('/app/apps/ops/node_modules/@types/'+name); const dest='/app/node_modules/@types/'+name; fs.rmSync(dest,{force:true,recursive:true}); fs.symlinkSync(src,dest,'dir'); }"
 RUN pnpm --filter ops build
 
 FROM node:20-bookworm-slim AS runner

@@ -135,13 +135,13 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     isBinary = true;
     if (mt === 0) {
       outcomes = [
-        { id: "0", label: "Up", probability: 50 },
-        { id: "1", label: "Down", probability: 50 },
+        { id: "0", label: "Up", probability: rowOutcomeProbability(row, 0, 50) },
+        { id: "1", label: "Down", probability: rowOutcomeProbability(row, 1, 50) },
       ];
     } else {
       outcomes = [
-        { id: "0", label: "Yes", probability: 50 },
-        { id: "1", label: "No", probability: 50 },
+        { id: "0", label: "Yes", probability: rowOutcomeProbability(row, 0, 50) },
+        { id: "1", label: "No", probability: rowOutcomeProbability(row, 1, 50) },
       ];
     }
   } else {
@@ -154,7 +154,7 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     outcomes = Array.from({ length: oc }, (_, i) => ({
       id: String(i),
       label: `Outcome ${i + 1}`,
-      probability: base + (i < rem ? 1 : 0),
+      probability: rowOutcomeProbability(row, i, base + (i < rem ? 1 : 0)),
     }));
   }
 
@@ -182,6 +182,14 @@ export function marketRowToCardMarket(row: MarketRow): Market {
   };
 }
 
+function rowOutcomeProbability(row: MarketRow, outcomeIndex: number, fallback: number): number {
+  const view = row.outcomes?.find((o) => o.outcomeIndex === outcomeIndex);
+  if (!view) return fallback;
+  const raw = Number(view.impliedProbabilityE6);
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.max(0, Math.min(100, raw / 10_000));
+}
+
 export function chainDetailPath(templateId: string): string {
-  return `/app/chain-markets/${encodeURIComponent(templateId)}`;
+  return `/app/market/${encodeURIComponent(templateId)}`;
 }

@@ -16,3 +16,4 @@ test-ledger
 .idea
 .vscode
 .retropick-deploy
+.progress.md

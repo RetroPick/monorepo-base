@@ -104,6 +104,7 @@ pnpm contracts:registry
 | **Node.js** | 20+ |
 | **pnpm** | 10.x (see [`package.json`](package.json) `packageManager`) |
 | **Docker & Docker Compose** | Recommended for Postgres + API + indexer + ops |
+| **Docker Buildx** | Compose v2 uses Buildx Bake for builds; install the [Buildx CLI plugin](https://docs.docker.com/build/install-buildx/) so `docker buildx version` works and you avoid Compose bake warnings. On Ubuntu/WSL, `apt-get install docker-buildx-plugin` only appears after Docker’s APT repo is configured (see Troubleshooting). |
 | **Go** | 1.24+ optional, only if you run `apps/backend` on the host |
 
 ---
@@ -128,7 +129,7 @@ Build and start Postgres, API, indexer, and the operator UI:
 docker compose up -d --build
 ```
 
-Shortcuts: `pnpm docker:up`, `pnpm docker:down`, `pnpm docker:build`.
+Shortcuts: `pnpm docker:up`, `pnpm docker:down`, `pnpm docker:build`. Image builds use **BuildKit** by default (expects `DOCKER_BUILDKIT=1`) for layer and cache mounts in Dockerfiles.
 
 | Service | Host port | Purpose |
 |---------|-----------|---------|
@@ -218,6 +219,27 @@ cd apps/backend && make test   # go test ./...
 ## Troubleshooting
 
 **WSL2 + Docker:** If logs show DNS errors (`lookup postgres on 127.0.0.11:53`) or migrations flap while Postgres starts, confirm Docker Desktop is running, wait until Postgres is ready, or adjust Docker DNS if a VPN breaks embedded resolution.
+
+**`E: Unable to locate package docker-buildx-plugin` / Compose “build using Bake, but buildx isn’t installed”:** The APT package exists in **Docker’s** package repository (`download.docker.com`), not in Ubuntu’s default indexes alone. Either:
+
+1. Add Docker Engine’s repo for your distro ([Ubuntu](https://docs.docker.com/engine/install/ubuntu/), [Debian](https://docs.docker.com/engine/install/debian/)), run `sudo apt-get update`, then `sudo apt-get install docker-buildx-plugin`, or  
+
+2. Install the CLI plugin binary for your architecture (often `amd64` on Windows/WSL on Intel):
+
+```bash
+mkdir -p ~/.docker/cli-plugins
+VERSION=v0.32.1
+case "$(uname -m)" in
+  x86_64|amd64) SUFFIX=linux-amd64 ;;
+  aarch64|arm64) SUFFIX=linux-arm64 ;;
+  *) echo "unsupported CPU: $(uname -m)"; exit 1 ;;
+esac
+curl -fsSL "https://github.com/docker/buildx/releases/download/${VERSION}/buildx-${VERSION}.${SUFFIX}" -o ~/.docker/cli-plugins/docker-buildx
+chmod +x ~/.docker/cli-plugins/docker-buildx
+docker buildx version
+```
+
+Bump `VERSION` periodically from [buildx releases](https://github.com/docker/buildx/releases).
 
 ---
 

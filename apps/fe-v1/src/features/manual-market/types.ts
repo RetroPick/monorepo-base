@@ -4,6 +4,8 @@ import type {
   DataFreshness,
   EpochRow,
   MarketDetail as ApiMarketDetail,
+  OutcomeView,
+  ProbabilityHistoryPoint,
 } from "@/lib/api/retropickApi";
 
 export type ManualHeaderStat = {
@@ -38,6 +40,7 @@ export interface ManualMarketViewModel {
   dataFreshness?: DataFreshness;
   activeEpoch?: ApiMarketDetail["activeEpoch"];
   recentEpochs?: EpochRow[];
+  probabilityHistory?: ProbabilityHistoryPoint[];
   /** Extra oracle / resolution copy shown below chart (discovery v1 markets). */
   resolutionExtras?: ReactNode;
   relatedMarkets: Market[];
@@ -97,19 +100,11 @@ export function manualMarketFromDiscovery(
 export function manualMarketFromChainDetail(
   api: ApiMarketDetail,
   volumeHint?: string,
+  probabilityHistory: ProbabilityHistoryPoint[] = [],
 ): ManualMarketViewModel {
   const oc = api.outcomeCount > 0 ? api.outcomeCount : 2;
-  const outcomes: MarketOutcome[] =
-    oc === 2
-      ? [
-          { id: "0", label: "Yes", probability: 50 },
-          { id: "1", label: "No", probability: 50 },
-        ]
-      : Array.from({ length: Math.min(oc, 8) }, (_, i) => ({
-          id: String(i),
-          label: `Outcome ${i + 1}`,
-          probability: Math.round(100 / Math.max(oc, 1)),
-        }));
+  const outcomeViews = api.outcomes ?? [];
+  const outcomes = buildChainOutcomes(api.marketType, oc, outcomeViews);
 
   const activeEpochId =
     api.activeEpochId != null && api.activeEpochId >= 0
@@ -144,6 +139,7 @@ export function manualMarketFromChainDetail(
     },
     activeEpoch: api.activeEpoch,
     recentEpochs: [],
+    probabilityHistory,
     relatedMarkets: [],
     tradeContext: {
       templateId: normalizeTemplateId(api.templateId),
@@ -154,4 +150,38 @@ export function manualMarketFromChainDetail(
       marketType: api.marketType,
     },
   };
+}
+
+function outcomeProbability(view: OutcomeView | undefined, fallback: number) {
+  if (!view?.impliedProbabilityE6) return fallback;
+  const n = Number(view.impliedProbabilityE6);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(0, Math.min(100, n / 10_000));
+}
+
+function binaryLabels(marketType: number): [string, string] {
+  if (marketType === 0) return ["Up", "Down"];
+  return ["Yes", "No"];
+}
+
+function buildChainOutcomes(
+  marketType: number,
+  outcomeCount: number,
+  outcomeViews: OutcomeView[],
+): MarketOutcome[] {
+  const count = Math.min(Math.max(outcomeCount, 2), 8);
+  const fallback = 100 / count;
+  if (count === 2) {
+    const [a, b] = binaryLabels(marketType);
+    return [0, 1].map((i) => ({
+      id: String(i),
+      label: i === 0 ? a : b,
+      probability: outcomeProbability(outcomeViews.find((o) => o.outcomeIndex === i), fallback),
+    }));
+  }
+  return Array.from({ length: count }, (_, i) => ({
+    id: String(i),
+    label: `Outcome ${i + 1}`,
+    probability: outcomeProbability(outcomeViews.find((o) => o.outcomeIndex === i), fallback),
+  }));
 }

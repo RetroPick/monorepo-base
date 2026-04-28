@@ -15,12 +15,13 @@ import {
 } from "recharts";
 import Icon from "@/components/Icon";
 import { MarketOutcome } from "@/types/market";
-import { format, subDays, addDays } from "date-fns";
+import type { ProbabilityHistoryPoint } from "@/lib/api/retropickApi";
 import { cn } from "@/lib/utils";
 
 interface ProbabilityChartProps {
   outcomes: MarketOutcome[];
   volume: string;
+  history?: ProbabilityHistoryPoint[];
   /** When true, removes the inner card frame so the chart blends into the parent (e.g. FeaturedMarket) */
   embedded?: boolean;
 }
@@ -160,6 +161,7 @@ const CustomTooltip = ({ active, payload, label, mode }: any) => {
 const ProbabilityChart = memo(function ProbabilityChart({
   outcomes,
   volume,
+  history = [],
   embedded = false,
 }: ProbabilityChartProps) {
   const [timeRange, setTimeRange] = useState('1D');
@@ -171,45 +173,56 @@ const ProbabilityChart = memo(function ProbabilityChart({
   // Ensure selected outcome is valid
   const currentOutcome = outcomes.find(o => o.id === selectedOutcomeId) || outcomes[0];
 
-  // Placeholder series: flat at current implied probability (no RNG) until a price-history API exists.
   const chartData = useMemo(() => {
-    const data = [];
-    const points = 50;
-    const now = new Date();
-
     const sortedOutcomes = [...outcomes].sort((a, b) => b.probability - a.probability).slice(0, 3);
-
-    for (let i = 0; i < points; i++) {
-      const date = subDays(now, points - 1 - i);
-      const dateStr = format(date, "MMM dd");
-
-      const point: Record<string, number | string> = { date: dateStr };
-
+    const historyData = history.map((point) => {
+      const label = point.indexedAt
+        ? new Date(point.indexedAt).toLocaleString(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : `Block ${point.blockNumber}`;
+      const row: Record<string, number | string> = { date: label };
       sortedOutcomes.forEach((outcome) => {
-        const p = Math.max(1, Math.min(99, outcome.probability));
-        point[`outcome_${outcome.id}`] = p;
-        point[`outcome_${outcome.id}_open`] = p;
-        point[`outcome_${outcome.id}_high`] = p;
-        point[`outcome_${outcome.id}_low`] = p;
-        point[`outcome_${outcome.id}_close`] = p;
+        const outcomeIndex = Number(outcome.id);
+        const histOutcome = point.outcomes.find((o) => o.outcomeIndex === outcomeIndex);
+        const p = histOutcome ? Number(histOutcome.impliedProbabilityE6) / 10_000 : outcome.probability;
+        row[`outcome_${outcome.id}`] = Math.max(0, Math.min(100, p));
       });
+      return row;
+    });
 
-      data.push(point);
-    }
+    const data = historyData.length > 0
+      ? historyData
+      : [
+          sortedOutcomes.reduce<Record<string, number | string>>(
+            (point, outcome) => {
+              point[`outcome_${outcome.id}`] = Math.max(0, Math.min(100, outcome.probability));
+              return point;
+            },
+            { date: "Current" },
+          ),
+        ];
 
-    // Standardize the outcome keys for the currently selected single-view candle
-    // We Map `open`, `high`, `low`, `close` to the top level of the data object 
-    // based on `selectedOutcomeId` to make the BarChart simpler.
-    const candleData = data.map(d => ({
-      ...d,
-      open: d[`outcome_${selectedOutcomeId}_open`],
-      high: d[`outcome_${selectedOutcomeId}_high`],
-      low: d[`outcome_${selectedOutcomeId}_low`],
-      close: d[`outcome_${selectedOutcomeId}_close`],
-    }));
+    const previousByOutcome = new Map<string, number>();
+    const candleData = data.map((d) => {
+      const closeRaw = Number(d[`outcome_${selectedOutcomeId}`] ?? currentOutcome?.probability ?? 0);
+      const close = Number.isFinite(closeRaw) ? closeRaw : 0;
+      const open = previousByOutcome.get(selectedOutcomeId) ?? close;
+      previousByOutcome.set(selectedOutcomeId, close);
+      return {
+        ...d,
+        open,
+        high: Math.max(open, close),
+        low: Math.min(open, close),
+        close,
+      };
+    });
 
     return { data: candleData, topOutcomes: sortedOutcomes };
-  }, [outcomes, selectedOutcomeId]);
+  }, [currentOutcome?.probability, history, outcomes, selectedOutcomeId]);
 
   // Prepare data for the 2-bar approach (Body + Wick)
   const preparedCandleData = useMemo(() => {
@@ -233,8 +246,13 @@ const ProbabilityChart = memo(function ProbabilityChart({
       )}
     >
 
-      {/* Header / Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+      {/* Header / Controls — tighter when embedded under market title so YES/NO row sits closer to the chart */}
+      <div
+        className={cn(
+          "flex flex-col justify-between gap-4 sm:flex-row sm:items-center",
+          embedded ? "mb-3 gap-3" : "mb-6 gap-4",
+        )}
+      >
 
         {/* Outcome Selector (Only for Candle View) */}
         {chartType === 'candle' ? (

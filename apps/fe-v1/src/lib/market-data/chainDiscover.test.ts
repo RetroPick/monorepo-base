@@ -43,4 +43,17 @@ describe("marketRowToCardMarket", () => {
     expect(m.chainExecutionMode).toBe(0);
     expect(m.chainMarketTypeId).toBe(1);
   });
+
+  it("uses indexed outcome probabilities when present", () => {
+    const m = marketRowToCardMarket({
+      ...base,
+      marketType: 1,
+      outcomes: [
+        { outcomeIndex: 0, poolSize: "300", impliedProbabilityE6: "750000" },
+        { outcomeIndex: 1, poolSize: "100", impliedProbabilityE6: "250000" },
+      ],
+    });
+    expect(m.outcomes[0]?.probability).toBe(75);
+    expect(m.outcomes[1]?.probability).toBe(25);
+  });
 });

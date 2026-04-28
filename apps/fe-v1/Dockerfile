@@ -1,14 +1,18 @@
+# syntax=docker/dockerfile:1
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-RUN corepack enable
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json ./
 COPY apps/fe-v1/package.json apps/fe-v1/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/types/package.json packages/types/package.json
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/pnpm/store,id=pnpm-fe-v1 \
+    pnpm install --frozen-lockfile --filter fe-v1... --store-dir=/pnpm/store
 
 COPY apps/fe-v1 apps/fe-v1
 COPY packages/contracts packages/contracts
@@ -18,7 +22,9 @@ COPY package/abi package/abi
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
-RUN pnpm --filter fe-v1 build
+RUN --mount=type=cache,target=/pnpm/store,id=pnpm-fe-v1 \
+    --mount=type=cache,target=/app/apps/fe-v1/.next/cache,id=next-fe-v1 \
+    pnpm --filter fe-v1 build
 
 FROM node:20-alpine AS runner
 WORKDIR /app

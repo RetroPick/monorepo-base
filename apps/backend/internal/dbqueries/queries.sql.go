@@ -186,6 +186,7 @@ SELECT
     t.market_type,
     t.outcome_count,
     t.initialized,
+    t.execution_mode,
     t.rolling_phase,
     t.rolling_halt_reason,
     l.active_epoch_id,
@@ -201,6 +202,7 @@ type GetTemplateLedgerEpochRow struct {
 	MarketType          int16       `json:"market_type"`
 	OutcomeCount        int16       `json:"outcome_count"`
 	Initialized         bool        `json:"initialized"`
+	ExecutionMode       int16       `json:"execution_mode"`
 	RollingPhase        int16       `json:"rolling_phase"`
 	RollingHaltReason   int16       `json:"rolling_halt_reason"`
 	ActiveEpochID       pgtype.Int8 `json:"active_epoch_id"`
@@ -216,6 +218,7 @@ func (q *Queries) GetTemplateLedgerEpoch(ctx context.Context, templateID []byte)
 		&i.MarketType,
 		&i.OutcomeCount,
 		&i.Initialized,
+		&i.ExecutionMode,
 		&i.RollingPhase,
 		&i.RollingHaltReason,
 		&i.ActiveEpochID,

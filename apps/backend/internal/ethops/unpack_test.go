@@ -121,6 +121,41 @@ func TestUnpackSingleTuple_PositionView_BugRegression(t *testing.T) {
 	}
 }
 
+func TestOutcomeViewsJSONUsesABIFieldNamesAndStringAmounts(t *testing.T) {
+	out := []OutcomeView{
+		{
+			OutcomeIndex:         0,
+			PoolSize:            big.NewInt(125000000),
+			ImpliedProbabilityE6: big.NewInt(625000),
+			DisplayPercentE4:     big.NewInt(6250),
+			IsWinner:            false,
+			IsActiveQuote:       true,
+			GrossPayoutXe6:      big.NewInt(1600000),
+		},
+	}
+
+	got, ok := ToJSONMap(out).([]any)
+	if !ok || len(got) != 1 {
+		t.Fatalf("ToJSONMap outcome views = %#v", got)
+	}
+	row, ok := got[0].(map[string]any)
+	if !ok {
+		t.Fatalf("outcome view row = %#v", got[0])
+	}
+	if row["outcomeIndex"] != uint8(0) {
+		t.Fatalf("outcomeIndex = %#v", row["outcomeIndex"])
+	}
+	if row["poolSize"] != "125000000" {
+		t.Fatalf("poolSize = %#v", row["poolSize"])
+	}
+	if row["impliedProbabilityE6"] != "625000" {
+		t.Fatalf("impliedProbabilityE6 = %#v", row["impliedProbabilityE6"])
+	}
+	if row["isActiveQuote"] != true {
+		t.Fatalf("isActiveQuote = %#v", row["isActiveQuote"])
+	}
+}
+
 // TestUnpackSingleTuple_OperatorGlobalView_RoundTrip exercises the operator
 // global view path used by /api/v1/ops/* dashboards.
 func TestUnpackSingleTuple_OperatorGlobalView_RoundTrip(t *testing.T) {

@@ -138,6 +138,7 @@ SELECT
     t.market_type,
     t.outcome_count,
     t.initialized,
+    t.execution_mode,
     t.rolling_phase,
     t.rolling_halt_reason,
     l.active_epoch_id,
