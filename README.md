@@ -1,45 +1,114 @@
 # RetroPick V1
 
-Monorepo for the RetroPick prediction-markets stack: Solidity contracts (`package/contract`), shared ABIs (`package/abi`), Go backend (API, indexer, keeper binaries under `apps/backend`), and frontends (`apps/fe-v1`, `apps/ops`).
+**RetroPick** is an **on-chain prediction market engine** for Base Sepolia: one upgradeable **`MarketEngine`** hosts **many markets** (templates), each running **epochs**—open → lock → resolve → claim—with settlement driven by **Chainlink-family oracles** and optional trusted reporters. Operators define markets via `upsertTemplate` / `initializeMarket`; traders deposit stake on sides per epoch; winners claim after resolution; protocol fees route to treasury.
 
-**Canonical on-chain inventory for the documented testnet deployment** is [`package/abi/address.md`](package/abi/address.md). The apps consume the same addresses via [`packages/contracts/registry.base-sepolia.json`](packages/contracts/registry.base-sepolia.json) (regenerate with `pnpm contracts:registry` when `address.md` or the manifest changes).
+**Problem addressed:** Teams need a **single protocol instance** that supports **many market shapes** (direction, thresholds, ranges, composites, …), **professional ops** (templates, epochs, treasury), and **flexible automation** (manual keeper steps vs rolling rounds)—not one-off pools per market.
+
+**How it fits together (off-chain stack):** This monorepo adds Solidity (`package/contract`), shared ABIs (`package/abi`), a **Go API + indexer** (`apps/backend`), the **user app** (`apps/fe-v1`), and an **operator dashboard** (`apps/ops`). Deep contract behavior—including modular `MarketEngineDispatcher`, oracle routing, checkpoints, and gas notes—is documented in [`package/contract/currentSmartContract.md`](package/contract/currentSmartContract.md).
+
+**Differentiators**
+
+- **Modular UUPS engine:** Admin, user, and claims hot paths on the dispatcher; lifecycle and views delegated to modules; one storage layout ([`MarketEngineState`](package/contract/src/engine/MarketEngineState.sol)).
+- **Multi-adapter Chainlink routing:** Templates select oracle class (price, rate, smart data, macro, equity) per [`currentSmartContract.md`](package/contract/currentSmartContract.md) §1.2.
+- **Epoch modes:** **Manual** epochs (discrete `openEpoch` / `lockEpoch` / `resolveEpoch`) vs **rolling** automation where a keeper advances the pipeline on an interval—see the same doc for ops narrative (§0.3).
 
 ---
 
-## Base Sepolia (chain id `84532`)
+## Architecture at a glance
 
-| Role | Address | Notes |
-|------|---------|--------|
-| **MarketEngine proxy** (use for all reads/writes) | `0x1ed89defc8fbcbd512c562b148868ffdc778018a` | `ERC1967Proxy`; see `address.md` for Basescan / Blockscout links |
-| **Implementation** (`MarketEngineDispatcher`) | `0xf8b69b881fb35feb804cfec761fdeb88c4e45ef1` | Verification / upgrades; not the day-to-day call target |
-| **TokenFaucet** | `0xf6c1b6bddd06972f08772de7954432e10c853231` | Testnet faucet |
-| **MockERC20 stake token** | `0xb7f49377af6adbef64f513cf04dbdac9d0af01b1` | Stake token on Base Sepolia |
-| **ChainlinkAdapter** | `0x682b79d6cbd8bcb4e89aeac487ee94e2c306175e` | Labeled “price oracle” in `address.md` |
-| **RateAdapter** | `0x5b61b033816d710e6da9b659a87fc9c2cef6c145` | |
-| **SmartDataAdapter** | `0x51905ef42a9c794bce5042d1305ab4582eeb3823` | |
-| **MacroAdapter** | `0xc2a28f925da7e81d4f66eb006917bdf9a3686f16` | |
-| **EquityAdapter** | `0x6747e65fa8c81f3e0f472b45a4afba9dbe777bd5` | |
-| **MarketEngineAdminModule** | `0x98841ad4483403a55d7af7e28899019db5956238` | |
-| **MarketEngineViewModule** | `0xec237e5c2821346d3eeb88240dd63e814d42dee9` | |
-| **MarketEngineUserOpsClaimsModule** | `0xe052d3986d8409119b2c5253ec70e8e164f146da` | |
-| **MarketEngineCoreLifecycleModule** | `0xbc80925f712c6a362bd612eee0bbec22dd6eedb6` | |
-| **MarketEngineRollingLifecycleModule** | `0xe2e7bb0127e74b5761efd7560ba0c950a9d2a8a2` | |
+High-level protocol flow (deploy → template → epochs → settlement → treasury), aligned with §0.5 of [`currentSmartContract.md`](package/contract/currentSmartContract.md):
 
-Deployment artifact referenced in `address.md`: `package/contract/broadcast/DeployTestnet.s.sol/84532/run-latest.json` (path relative to contract package).
+```mermaid
+flowchart LR
+  subgraph deployBlock [Deploy]
+    adapters[OracleAdapters]
+    proxyNode[MarketEngineProxy]
+    wireup[ModuleWireup]
+  end
+  subgraph marketBlock [Market]
+    tmpl[upsertTemplate]
+    initMarket[initializeMarket]
+  end
+  subgraph epochBlock [Epochs]
+    adv[KeeperOrRolling]
+    trade[UsersDepositSwitch]
+  end
+  subgraph settleBlock [Settlement]
+    res[ResolveAndOracle]
+    cl[Claims]
+  end
+  subgraph treasBlock [Treasury]
+    feePool[FeeReserve]
+    wdraw[withdrawFees]
+  end
+  adapters --> proxyNode
+  wireup --> proxyNode
+  proxyNode --> tmpl --> initMarket --> adv
+  trade --> adv
+  adv --> res --> cl
+  res --> feePool --> wdraw
+```
 
-**Operator rule:** treat the **proxy** as the single MarketEngine endpoint unless you are debugging implementation or routing.
+Conceptual **epoch lifecycle** (one round per template; exact rules vary by [`MarketType`](package/contract/.operator/.marketType.md)). Users typically **deposit or switch sides** while the epoch is **open** (and where allowed **before lock**); **manual** vs **rolling** differs in **how** the admin/keeper advances open/lock/resolve:
+
+```mermaid
+flowchart LR
+  openPh[Open]
+  lockPh[Lock]
+  resolvePh[Resolve]
+  claimPh[Claim]
+  openPh --> lockPh --> resolvePh --> claimPh
+```
+
+---
+
+## Market types
+
+The canonical **`MarketType`** set has **nine** variants: **Direction**, **Threshold**, **RangeClose**, **Velocity**, **Ladder**, **Convergence**, **Composite**, **Corridor**, **Cascade**. For guarded launches, **Direction / Threshold / RangeClose** are the lowest operator burden; **Convergence / Composite / Corridor / Cascade** need the most oracle and incident discipline. Full approval guidance is in [`package/contract/.operator/.marketType.md`](package/contract/.operator/.marketType.md).
+
+---
+
+## Hackathon demo path
+
+- Fund exploration from **`TokenFaucet`** on Base Sepolia (address below; explorers in [`package/abi/address.md`](package/abi/address.md)).
+- Run **`docker compose up`** plus **`pnpm dev:fe-v1`** / **`pnpm dev:ops`** (see below) so judges see indexer-backed UI against the deployed engine.
+- Deep operator flows (`upsertTemplate`, `initializeMarket`, epoch actions): [`package/contract/.operator/.runbook.md`](package/contract/.operator/.runbook.md).
+
+---
+
+## Base Sepolia deployment (judges)
+
+**Chain id `84532`.** Use the **MarketEngine proxy** for all routine reads and writes; implementation addresses are for verification/debugging only ([`address.md`](package/abi/address.md) notes).
+
+| Role | Address |
+|------|---------|
+| **MarketEngine proxy** (`ERC1967`) | `0x1ed89defc8fbcbd512c562b148868ffdc778018a` |
+| **Implementation** (`MarketEngineDispatcher`) | `0xf8b69b881fb35feb804cfec761fdeb88c4e45ef1` |
+| **TokenFaucet** | `0xf6c1b6bddd06972f08772de7954432e10c853231` |
+| **MockERC20 stake** (`mSTK`, 18 decimals) | `0xb7f49377af6adbef64f513cf04dbdac9d0af01b1` |
+
+**Oracle adapters** (ChainlinkAdapter, Rate, SmartData, Macro, Equity) and **lifecycle modules** (View, CoreLifecycle, RollingLifecycle, Admin, UserOpsClaims) — full list with **Basescan / Blockscout** links: [`package/abi/address.md`](package/abi/address.md).
+
+Apps consume the same addresses via [`packages/contracts/registry.base-sepolia.json`](packages/contracts/registry.base-sepolia.json). After changing deployments, regenerate:
+
+```bash
+pnpm contracts:registry
+```
 
 ---
 
 ## Prerequisites
 
-- **Node:** 20+ recommended; **pnpm** `10.x` (see root `packageManager`).
-- **Docker / Docker Compose:** for local Postgres + API + indexer + ops.
-- **Go 1.24+** (optional): only if you run `apps/backend` binaries on the host instead of Docker.
+| Tool | Notes |
+|------|--------|
+| **Node.js** | 20+ |
+| **pnpm** | 10.x (see [`package.json`](package.json) `packageManager`) |
+| **Docker & Docker Compose** | Recommended for Postgres + API + indexer + ops |
+| **Go** | 1.24+ optional, only if you run `apps/backend` on the host |
 
 ---
 
-## Initialize the repo
+## First-time setup
 
 From the repository root:
 
@@ -47,11 +116,11 @@ From the repository root:
 pnpm install
 ```
 
-Workspace packages live under `apps/*` and `packages/*` (`pnpm-workspace.yaml`).
+Workspace packages are declared in [`pnpm-workspace.yaml`](pnpm-workspace.yaml) (`apps/*`, `packages/*`). Use **`pnpm` from the repo root**; plain `npm install` inside a workspace package can fail on `workspace:*` references.
 
 ---
 
-## Run locally with Docker (recommended)
+## Run the stack (Docker, recommended)
 
 Build and start Postgres, API, indexer, and the operator UI:
 
@@ -59,57 +128,63 @@ Build and start Postgres, API, indexer, and the operator UI:
 docker compose up -d --build
 ```
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| Postgres | `5432` | User `retropick`, password `retropick`, database `retropick` |
-| API | `8080` | REST + WebSocket; migrations run on startup |
-| Indexer | (no host port) | Indexes Base Sepolia using `RPC_URL` |
-| Ops | `3001` | Next.js operator dashboard |
+Shortcuts: `pnpm docker:up`, `pnpm docker:down`, `pnpm docker:build`.
 
-Default API env in Compose:
+| Service | Host port | Purpose |
+|---------|-----------|---------|
+| Postgres | `5432` | User `retropick`, password `retropick`, DB `retropick` |
+| API | `8080` | REST + WebSocket; migrations run in `cmd/api` on startup |
+| Indexer | — | Follows Base Sepolia via `RPC_URL` |
+| Ops | `3001` | Next.js operator UI |
 
-- `DATABASE_URL`: `postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable`
-- `RPC_URL`: `https://sepolia.base.org` (Base Sepolia JSON-RPC; aligns with chain id **84532** in `address.md`)
+Compose defaults align with **`84532`**: `RPC_URL=https://sepolia.base.org`, `DATABASE_URL` pointing at the `postgres` service.
 
-Useful checks:
+### Verify
 
 ```bash
 curl -sS http://127.0.0.1:8080/api/v1/health
 curl -sS http://127.0.0.1:8080/api/v1/config/contracts
 ```
 
-Stop and remove containers (add `-v` to drop the Postgres volume):
-
-```bash
-docker compose down
-```
-
-**WSL2 + Docker:** if services log `lookup postgres on 127.0.0.11:53: server misbehaving` or repeated migrate errors while Postgres is still starting, try: ensure Docker Desktop is running; wait for `retropick-postgres` to show `ready to accept connections` before depending on the API; or in Docker Engine settings, adjust DNS (e.g. public resolvers) if corporate VPNs break embedded DNS. The API and indexer retry DB connections on startup, but a broken host network still needs a local fix.
-
-Root shortcuts: `pnpm docker:up`, `pnpm docker:down`, `pnpm docker:build`.
+Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 
 ---
 
-## Run frontends against a local API
+## Environment templates
 
-Ensure the API is reachable at `http://127.0.0.1:8080` (Docker or local Go).
+| File | Use |
+|------|-----|
+| [`.env.example`](.env.example) | Host-run Go API / indexer (`DATABASE_URL`, `PORT`, `RPC_URL`, …) |
+| [`docker-compose.yml`](docker-compose.yml) | Container defaults for the same variables |
+| [`apps/ops/.env.local.example`](apps/ops/.env.local.example) | `NEXT_PUBLIC_API_URL` for the operator UI |
+| [`package/contract/.env.example`](package/contract/.env.example) | Foundry / deployment scripts |
+
+Do not commit real `.env` files (see root [`.gitignore`](.gitignore)).
+
+---
+
+## Frontends against a local API
+
+Ensure the API is reachable (default `http://127.0.0.1:8080`).
 
 ```bash
-# Operator dashboard (port 3001)
+# Operator UI — prefers port 3001 (see apps/ops/scripts/dev.mjs)
 pnpm dev:ops
 
-# Main user app (Vite; port from app config, often 5173)
+# User app (Vite — often http://localhost:5173)
 pnpm dev:fe-v1
 ```
 
-Set `NEXT_PUBLIC_API_URL` if the API is not on `127.0.0.1:8080` (required for browser calls from `apps/ops`).
+If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/ops` (browser-side requests).
+
+Use a wallet on **Base Sepolia** with test ETH/USDC per your deployment.
 
 ---
 
-## Run the API on the host (without Docker for Go)
+## API on the host (Go only)
 
-1. Start Postgres only: `docker compose up -d postgres`
-2. Export:
+1. Postgres up: `docker compose up -d postgres`
+2. Export vars (see [`.env.example`](.env.example)) or:
 
    ```bash
    export DATABASE_URL='postgres://retropick:retropick@127.0.0.1:5432/retropick?sslmode=disable'
@@ -123,25 +198,101 @@ Set `NEXT_PUBLIC_API_URL` if the API is not on `127.0.0.1:8080` (required for br
    GOTOOLCHAIN=auto go run ./cmd/api
    ```
 
-Live operator RPC reads (`/api/v1/ops/live/*`) need a working `RPC_URL` and the embedded ABIs under `apps/backend/internal/abis/` (kept in sync with [`package/abi`](package/abi)).
+Live operator RPC routes (`/api/v1/ops/live/*`) need `RPC_URL` and ABIs under `apps/backend/internal/abis/` (aligned with [`package/abi`](package/abi)).
 
 ---
 
-## Contracts and ABIs
-
-- **Sources:** `package/contract`
-- **Artifacts for apps/backend:** `package/abi/*.json` and [`package/abi/address.md`](package/abi/address.md)
-- **Frontend registry package:** `@retropick/contracts` → `packages/contracts`
-
-After changing deployment addresses, update `address.md` (and the broadcast artifact workflow your team uses), then refresh the JSON registry consumed by apps:
+## Testing
 
 ```bash
-pnpm contracts:registry
+# All workspace packages that define a test script (frontend Vitest today)
+pnpm test
+
+# Explicit targets
+pnpm --filter fe-v1 test
+cd apps/backend && make test   # go test ./...
 ```
+
+---
+
+## Troubleshooting
+
+**WSL2 + Docker:** If logs show DNS errors (`lookup postgres on 127.0.0.11:53`) or migrations flap while Postgres starts, confirm Docker Desktop is running, wait until Postgres is ready, or adjust Docker DNS if a VPN breaks embedded resolution.
+
+---
+
+## RETRODEPLOYER (internal ops CLI)
+
+**RETRODEPLOYER** is the **single entry point** for RetroPick operator workflows: it builds **calldata via the local API** (`POST` `/tx/prepare` and related routes), then **broadcasts** with Foundry **`cast send`** using scripts under [`package/contract/scripts/market/`](package/contract/scripts/market/). It does **not** duplicate HTTP/RPC logic—the repo-root wrapper delegates there.
+
+### Requirements
+
+| Requirement | Why |
+|-------------|-----|
+| **Run from the monorepo root** | Paths assume `$V1_ROOT`; `cd package/contract` and running a different `./scripts/` will not work as documented. |
+| **Go API up** | Prepare flows need **`API_URL`** (default `http://127.0.0.1:8080`). Start Docker Compose (or host API) before `prepare` / `deploy-all`. |
+| **`package/contract/.env`** | Copy from [`package/contract/.env.example`](package/contract/.env.example). At minimum set **`RPC_URL`**, **`CAST_ACCOUNT`** (Foundry keystore account name), and optionally **`ETH_PASSWORD`** or your usual Foundry password setup. **`API_URL`** overrides the default if your API is not on localhost:8080. |
+
+Upsert fixtures live under **`package/contract/.operator/upsert-params/`** (override with **`UPSERT_DIR`**). Calldata always comes from the API before on-chain broadcast—same rule as deployment scripts in [`package/contract/scripts/market/broadcast-prepared-ops-tx.sh`](package/contract/scripts/market/broadcast-prepared-ops-tx.sh) (explicit nonce / precheck behavior is implemented there).
+
+### How to invoke
+
+```bash
+# Full help (authoritative list of subcommands and env vars — use this first)
+./scripts/RETRODEPLOYER help
+
+# Same entry point
+bash ./scripts/RETRODEPLOYER help
+pnpm run retropick:deployer -- help
+
+# Interactive menu (no subcommand defaults to menu)
+./scripts/RETRODEPLOYER
+pnpm run retro
+
+# Convenience: deploy-all alias
+pnpm run retropick:deploy
+```
+
+Shorthands **`./scripts/retro`**, **`pnpm run retro`**, and menu option **`./scripts/retro d`** mirror **`deploy-all`** (nine manual-type fixtures, keystore-driven flow—see **`help`** output).
+
+### Command map (summary)
+
+Use **`./scripts/RETRODEPLOYER help`** for exact flags; this table is an index.
+
+| Area | Examples |
+|------|----------|
+| **Prepare** | `prepare upsert` (manual type `1`–`9`, `01`–`09`, or path to JSON), `prepare fn`, `prepare all`, `prepare all-to <dir>` |
+| **Send** | `send` with a prepared JSON path or stdin; **`send last-lock`**, **`last-resolve`**, **`last-activate`** pick the newest `/tmp/retropick-*.json` |
+| **Batch** | `batch-send <dir>` (optional **`-y`**, **`--resume`**, **`--manifest`**, retries) |
+| **Full pipeline** | `deploy-all` (types, steps, resume, dry-run—see **`help`**) |
+| **Launch** | `launch` with optional **`open`** / **`--open-at`** / **`--lock-at`** / **`--resolve-at`** |
+| **Epoch control** | `activate-epoch`, `advance-epoch` (lock → resolve → open; **`--fast`** for short dev windows), `prepare-lock-epoch`, `prepare-resolve-epoch`, `prepare-open-all`, `resume-open` |
+| **Feeds / oracle** | `feeds discover`, `feeds auto-assign`, `feeds fix-adapter` |
+| **Recovery** | `auto-deploy`, `recover-feed-drift`; aliases **`recover-stuck-epoch`** / **`recover`** |
+| **Monitoring** | `monitor overview`, `monitor trade-ready`, `monitor templates`, `monitor global`, `monitor incidents`, … |
+| **Product** | `frontend-visibility` (`hide`, `unhide`, `list`) — toggles indexer/API visibility for discover |
+| **Emergency (prepare-only)** | `emergency prepare …` (pause, halt rolling, cancel epoch, …) — inspect JSON then **`send`** |
+
+### Environment variables (common)
+
+Loaded from **`package/contract/.env`** (see **`help`** for the full set):
+
+| Variable | Role |
+|----------|------|
+| `API_URL` | Backend for calldata preparation (default `http://127.0.0.1:8080`). |
+| `RPC_URL` | JSON-RPC for `cast send` / read prechecks. |
+| `CAST_ACCOUNT` | Foundry keystore account name for broadcasts. |
+| `ETH_PASSWORD` | Optional path to one-line password file for Foundry. |
+| `RETRODEPLOYER_*` | Timeouts, work dirs, retries, **`--fast`** epoch windows, index wait after txs, **`NO_COLOR`**, etc.—see **`help`**. |
+
+### When you are stuck
+
+- **On-chain errors** (e.g. `No access`, `TooEarlyToResolve`): `broadcast-prepared-ops-tx.sh` prints hints; feed gating on Base Sepolia is a common cause—follow the **`feeds discover` → `fix-adapter` → re-upsert** path in **`help`** and in the [operator runbook](package/contract/.operator/.runbook.md).
+- **Authoritative detail:** always run **`./scripts/RETRODEPLOYER help`** and keep [`.operator/runbook.md`](package/contract/.operator/.runbook.md) open for end-to-end **`upsertTemplate` → `initializeMarket` → epoch** procedures.
 
 ---
 
 ## Further reading
 
-- Operator runbook and procedures: `package/contract/.operator/`
-- Architecture notes: `.dev/`
+- Operator flows: [`package/contract/.operator/.runbook.md`](package/contract/.operator/.runbook.md)
+- Integration specs and ABI mapping: [`.dev/`](.dev/)

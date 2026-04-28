@@ -14,7 +14,7 @@
     "dev:fe-v1": "pnpm --filter fe-v1 dev",
     "dev:ops": "pnpm --filter ops dev",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
+    "test": "pnpm -r --if-present test",
     "cargo:check": "cargo check",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",

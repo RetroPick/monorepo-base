@@ -13,6 +13,5 @@ coverage
 .env
 .env.*
 apps/backend/tmp
-apps/fe-v1
 apps/public
 package/contract

@@ -1,0 +1,912 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "AccessControlBadConfirmation",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "neededRole",
+        "type": "bytes32"
+      }
+    ],
+    "name": "AccessControlUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DraftAlreadyCancelled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DraftAlreadyExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DraftAlreadyPublished",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DraftDoesNotExist",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DraftNotClaimed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DraftNotProposed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOutcomeCount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidTimelineWindows",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnauthorizedCaller",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DraftCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previous",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "current",
+        "type": "address"
+      }
+    ],
+    "name": "DraftClaimManagerUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "claimer",
+        "type": "address"
+      }
+    ],
+    "name": "DraftClaimed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DraftExpired",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "questionHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum MarketDraftBoard.MarketType",
+        "name": "marketType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "resolveTime",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "questionURI",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "outcomesURI",
+        "type": "string"
+      }
+    ],
+    "name": "DraftProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "marketId",
+        "type": "uint256"
+      }
+    ],
+    "name": "DraftPublished",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "previousAdminRole",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "newAdminRole",
+        "type": "bytes32"
+      }
+    ],
+    "name": "RoleAdminChanged",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "RoleGranted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      }
+    ],
+    "name": "RoleRevoked",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AI_ORACLE_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "DEFAULT_ADMIN_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PUBLISH_CALLER_ROLE",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "cancelDraft",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "draftClaimManager",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "draftCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "drafts",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "questionHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "questionUriHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "outcomesHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "outcomesUriHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "resolveSpecHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint48",
+        "name": "tradingOpen",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "tradingClose",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "resolveTime",
+        "type": "uint48"
+      },
+      {
+        "internalType": "enum MarketDraftBoard.MarketType",
+        "name": "marketType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum MarketDraftBoard.DraftStatus",
+        "name": "status",
+        "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "settlementAsset",
+        "type": "address"
+      },
+      {
+        "internalType": "uint96",
+        "name": "minSeed",
+        "type": "uint96"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint48",
+        "name": "proposedAt",
+        "type": "uint48"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "expireDraft",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getDraft",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "questionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "questionUriHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "outcomesHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "outcomesUriHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "resolveSpecHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint48",
+            "name": "tradingOpen",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "tradingClose",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "resolveTime",
+            "type": "uint48"
+          },
+          {
+            "internalType": "enum MarketDraftBoard.MarketType",
+            "name": "marketType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum MarketDraftBoard.DraftStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "settlementAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint96",
+            "name": "minSeed",
+            "type": "uint96"
+          },
+          {
+            "internalType": "address",
+            "name": "creator",
+            "type": "address"
+          },
+          {
+            "internalType": "uint48",
+            "name": "proposedAt",
+            "type": "uint48"
+          }
+        ],
+        "internalType": "struct MarketDraftBoard.Draft",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "name": "getDraftIdAt",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getRoleAdmin",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getStatus",
+    "outputs": [
+      {
+        "internalType": "enum MarketDraftBoard.DraftStatus",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      }
+    ],
+    "name": "grantPublishCaller",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "grantRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "hasRole",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "marketId",
+        "type": "uint256"
+      }
+    ],
+    "name": "markPublished",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "questionHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "string",
+        "name": "questionUri_",
+        "type": "string"
+      },
+      {
+        "internalType": "enum MarketDraftBoard.MarketType",
+        "name": "marketType_",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "outcomesHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "string",
+        "name": "outcomesUri_",
+        "type": "string"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "resolveSpecHash_",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint48",
+        "name": "tradingOpen_",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "tradingClose_",
+        "type": "uint48"
+      },
+      {
+        "internalType": "uint48",
+        "name": "resolveTime_",
+        "type": "uint48"
+      },
+      {
+        "internalType": "address",
+        "name": "settlementAsset_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minSeed_",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposeDraft",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "callerConfirmation",
+        "type": "address"
+      }
+    ],
+    "name": "renounceRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "caller",
+        "type": "address"
+      }
+    ],
+    "name": "revokePublishCaller",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "revokeRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "draftId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "claimer",
+        "type": "address"
+      }
+    ],
+    "name": "setClaimed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "claimManager_",
+        "type": "address"
+      }
+    ],
+    "name": "setDraftClaimManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes4",
+        "name": "interfaceId",
+        "type": "bytes4"
+      }
+    ],
+    "name": "supportsInterface",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+]

@@ -97,5 +97,19 @@ services:
     ports:
       - "3001:3001"
 
+  web:
+    build:
+      context: .
+      dockerfile: apps/fe-v1/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    container_name: retropick-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
 volumes:
   postgres_data:

@@ -1,0 +1,304 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /**
+   * Sub-nav under the site header (back + market title). Plain CSS `top` so it always applies
+   * (Tailwind arbitrary `[top:...]` with `var(--a, b)` can be finicky), and it must not sit
+   * under a parent with `overflow-x-clip` — that breaks `position: sticky` in common browsers.
+   */
+  .market-page-sticky-below-chrome {
+    /* Floor keeps title row / trade card below the two-row site header if --var is small or unset */
+    top: max(
+      9.5rem,
+      calc(var(--market-page-sticky-top, 0px) + env(safe-area-inset-top, 0px))
+    );
+  }
+
+  /**
+   * Manual / chain market detail: right column trade card.
+   * Sticks below the site header with a constant top offset (see useSiteHeaderOffset).
+   * max-height + overflow-y keep the panel inside the viewport; tall content scrolls inside the column.
+   * Do not place overflow-x-clip on an ancestor of this block — that breaks position: sticky.
+   */
+  @media (min-width: 1024px) {
+    .market-manual-trade-aside {
+      position: sticky;
+      top: max(
+        9.5rem,
+        calc(var(--market-page-sticky-top, 0px) + env(safe-area-inset-top, 0px))
+      );
+      align-self: flex-start;
+      /* Same vertical space as `top` above, plus bottom margin + safe area */
+      max-height: calc(
+        100dvh - 1.25rem - max(9.5rem, calc(var(--market-page-sticky-top, 0px) + env(safe-area-inset-top, 0px))) -
+          env(safe-area-inset-bottom, 0px)
+      );
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+  }
+}
+
+@layer base {
+   :root {
+    /* Light: cool gray surfaces — avoid pure white; matches dark theme hue family */
+    --background: 220 16% 93%;
+    --foreground: 222 24% 11%;
+
+    --card: 220 14% 97%;
+    --card-foreground: 222 24% 11%;
+    --card-hover: 220 14% 95%;
+
+    --popover: 220 14% 97%;
+    --popover-foreground: 222 24% 11%;
+
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 220 12% 91%;
+    --secondary-foreground: 222 22% 14%;
+
+    --muted: 220 12% 88%;
+    --muted-foreground: 220 10% 38%;
+
+    --accent: 220 14% 92%;
+    --accent-foreground: 222 22% 14%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 220 14% 80%;
+    --input: 220 14% 80%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.5rem;
+
+    --glass: 220 14% 97% / 0.82;
+    --glass-hover: 220 14% 97% / 0.94;
+    --glass-border: 220 14% 72% / 0.45;
+
+    --sidebar-background: 220 16% 92%;
+    --sidebar-foreground: 222 20% 18%;
+    --sidebar-primary: 222 24% 11%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 220 12% 88%;
+    --sidebar-accent-foreground: 222 22% 14%;
+    --sidebar-border: 220 14% 82%;
+    --sidebar-ring: 221.2 83.2% 53.3%;
+
+    --accent-magenta: 292 84% 45%;
+    --accent-green: 160 84% 39%;
+    --accent-cyan: 187 92% 40%;
+
+    /* Directional (YES/NO, Up/Down, skew) — light */
+    --up: 152 55% 36%;
+    --down: 350 60% 46%;
+  }
+
+  .dark {
+    /* Polymarket-adjacent: deep gray ~#0f111a, cards ~#161922, blue CTAs */
+    --background: 228 14% 8%;
+    --foreground: 0 0% 96%;
+
+    --card: 228 12% 12%;
+    --card-foreground: 0 0% 96%;
+    --card-hover: 228 11% 15%;
+
+    --popover: 228 12% 12%;
+    --popover-foreground: 0 0% 96%;
+
+    --primary: 215 90% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 228 11% 14%;
+    --secondary-foreground: 0 0% 94%;
+
+    --muted: 228 10% 17%;
+    --muted-foreground: 228 8% 58%;
+
+    --accent: 228 10% 18%;
+    --accent-foreground: 0 0% 96%;
+
+    --destructive: 0 68% 48%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 228 10% 18%;
+    --input: 228 11% 16%;
+    --ring: 215 90% 55%;
+
+    --glass: 228 12% 12% / 0.95;
+    --glass-hover: 228 11% 15% / 0.98;
+    --glass-border: 228 10% 22% / 0.6;
+
+    --sidebar-background: 228 14% 8%;
+    --sidebar-foreground: 0 0% 96%;
+    --sidebar-primary: 215 90% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 228 11% 14%;
+    --sidebar-accent-foreground: 0 0% 94%;
+    --sidebar-border: 228 10% 18%;
+    --sidebar-ring: 215 90% 55%;
+
+    --accent-magenta: 292 48% 52%;
+    --accent-green: 142 70% 48%;
+    --accent-cyan: 199 65% 50%;
+
+    --up: 145 50% 44%;
+    --down: 350 52% 52%;
+  }
+}
+
+/* Reown AppKit / WalletConnect root host — stack above Radix dialogs (z-50) */
+w3m-modal {
+  z-index: 100150;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.45);
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .glass-panel {
+    background: hsl(var(--glass));
+    backdrop-filter: blur(12px);
+    border: 1px solid hsl(var(--glass-border));
+  }
+
+  .glass-panel:hover {
+    background: hsl(var(--glass-hover));
+    border-color: hsl(var(--border));
+  }
+
+  .dark .glass-panel:hover {
+    border-color: hsl(0 0% 100% / 0.12);
+  }
+
+  .neon-glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  .neon-glow-cyan {
+    box-shadow: 0 0 15px hsl(var(--accent-cyan) / 0.3);
+  }
+
+  .neon-glow-green {
+    box-shadow: 0 0 15px hsl(var(--accent-green) / 0.3);
+  }
+
+  .text-glow-green {
+    text-shadow: 0 0 10px hsl(var(--accent-green) / 0.5);
+  }
+
+  .text-glow-rose {
+    text-shadow: 0 0 10px hsl(var(--accent-magenta) / 0.5);
+  }
+
+  .text-glow-cyan {
+    text-shadow: 0 0 10px hsl(var(--accent-cyan) / 0.5);
+  }
+
+  .neon-glow-rose {
+    box-shadow: 0 0 15px hsl(var(--accent-magenta) / 0.3);
+  }
+
+  .bg-glass-gradient {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+  }
+
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(217 91% 70%));
+  }
+
+  .font-display {
+    font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+  }
+
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent-cyan)) 50%, hsl(var(--ring)) 100%);
+  }
+
+  .text-gradient-animated {
+    @apply inline-block bg-clip-text text-transparent bg-[length:200%_auto];
+    background-image: linear-gradient(
+      90deg,
+      hsl(var(--primary)) 0%,
+      hsl(var(--accent-cyan)) 25%,
+      hsl(var(--accent-cyan)) 50%,
+      hsl(var(--ring)) 75%,
+      hsl(var(--accent-magenta)) 100%
+    );
+    animation: gradient-shift 4s ease-in-out infinite, glow-pulse-soft 2.5s ease-in-out infinite;
+    filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.22)) drop-shadow(0 0 20px hsl(var(--ring) / 0.12));
+  }
+
+  @keyframes gradient-shift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  @keyframes glow-pulse-soft {
+    0%, 100% {
+      filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.18)) drop-shadow(0 0 16px hsl(var(--ring) / 0.1));
+    }
+    50% {
+      filter: drop-shadow(0 0 14px hsl(var(--primary) / 0.28)) drop-shadow(0 0 28px hsl(var(--ring) / 0.14));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .text-gradient-animated {
+      animation: none;
+      filter: none;
+    }
+  }
+
+  @keyframes text-shimmer {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.85; }
+  }
+
+  .animate-text-shimmer {
+    animation: text-shimmer 3s ease-in-out infinite;
+  }
+}
