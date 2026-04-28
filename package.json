@@ -11,7 +11,7 @@
     "retro": "bash ./scripts/retro",
     "build": "pnpm -r build",
     "build:docs": "pnpm --filter docs build",
-    "build:turbo-docs": "turbo run build --filter=docs",
+    "build:turbo-docs": "pnpm exec turbo --root-turbo-json turbo.repo.json run build --filter=docs",
     "contracts:registry": "node scripts/generate-contract-registry.mjs",
     "dev:fe-v1": "pnpm --filter fe-v1 dev",
     "dev:docs": "pnpm --filter docs dev",
