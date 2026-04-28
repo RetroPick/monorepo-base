@@ -2,17 +2,20 @@
   "name": "retropick-v1",
   "private": true,
   "packageManager": "pnpm@10.0.0",
+  "bin": {
+    "retro": "bin/retro"
+  },
   "scripts": {
-    "build": "pnpm -r build && cargo check",
-    "dev:web": "pnpm --filter web dev",
-    "dev:api": "pnpm --filter api start:dev",
-    "dev:worker": "pnpm --filter worker dev",
+    "retropick:deployer": "bash ./scripts/RETRODEPLOYER",
+    "retropick:deploy": "bash ./scripts/RETRODEPLOYER deploy-all",
+    "retro": "bash ./scripts/retro",
+    "build": "pnpm -r build",
+    "contracts:registry": "node scripts/generate-contract-registry.mjs",
+    "dev:fe-v1": "pnpm --filter fe-v1 dev",
+    "dev:ops": "pnpm --filter ops dev",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "anchor:build": "anchor build",
-    "anchor:test": "anchor test",
     "cargo:check": "cargo check",
-    "validator": "solana-test-validator --reset",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down -v"

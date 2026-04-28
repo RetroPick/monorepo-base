@@ -1,0 +1,261 @@
+package ethops
+
+import (
+	"context"
+	"fmt"
+	"math/big"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+
+	"retropick/apps/backend/internal/abis"
+)
+
+// Caller performs read-only eth_calls against the MarketEngine proxy using embedded ABIs.
+type Caller struct {
+	rpcURL    string
+	client    *ethclient.Client
+	marketABI abi.ABI
+	dispABI   abi.ABI
+	mu        sync.Mutex
+	globalTTL time.Duration
+	global    cachedGlobalView
+}
+
+type cachedGlobalView struct {
+	data      map[string]any
+	blockNum  uint64
+	expiresAt time.Time
+}
+
+// NewCaller parses embedded ABIs and dials RPC (lazy on first use if you pass Dial in New).
+func NewCaller(rpcURL string) (*Caller, error) {
+	marketABI, err := abi.JSON(strings.NewReader(string(abis.IMarketEngineJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("market abi: %w", err)
+	}
+	dispABI, err := abi.JSON(strings.NewReader(string(abis.MarketEngineDispatcherJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("dispatcher abi: %w", err)
+	}
+	return &Caller{rpcURL: rpcURL, marketABI: marketABI, dispABI: dispABI}, nil
+}
+
+func (c *Caller) SetGlobalCacheTTL(ttl time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.globalTTL = ttl
+}
+
+func (c *Caller) ensureClient(ctx context.Context) (*ethclient.Client, error) {
+	if c.client != nil {
+		return c.client, nil
+	}
+	if c.rpcURL == "" {
+		return nil, fmt.Errorf("RPC_URL not configured")
+	}
+	cl, err := ethclient.DialContext(ctx, c.rpcURL)
+	if err != nil {
+		return nil, err
+	}
+	c.client = cl
+	return c.client, nil
+}
+
+// Close releases the underlying client if dialed.
+func (c *Caller) Close() {
+	if c.client != nil {
+		c.client.Close()
+		c.client = nil
+	}
+}
+
+// GetOperatorGlobalView calls getOperatorGlobalView at proxy.
+func (c *Caller) GetOperatorGlobalView(ctx context.Context, proxy common.Address) (data map[string]any, blockNum uint64, err error) {
+	if data, blockNum, ok := c.cachedGlobal(); ok {
+		return data, blockNum, nil
+	}
+	input, err := c.marketABI.Pack("getOperatorGlobalView")
+	if err != nil {
+		return nil, 0, err
+	}
+	raw, bn, err := c.call(ctx, proxy, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	out, err := unpackSingleTuple[OperatorGlobalView](c.marketABI, "getOperatorGlobalView", raw)
+	if err != nil {
+		return nil, 0, err
+	}
+	m, ok := ToJSONMap(out).(map[string]any)
+	if !ok {
+		return nil, 0, fmt.Errorf("unexpected json map type")
+	}
+	c.setCachedGlobal(m, bn)
+	return m, bn, nil
+}
+
+func (c *Caller) cachedGlobal() (map[string]any, uint64, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.globalTTL <= 0 || time.Now().After(c.global.expiresAt) || c.global.data == nil {
+		return nil, 0, false
+	}
+	out := make(map[string]any, len(c.global.data))
+	for k, v := range c.global.data {
+		out[k] = v
+	}
+	return out, c.global.blockNum, true
+}
+
+func (c *Caller) setCachedGlobal(data map[string]any, blockNum uint64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.globalTTL <= 0 {
+		return
+	}
+	out := make(map[string]any, len(data))
+	for k, v := range data {
+		out[k] = v
+	}
+	c.global = cachedGlobalView{data: out, blockNum: blockNum, expiresAt: time.Now().Add(c.globalTTL)}
+}
+
+// GetOperatorTemplateView calls getOperatorTemplateView(templateId).
+func (c *Caller) GetOperatorTemplateView(ctx context.Context, proxy common.Address, templateID common.Hash) (data map[string]any, blockNum uint64, err error) {
+	input, err := c.marketABI.Pack("getOperatorTemplateView", templateID)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw, bn, err := c.call(ctx, proxy, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	out, err := unpackSingleTuple[OperatorTemplateView](c.marketABI, "getOperatorTemplateView", raw)
+	if err != nil {
+		return nil, 0, err
+	}
+	m, ok := ToJSONMap(out).(map[string]any)
+	if !ok {
+		return nil, 0, fmt.Errorf("unexpected json map type")
+	}
+	return m, bn, nil
+}
+
+// GetEpochView calls getEpochView(templateId, epochId).
+func (c *Caller) GetEpochView(ctx context.Context, proxy common.Address, templateID common.Hash, epochID uint64) (data map[string]any, blockNum uint64, err error) {
+	input, err := c.marketABI.Pack("getEpochView", templateID, epochID)
+	if err != nil {
+		return nil, 0, err
+	}
+	raw, bn, err := c.call(ctx, proxy, input)
+	if err != nil {
+		return nil, 0, err
+	}
+	out, err := unpackSingleTuple[EpochView](c.marketABI, "getEpochView", raw)
+	if err != nil {
+		return nil, 0, err
+	}
+	m, ok := ToJSONMap(out).(map[string]any)
+	if !ok {
+		return nil, 0, fmt.Errorf("unexpected json map type")
+	}
+	return m, bn, nil
+}
+
+// GetPositionView calls getPositionView(templateId, epochId, user) at the MarketEngine proxy.
+func (c *Caller) GetPositionView(ctx context.Context, proxy common.Address, templateID common.Hash, epochID uint64, user common.Address) (out PositionView, blockNum uint64, err error) {
+	input, err := c.marketABI.Pack("getPositionView", templateID, epochID, user)
+	if err != nil {
+		return PositionView{}, 0, err
+	}
+	raw, bn, err := c.call(ctx, proxy, input)
+	if err != nil {
+		return PositionView{}, 0, err
+	}
+	out, err = unpackSingleTuple[PositionView](c.marketABI, "getPositionView", raw)
+	if err != nil {
+		return PositionView{}, 0, err
+	}
+	return out, bn, nil
+}
+
+// GetSelectorModule calls getSelectorModule(bytes4) at proxy (delegate routing).
+func (c *Caller) GetSelectorModule(ctx context.Context, proxy common.Address, selector [4]byte) (module common.Address, immutable bool, blockNum uint64, err error) {
+	input, err := c.dispABI.Pack("getSelectorModule", selector)
+	if err != nil {
+		return common.Address{}, false, 0, err
+	}
+	raw, bn, err := c.call(ctx, proxy, input)
+	if err != nil {
+		return common.Address{}, false, 0, err
+	}
+	out, err := c.dispABI.Unpack("getSelectorModule", raw)
+	if err != nil {
+		return common.Address{}, false, 0, err
+	}
+	if len(out) != 2 {
+		return common.Address{}, false, 0, fmt.Errorf("getSelectorModule: expected 2 outputs")
+	}
+	mod, ok := out[0].(common.Address)
+	if !ok {
+		return common.Address{}, false, 0, fmt.Errorf("module address type")
+	}
+	immut, ok := out[1].(bool)
+	if !ok {
+		return common.Address{}, false, 0, fmt.Errorf("immutable flag type")
+	}
+	return mod, immut, bn, nil
+}
+
+// callContract performs an eth_call to an arbitrary contract address.
+func (c *Caller) callContract(ctx context.Context, to common.Address, input []byte) ([]byte, uint64, error) {
+	cl, err := c.ensureClient(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	msg := ethereum.CallMsg{To: &to, Data: input}
+	raw, err := cl.CallContract(ctx, msg, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	head, err := cl.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return raw, 0, nil
+	}
+	return raw, head.Number.Uint64(), nil
+}
+
+func (c *Caller) call(ctx context.Context, proxy common.Address, input []byte) ([]byte, uint64, error) {
+	return c.callContract(ctx, proxy, input)
+}
+
+func (c *Caller) BlockNumber(ctx context.Context) (uint64, error) {
+	cl, err := c.ensureClient(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return cl.BlockNumber(ctx)
+}
+
+// PrepareTx builds calldata for a whitelisted write on the proxy.
+func (c *Caller) PrepareTx(chainID int64, proxy common.Address, method string, args []any, value *big.Int) (calldata []byte, err error) {
+	if value == nil {
+		value = big.NewInt(0)
+	}
+	if value.Sign() != 0 {
+		return nil, fmt.Errorf("non-zero value not supported for prepared ops txs")
+	}
+	calldata, err = c.marketABI.Pack(method, args...)
+	if err != nil {
+		return nil, err
+	}
+	_ = chainID
+	_ = proxy
+	return calldata, nil
+}

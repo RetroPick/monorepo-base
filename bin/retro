@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Installed on PATH e.g.  ln -sf /path/to/V1/bin/retro ~/.local/bin/retro
+# Resolves V1 root even when this file is a symlink.
+set -euo pipefail
+_s="$(readlink -f "${BASH_SOURCE[0]}")"
+_BIN="$(cd "$(dirname "$_s")" && pwd)"
+V1_ROOT="$(cd "$_BIN/.." && pwd)"
+exec bash "$V1_ROOT/scripts/retro" "$@"

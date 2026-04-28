@@ -1,0 +1,3618 @@
+#!/usr/bin/env bash
+# RETRODEPLOYER — single entry point for RetroPick market prepare + broadcast helpers.
+# Run only from the V1 monorepo root: ./scripts/RETRODEPLOYER <subcommand> [args]
+# Shorthand: ./scripts/retro  or  ./scripts/retro menu  — same as  ./scripts/RETRODEPLOYER menu
+# (If you are in package/contract, `cd` to the repo root first; ./scripts/ there is a different path.)
+#
+# Delegates to package/contract/scripts/market/*.sh (no duplicate HTTP/cast logic).
+set -euo pipefail
+
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+V1_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
+export V1_ROOT
+CONTRACT_DIR="$V1_ROOT/package/contract"
+MARKET_DIR="$CONTRACT_DIR/scripts/market"
+UPSERT_DIR="${UPSERT_DIR:-$CONTRACT_DIR/.operator/upsert-params}"
+RETRODEPLOYER_BROADCAST_SCRIPT="${RETRODEPLOYER_BROADCAST_SCRIPT:-$MARKET_DIR/broadcast-prepared-ops-tx.sh}"
+RETRODEPLOYER_MANIFEST="${RETRODEPLOYER_MANIFEST:-}"
+RETRODEPLOYER_RESUME="${RETRODEPLOYER_RESUME:-0}"
+RETRODEPLOYER_PREFLIGHT="${RETRODEPLOYER_PREFLIGHT:-1}"
+RETRODEPLOYER_DRY_RUN="${RETRODEPLOYER_DRY_RUN:-0}"
+RETRODEPLOYER_TYPES="${RETRODEPLOYER_TYPES:-all}"
+RETRODEPLOYER_ONLY="${RETRODEPLOYER_ONLY:-all}"
+RETRODEPLOYER_EPOCH_ID="${RETRODEPLOYER_EPOCH_ID:-1}"
+RETRODEPLOYER_SEND_RETRIES="${RETRODEPLOYER_SEND_RETRIES:-3}"
+RETRODEPLOYER_SEND_RETRY_DELAY="${RETRODEPLOYER_SEND_RETRY_DELAY:-3}"
+RETRODEPLOYER_CURL_BIN="${RETRODEPLOYER_CURL_BIN:-curl}"
+RETRODEPLOYER_MONITOR_TIMEOUT="${RETRODEPLOYER_MONITOR_TIMEOUT:-20}"
+
+# TTY colors (honor NO_COLOR, https://no-color.org/)
+_retro_color_init() {
+  if [[ -n "${NO_COLOR:-}" ]] || ! [[ -t 1 ]]; then
+    D="" B="" I="" S="" T="" A="" C="" M="" W="" R="" N=""
+  else
+    D=$'\033[2m'   # dim
+    B=$'\033[1m'   # bold
+    I=$'\033[3m'   # italic
+    S=$'\033[36m'  # accent (cyan)
+    T=$'\033[35m'  # title (magenta)
+    A=$'\033[32m'  # ok (green)
+    C=$'\033[33m'  # command (amber)
+    M=$'\033[34m'  # meta (blue)
+    W=$'\033[37m'  # bright
+    R=$'\033[0m'   # reset
+    N=$'\n'
+  fi
+}
+_retro_color_init
+
+# Same as package/contract/scripts/market/{prepare-upsert,broadcast}*.sh: load RPC, CAST_ACCOUNT, API_URL, etc.
+# shellcheck disable=SC1091
+source "$CONTRACT_DIR/scripts/lib/load-env.sh"
+if [[ -f "$CONTRACT_DIR/.env" ]]; then
+  load_repo_env "$CONTRACT_DIR/.env"
+fi
+export API_URL="${API_URL:-http://127.0.0.1:8080}"
+
+# --- Banner from .design.md (ASCII + tagline) ---
+_print_design_banner() {
+  local f="$V1_ROOT/.design.md" line
+  if [[ -f "$f" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      echo -e "${S}${B}${line}${R}"
+    done < <(awk '/^```text$/{p=1; next} p { if (/^```$/) exit; print }' "$f" 2>/dev/null || true)
+  else
+    echo -e "${T}${B} RETRODEPLOYER ${R}"
+  fi
+  echo ""
+}
+
+_manual_types() {
+  local f base typ
+  shopt -s nullglob
+  for f in "$UPSERT_DIR"/*.manual.json; do
+    base="${f##*/}"
+    typ="${base%%-*}"
+    [[ "$typ" =~ ^[0-9][0-9]$ ]] && echo "$typ"
+  done | sort -u
+  shopt -u nullglob
+}
+
+_map_upsert_file() {
+  local typ="${1:?}"
+  local f
+  [[ "$typ" =~ ^[0-9][0-9]$ ]] || return 1
+  shopt -s nullglob
+  for f in "$UPSERT_DIR/${typ}-"*.manual.json; do
+    echo "$f"
+    shopt -u nullglob
+    return 0
+  done
+  shopt -u nullglob
+  return 1
+}
+
+_resolve_types() {
+  local spec="${1:-all}" typ found
+  if [[ "$spec" == "all" || -z "$spec" ]]; then
+    _manual_types
+    return
+  fi
+  spec="${spec//,/ }"
+  for typ in $spec; do
+    if out="$(_normalize_manual_type_key "$typ" 2>/dev/null)"; then
+      typ="$out"
+    fi
+    found="$(_map_upsert_file "$typ" 2>/dev/null || true)"
+    if [[ -z "$found" ]]; then
+      echo "error: unknown manual type: $typ (looked under $UPSERT_DIR)" >&2
+      return 1
+    fi
+    echo "$typ"
+  done
+}
+
+# Accept manual fixture keys "1".."9" or "01".."09" (see package/contract/.operator/upsert-params/*.manual.json).
+_normalize_manual_type_key() {
+  local k="${1:?}"
+  k="${k//[[:space:]]/}"
+  if [[ "$k" =~ ^[1-9]$ ]]; then
+    printf '%s\n' "0$k"
+    return 0
+  fi
+  if [[ "$k" =~ ^0[1-9]$ ]]; then
+    printf '%s\n' "$k"
+    return 0
+  fi
+  return 1
+}
+
+_json_get() {
+  local file="${1:?}" key="${2:?}"
+  python3 -c '
+import json, sys
+with open(sys.argv[1], "r", encoding="utf-8") as f:
+    d = json.load(f)
+v = d.get(sys.argv[2], "")
+print(v if v is not None else "")
+' "$file" "$key"
+}
+
+_prepared_args() {
+  local file="${1:?}"
+  python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+calldata = str(d.get("calldata", ""))
+fn = d.get("function") or ""
+if not calldata.startswith("0x") or len(calldata) < 10:
+    sys.exit(0)
+data = calldata[10:]
+words = [data[i:i+64] for i in range(0, len(data), 64) if len(data[i:i+64]) == 64]
+if fn == "initializeMarket" and words:
+    print("0x" + words[0])
+elif fn == "openEpoch" and len(words) >= 5:
+    vals = ["0x" + words[0]] + [str(int(w, 16)) for w in words[1:5]]
+    print("\t".join(vals))
+' "$file"
+}
+
+_manifest_append() {
+  local status="${1:?}" file="${2:-}" fn="${3:-}" reason="${4:-}" tx_hash="${5:-}" template_id="${6:-}" typ="${7:-}" epoch_id="${8:-}"
+  [[ -n "${RETRODEPLOYER_MANIFEST:-}" ]] || return 0
+  mkdir -p "$(dirname "$RETRODEPLOYER_MANIFEST")" || return 1
+  python3 -c '
+import json, os, sys, time
+p, status, file, fn, reason, tx_hash, template_id, typ, epoch_id = sys.argv[1:]
+item = {
+  "ts": int(time.time()),
+  "status": status,
+  "file": file,
+  "function": fn,
+  "reason": reason,
+  "txHash": tx_hash,
+  "templateId": template_id,
+  "type": typ,
+  "epochId": epoch_id,
+}
+items = []
+if os.path.exists(p) and os.path.getsize(p):
+    with open(p, "r", encoding="utf-8") as f:
+        items = json.load(f)
+items.append(item)
+tmp = p + ".tmp"
+with open(tmp, "w", encoding="utf-8") as f:
+    json.dump(items, f, indent=2)
+    f.write("\n")
+os.replace(tmp, p)
+' "$RETRODEPLOYER_MANIFEST" "$status" "$file" "$fn" "$reason" "$tx_hash" "$template_id" "$typ" "$epoch_id"
+}
+
+_prepared_meta() {
+  local f="${1:?}" base typ fn args template_id="" epoch_id=""
+  base="${f##*/}"
+  typ="${base%%-*}"
+  [[ "$typ" =~ ^[0-9][0-9]$ ]] || typ=""
+  fn="$(_json_get "$f" function 2>/dev/null || echo "?")"
+  args="$(_prepared_args "$f" 2>/dev/null || true)"
+  if [[ "$fn" == "initializeMarket" ]]; then
+    template_id="$args"
+  elif [[ "$fn" == "openEpoch" ]]; then
+    IFS=$'\t' read -r template_id epoch_id _oa _la _ra <<<"$args"
+  fi
+  printf '%s\t%s\t%s\t%s\n' "$fn" "$template_id" "$typ" "$epoch_id"
+}
+
+_api_json_bool() {
+  local url="${1:?}" key="${2:?}" body code
+  body="$(mktemp)"
+  code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "${RETRODEPLOYER_PREFLIGHT_TIMEOUT:-2}" -o "$body" -w '%{http_code}' "$url" 2>/dev/null || true)"
+  if [[ ! "$code" == 2* ]]; then
+    rm -f "$body"
+    return 2
+  fi
+  python3 -c '
+import json, sys
+d = json.load(open(sys.argv[1], encoding="utf-8"))
+print("1" if bool(d.get(sys.argv[2])) else "0")
+' "$body" "$key"
+  rm -f "$body"
+}
+
+_api_json_exists() {
+  local url="${1:?}" body code
+  body="$(mktemp)"
+  code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "${RETRODEPLOYER_PREFLIGHT_TIMEOUT:-2}" -o "$body" -w '%{http_code}' "$url" 2>/dev/null || true)"
+  rm -f "$body"
+  [[ "$code" == 2* ]]
+}
+
+_api_get_to_file() {
+  local endpoint="${1:?}" out="${2:?}" url code
+  if [[ "$endpoint" == http* ]]; then
+    url="$endpoint"
+  else
+    url="${API_URL%/}${endpoint}"
+  fi
+  code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "$RETRODEPLOYER_MONITOR_TIMEOUT" -o "$out" -w '%{http_code}' "$url" 2>/dev/null || true)"
+  [[ "$code" == 2* ]] || {
+    echo "error: HTTP ${code:-000} from $url" >&2
+    if [[ -z "$code" || "$code" == "000" ]]; then
+      echo "hint: no HTTP response before ${RETRODEPLOYER_MONITOR_TIMEOUT}s. For live RPC views, check backend logs/RPC_URL or raise RETRODEPLOYER_MONITOR_TIMEOUT." >&2
+    fi
+    [[ -s "$out" ]] && cat "$out" >&2 || true
+    return 1
+  }
+}
+
+_api_prepare_to_file() {
+  local fn="${1:?}" args_file="${2:?}" out="${3:?}" body code url
+  url="${API_URL%/}/api/v1/ops/tx/prepare"
+  body="$(mktemp)"
+  python3 -c '
+import json, sys
+fn = sys.argv[1]
+with open(sys.argv[2], "r", encoding="utf-8") as f:
+    args = json.load(f)
+if not isinstance(args, list):
+    raise SystemExit("args file must be a JSON array")
+print(json.dumps({"function": fn, "args": args}, separators=(",", ":")))
+' "$fn" "$args_file" >"$body"
+  code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "$RETRODEPLOYER_MONITOR_TIMEOUT" -o "$out" -w '%{http_code}' -X POST "$url" \
+    -H 'Content-Type: application/json' -H 'Accept: application/json' --data-binary "@$body" 2>/dev/null || true)"
+  rm -f "$body"
+  [[ "$code" == 2* ]] || {
+    echo "error: HTTP ${code:-000} from $url" >&2
+    if [[ -z "$code" || "$code" == "000" ]]; then
+      echo "hint: no HTTP response before ${RETRODEPLOYER_MONITOR_TIMEOUT}s. Check API_URL/backend health." >&2
+    fi
+    [[ -s "$out" ]] && cat "$out" >&2 || true
+    return 1
+  }
+}
+
+_preflight_skip_reason() {
+  local fn="${1:?}" template_id="${2:-}" epoch_id="${3:-}" url val
+  [[ "${RETRODEPLOYER_RESUME:-0}" == "1" ]] || return 1
+  [[ "${RETRODEPLOYER_PREFLIGHT:-1}" == "1" ]] || return 1
+  [[ -n "$template_id" ]] || return 1
+  if [[ "$fn" == "initializeMarket" ]]; then
+    url="${API_URL%/}/api/v1/ops/templates/${template_id}/state"
+    val="$(_api_json_bool "$url" initialized 2>/dev/null || true)"
+    [[ "$val" == "1" ]] && {
+      echo "already initialized (indexed API)"
+      return 0
+    }
+  elif [[ "$fn" == "openEpoch" && -n "$epoch_id" ]]; then
+    url="${API_URL%/}/api/v1/ops/templates/${template_id}/epochs/${epoch_id}"
+    _api_json_exists "$url" && {
+      echo "epoch already exists (indexed API)"
+      return 0
+    }
+  fi
+  return 1
+}
+
+_classify_send_error() {
+  local fn="${1:?}" out="${2:-}"
+  if [[ "$out" == *"connection error"* ||
+        "$out" == *"SendRequest"* ||
+        "$out" == *"peer closed connection"* ||
+        "$out" == *"TLS close_notify"* ||
+        "$out" == *"Connection reset"* ||
+        "$out" == *"timed out"* ||
+        "$out" == *"deadline has elapsed"* ||
+        "$out" == *"Too Many Requests"* ||
+        "$out" == *"429"* ||
+        "$out" == *"503 Service Unavailable"* ||
+        "$out" == *"502 Bad Gateway"* ||
+        "$out" == *"504 Gateway Timeout"* ]]; then
+    echo "transient RPC transport failure"
+    return 3
+  fi
+  if [[ "$out" == *"EpochAlreadyExists"* || "$out" == *"0x383682b6"* ]]; then
+    case "$fn" in
+    initializeMarket) echo "already initialized (EpochAlreadyExists)"; return 0 ;;
+    openEpoch) echo "epoch already exists (EpochAlreadyExists)"; return 0 ;;
+    esac
+  fi
+  if [[ "$fn" == "openEpoch" && ( \
+       "$out" == *"PreviousEpochUnresolved"* || \
+       "$out" == *"0x5bedc9d2"* || \
+       "$out" == *"5bedc9d2"* ) ]]; then
+    echo "openEpoch PreviousEpochUnresolved: the active manual epoch is not fully resolved on-chain (lock/resolve current epoch first). See monitor trade-ready or ops/keeper; next open needs activeEpochId==lastResolvedEpochId"
+    return 2
+  fi
+  if [[ "$fn" == "openEpoch" && ( "$out" == *"InvalidTemplate"* || "$out" == *"0xec55b8cd"* ) ]]; then
+    echo "openEpoch InvalidTemplate: upsert+initialize not mined or indexed for this template"
+    return 2
+  fi
+  return 1
+}
+
+_cmd_monitor() {
+  local sub="${1:-overview}" tmp strict=0 interval=10 iterations=0 live=0 active_only=0 selector="" endpoint
+  shift || true
+  case "$sub" in
+  overview | global | templates | trade-ready | incidents | keeper | oracle | selector | watch) ;;
+  -h | --help | help)
+    cat >&2 <<'EOF'
+usage: RETRODEPLOYER monitor <overview|global|templates|trade-ready|incidents|keeper|oracle|selector|watch> [options]
+  overview [--check]                 indexed global + template summary
+  global [--live] [--check]          indexed global-state or live RPC global view
+  templates [--active|--all]         indexed template table, active filter optional
+  trade-ready                        per-template: epoch status + manual betting window (Open + time)
+  incidents                          indexed incidents
+  keeper                             schedule + recent executions
+  oracle                             oracle health projection
+  selector <0x12345678>              live dispatcher selector route
+  watch [--interval S --iterations N] overview loop
+EOF
+    return 0
+    ;;
+  *) echo "error: unknown monitor command: $sub" >&2; return 1 ;;
+  esac
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --check) strict=1; shift ;;
+    --live) live=1; shift ;;
+    --active) active_only=1; shift ;;
+    --all) active_only=0; shift ;;
+    --interval) interval="${2:?}"; shift 2 ;;
+    --iterations) iterations="${2:?}"; shift 2 ;;
+    --selector) selector="${2:?}"; shift 2 ;;
+    *) if [[ "$sub" == "selector" && -z "$selector" ]]; then selector="$1"; shift; else echo "error: unexpected monitor arg: $1" >&2; return 1; fi ;;
+    esac
+  done
+
+  if [[ "$sub" == "watch" ]]; then
+    local i=0
+    while true; do
+      ((++i)) || true
+      echo "== monitor watch $i =="
+      _cmd_monitor overview || return $?
+      [[ "$iterations" =~ ^[0-9]+$ && "$iterations" -gt 0 && "$i" -ge "$iterations" ]] && break
+      sleep "$interval"
+    done
+    return 0
+  fi
+
+  tmp="$(mktemp)"
+  case "$sub" in
+  overview | global)
+    if [[ "$live" -eq 1 ]]; then endpoint="/api/v1/ops/live/global"; else endpoint="/api/v1/ops/global-state"; fi
+    _api_get_to_file "$endpoint" "$tmp" || { rm -f "$tmp"; return 1; }
+    python3 - "$tmp" "$strict" "$live" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+strict=sys.argv[2]=="1"
+live=sys.argv[3]=="1"
+counts=d.get("counts") or {}
+lv=d.get("live") or d.get("data") or (d if live else {})
+paused=bool(lv.get("globalPaused"))
+yrd=bool(lv.get("yieldRouterDisabled"))
+recovered=str(lv.get("totalUnreconciledRecovered", "0"))
+open_inc=int(counts.get("openIncidents") or 0)
+halted=int(counts.get("rollingHalted") or 0)
+status="OK"
+if paused or yrd or recovered not in ("0","0.0","", "None") or open_inc or halted:
+    status="CRIT" if paused or yrd or recovered not in ("0","0.0","", "None") or open_inc else "WARN"
+print(f"RETRODEPLOYER monitor · {'live' if live else 'indexed'} · {status}")
+if counts:
+    print(f"templates={counts.get('templates',0)} rollingHalted={halted} openIncidents={open_inc}")
+print(f"globalPaused={str(paused).lower()} yieldRouterDisabled={str(yrd).lower()} totalUnreconciledRecovered={recovered}")
+idx=d.get("indexer") or {}
+if idx.get("lastSync") or idx.get("lastSyncAt"):
+    print(f"indexerLastSync={idx.get('lastSync') or idx.get('lastSyncAt')}")
+sys.exit(3 if strict and status=="CRIT" else 2 if strict and status=="WARN" else 0)
+PY
+    ;;
+  templates)
+    _api_get_to_file "/api/v1/ops/templates" "$tmp" || { rm -f "$tmp"; return 1; }
+    python3 - "$tmp" "$active_only" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+active=sys.argv[2]=="1"
+print("RETRODEPLOYER monitor · templates")
+for t in d.get("templates", []):
+    ae=t.get("activeEpochId") or 0
+    if active and not ae:
+        continue
+    published=t.get("published")
+    if published is None:
+        published=bool(t.get("initialized")) and bool(ae)
+    slug=t.get("slug") or t.get("question") or "?"
+    print(f"{slug} templateId={t.get('templateId')} published={str(bool(published)).lower()} activeEpoch={ae} haltedAt={t.get('haltedAtEpochId') or 0}")
+PY
+    ;;
+  trade-ready)
+    _api_get_to_file "/api/v1/ops/templates" "$tmp" || { rm -f "$tmp"; return 1; }
+    export API_URL="${API_URL:-http://127.0.0.1:8080}"
+    python3 - "$tmp" <<'PY'
+import json, os, sys, urllib.error, urllib.request
+from datetime import datetime, timezone
+
+def parse_iso(s):
+    if s is None:
+        return None
+    s = str(s).replace("Z", "+00:00")
+    return datetime.fromisoformat(s)
+
+api = os.environ.get("API_URL", "http://127.0.0.1:8080").rstrip("/")
+with open(sys.argv[1], encoding="utf-8") as f:
+    data = json.load(f)
+templates = data.get("templates", [])
+print("RETRODEPLOYER monitor · trade-ready (indexed)")
+for t in templates:
+    tid = t.get("templateId") or ""
+    slug = t.get("slug") or "?"
+    mode = t.get("executionMode")
+    ae = t.get("activeEpochId")
+    if not ae:
+        print(f"{slug} templateId={tid} execMode={mode} activeEpoch=0 bettingOpen=n/a (no active epoch indexed)")
+        continue
+    url = f"{api}/api/v1/ops/templates/{tid}/epochs/{int(ae)}"
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            e = json.load(r)
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as ex:
+        print(f"{slug} templateId={tid} activeEpoch={ae} epoch=(fetch error) {ex}")
+        continue
+    st = e.get("status")
+    oa = e.get("openAt")
+    la = e.get("lockAt")
+    if oa is None or la is None:
+        print(f"{slug} templateId={tid} epochStatus={st} bettingOpen=unknown (missing openAt/lockAt)")
+        continue
+    now = datetime.now(timezone.utc)
+    t0, t1 = parse_iso(oa), parse_iso(la)
+    # Indexer may store status as string ("open") or int (1 == Open). isEpochOpen: Open and [openAt, lockAt).
+    st_open = st == 1 or (isinstance(st, str) and st.lower() == "open")
+    open_ok = st_open and t0 is not None and t1 is not None and t0 <= now < t1
+    print(f"{slug} templateId={tid} epochStatus={st} openAt={oa} lockAt={la} bettingOpen={str(bool(open_ok)).lower()}")
+PY
+    ;;
+  incidents)
+    _api_get_to_file "/api/v1/ops/incidents" "$tmp" || { rm -f "$tmp"; return 1; }
+    python3 - "$tmp" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+print("RETRODEPLOYER monitor · incidents")
+for x in d.get("incidents", []):
+    print(f"{x.get('id','?')} {x.get('severity','?')} {x.get('status','?')} {x.get('kind','?')} templateId={x.get('templateId','')}")
+PY
+    ;;
+  keeper)
+    local tmp2
+    tmp2="$(mktemp)"
+    _api_get_to_file "/api/v1/ops/keeper/schedule" "$tmp" || { rm -f "$tmp" "$tmp2"; return 1; }
+    _api_get_to_file "/api/v1/ops/keeper/executions" "$tmp2" || { rm -f "$tmp" "$tmp2"; return 1; }
+    python3 - "$tmp" "$tmp2" <<'PY'
+import json, sys
+s=json.load(open(sys.argv[1], encoding="utf-8")).get("schedule", [])
+e=json.load(open(sys.argv[2], encoding="utf-8")).get("executions", [])
+print(f"RETRODEPLOYER monitor · keeper schedule={len(s)} executions={len(e)}")
+for x in s[:10]:
+    print(f"schedule {x.get('action','?')} templateId={x.get('templateId','')} epochId={x.get('epochId','')} at={x.get('scheduledAt','')}")
+for x in e[:10]:
+    print(f"execution {x.get('action','?')} templateId={x.get('templateId','')} epochId={x.get('epochId','')} status={x.get('status','')}")
+PY
+    rm -f "$tmp2"
+    ;;
+  oracle)
+    _api_get_to_file "/api/v1/ops/oracle/health" "$tmp" || { rm -f "$tmp"; return 1; }
+    python3 - "$tmp" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+feeds=d.get("feeds", [])
+print(f"RETRODEPLOYER monitor · oracle feeds={len(feeds)}")
+if d.get("note"):
+    print("note=" + str(d.get("note")))
+for f in feeds[:20]:
+    print(f)
+PY
+    ;;
+  selector)
+    [[ -n "$selector" ]] || { echo "usage: monitor selector <0x12345678>" >&2; rm -f "$tmp"; return 1; }
+    _api_get_to_file "/api/v1/ops/live/dispatcher/selector/$selector" "$tmp" || { rm -f "$tmp"; return 1; }
+    python3 - "$tmp" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+print("RETRODEPLOYER monitor · selector")
+for k,v in d.items():
+    print(f"{k}={v}")
+PY
+    ;;
+  esac
+  local st=$?
+  rm -f "$tmp"
+  return "$st"
+}
+
+_emergency_usage() {
+  cat >&2 <<'EOF'
+usage: RETRODEPLOYER emergency prepare <action> [args] [--out-dir dir]
+actions:
+  pause <true|false>
+  halt-rolling <templateId>
+  reset-rolling <templateId> <nextRollingEpochId>
+  genesis-start-rolling <templateId>
+  cancel-epoch <templateId> <epochId> <reason:uint8> <voided:true|false>
+  cancel-rolling <templateId> <epochId> <reason:uint8> <voided:true|false>
+  yield-withdraw <templateId>
+  reset-yield-router
+  reconcile-principal <templateId> <epochId> <amount>
+  recover-claims <templateId> <epochId> <amount>
+  reassign-recovered <fromTemplateId> <toTemplateId> <amount>
+  finalize-recovered <templateId>
+  withdraw-fees <templateId> <amount>
+EOF
+}
+
+_cmd_emergency() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+  -h | --help | help | "") _emergency_usage; return 0 ;;
+  prepare) ;;
+  *) echo "error: emergency supports prepare only" >&2; _emergency_usage; return 1 ;;
+  esac
+  local action="${1:-}" out_dir="$V1_ROOT/.retropick-emergency/$(date +%Y%m%d-%H%M%S)" fn="" args_json out_file
+  [[ -n "$action" ]] || { _emergency_usage; return 1; }
+  shift
+  local -a args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --out-dir) out_dir="${2:?}"; shift 2 ;;
+    *) args+=("$1"); shift ;;
+    esac
+  done
+  case "$action" in
+  pause) fn="pauseProgram"; [[ ${#args[@]} -eq 1 ]] || { echo "usage: emergency prepare pause <true|false>" >&2; return 1; } ;;
+  halt-rolling) fn="haltRollingMarket"; [[ ${#args[@]} -eq 1 ]] || { echo "usage: emergency prepare halt-rolling <templateId>" >&2; return 1; } ;;
+  reset-rolling) fn="resetRollingLifecycle"; [[ ${#args[@]} -eq 2 ]] || { echo "usage: emergency prepare reset-rolling <templateId> <nextRollingEpochId>" >&2; return 1; } ;;
+  genesis-start-rolling) fn="genesisStartRolling"; [[ ${#args[@]} -eq 1 ]] || { echo "usage: emergency prepare genesis-start-rolling <templateId>" >&2; return 1; } ;;
+  cancel-epoch) fn="cancelEpoch"; [[ ${#args[@]} -eq 4 ]] || { echo "usage: emergency prepare cancel-epoch <templateId> <epochId> <reason> <voided>" >&2; return 1; } ;;
+  cancel-rolling) fn="cancelRollingEpochWhileHalted"; [[ ${#args[@]} -eq 4 ]] || { echo "usage: emergency prepare cancel-rolling <templateId> <epochId> <reason> <voided>" >&2; return 1; } ;;
+  yield-withdraw) fn="yieldEmergencyWithdraw"; [[ ${#args[@]} -eq 1 ]] || { echo "usage: emergency prepare yield-withdraw <templateId>" >&2; return 1; } ;;
+  reset-yield-router) fn="resetYieldRouterFailures"; [[ ${#args[@]} -eq 0 ]] || { echo "usage: emergency prepare reset-yield-router" >&2; return 1; } ;;
+  reconcile-principal) fn="reconcileEpochRoutedPrincipal"; [[ ${#args[@]} -eq 3 ]] || { echo "usage: emergency prepare reconcile-principal <templateId> <epochId> <amount>" >&2; return 1; } ;;
+  recover-claims) fn="recoverRoutedSettledClaims"; [[ ${#args[@]} -eq 3 ]] || { echo "usage: emergency prepare recover-claims <templateId> <epochId> <amount>" >&2; return 1; } ;;
+  reassign-recovered) fn="reassignRecoveredBalance"; [[ ${#args[@]} -eq 3 ]] || { echo "usage: emergency prepare reassign-recovered <fromTemplateId> <toTemplateId> <amount>" >&2; return 1; } ;;
+  finalize-recovered) fn="finalizeRecoveredYield"; [[ ${#args[@]} -eq 1 ]] || { echo "usage: emergency prepare finalize-recovered <templateId>" >&2; return 1; } ;;
+  withdraw-fees) fn="withdrawFees"; [[ ${#args[@]} -eq 2 ]] || { echo "usage: emergency prepare withdraw-fees <templateId> <amount>" >&2; return 1; } ;;
+  *) echo "error: unknown emergency action: $action" >&2; _emergency_usage; return 1 ;;
+  esac
+  if [[ "$out_dir" != /* ]]; then out_dir="$V1_ROOT/${out_dir#./}"; fi
+  mkdir -p "$out_dir"
+  args_json="$(mktemp)"
+  python3 - "$fn" "${args[@]}" >"$args_json" <<'PY'
+import json, sys
+fn=sys.argv[1]
+vals=sys.argv[2:]
+bool_fns={"pauseProgram": {0}, "cancelEpoch": {3}, "cancelRollingEpochWhileHalted": {3}}
+uint_fns={
+ "resetRollingLifecycle": {1},
+ "cancelEpoch": {1,2},
+ "cancelRollingEpochWhileHalted": {1,2},
+ "reconcileEpochRoutedPrincipal": {1,2},
+ "recoverRoutedSettledClaims": {1,2},
+ "reassignRecoveredBalance": {2},
+ "withdrawFees": {1},
+}
+out=[]
+for i,v in enumerate(vals):
+    if i in bool_fns.get(fn,set()):
+        out.append(str(v).lower() in ("1","true","yes","y"))
+    elif i in uint_fns.get(fn,set()):
+        out.append(str(v))
+    else:
+        out.append(v)
+print(json.dumps(out))
+PY
+  out_file="$out_dir/${fn}.json"
+  _api_prepare_to_file "$fn" "$args_json" "$out_file" || { rm -f "$args_json"; return 1; }
+  rm -f "$args_json"
+  echo "RETRODEPLOYER emergency · prepare-only"
+  echo "function=$fn"
+  echo "file=$out_file"
+  python3 - "$out_file" <<'PY'
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+print("target=" + str(d.get("target","")))
+print("chainId=" + str(d.get("chainId","")))
+print("environment=" + str(d.get("environment","")))
+print("calldata=" + str(d.get("calldata",""))[:74])
+if d.get("requiredRole"):
+    print("requiredRole=" + str(d.get("requiredRole")))
+PY
+  echo "send explicitly: ./scripts/retro send $out_file"
+}
+
+# Build lockEpochsBatch / resolveEpochsBatch prepare JSON: args = [ ["0x..."], [epochId] ]
+_cmd_prepare_manual_lifecycle_fn() {
+  local fn="${1:?lockEpochsBatch|resolveEpochsBatch}" label="${2:?}"
+  shift 2
+  local template_id="" typ="" epoch_id=1 out_path="" out_dir="" do_send=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help | help)
+      cat >&2 <<EOF
+usage: RETRODEPLOYER prepare-$label [--template-id 0x...] [--epoch-id N] [--out path|--out-dir dir] [--send] [<1-9|01-09|0x...>]
+  HTTP prepare via API. Default: print file= and stop. With --send: run broadcast immediately on that file.
+  Or run separately: ./scripts/RETRODEPLOYER send <path>  |  send last-lock  |  send last-resolve
+  After openEpoch, advance manual markets: ${fn} (batch of one) before the next activate-epoch.
+  Order on-chain: lock (past lockAt) → resolve (past resolveAt) → then open next epoch.
+EOF
+      return 0
+      ;;
+    --send)
+      do_send=1
+      shift
+      ;;
+    --template-id)
+      template_id="${2:?}"
+      shift 2
+      ;;
+    --epoch-id)
+      epoch_id="${2:?}"
+      shift 2
+      ;;
+    --out)
+      out_path="${2:?}"
+      shift 2
+      ;;
+    --out-dir)
+      out_dir="${2:?}"
+      shift 2
+      ;;
+    *)
+      if [[ -n "$typ" ]]; then
+        echo "error: unexpected argument: $1" >&2
+        return 1
+      fi
+      typ="${1:-}"
+      shift
+      ;;
+    esac
+  done
+  if [[ -n "$template_id" && -n "$typ" ]]; then
+    echo "error: use either --template-id or one positional (type/0x), not both" >&2
+    return 1
+  fi
+  if [[ -z "$template_id" ]]; then
+    if [[ -z "$typ" ]]; then
+      echo "error: need --template-id, or positional 1-9/01-09, or 0x+64hex templateId" >&2
+      return 1
+    fi
+    typ="${typ//[[:space:]]/}"
+    if [[ "$typ" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+      template_id="$(tr '[:upper:]' '[:lower:]' <<<"$typ" | tr -d '\n')"
+    else
+      typ="$(_normalize_manual_type_key "$typ")" || {
+        echo "error: invalid manual type" >&2
+        return 1
+      }
+      template_id="$(_template_id_for_type "$typ")" || return 1
+    fi
+  fi
+  template_id="$(tr '[:upper:]' '[:lower:]' <<<"$template_id" | tr -d '\n')"
+  if [[ ! "$template_id" =~ ^0x[0-9a-f]{64}$ ]]; then
+    echo "error: templateId must be 0x + 32 bytes hex" >&2
+    return 1
+  fi
+  local argsf
+  argsf="$(mktemp)"
+  printf '[["%s"],[%s]]\n' "$template_id" "$epoch_id" >"$argsf" || {
+    rm -f "$argsf"
+    return 1
+  }
+  local outf
+  if [[ -n "$out_path" ]]; then
+    outf="$out_path"
+    if [[ "$outf" != /* ]]; then outf="$V1_ROOT/${outf#./}"; fi
+  elif [[ -n "$out_dir" ]]; then
+    if [[ "$out_dir" != /* ]]; then outf="$V1_ROOT/${out_dir#./}"; else outf="$out_dir"; fi
+    mkdir -p "$outf" || {
+      rm -f "$argsf"
+      return 1
+    }
+    outf="$outf/${fn}.json"
+  else
+    outf="$(mktemp -t "retropick-${label}-XXXXXX.json")" || {
+      rm -f "$argsf"
+      return 1
+    }
+  fi
+  if ! PRETTY="${PRETTY:-1}" BROADCAST=0 API_URL="$API_URL" \
+    "$MARKET_DIR/prepare-ops-tx.sh" "$fn" "$argsf" >"$outf"; then
+    rm -f "$argsf"
+    return 1
+  fi
+  rm -f "$argsf"
+  echo "RETRODEPLOYER · prepare $fn (HTTP only)" >&2
+  echo "file=$outf" >&2
+  if [[ "$do_send" -eq 1 ]]; then
+    echo "send: (integrated) $V1_ROOT/scripts/RETRODEPLOYER send $outf" >&2
+  else
+    echo "send: $V1_ROOT/scripts/RETRODEPLOYER send $outf" >&2
+    echo "  or: $V1_ROOT/scripts/RETRODEPLOYER send $(_retro_send_last_token_for_label "$label")" >&2
+  fi
+  python3 -c 'import json,sys; d=json.load(open(sys.argv[1],encoding="utf-8"));
+print("target="+str(d.get("target","")))
+print("function="+str(d.get("function","")))
+print("calldata="+str(d.get("calldata",""))[:74])' "$outf" 2>/dev/null || true
+  if [[ "$do_send" -eq 1 ]]; then
+    echo "RETRODEPLOYER · --send" >&2
+    if ! _cmd_send "$outf"; then
+      return 1
+    fi
+  fi
+}
+
+# Shown after prepare: which send last-* token matches this subcommand
+_retro_send_last_token_for_label() {
+  case "${1-}" in
+  lock-epoch) printf '%s' 'last-lock' ;;
+  resolve-epoch) printf '%s' 'last-resolve' ;;
+  *) printf '%s' 'last-*' ;;
+  esac
+}
+
+_cmd_prepare_lock_epoch() {
+  _cmd_prepare_manual_lifecycle_fn lockEpochsBatch lock-epoch "$@"
+}
+
+_cmd_prepare_resolve_epoch() {
+  _cmd_prepare_manual_lifecycle_fn resolveEpochsBatch resolve-epoch "$@"
+}
+
+# Operator HTTP routes for templateId (indexer + prepare). API_URL from env (default 127.0.0.1:8080).
+# Probe Chainlink-style price feeds the way the engine reads them: through ChainlinkAdapter.getNormalizedPrice.
+# Direct cast --from <adapter> calls latestRoundData() as a TOP-LEVEL call (tx.origin == adapter), which masks
+# Base Sepolia's tx.origin/EOA-only feed gates. Going through the adapter contract reproduces the exact
+# msg.sender + staticcall context the engine triggers during lockEpoch/resolveEpoch.
+#
+# Output classifies each feed:
+#   OK                       — readable; engine can lock/resolve against it.
+#   No access                — feed denies contract reads (tx.origin gate). Pick another feed.
+#   FeedDecimalsNotConfigured — feed itself is fine; adapter needs setFeedDecimals(feedId, 8) by its owner.
+#   StalePriceFeed/...       — other adapter-level revert (timing, round id, etc.); usually feed-specific.
+#
+#   feeds probe                          # probe registry.json + canonical Base Sepolia candidates
+#   feeds probe 0xfeed1 0xfeed2 ...      # probe explicit feed addresses
+#   feeds probe --adapter 0x...          # override price oracle adapter (default: engine.priceOracle())
+#   feeds probe --engine 0x...           # override engine proxy (default: package/abi/address.md)
+#   feeds probe --rpc-url ...            # override RPC (default: $RPC_URL or sepolia.base.org)
+#
+# Exit 0 if at least one feed is readable through the adapter; non-zero otherwise.
+_cmd_feeds() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+  discover)
+    _cmd_feeds_discover "$@"
+    ;;
+  probe)
+    _cmd_feeds_probe "$@"
+    ;;
+  fix-adapter | set-decimals)
+    _cmd_feeds_set_decimals "$@"
+    ;;
+  auto-assign | assign)
+    _cmd_feeds_auto_assign "$@"
+    ;;
+  -h | --help | help | "")
+    cat <<'EOF'
+usage: RETRODEPLOYER feeds <sub> [args]
+  discover [--rpc-url ...] [--engine 0x...] [--source path] [--out path] [-v]
+        Parse package/contract/.docs/market/baseFeeds.md, validate each candidate has
+        on-chain code (skip hallucinated rows), then probe via the matching adapter
+        (price | rate | smartdata | macro | equity) using the engine as msg.sender.
+        Writes JSON of the result to /tmp/retropick-feeds-discover.json.
+
+  probe [--adapter 0x...] [--engine 0x...] [--rpc-url ...] [feed1 feed2 ...]
+        With positional addresses: probe just those via the price adapter.
+        With no positional args: alias for `feeds discover`.
+
+  fix-adapter [--adapter 0x...] [--decimals 8] [--rpc-url ...] [--account NAME] feed1 feed2 ...
+        Call adapter.setFeedDecimals(feedId, decimals) for each feed (one tx each).
+        Idempotent: skips feeds whose decimals are already configured.
+        Required: caller must be the adapter Ownable2Step.owner. Loads keystore via cast.
+
+  auto-assign [<NN>|all] [--rediscover] [--no-registry] [--dry-run]
+        Map each upsert fixture's (assetSymbol, oracleClass, templateOracleKind=0)
+        to a usable feed found by `feeds discover`, rewrite its `oracleFeedId` in place,
+        and refresh apps/backend/internal/feedregistry/registry.json. Skips templates
+        whose templateOracleKind != 0 (e.g. TrustedReporter).
+EOF
+    [[ "$sub" == "" ]] && return 1 || return 0
+    ;;
+  *)
+    echo "error: unknown 'feeds' subcommand: $sub" >&2
+    return 1
+    ;;
+  esac
+}
+
+# _retro_feeds_md_parse <baseFeeds.md path>
+# Emits TSV: oracleClass<TAB>asset<TAB>quote<TAB>label<TAB>address<TAB>decimals
+# oracleClass ∈ {price, rate, smartdata, macro, equity}
+# Skips section headers, inline code blocks, addresses that don't pass a basic format check.
+_retro_feeds_md_parse() {
+  local md="${1:?}"
+  python3 - "$md" <<'PY'
+import re, sys
+p = sys.argv[1]
+section_map = [
+    ('CHAINLINK_PRICE',     'price'),
+    ('CHAINLINK_RATE',      'rate'),
+    ('CHAINLINK_SMARTDATA', 'smartdata'),
+    ('CHAINLINK_MACRO',     'macro'),
+    ('CHAINLINK_EQUITY',    'equity'),
+]
+ADDR = re.compile(r'`(0x[0-9a-fA-F]{40})`')
+ROW  = re.compile(r'^\|\s*(.+?)\s*\|\s*`(0x[0-9a-fA-F]{40})`\s*\|\s*([0-9]+)?')
+section = None
+in_code = False
+out = []
+seen = set()
+with open(p, encoding='utf-8') as f:
+    for line in f:
+        s = line.rstrip()
+        if s.startswith('```'):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        if s.startswith('## '):
+            sec = None
+            for marker, key in section_map:
+                if marker in s:
+                    sec = key; break
+            section = sec
+            continue
+        if section is None:
+            continue
+        m = ROW.match(s)
+        if not m:
+            continue
+        label, addr, dec = m.group(1).strip(), m.group(2), (m.group(3) or '').strip()
+        if addr.lower() in seen:
+            continue
+        seen.add(addr.lower())
+        # split label -> asset / quote
+        asset, quote = label, ''
+        if '/' in label:
+            parts = [x.strip() for x in label.split('/')]
+            if len(parts) == 2:
+                asset, quote = parts[0], parts[1]
+        # strip parentheticals from asset (e.g. "AAPL / USD (Tokenized)" -> "AAPL")
+        asset = re.sub(r'\s*\(.+?\)\s*', '', asset).strip()
+        # collapse spaces in asset
+        asset = asset.replace(' ', '')
+        print('\t'.join([section, asset, quote, label, addr, dec]))
+PY
+}
+
+# _retro_get_engine_adapters <engine> <rpc>
+# Echoes 5 lines: price=<addr> rate=<addr> smartdata=<addr> macro=<addr> equity=<addr>
+_retro_get_engine_adapters() {
+  local engine="${1:?}" rpc="${2:?}"
+  local p r sd m e
+  p="$(cast call "$engine" 'priceOracle()(address)'     --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  r="$(cast call "$engine" 'rateOracle()(address)'      --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  sd="$(cast call "$engine" 'smartDataOracle()(address)' --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  m="$(cast call "$engine" 'macroOracle()(address)'     --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  e="$(cast call "$engine" 'equityOracle()(address)'    --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  echo "price=${p:-0x0}"
+  echo "rate=${r:-0x0}"
+  echo "smartdata=${sd:-0x0}"
+  echo "macro=${m:-0x0}"
+  echo "equity=${e:-0x0}"
+}
+
+# _retro_classify_feed_revert <stderr>  -> echoes status
+# status ∈ {no-access, fixable, stale, invalid, reverted, rpc-error}
+_retro_classify_feed_revert() {
+  local out="${1:-}"
+  if echo "$out" | grep -qiE 'no access|4e6f206163636573730+'; then echo "no-access"; return; fi
+  if echo "$out" | grep -qi 'feeddecimalsnotconfigured'; then echo "fixable"; return; fi
+  if echo "$out" | grep -qi 'staleprice'; then echo "stale"; return; fi
+  if echo "$out" | grep -qiE 'invalidprice|roundnot|invalidfeed|invalidfeedaddress'; then echo "invalid"; return; fi
+  if echo "$out" | grep -qiE 'connection|timeout|dial|websocket'; then echo "rpc-error"; return; fi
+  echo "reverted"
+}
+
+# feeds discover [--rpc-url ...] [--engine 0x...] [--source path] [--out path]
+# Parses baseFeeds.md, validates each candidate address has on-chain code, then probes
+# via the engine→<class adapter>.getNormalizedPrice() to produce a JSON of usable feeds
+# at /tmp/retropick-feeds-discover.json (or --out path).
+_cmd_feeds_discover() {
+  local rpc="${RPC_URL:-}" engine="" md="$V1_ROOT/package/contract/.docs/market/baseFeeds.md"
+  local out_json="/tmp/retropick-feeds-discover.json" verbose=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --rpc-url) rpc="${2:?}"; shift 2 ;;
+    --engine) engine="${2:?}"; shift 2 ;;
+    --source) md="${2:?}"; shift 2 ;;
+    --out) out_json="${2:?}"; shift 2 ;;
+    --verbose | -v) verbose=1; shift ;;
+    -h | --help) _cmd_feeds; return 0 ;;
+    *) echo "error: unexpected argument: $1" >&2; return 1 ;;
+    esac
+  done
+  command -v cast &>/dev/null || { echo "error: cast (Foundry) not found in PATH" >&2; return 1; }
+  command -v python3 &>/dev/null || { echo "error: python3 not found in PATH" >&2; return 1; }
+  if [[ -z "$rpc" ]]; then rpc="https://sepolia.base.org"; fi
+  if [[ -z "$engine" ]]; then engine="0x1ed89defc8fbcbd512c562b148868ffdc778018a"; fi
+  if [[ ! -f "$md" ]]; then
+    echo "error: baseFeeds.md not found at $md" >&2; return 1
+  fi
+  local nowts; nowts="$(date +%s)"
+  echo "" >&2
+  echo "RETRODEPLOYER feeds discover" >&2
+  echo "  source:  $md" >&2
+  echo "  engine:  $engine" >&2
+  echo "  rpc:     $rpc" >&2
+
+  local adapters_blob
+  adapters_blob="$(_retro_get_engine_adapters "$engine" "$rpc")"
+  local adapter_price adapter_rate adapter_smartdata adapter_macro adapter_equity
+  adapter_price="$(echo "$adapters_blob"     | grep '^price='     | cut -d= -f2)"
+  adapter_rate="$(echo "$adapters_blob"      | grep '^rate='      | cut -d= -f2)"
+  adapter_smartdata="$(echo "$adapters_blob" | grep '^smartdata=' | cut -d= -f2)"
+  adapter_macro="$(echo "$adapters_blob"     | grep '^macro='     | cut -d= -f2)"
+  adapter_equity="$(echo "$adapters_blob"    | grep '^equity='    | cut -d= -f2)"
+  echo "  adapters:" >&2
+  echo "    price:     $adapter_price" >&2
+  echo "    rate:      $adapter_rate" >&2
+  echo "    smartdata: $adapter_smartdata" >&2
+  echo "    macro:     $adapter_macro" >&2
+  echo "    equity:    $adapter_equity" >&2
+
+  local rows
+  rows="$(_retro_feeds_md_parse "$md" || true)"
+  if [[ -z "$rows" ]]; then
+    echo "feeds discover: no candidates parsed from $md" >&2
+    return 1
+  fi
+  local total
+  total="$(echo "$rows" | wc -l | tr -d ' ')"
+  echo "  parsed:  $total candidate row(s)" >&2
+  echo "" >&2
+  printf '  %-9s %-12s %-44s %-15s %s\n' "class" "asset" "address" "status" "details" >&2
+  printf '  %-9s %-12s %-44s %-15s %s\n' "-----" "-----" "----------------------------------------" "------" "-------" >&2
+
+  local stats_total=0 stats_nocode=0 stats_ok=0 stats_fixable=0 stats_noaccess=0 stats_stale=0 stats_other=0
+  local entries=""
+  while IFS=$'\t' read -r cls asset quote label addr dec; do
+    [[ -z "$cls" ]] && continue
+    stats_total=$((stats_total + 1))
+    local adapter=""
+    case "$cls" in
+    price) adapter="$adapter_price" ;;
+    rate)  adapter="$adapter_rate" ;;
+    smartdata) adapter="$adapter_smartdata" ;;
+    macro) adapter="$adapter_macro" ;;
+    equity) adapter="$adapter_equity" ;;
+    esac
+    if [[ -z "$adapter" || "$adapter" == "0x0" || "$adapter" == "0x0000000000000000000000000000000000000000" ]]; then
+      printf '  %-9s %-12s %-44s %-15s %s\n' "$cls" "$asset" "$addr" "no-adapter" "$label  · engine has no $cls oracle wired" >&2
+      entries+="${cls}|${asset}|${quote}|${label}|${addr}|${dec}|${adapter}|no-adapter|"$'\n'
+      stats_other=$((stats_other + 1))
+      continue
+    fi
+    local code=""
+    code="$(cast code "$addr" --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+    if [[ -z "$code" || "$code" == "0x" ]]; then
+      printf '  %-9s %-12s %-44s %-15s %s\n' "$cls" "$asset" "$addr" "no-code" "$label  · address has no contract code on chainId" >&2
+      entries+="${cls}|${asset}|${quote}|${label}|${addr}|${dec}|${adapter}|no-code|"$'\n'
+      stats_nocode=$((stats_nocode + 1))
+      continue
+    fi
+    local feedId="0x000000000000000000000000${addr:2}"
+    local out=""
+    local st=0
+    set +e
+    out="$(cast call "$adapter" 'getNormalizedPrice(bytes32,uint64,uint64)(int256,uint64,uint256)' "$feedId" 3600 "$nowts" --from "$engine" --rpc-url "$rpc" 2>&1)"
+    st=$?
+    set -e
+    if [[ $st -eq 0 ]]; then
+      local price
+      price="$(echo "$out" | head -1 | tr -d '\n' | awk '{print $1}')"
+      printf '  %-9s %-12s %-44s %-15s %s\n' "$cls" "$asset" "$addr" "OK" "$label  priceE8=$price" >&2
+      entries+="${cls}|${asset}|${quote}|${label}|${addr}|${dec}|${adapter}|ok|${price}"$'\n'
+      stats_ok=$((stats_ok + 1))
+    else
+      local reason
+      reason="$(_retro_classify_feed_revert "$out")"
+      printf '  %-9s %-12s %-44s %-15s %s\n' "$cls" "$asset" "$addr" "$reason" "$label" >&2
+      [[ "$verbose" == "1" ]] && echo "      $(echo "$out" | head -2 | tr '\n' ' ')" >&2
+      entries+="${cls}|${asset}|${quote}|${label}|${addr}|${dec}|${adapter}|${reason}|"$'\n'
+      case "$reason" in
+      no-access) stats_noaccess=$((stats_noaccess + 1)) ;;
+      fixable)   stats_fixable=$((stats_fixable + 1)) ;;
+      stale)     stats_stale=$((stats_stale + 1)) ;;
+      *)         stats_other=$((stats_other + 1)) ;;
+      esac
+    fi
+  done <<<"$rows"
+
+  echo "" >&2
+  echo "feeds discover summary: total=$stats_total ok=$stats_ok fixable=$stats_fixable no-access=$stats_noaccess no-code=$stats_nocode stale=$stats_stale other=$stats_other" >&2
+
+  python3 - "$out_json" "$engine" "$adapter_price" "$adapter_rate" "$adapter_smartdata" "$adapter_macro" "$adapter_equity" "$nowts" <<PY
+import json, os, sys
+out_json, engine, ap, ar, asd, am, ae, nowts = sys.argv[1:9]
+entries_raw = """${entries}"""
+feeds = []
+for line in entries_raw.strip().splitlines():
+    line = line.strip()
+    if not line: continue
+    parts = line.split('|')
+    while len(parts) < 9: parts.append('')
+    cls, asset, quote, label, addr, dec, adapter, status, price = parts[:9]
+    try:
+        dec_i = int(dec) if dec else None
+    except Exception:
+        dec_i = None
+    feeds.append({
+        'oracleClass': cls,
+        'asset': asset,
+        'quote': quote,
+        'label': label,
+        'address': addr,
+        'decimals': dec_i,
+        'adapter': adapter,
+        'status': status,
+        'priceE8': price or None,
+    })
+doc = {
+    'discoveredAt': int(nowts),
+    'engine': engine,
+    'adapters': {
+        'price': ap, 'rate': ar, 'smartdata': asd, 'macro': am, 'equity': ae,
+    },
+    'feeds': feeds,
+}
+os.makedirs(os.path.dirname(os.path.abspath(out_json)) or '.', exist_ok=True)
+with open(out_json, 'w', encoding='utf-8') as f:
+    json.dump(doc, f, indent=2)
+print(out_json)
+PY
+  echo "feeds discover: wrote $out_json" >&2
+  if [[ $stats_ok -gt 0 || $stats_fixable -gt 0 ]]; then
+    return 0
+  fi
+  return 1
+}
+
+# Legacy probe = wrapper around discover when no addresses given; otherwise probe a bare list.
+_cmd_feeds_probe() {
+  local adapter="" engine="" rpc="${RPC_URL:-}"
+  local -a feeds=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --adapter) adapter="${2:?}"; shift 2 ;;
+    --engine) engine="${2:?}"; shift 2 ;;
+    --rpc-url) rpc="${2:?}"; shift 2 ;;
+    --from)
+      echo "warn: --from is deprecated for feeds probe (probe goes through engine→adapter); use --adapter / --engine" >&2
+      adapter="${2:?}"; shift 2 ;;
+    -h | --help)
+      _cmd_feeds; return 0
+      ;;
+    0x*) feeds+=("$1"); shift ;;
+    *) echo "error: unexpected argument: $1" >&2; return 1 ;;
+    esac
+  done
+  if [[ ${#feeds[@]} -eq 0 ]]; then
+    _cmd_feeds_discover ${rpc:+--rpc-url "$rpc"} ${engine:+--engine "$engine"}
+    return $?
+  fi
+  if [[ -z "$rpc" ]]; then
+    rpc="https://sepolia.base.org"
+    echo "feeds probe: RPC_URL not set; using default $rpc" >&2
+  fi
+  command -v cast &>/dev/null || {
+    echo "error: cast (Foundry) not found in PATH" >&2
+    return 1
+  }
+  if [[ -z "$engine" ]]; then
+    engine="0x1ed89defc8fbcbd512c562b148868ffdc778018a"
+  fi
+  if [[ -z "$adapter" ]]; then
+    adapter="$(cast call "$engine" 'priceOracle()(address)' --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+    if [[ -z "$adapter" || ! "$adapter" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+      echo "feeds probe: failed to read engine.priceOracle(); set --adapter explicitly" >&2
+      return 1
+    fi
+  fi
+  local -a labels=()
+  local nowts; nowts="$(date +%s)"
+  echo "" >&2
+  echo "RETRODEPLOYER feeds probe (engine → adapter.getNormalizedPrice)" >&2
+  echo "  engine:     $engine" >&2
+  echo "  adapter:    $adapter" >&2
+  echo "  rpc:        $rpc" >&2
+  echo "  candidates: ${#feeds[@]}" >&2
+  echo "" >&2
+  printf '  %-44s %-26s %s\n' "feed" "status" "details" >&2
+  printf '  %-44s %-26s %s\n' "----------------------------------------" "------" "-------" >&2
+  local i ok=0 fixable=0
+  local -a fixable_feeds=()
+  for ((i=0; i<${#feeds[@]}; i++)); do
+    local feed="${feeds[$i]}" label="${labels[$i]:-}"
+    local feedId="0x000000000000000000000000${feed:2}"
+    local out=""
+    local st=0
+    set +e
+    out="$(cast call "$adapter" 'getNormalizedPrice(bytes32,uint64,uint64)(int256,uint64,uint256)' "$feedId" 3600 "$nowts" --from "$engine" --rpc-url "$rpc" 2>&1)"
+    st=$?
+    set -e
+    if [[ $st -eq 0 ]]; then
+      local price
+      price="$(echo "$out" | head -1 | tr -d '\n' | awk '{print $1}')"
+      printf '  %-44s %-26s %s\n' "$feed" "OK" "$label  priceE8=$price" >&2
+      ok=$((ok + 1))
+    else
+      local reason="revert"
+      if echo "$out" | grep -qi 'no access'; then reason="No access (tx.origin gate)"
+      elif echo "$out" | grep -qi 'feeddecimalsnotconfigured\|0x[a-f0-9]\{8\}.*'"${feed:2}" 2>/dev/null; then
+        reason="FeedDecimalsNotConfigured (fixable: setFeedDecimals)"
+        fixable=$((fixable + 1))
+        fixable_feeds+=("$feed")
+      elif echo "$out" | grep -qi 'staleprice'; then reason="StalePriceFeed (testnet feed not pushing rounds)"
+      elif echo "$out" | grep -qi 'invalidprice\|roundnot\|invalidfeed'; then reason="adapter validation revert"
+      elif echo "$out" | grep -qi 'reverted'; then reason="reverted"
+      elif echo "$out" | grep -qi 'connection\|timeout\|dial'; then reason="rpc-error"
+      fi
+      printf '  %-44s %-26s %s\n' "$feed" "FAIL" "$label  · $reason" >&2
+    fi
+  done
+  echo "" >&2
+  if [[ $ok -gt 0 ]]; then
+    echo "feeds probe: $ok readable feed(s) — engine can lock/resolve against any of them." >&2
+    echo "next: pick one and update both files, then re-upsert the template:" >&2
+    echo "  apps/backend/internal/feedregistry/registry.json    (proxyAddress)" >&2
+    echo "  package/contract/.operator/upsert-params/<NN>-*.json  (oracleFeedId = 0x000…<20-byte addr>)" >&2
+    echo "  $V1_ROOT/scripts/RETRODEPLOYER prepare upsert <NN>  &&  send the prepared JSON" >&2
+    return 0
+  fi
+  if [[ $fixable -gt 0 ]]; then
+    echo "feeds probe: 0 readable, $fixable feed(s) just need decimals configured on the adapter:" >&2
+    for f in "${fixable_feeds[@]}"; do
+      echo "  cast send $adapter 'setFeedDecimals(bytes32,uint8)' 0x000000000000000000000000${f:2} 8 \\" >&2
+      echo "    --rpc-url \$RPC_URL --account \$CAST_ACCOUNT      # adapter Ownable2Step.owner only" >&2
+    done
+    return 1
+  fi
+  echo "feeds probe: NO usable feeds via the configured adapter." >&2
+  echo "  All probed feeds either reject contract reads (tx.origin gate) or revert in the adapter." >&2
+  echo "  Pass extra candidate feed addresses, or switch to TrustedReporter (templateOracleKind=1)." >&2
+  return 1
+}
+
+_cmd_feeds_set_decimals() {
+  local adapter="" rpc="${RPC_URL:-}" decimals=8 account="${CAST_ACCOUNT:-${ETH_KEYSTORE_ACCOUNT:-${DEPLOY_ACCOUNT:-${KEYSTORE_NAME:-}}}}"
+  local engine="0x1ed89defc8fbcbd512c562b148868ffdc778018a"
+  local -a feeds=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --adapter) adapter="${2:?}"; shift 2 ;;
+    --decimals) decimals="${2:?}"; shift 2 ;;
+    --rpc-url) rpc="${2:?}"; shift 2 ;;
+    --account) account="${2:?}"; shift 2 ;;
+    --engine) engine="${2:?}"; shift 2 ;;
+    -h | --help) _cmd_feeds; return 0 ;;
+    0x*) feeds+=("$1"); shift ;;
+    *) echo "error: unexpected argument: $1" >&2; return 1 ;;
+    esac
+  done
+  if [[ ${#feeds[@]} -eq 0 ]]; then
+    echo "error: feeds fix-adapter needs at least one 0xfeed-address argument" >&2
+    echo "  hint: run './scripts/RETRODEPLOYER feeds probe' first to see which feeds are fixable" >&2
+    return 1
+  fi
+  command -v cast &>/dev/null || { echo "error: cast (Foundry) not found in PATH" >&2; return 1; }
+  if [[ -z "$rpc" ]]; then rpc="https://sepolia.base.org"; fi
+  if [[ -z "$account" ]]; then
+    echo "error: set CAST_ACCOUNT (or DEPLOY_ACCOUNT) to your keystore name" >&2
+    echo "  hint: cast wallet list  # then export CAST_ACCOUNT=<name>" >&2
+    return 1
+  fi
+  if [[ -z "$adapter" ]]; then
+    adapter="$(cast call "$engine" 'priceOracle()(address)' --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+    if [[ -z "$adapter" || ! "$adapter" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+      echo "error: failed to read engine.priceOracle(); set --adapter explicitly" >&2
+      return 1
+    fi
+  fi
+  local owner
+  owner="$(cast call "$adapter" 'owner()(address)' --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  echo "" >&2
+  echo "RETRODEPLOYER feeds fix-adapter (setFeedDecimals)" >&2
+  echo "  adapter:  $adapter (owner: ${owner:-?})" >&2
+  echo "  rpc:      $rpc" >&2
+  echo "  decimals: $decimals" >&2
+  echo "  account:  $account  (must match adapter owner)" >&2
+  echo "  feeds:    ${#feeds[@]}" >&2
+  echo "" >&2
+  local failed=0
+  local skipped=0 sent=0
+  for feed in "${feeds[@]}"; do
+    local feedId="0x000000000000000000000000${feed:2}"
+    local cfg=""
+    cfg="$(cast call "$adapter" 'getFeedDecimals(bytes32)(uint8,bool)' "$feedId" --rpc-url "$rpc" 2>/dev/null || true)"
+    if echo "$cfg" | grep -qi 'true'; then
+      echo "  - $feed  already configured (skip)" >&2
+      skipped=$((skipped + 1))
+      continue
+    fi
+    echo "  → setFeedDecimals($feedId, $decimals)" >&2
+    local out=""
+    local st=0
+    set +e
+    out="$(cast send "$adapter" 'setFeedDecimals(bytes32,uint8)' "$feedId" "$decimals" --rpc-url "$rpc" --account "$account" 2>&1)"
+    st=$?
+    set -e
+    if [[ $st -eq 0 ]]; then
+      local txhash
+      txhash="$(echo "$out" | grep -E 'transactionHash' | head -1 | awk '{print $NF}')"
+      echo "    ok  tx=${txhash:-(see output)}" >&2
+      sent=$((sent + 1))
+    else
+      echo "    FAIL" >&2
+      echo "$out" | sed 's/^/      /' >&2
+      failed=$((failed + 1))
+    fi
+  done
+  echo "" >&2
+  if [[ $failed -gt 0 ]]; then
+    echo "feeds fix-adapter: $failed/${#feeds[@]} failed. Re-run after fixing keystore/owner mismatch." >&2
+    return 1
+  fi
+  echo "feeds fix-adapter: sent=$sent skipped=$skipped (of ${#feeds[@]}). Re-run 'feeds probe' to confirm OK status." >&2
+  return 0
+}
+
+# feeds auto-assign [<NN>|all] [--rediscover] [--no-registry] [--dry-run] [--source path]
+# Map each upsert fixture's (assetSymbol, oracleClass, templateOracleKind=0) to a usable feed
+# from the latest discovery JSON, rewriting `oracleFeedId` in place. Optionally syncs the
+# operator-UI feed registry so the fe/ops pickers stay in sync.
+_cmd_feeds_auto_assign() {
+  local typ_filter="all" rediscover=0 sync_registry=1 dry=0
+  local discover_json="/tmp/retropick-feeds-discover.json"
+  local md="$V1_ROOT/package/contract/.docs/market/baseFeeds.md"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --rediscover) rediscover=1; shift ;;
+    --no-registry) sync_registry=0; shift ;;
+    --dry-run) dry=1; shift ;;
+    --source) md="${2:?}"; shift 2 ;;
+    --discover-json) discover_json="${2:?}"; shift 2 ;;
+    -h | --help) _cmd_feeds; return 0 ;;
+    all) typ_filter="all"; shift ;;
+    *)
+      if [[ "$typ_filter" == "all" || "$typ_filter" == "" ]]; then
+        typ_filter="$(_normalize_manual_type_key "$1" 2>/dev/null || echo "$1")"; shift
+      else
+        echo "error: unexpected argument: $1" >&2; return 1
+      fi ;;
+    esac
+  done
+  if [[ "$rediscover" -eq 1 || ! -f "$discover_json" ]]; then
+    _cmd_feeds_discover --source "$md" --out "$discover_json" || true
+    if [[ ! -f "$discover_json" ]]; then
+      echo "error: feeds discover did not produce $discover_json" >&2; return 1
+    fi
+  fi
+  command -v python3 &>/dev/null || { echo "error: python3 not found in PATH" >&2; return 1; }
+
+  local upsert_dir="$UPSERT_DIR" registry="$V1_ROOT/apps/backend/internal/feedregistry/registry.json"
+  python3 - "$discover_json" "$upsert_dir" "$registry" "$typ_filter" "$dry" "$sync_registry" <<'PY' || return 1
+import json, os, re, sys
+disc_path, upsert_dir, registry_path, typ_filter, dry, sync_registry = sys.argv[1:7]
+dry = dry == '1'
+sync_registry = sync_registry == '1'
+
+with open(disc_path, encoding='utf-8') as f:
+    disc = json.load(f)
+feeds = disc.get('feeds', [])
+
+# Group usable feeds by (oracleClass, asset)
+ORACLE_CLASS_NAMES = ['price', 'rate', 'smartdata', 'macro', 'equity']
+ORACLE_CLASS_BY_ENUM = dict(enumerate(['CHAINLINK_PRICE', 'CHAINLINK_RATE', 'CHAINLINK_SMARTDATA', 'CHAINLINK_MACRO', 'CHAINLINK_EQUITY']))
+NAME_TO_ENUM = {v.replace('CHAINLINK_', '').lower(): k for k, v in ORACLE_CLASS_BY_ENUM.items()}
+
+# Build registry of usable feeds per (oracleClassName, assetUpper)
+def status_rank(s):
+    return {'ok': 0, 'fixable': 1}.get(s, 99)
+
+usable = {}
+for f in feeds:
+    if f.get('status') not in ('ok', 'fixable'):
+        continue
+    cls = (f.get('oracleClass') or '').lower()
+    if cls not in ORACLE_CLASS_NAMES:
+        continue
+    asset = (f.get('asset') or '').upper()
+    if not asset:
+        continue
+    key = (cls, asset)
+    cur = usable.get(key)
+    if cur is None or status_rank(f['status']) < status_rank(cur['status']):
+        usable[key] = f
+
+def hex32(addr):
+    a = addr.lower()
+    if not a.startswith('0x'):
+        a = '0x' + a
+    body = a[2:]
+    if len(body) != 40:
+        raise ValueError(f'bad addr: {addr}')
+    return '0x' + ('0' * 24) + body
+
+def oracle_class_name_for_index(i):
+    return ORACLE_CLASS_BY_ENUM.get(int(i), 'CHAINLINK_PRICE').replace('CHAINLINK_', '').lower()
+
+# Iterate manual upsert fixtures
+manual_files = []
+for fn in sorted(os.listdir(upsert_dir)):
+    if not fn.endswith('.manual.json'):
+        continue
+    m = re.match(r'^(\d{2})-', fn)
+    if not m:
+        continue
+    nn = m.group(1)
+    if typ_filter != 'all' and typ_filter != nn:
+        continue
+    manual_files.append((nn, os.path.join(upsert_dir, fn)))
+
+print(f'feeds auto-assign: filter={typ_filter} candidates={len(manual_files)} usable_feeds={len(usable)}', file=sys.stderr)
+print(file=sys.stderr)
+print(f'  {"type":<6}{"asset":<8}{"class":<10}{"old feedId":<70}{"new feedId":<70}{"  status"}', file=sys.stderr)
+
+changes = 0
+chosen_for_registry = {}
+for nn, path in manual_files:
+    with open(path, encoding='utf-8') as f:
+        doc = json.load(f)
+    if int(doc.get('templateOracleKind', 0)) != 0:
+        continue  # TrustedReporter etc. — leave alone
+    asset = (doc.get('assetSymbol') or '').upper()
+    cls_idx = int(doc.get('oracleClass', 0))
+    cls_name = oracle_class_name_for_index(cls_idx)
+    old = (doc.get('oracleFeedId') or '').lower()
+    pick = usable.get((cls_name, asset))
+    if not pick:
+        print(f'  {nn:<6}{asset:<8}{cls_name:<10}{old:<70}{"-":<70}  no-feed-found', file=sys.stderr)
+        continue
+    new = hex32(pick['address']).lower()
+    chosen_for_registry[pick['address']] = pick
+    if new == old:
+        print(f'  {nn:<6}{asset:<8}{cls_name:<10}{old:<70}{new:<70}  ok (unchanged)', file=sys.stderr)
+        continue
+    if dry:
+        print(f'  {nn:<6}{asset:<8}{cls_name:<10}{old:<70}{new:<70}  WOULD-UPDATE', file=sys.stderr)
+        changes += 1
+        continue
+    doc['oracleFeedId'] = new
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(doc, f, indent=2)
+        f.write('\n')
+    print(f'  {nn:<6}{asset:<8}{cls_name:<10}{old:<70}{new:<70}  updated', file=sys.stderr)
+    changes += 1
+
+# Update registry.json so the operator UI advertises the same chosen feeds.
+if sync_registry and chosen_for_registry and not dry:
+    if os.path.exists(registry_path):
+        with open(registry_path, encoding='utf-8') as f:
+            reg = json.load(f)
+    else:
+        reg = {'version': 2, 'chainId': 84532, 'network': 'base-sepolia', 'feeds': []}
+    reg.setdefault('feeds', [])
+    reg['version'] = max(int(reg.get('version', 0) or 0), 2)
+    reg['chainId'] = 84532
+    reg['network'] = reg.get('network') or 'base-sepolia'
+    reg['sourceNote'] = (
+        'Auto-synced by RETRODEPLOYER feeds auto-assign. Each entry is a feed that '
+        'engine→adapter.getNormalizedPrice() returns OK or fixable for. Run '
+        '"./scripts/RETRODEPLOYER feeds discover" before trusting.'
+    )
+    by_addr = {(e.get('proxyAddress') or '').lower(): e for e in reg['feeds']}
+    for addr, pick in chosen_for_registry.items():
+        cls_idx = NAME_TO_ENUM.get(pick['oracleClass'].lower(), 0)
+        entry = {
+            'proxyAddress': addr,
+            'label': pick.get('label') or pick.get('asset') or addr,
+            'category': pick.get('oracleClass') or 'price',
+            'oracleClass': cls_idx,
+            'suggestedMaxDelaySeconds': 3600,
+            'decimals': pick.get('decimals') or 8,
+            'sourceUrl': 'https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet',
+        }
+        by_addr[addr.lower()] = entry
+    reg['feeds'] = list(by_addr.values())
+    with open(registry_path, 'w', encoding='utf-8') as f:
+        json.dump(reg, f, indent=2)
+        f.write('\n')
+    print(f'feeds auto-assign: synced {len(chosen_for_registry)} entry(ies) into {registry_path}', file=sys.stderr)
+
+print(f'feeds auto-assign: {changes} fixture(s) {"would change" if dry else "updated"}.', file=sys.stderr)
+PY
+}
+
+# Detect-and-recover a stuck Open/Locked epoch whose snapshotted oracleFeedId no longer
+# resolves (e.g. gated Chainlink feed swapped out via a new upsertTemplate). The on-chain
+# lockEpoch reads `e.oracleFeedId` (snapshot at openEpoch time, see
+# package/contract/src/engine/MarketEngineSettlement.sol::_snapshotEpochTemplateMarketConfig),
+# so re-upserting the template does NOT fix the open epoch — only cancelEpoch + reopen does.
+#
+# Args: <templateId> [<indexer-wait-after-tx>]
+# Returns 0 if no recovery was needed OR recovery succeeded; 1 on hard failure.
+_retro_recover_stuck_feed_drift() {
+  local template_id="${1:?}"
+  local idx_wait="${2:-${RETRODEPLOYER_INDEX_WAIT_SEC:-15}}"
+  local rpc="${RPC_URL:-https://sepolia.base.org}"
+
+  command -v cast &>/dev/null || { echo "  recover-feed-drift: cast (Foundry) not found in PATH" >&2; return 1; }
+
+  if ! _retro_load_template_state "$template_id"; then
+    echo "  recover-feed-drift: indexer has no state yet at ${API_URL%/}/api/v1/ops/templates/${template_id}/state — assuming greenfield (just-upserted template), nothing to recover." >&2
+    return 0
+  fi
+  local ae="$RETRO_STATE_AE" lr="$RETRO_STATE_LR" init="$RETRO_STATE_INIT" ex="$RETRO_STATE_EX"
+  if [[ "$init" != "1" ]]; then
+    echo "  recover-feed-drift: template not initialized (greenfield); nothing to recover." >&2
+    return 0
+  fi
+  if [[ "$ex" == "1" ]]; then
+    echo "  recover-feed-drift: rolling templates use halt + cancelRollingEpochWhileHalted; skipping." >&2
+    return 0
+  fi
+  if (( ae <= lr )); then
+    echo "  recover-feed-drift: no stuck epoch (activeEpochId=$ae lastResolvedEpochId=$lr)." >&2
+    return 0
+  fi
+
+  echo "  recover-feed-drift: stuck open/locked epochId=$ae detected (lastResolved=$lr); dry-running lockEpochsBatch" >&2
+
+  local args_f prep_f
+  args_f="$(mktemp)"
+  prep_f="$(mktemp -t retropick-recover-lock-dryrun-XXXXXX.json)"
+  printf '[ ["%s"], [%s] ]\n' "$template_id" "$ae" >"$args_f"
+  if ! _api_prepare_to_file "lockEpochsBatch" "$args_f" "$prep_f"; then
+    rm -f "$args_f" "$prep_f"
+    echo "  recover-feed-drift: failed to build lockEpochsBatch calldata via API" >&2
+    return 1
+  fi
+  rm -f "$args_f"
+
+  local target calldata
+  target="$(_json_get "$prep_f" target 2>/dev/null || true)"
+  calldata="$(_json_get "$prep_f" calldata 2>/dev/null || true)"
+  rm -f "$prep_f"
+  if [[ -z "$target" || -z "$calldata" || "$calldata" != 0x* ]]; then
+    echo "  recover-feed-drift: malformed prepare response (target='$target' calldata='${calldata:0:10}...')" >&2
+    return 1
+  fi
+
+  # Resolve --from for the dry-run. Prefer engine.admin() so the auth check
+  # (_authAdminOrWorker) doesn't pre-revert before the oracle read happens.
+  local probe_from
+  probe_from="$(cast call "$target" 'admin()(address)' --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ -z "$probe_from" || ! "$probe_from" =~ ^0x[0-9a-fA-F]{40}$ ]]; then
+    probe_from="${ETH_FROM:-0x0000000000000000000000000000000000000001}"
+  fi
+
+  local dry_log dry_st
+  dry_log="$(mktemp)"
+  set +e
+  cast call "$target" "$calldata" --from "$probe_from" --rpc-url "$rpc" >"$dry_log" 2>&1
+  dry_st=$?
+  set -e
+
+  if [[ $dry_st -eq 0 ]]; then
+    rm -f "$dry_log"
+    echo "  recover-feed-drift: lock dry-run succeeded; epoch is healthy, deferring to advance-epoch." >&2
+    return 0
+  fi
+
+  if grep -qiE 'no access|4e6f206163636573730+|feeddecimalsnotconfigured' "$dry_log"; then
+    local first_line
+    first_line="$(head -1 "$dry_log" | tr -d '\r' | tr -d '\n')"
+    echo "  recover-feed-drift: stale snapshotted feed detected — dry-run reverted: ${first_line:0:160}" >&2
+    rm -f "$dry_log"
+  else
+    echo "  recover-feed-drift: lock dry-run reverted but not feed-drift related — passing through to advance-epoch." >&2
+    head -2 "$dry_log" | sed 's/^/    /' >&2
+    rm -f "$dry_log"
+    return 0
+  fi
+
+  # Optional safety net: only auto-cancel on Base Sepolia (chainId 84532). For other chains,
+  # surface the recovery command but require manual operator action.
+  local chain_id
+  chain_id="$(cast chain-id --rpc-url "$rpc" 2>/dev/null | tr -d '\r\n' || true)"
+  if [[ "${RETRODEPLOYER_RECOVER_ALLOW_PROD:-0}" != "1" && "$chain_id" != "84532" ]]; then
+    echo "  recover-feed-drift: chainId=$chain_id is not Base Sepolia (84532). Refusing auto-cancel on a non-testnet chain." >&2
+    echo "  recover-feed-drift: run manually after reviewing depositor impact:" >&2
+    echo "    ./scripts/RETRODEPLOYER emergency prepare cancel-epoch $template_id $ae 6 false" >&2
+    echo "    ./scripts/RETRODEPLOYER send <prepared.json>" >&2
+    echo "  recover-feed-drift: or set RETRODEPLOYER_RECOVER_ALLOW_PROD=1 to override (will use voided=true)." >&2
+    return 1
+  fi
+
+  local cancel_dir cancel_f
+  cancel_dir="$(mktemp -d -t retropick-recover-cancel-XXXXXX)"
+  echo "  recover-feed-drift: preparing cancelEpoch (CancelReason::ManualAdminCancel=6, voided=true)" >&2
+  if ! _cmd_emergency prepare cancel-epoch "$template_id" "$ae" 6 true --out-dir "$cancel_dir" >/dev/null; then
+    rm -rf "$cancel_dir"
+    echo "  recover-feed-drift: cancel-epoch prepare failed" >&2
+    return 1
+  fi
+  cancel_f="$cancel_dir/cancelEpoch.json"
+  if [[ ! -f "$cancel_f" ]]; then
+    echo "  recover-feed-drift: prepared cancelEpoch.json not found at $cancel_f" >&2
+    rm -rf "$cancel_dir"
+    return 1
+  fi
+
+  if [[ "${RETRODEPLOYER_DRY_RUN:-0}" == "1" ]]; then
+    echo "  recover-feed-drift: RETRODEPLOYER_DRY_RUN=1 — would broadcast $cancel_f (skipped)" >&2
+    rm -rf "$cancel_dir"
+    return 0
+  fi
+
+  if ! BROADCAST=1 BROADCAST_PRECHECK="${BROADCAST_PRECHECK:-1}" "$RETRODEPLOYER_BROADCAST_SCRIPT" "$cancel_f"; then
+    echo "  recover-feed-drift: cancelEpoch broadcast failed (sender must be engine.admin or workerAuthority)" >&2
+    rm -rf "$cancel_dir"
+    return 1
+  fi
+  rm -rf "$cancel_dir"
+
+  echo "  recover-feed-drift: cancel sent; waiting ${idx_wait}s for indexer settle" >&2
+  sleep "$idx_wait"
+
+  if ! _retro_load_template_state "$template_id"; then
+    echo "  recover-feed-drift: cannot reload template state after cancel" >&2
+    return 1
+  fi
+  if (( RETRO_STATE_AE != RETRO_STATE_LR )); then
+    echo "  recover-feed-drift: post-cancel state still drift (activeEpochId=$RETRO_STATE_AE lastResolvedEpochId=$RETRO_STATE_LR)" >&2
+    echo "  recover-feed-drift: indexer may need a few more seconds; retry: $V1_ROOT/scripts/RETRODEPLOYER recover-feed-drift $template_id" >&2
+    return 1
+  fi
+  echo "  recover-feed-drift: state ok (activeEpochId=$RETRO_STATE_AE lastResolvedEpochId=$RETRO_STATE_LR); next openEpoch will snapshot the freshly upserted feed." >&2
+  return 0
+}
+
+# _retro_greenfield_init_open <typ> <template_id> [--fast] [--prepare-only] [--epoch-id N]
+# Greenfield path for auto-deploy step [5/5]: broadcast initializeMarket + openEpoch for a
+# template the indexer reports as never-initialized (init=false / activeEpochId=lastResolvedEpochId=0).
+# Mirrors _cmd_activate_epoch's offset/--fast semantics but skips its indexer-state preconditions
+# (we only get here after auto-deploy has already classified the template as greenfield).
+# Default timings (overridable via env): open=now+120s, lock=now+3600s, resolve=now+7200s.
+# --fast (or RETRODEPLOYER_FAST_EPOCH=1): open=+10s, lock=+45s, resolve=+90s (dev/demo cycling).
+_retro_greenfield_init_open() {
+  local typ="${1:?}" template_id="${2:?}"
+  shift 2
+  local fast=0 prepare_only=0 epoch_id=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --fast) fast=1; shift ;;
+      --prepare-only) prepare_only=1; shift ;;
+      --epoch-id) epoch_id="${2:?}"; shift 2 ;;
+      --advance|--strict) shift ;;
+      --wait|--max-wait|--out) shift 2 ;;
+      *) shift ;;
+    esac
+  done
+
+  template_id="$(tr '[:upper:]' '[:lower:]' <<<"$template_id" | tr -d '\n')"
+  if [[ ! "$template_id" =~ ^0x[0-9a-f]{64}$ ]]; then
+    echo "  greenfield: invalid templateId $template_id" >&2
+    return 1
+  fi
+
+  local oa_off="${RETRODEPLOYER_OPEN_OFFSET_SEC:-120}" la_off="${RETRODEPLOYER_LOCK_OFFSET_SEC:-3600}" ra_off="${RETRODEPLOYER_RESOLVE_OFFSET_SEC:-7200}"
+  if (( fast == 1 )) || [[ "${RETRODEPLOYER_FAST_EPOCH:-0}" == "1" ]]; then
+    oa_off=10; la_off=45; ra_off=90
+    echo "  greenfield: --fast offsets  open=+${oa_off}s  lock=+${la_off}s  resolve=+${ra_off}s" >&2
+  fi
+  echo "  greenfield: initializeMarket → openEpoch  type=$typ  templateId=$template_id  epochId=$epoch_id" >&2
+
+  local init_args init_prep
+  init_args="$(mktemp)"
+  init_prep="$(mktemp -t retropick-autodeploy-init-XXXXXX.json)"
+  printf '[ "%s" ]\n' "$template_id" >"$init_args"
+  if ! _api_prepare_to_file "initializeMarket" "$init_args" "$init_prep"; then
+    rm -f "$init_args" "$init_prep"
+    echo "  greenfield: initializeMarket prepare failed" >&2
+    return 1
+  fi
+  rm -f "$init_args"
+
+  if (( prepare_only == 1 )); then
+    echo "  greenfield: --prepare-only → initializeMarket prepared at $init_prep" >&2
+  else
+    if ! _send_prepared_resume_safe "$init_prep"; then
+      echo "  greenfield: initializeMarket broadcast failed (prepared JSON: $init_prep)" >&2
+      return 1
+    fi
+    rm -f "$init_prep" 2>/dev/null || true
+  fi
+
+  local now oa la ra open_args open_prep
+  now=$(date +%s)
+  oa=$((now + oa_off))
+  la=$((now + la_off))
+  ra=$((now + ra_off))
+  if ! [[ "$la" -gt "$now" && "$ra" -gt "$la" && "$oa" -lt "$la" ]]; then
+    echo "  greenfield: invalid time offsets (need open < lock < resolve and lock > now): oa=$oa la=$la ra=$ra now=$now" >&2
+    return 1
+  fi
+
+  open_args="$(mktemp)"
+  open_prep="$(mktemp -t retropick-autodeploy-open-XXXXXX.json)"
+  printf '[ "%s", %s, %s, %s, %s ]\n' "$template_id" "$epoch_id" "$oa" "$la" "$ra" >"$open_args"
+  if ! _api_prepare_to_file "openEpoch" "$open_args" "$open_prep"; then
+    rm -f "$open_args" "$open_prep"
+    echo "  greenfield: openEpoch prepare failed" >&2
+    return 1
+  fi
+  rm -f "$open_args"
+  echo "  greenfield: openEpoch  openAt=$oa  lockAt=$la  resolveAt=$ra" >&2
+
+  if (( prepare_only == 1 )); then
+    echo "  greenfield: --prepare-only → openEpoch prepared at $open_prep" >&2
+    return 0
+  fi
+  if ! _send_prepared_resume_safe "$open_prep"; then
+    echo "  greenfield: openEpoch broadcast failed (prepared JSON: $open_prep)" >&2
+    return 1
+  fi
+  rm -f "$open_prep" 2>/dev/null || true
+  echo "  greenfield: done — epoch $epoch_id is open and tradable until lockAt=$la (resolves at $ra)." >&2
+  return 0
+}
+
+# auto-deploy <NN> [--no-discover] [--no-fix-adapter] [--no-reupsert] [--no-recover] [--no-init] [--fast] [--wait s] [--max-wait s]
+# One-shot path from any starting state to "trade-ready" for a manual market type:
+#   1)   feeds discover            — refresh /tmp/retropick-feeds-discover.json
+#   2)   feeds auto-assign <NN>    — rewrite oracleFeedId to a usable feed of matching asset+class
+#   3)   feeds fix-adapter         — idempotent setFeedDecimals for the chosen feed
+#   4)   prepare upsert + send     — push the new template config on-chain
+#   4.5) detect-and-recover stuck epoch (cancelEpoch when prior epoch snapshotted a dead feed)
+#   5)   initialize + open OR advance-epoch (auto-detected from indexer state)
+# Returns when the indexer reports activeEpochId >= 1 with an open trading window.
+_cmd_auto_deploy() {
+  local typ="" no_discover=0 no_fix=0 no_upsert=0 no_init=0 no_recover=0
+  local -a adv_passthrough=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --no-discover) no_discover=1; shift ;;
+    --no-fix-adapter) no_fix=1; shift ;;
+    --no-reupsert) no_upsert=1; shift ;;
+    --no-recover) no_recover=1; shift ;;
+    --no-init) no_init=1; shift ;;
+    --wait | --max-wait | --epoch-id | --out)
+      adv_passthrough+=("$1" "${2:?}"); shift 2 ;;
+    --fast | --advance | --prepare-only) adv_passthrough+=("$1"); shift ;;
+    -h | --help)
+      cat >&2 <<'EOF'
+usage: RETRODEPLOYER auto-deploy <1-9|01-09> [--no-discover] [--no-fix-adapter] [--no-reupsert]
+                                              [--no-recover] [--no-init] [--fast] [--wait s] [--max-wait s]
+  One-shot deploy from any starting state to trade-ready:
+    1)   feeds discover           — parse baseFeeds.md, validate on-chain, probe via engine→adapter
+    2)   feeds auto-assign <NN>   — rewrite oracleFeedId in upsert-params/<NN>-*.manual.json to a usable feed
+    3)   feeds fix-adapter        — setFeedDecimals on the chosen feed (idempotent; adapter owner only)
+    4)   prepare upsert + send    — push new template config on-chain
+    4.5) recover stuck epoch      — cancelEpoch when an Open/Locked epoch snapshotted a dead feed
+                                    (skip with --no-recover or RETRODEPLOYER_RECOVER_STUCK=0;
+                                     auto-cancel only on Base Sepolia, override with
+                                     RETRODEPLOYER_RECOVER_ALLOW_PROD=1)
+    5)   auto-route by indexer state:
+         - never initialized  → initializeMarket + openEpoch
+         - active==resolved   → activate-epoch (open next)
+         - active>resolved    → advance-epoch  (lock → resolve → open)
+  Aliased as `recover-stuck-epoch` for backwards compatibility.
+EOF
+      return 0 ;;
+    *)
+      if [[ -z "$typ" ]]; then typ="$1"; shift; else
+        echo "error: unexpected argument: $1" >&2; return 1
+      fi ;;
+    esac
+  done
+  if [[ -z "$typ" ]]; then
+    echo "error: usage: auto-deploy <1-9|01-09> [--fast]" >&2
+    return 1
+  fi
+  typ="$(_normalize_manual_type_key "$typ")" || {
+    echo "error: type must be 1-9 or 01-09" >&2; return 1
+  }
+  command -v python3 &>/dev/null || { echo "error: python3 not found in PATH" >&2; return 1; }
+  local upsertf
+  upsertf="$(_map_upsert_file "$typ")" || {
+    echo "error: missing upsert fixture for $typ" >&2; return 1
+  }
+
+  echo "" >&2
+  echo "RETRODEPLOYER auto-deploy type=$typ fixture=$upsertf" >&2
+  echo "  api:  $API_URL" >&2
+
+  if [[ "$no_discover" -eq 0 ]]; then
+    echo "" >&2
+    echo "[1/5] feeds discover" >&2
+    _cmd_feeds_discover --out /tmp/retropick-feeds-discover.json || {
+      echo "auto-deploy: discover found no usable feeds; aborting." >&2; return 1
+    }
+  fi
+
+  echo "" >&2
+  echo "[2/5] feeds auto-assign $typ" >&2
+  _cmd_feeds_auto_assign "$typ" || {
+    echo "auto-deploy: auto-assign failed; aborting." >&2; return 1
+  }
+
+  # Resolve the chosen feed for this template so we can run fix-adapter on just that one.
+  local chosen_feed=""
+  chosen_feed="$(python3 - "$upsertf" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1], encoding='utf-8'))
+fid = (d.get('oracleFeedId') or '').lower()
+if fid.startswith('0x') and len(fid) == 66:
+    print('0x' + fid[-40:])
+PY
+)"
+
+  if [[ "$no_fix" -eq 0 && -n "$chosen_feed" && "$chosen_feed" != "0x0000000000000000000000000000000000000000" ]]; then
+    echo "" >&2
+    echo "[3/5] feeds fix-adapter $chosen_feed (idempotent)" >&2
+    _cmd_feeds_set_decimals "$chosen_feed" || {
+      echo "auto-deploy: fix-adapter failed; aborting." >&2; return 1
+    }
+  else
+    echo "[3/5] skipped (no Chainlink feed selected, or --no-fix-adapter)" >&2
+  fi
+
+  if [[ "$no_upsert" -eq 0 ]]; then
+    echo "" >&2
+    echo "[4/5] prepare upsert $typ + send" >&2
+    local up_out
+    up_out="$(mktemp -t retropick-autodeploy-upsert-XXXXXX.json)" || {
+      echo "error: mktemp failed" >&2; return 1
+    }
+    if ! PRETTY=0 BROADCAST=0 API_URL="$API_URL" \
+      "$MARKET_DIR/prepare-upsert-template.sh" "$upsertf" >"$up_out"; then
+      echo "auto-deploy: prepare upsert failed; aborting." >&2
+      rm -f "$up_out"
+      return 1
+    fi
+    echo "  prepared: $up_out" >&2
+    if ! BROADCAST=1 BROADCAST_PRECHECK="${BROADCAST_PRECHECK:-1}" \
+      "$RETRODEPLOYER_BROADCAST_SCRIPT" "$up_out"; then
+      echo "auto-deploy: upsert broadcast failed; aborting." >&2
+      return 1
+    fi
+  else
+    echo "[4/5] skipped (--no-reupsert)" >&2
+  fi
+
+  local template_id state ae lr ver
+  template_id="$(_template_id_for_type "$typ")" || {
+    echo "auto-deploy: cannot derive templateId for $typ" >&2; return 1
+  }
+
+  if [[ "$no_recover" -eq 0 && "${RETRODEPLOYER_RECOVER_STUCK:-1}" != "0" ]]; then
+    echo "" >&2
+    echo "[4.5/5] detect & recover stuck epoch (feed-drift)" >&2
+    if ! _retro_recover_stuck_feed_drift "$template_id"; then
+      echo "auto-deploy: stuck-epoch recovery failed; aborting." >&2
+      return 1
+    fi
+  else
+    echo "[4.5/5] skipped (--no-recover or RETRODEPLOYER_RECOVER_STUCK=0)" >&2
+  fi
+
+  echo "" >&2
+  echo "[5/5] route by indexer state" >&2
+  state="$("$RETRODEPLOYER_CURL_BIN" -fsS "$API_URL/api/v1/ops/templates/$template_id/state" 2>/dev/null || true)"
+  if [[ -z "$state" ]]; then
+    # No record from the indexer means this template has never been initialized
+    # (a re-upsert preserves epoch state in the indexer; only never-init templates
+    # 404 here). Route to greenfield init+open rather than guessing advance-epoch.
+    if [[ "$no_init" -eq 0 ]]; then
+      echo "  indexer has no state yet for $template_id (just upserted, not yet indexed) — treating as greenfield" >&2
+      echo "  routing → initializeMarket + openEpoch (greenfield)" >&2
+      _retro_greenfield_init_open "$typ" "$template_id" "${adv_passthrough[@]}"
+      return $?
+    fi
+    echo "  indexer state unavailable and --no-init set; cannot route. Re-run after the indexer catches up." >&2
+    return 1
+  fi
+  ae="$(echo "$state" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("activeEpochId") or 0)' 2>/dev/null || echo 0)"
+  lr="$(echo "$state" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("lastResolvedEpochId") or 0)' 2>/dev/null || echo 0)"
+  ver="$(echo "$state" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("version") or 0)' 2>/dev/null || echo 0)"
+  echo "  state: version=$ver activeEpochId=$ae lastResolvedEpochId=$lr" >&2
+  if [[ "$no_init" -eq 0 && "$ae" == "0" && "$lr" == "0" ]]; then
+    echo "  routing → initializeMarket + openEpoch (greenfield)" >&2
+    _retro_greenfield_init_open "$typ" "$template_id" "${adv_passthrough[@]}"
+    return $?
+  fi
+  if [[ "$ae" == "$lr" ]]; then
+    echo "  routing → activate-epoch (open next epoch)" >&2
+    _cmd_activate_epoch "$typ" "${adv_passthrough[@]}"
+    return $?
+  fi
+  echo "  routing → advance-epoch (lock → resolve → open)" >&2
+  _cmd_activate_epoch --advance "$typ" "${adv_passthrough[@]}"
+}
+
+# recover-feed-drift <NN|01-09|0x<templateId>> [--wait s]
+# Standalone surface to the same logic that auto-deploy step [4.5/5] runs:
+# detect a stuck Open/Locked epoch whose snapshotted oracleFeedId reverts (No access /
+# FeedDecimalsNotConfigured) and cancel it so the next openEpoch can snapshot the new feed.
+# Use this when the fixture + adapter are already correct (so re-running discover/upsert/fix
+# would be wasted work) and you only need to clear the on-chain epoch.
+_cmd_recover_feed_drift() {
+  local typ="" template_id="" idx_wait="${RETRODEPLOYER_INDEX_WAIT_SEC:-15}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help | help)
+      cat >&2 <<'EOF'
+usage: RETRODEPLOYER recover-feed-drift <1-9|01-09|0x<templateId>> [--wait s]
+  Cancel a stuck Open/Locked epoch whose snapshotted oracleFeedId reverts at lock time.
+  Detects feed-drift via an eth_call dry-run of lockEpochsBatch; if the dry-run reverts
+  with "No access" or "FeedDecimalsNotConfigured", broadcasts cancelEpoch(reason=6, voided=true)
+  so the next openEpoch can snapshot the freshly upserted feed.
+  Auto-cancel only runs on Base Sepolia (chainId 84532); set RETRODEPLOYER_RECOVER_ALLOW_PROD=1
+  to override.
+  Aliased as `recover-stuck-feed`.
+EOF
+      return 0
+      ;;
+    --template-id) template_id="${2:?}"; shift 2 ;;
+    --wait) idx_wait="${2:?}"; shift 2 ;;
+    *)
+      if [[ -z "$typ" && -z "$template_id" ]]; then
+        local raw="${1//[[:space:]]/}"
+        if [[ "$raw" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+          template_id="$(tr '[:upper:]' '[:lower:]' <<<"$raw" | tr -d '\n')"
+        else
+          typ="$raw"
+        fi
+        shift
+      else
+        echo "error: unexpected argument: $1" >&2
+        return 1
+      fi
+      ;;
+    esac
+  done
+  if [[ -z "$template_id" && -z "$typ" ]]; then
+    echo "error: pass a manual type 1-9/01-09 or a 0x+64hex templateId (or --template-id)" >&2
+    return 1
+  fi
+  if [[ -z "$template_id" ]]; then
+    typ="$(_normalize_manual_type_key "$typ")" || {
+      echo "error: type must be 1-9 or 01-09 (or pass a 0x+64hex templateId)" >&2
+      return 1
+    }
+    template_id="$(_template_id_for_type "$typ")" || return 1
+  fi
+  template_id="$(tr '[:upper:]' '[:lower:]' <<<"$template_id" | tr -d '\n')"
+  echo "RETRODEPLOYER · recover-feed-drift  templateId=$template_id" >&2
+  _retro_recover_stuck_feed_drift "$template_id" "$idx_wait"
+}
+
+_cmd_template_routes() {
+  local base="${API_URL:-http://127.0.0.1:8080}"
+  base="${base%/}/api/v1/ops"
+  echo "RETRODEPLOYER · template & epoch routes (read-only + prepare)"
+  echo "  base: $base"
+  echo "  GET  $base/templates"
+  echo "  GET  $base/templates/{templateId}/state"
+  echo "  GET  $base/templates/{templateId}/epochs/{epochId}"
+  echo "  POST $base/tx/prepare  body: { \"function\": \"<name>\", \"args\": [...] }"
+  echo ""
+  echo "activate-epoch = openEpoch only. It does not lock/resolve. If activeEpoch and lastResolved differ,"
+  echo "  run: prepare-lock-epoch → send → (wait) → prepare-resolve-epoch → send, then activate-epoch for next id."
+  echo "  Or one-shot (waits for lockAt/resolveAt):  $V1_ROOT/scripts/RETRODEPLOYER advance-epoch <1-9|0x|--template-id ...> [--max-wait 7800] [--wait 15]"
+  echo "  Quick dev cycle (short windows): activate-epoch ... --fast  (open=+10s lock=+45s resolve=+90s)"
+  echo "  $V1_ROOT/scripts/RETRODEPLOYER prepare-lock-epoch --template-id 0x<64 hex> [--epoch-id N]"
+  echo "  $V1_ROOT/scripts/RETRODEPLOYER prepare-resolve-epoch --template-id 0x<64 hex> [--epoch-id N]"
+  echo ""
+  echo "If lock/resolve fails with 'No access', the configured Chainlink feed rejects contract reads (tx.origin gate)."
+  echo "  One-shot any-state→trade-ready:    $V1_ROOT/scripts/RETRODEPLOYER auto-deploy <NN>   [--fast]"
+  echo "  Stale snapshot only (fixture/adapter already correct):"
+  echo "                                     $V1_ROOT/scripts/RETRODEPLOYER recover-feed-drift <NN|0x>"
+  echo "  Manual sequence:"
+  echo "    1. $V1_ROOT/scripts/RETRODEPLOYER feeds discover                   # parse baseFeeds.md + on-chain validate"
+  echo "    2. $V1_ROOT/scripts/RETRODEPLOYER feeds auto-assign <NN|all>       # rewrite oracleFeedId in upsert fixture"
+  echo "    3. $V1_ROOT/scripts/RETRODEPLOYER feeds fix-adapter <feed> ...     # setFeedDecimals on the chosen feed"
+  echo "    4. $V1_ROOT/scripts/RETRODEPLOYER prepare upsert <NN> + send       # push template config on-chain"
+  echo "    5. $V1_ROOT/scripts/RETRODEPLOYER advance-epoch <NN>               # lock → resolve → open"
+  echo "  Why an extra step: lockEpoch reads e.oracleFeedId snapshotted at openEpoch — re-upserting the"
+  echo "  template does NOT repoint an already-Open epoch's feed (see _snapshotEpochTemplateMarketConfig)."
+  echo ""
+  echo "activate-epoch (Manual openEpoch + send) by templateId — pick one:"
+  echo "  $V1_ROOT/scripts/RETRODEPLOYER activate-epoch --template-id 0x<64 hex> [--epoch-id N] [--advance --wait 30] [--prepare-only]"
+  echo "  $V1_ROOT/scripts/RETRODEPLOYER activate-epoch 0x<64 hex> [--epoch-id N]   # positional, same as --template-id"
+  echo "  $V1_ROOT/scripts/RETRODEPLOYER advance-epoch <1-9|0x|--template-id ...> [--wait 30]   # alias for activate-epoch --advance"
+  echo "  $V1_ROOT/scripts/RETRODEPLOYER routes   # (this screen)"
+  echo "See also: package/contract/.operator/.runbook.md"
+}
+
+_cmd_help() {
+  _print_design_banner
+  echo -e "${M}${B}Interface${R}  ${D}· calldata (prepare) + broadcast (cast send)  ·  ${D}source:${R} ${S}package/contract/scripts/market/${R}"
+  echo ""
+  echo -e "${A}${B}  ★  deploy  ${R}${D}← full pipeline: 9 types, keystore + password${R}"
+  echo -e "     ${C}./scripts/retro d${R}  ${D}|${R}  ${C}./scripts/RETRODEPLOYER deploy-all${R}  ${D}|${R}  ${C}pnpm run retropick:deploy${R}"
+  echo -e "     ${D}Menu: ${A}${B}1${R} — or run ${C}./scripts/retro${R} / ${C}pnpm run retro${R} ${D}(opens menu)${R}"
+  echo ""
+  echo -e "${T}${B}Usage${R} ${D}(run from V1 monorepo root)${R}"
+  echo -e "  ${C}./scripts/retro${R}  ${D}or${R}  ${C}./scripts/retro menu${R}  ${D}or${R}  ${C}pnpm run retro${R}     ${D}open menu${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER${R}  ${D}(no subcommand)${R}                    ${D}— same as ${C}menu${R} / ${C}./scripts/retro${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER help${R}          ${D}this screen${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER menu${R}          ${D}same as ${C}./scripts/retro${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare upsert <1-9|01-09|path>${R}  ${D}· Chainlink ${M}oracleFeedId${D} in fixture + ${M}https://docs.chain.link/data-feeds/price-feeds/addresses${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare fn <fn> <args.json>${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare all${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare all-to <dir>${R} ${D}[--types all|01,03 --only upsert|init|all]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER launch <1-9|01-09>${R} ${D}[${R} ${C}open --open-at S --lock-at S --resolve-at S ${D}]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER send <json|->${R}  ${D}· or ${M}send last-lock${D} / ${M}last-resolve${D} / ${M}last-activate${D} (newest /tmp/retropick-*.json)${R}"
+  echo -e "  ${D}On revert,${R} ${M}broadcast-prepared-ops-tx${D} prints hints for ${M}No access${D} / ${M}TooEarlyToResolve${D} (oracle access, timing, lock before resolve).${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER deploy-all${R} ${D}[--types all|01,03 --only upsert|init|open|all --from-step prepare|upinit|open --resume|--strict --dry-run --retries N --retry-delay S]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER activate-epoch${R} ${D}<1-9|01-09|0x...| --template-id 0x...> [opts]${R}  ${D}· Manual openEpoch; omit ${M}--epoch-id${D} to use next id from API; if active≠last resolved, ${M}prepare-lock-epoch${D} / ${M}prepare-resolve-epoch${D} — ${M}./scripts/RETRO routes${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER advance-epoch${R} ${D}<1-9|01-09|0x...| --template-id 0x...> [${M}--max-wait 7800${R}${D}] [${M}--wait 15${R}${D}]  ${D}· one-shot ${M}lock${D} → ${M}resolve${D} → ${M}open${D}; sleeps until ${M}lockAt${D}/${M}resolveAt${D}, skips already-on-chain steps${R}"
+  echo -e "  ${D}Add${R} ${M}--fast${R} ${D}for short-window epochs (open=+10s lock=+45s resolve=+90s) suited to dev/demo cycling.${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare-lock-epoch${R} ${D}--template-id 0x... [${M}--epoch-id N --send${D}]  ${D}· ${M}lockEpochsBatch${D} (optional ${M}--send${D} to broadcast)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare-resolve-epoch${R} ${D}--template-id 0x... [${M}--epoch-id N --send${D}]  ${D}· ${M}resolveEpochsBatch${D}${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER routes${R}  ${D}· templateId HTTP paths + ${M}activate-epoch / lock / resolve${D} examples${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER feeds discover${R}  ${D}· parse baseFeeds.md, validate on-chain, probe via every adapter (price/rate/smartdata/macro/equity)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER feeds auto-assign${R} ${D}<NN|all>  ${D}· rewrite ${M}oracleFeedId${D} in upsert fixtures + sync ${M}feedregistry/registry.json${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER feeds fix-adapter${R} ${D}<feed1> [feed2 ...]  ${D}· call ${M}adapter.setFeedDecimals${D} (must hold the adapter owner key)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER auto-deploy${R} ${D}<1-9|01-09> [--fast]  ${D}· one-shot any-state→trade-ready: discover → auto-assign → fix-adapter → upsert → recover-stuck → init|advance${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER recover-feed-drift${R} ${D}<1-9|01-09|0x...> ${D}· cancelEpoch when an Open/Locked epoch snapshotted a now-dead feed (e.g. gated Chainlink)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER resume-open${R} ${D}[--work-dir .retropick-deploy --retries N --retry-delay S]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER batch-send${R} ${D}[-y --resume|--strict --manifest path --retries N --retry-delay S]${R} ${M}<dir>${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER prepare-open-all${R} ${D}--out-dir ... --open-at ... --lock-at ... --resolve-at ... [--types all|01,03]${R}  ${D}· regenerate if lockAt stale${R}"
+  echo ""
+  echo -e "${T}${B}Monitoring${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER monitor overview${R} ${D}[--check]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER monitor global${R} ${D}[--live]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER monitor templates${R} ${D}[--active|--all]${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER monitor trade-ready${R}  ${D}· epoch Open + in betting window?${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER frontend-visibility${R} ${D}{ hide | unhide | list } [templateId|slug]  ${D}· hide from fe-v1${M} /app/chain-markets${D} (${M}GET /api/v1/markets${D} omits; detail 404)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER monitor incidents${R} ${D}| keeper | oracle | selector <0x...> | watch${R}"
+  echo ""
+  echo -e "${T}${B}Emergency${R} ${D}(prepare-only; no silent broadcast)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER emergency prepare pause true${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER emergency prepare halt-rolling <templateId>${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER emergency prepare genesis-start-rolling <templateId>${R}  ${D}· prepare-only; then send${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER emergency prepare cancel-epoch <templateId> <epochId> <reason:uint8> <voided>${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER emergency prepare yield-withdraw <templateId>${R}"
+  echo ""
+  echo -e "${T}${B}Env${R}"
+  echo -e "  ${D}Loads${R} ${M}package/contract/.env${R} ${D}·${R} ${M}API_URL${R} ${D}default${R} http://127.0.0.1:8080  ·  ${M}RPC_URL${R} ${D}·${R} ${M}CAST_ACCOUNT${R} ${D}·${R} ${M}ETH_PASSWORD${R} ${D}(optional path to one-line keystore password file; Foundry)${R}"
+  echo -e "  ${D}Launch (open):${R} ${M}OPEN_AT LOCK_AT RESOLVE_AT EPOCH_ID${R}"
+  echo -e "  ${D}Send:${R} ${M}SKIP_CHAIN_CHECK DRY_RUN${R}"
+  echo -e "  ${D}deploy-all / activate-epoch / prepare-open times:${R} ${M}RETRODEPLOYER_OPEN_OFFSET_SEC RETRODEPLOYER_LOCK_OFFSET_SEC RETRODEPLOYER_RESOLVE_OFFSET_SEC${R}"
+  echo -e "  ${D}advance-epoch:${R} ${M}RETRODEPLOYER_MAX_WAIT_SEC${R} ${D}(cap on lockAt/resolveAt wait)${R} ${M}RETRODEPLOYER_INDEX_WAIT_SEC${R} ${D}(settle after each tx)${R} ${M}RETRODEPLOYER_FAST_EPOCH=1${R} ${D}(--fast windows)${R}"
+  echo -e "  ${D}deploy-all:${R} ${M}RETRODEPLOYER_WORK_DIR RETRODEPLOYER_WAIT_SEC RETRODEPLOYER_TYPES RETRODEPLOYER_ONLY RETRODEPLOYER_RESUME RETRODEPLOYER_DRY_RUN RETRODEPLOYER_SEND_RETRIES RETRODEPLOYER_SEND_RETRY_DELAY${R}"
+  echo -e "  ${D}Disable color:${R} ${M}NO_COLOR=1${R}"
+  echo ""
+  echo -e "${T}${B}More${R}"
+  echo -e "  ${D}batch-send:${R} ${M}order.lst${R} ${D}or${R} ${M}NN-up.json + NN-init.json${R} ${D}(…then optional NN-open.json)${R}"
+  echo -e "  ${D}prepare-open-all + deploy-all runbook:${R} ${M}.scripts.md${R} ${D}in repo root${R}"
+  echo -e "  ${D}Shorthand:${R}  ${C}./scripts/retro d${R} (deploy)  ${C}./scripts/retro mon overview${R}  ${C}./scripts/retro e prepare pause true${R}  ${C}./scripts/retro bs -y <dir>${R}"
+  echo ""
+}
+
+# One line: API + RPC from env (after load-env) so the menu reflects current config.
+_cmd_menu_context() {
+  local rpc api
+  api="${API_URL:-http://127.0.0.1:8080}"
+  rpc="${RPC_URL:-${FOUNDRY_ETH_RPC_URL:-${ETH_RPC_URL:-}}}"
+  if [[ -n "$rpc" ]]; then
+    echo -e "${D}  env  ·  API_URL=${M}$api${R}  ${D}·${R}  RPC_URL=${M}$rpc${R}" >&2
+  else
+    echo -e "${D}  env  ·  API_URL=${M}$api${R}  ${D}·  RPC_URL=${D}(unset — set RPC_URL in package/contract/.env)${R}" >&2
+  fi
+  echo "" >&2
+}
+
+_cmd_menu() {
+  while true; do
+    echo "" >&2
+    _print_design_banner
+    _cmd_menu_context
+    echo -e "${A}${B}  RETRODEPLOYER menu${R}  ${D}· categorized deployment, monitoring, emergency prepare${R}" >&2
+    echo -e "${D}  ───────────────────────────────────────────${R}" >&2
+    echo -e "${T}Pick 1–5 ${D}(${C}./scripts/retro${D} / ${C}pnpm run retro${D} = this menu)${R}  ${D}·  Ctrl+C exit${R}" >&2
+    if [[ -n "${NO_COLOR:-}" ]]; then
+      PS3="? "
+    else
+      PS3=$'\e[1;35m? \e[0m'
+    fi
+    select _sel in \
+      "1 · Deployment" \
+      "2 · Monitoring" \
+      "3 · Emergency prepare" \
+      "4 · Advanced JSON" \
+      "5 · Help / quit"; do
+      case "$_sel" in
+      "1 · Deployment") _cmd_menu_deployment; break ;;
+      "2 · Monitoring") _cmd_menu_monitoring; break ;;
+      "3 · Emergency prepare") _cmd_menu_emergency; break ;;
+      "4 · Advanced JSON") _cmd_menu_advanced; break ;;
+      "5 · Help / quit")
+        _cmd_help
+        read -r -p "Return to menu? (Y/n) " _again
+        [[ "${_again:-Y}" == [nN]* ]] && return 0
+        break
+        ;;
+      *) echo -e "${T}Invalid — pick 1–5.${R}" >&2; break ;;
+      esac
+    done
+  done
+}
+
+_cmd_menu_deployment() {
+  PS3="? "
+  select _sel in \
+    "auto-deploy ★ (any-state → trade-ready)" \
+    "deploy all (full pipeline)" \
+    "activate epoch (one type)" \
+    "advance epoch (lock+resolve+open)" \
+    "resume open batch" \
+    "prepare all" \
+    "upsert one type" \
+    "launch one type" \
+    "prepare open all" \
+    "back"; do
+    case "$_sel" in
+    "auto-deploy ★ (any-state → trade-ready)")
+      read -r -p "Type 1-9/01-09: " _t
+      _t="${_t//[[:space:]]/}"
+      read -r -p "Use --fast (short windows for dev cycles)? [y/N]: " _fast
+      if [[ "${_fast:-N}" == [yY]* ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" auto-deploy "$_t" --fast
+      else
+        "$V1_ROOT/scripts/RETRODEPLOYER" auto-deploy "$_t"
+      fi
+      return
+      ;;
+    "deploy all (full pipeline)") "$V1_ROOT/scripts/RETRODEPLOYER" deploy-all; return ;;
+    "activate epoch (one type)")
+      read -r -p "Type 1-9/01-09, or paste 0x+64hex templateId, or blank to enter templateId next: " _t
+      _t="${_t//[[:space:]]/}"
+      if [[ -n "$_t" && "$_t" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" activate-epoch --template-id "$_t"
+      elif [[ -n "$_t" ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" activate-epoch "$_t"
+      else
+        read -r -p "templateId 0x...: " _tid
+        _tid="${_tid//[[:space:]]/}"
+        "$V1_ROOT/scripts/RETRODEPLOYER" activate-epoch --template-id "$_tid"
+      fi
+      return
+      ;;
+    "advance epoch (lock+resolve+open)")
+      read -r -p "Type 1-9/01-09, or paste 0x+64hex templateId, or blank to enter templateId next: " _t
+      _t="${_t//[[:space:]]/}"
+      read -r -p "Indexer settle after each tx, seconds [15]: " _w
+      _w="${_w:-15}"
+      read -r -p "Max wall-clock wait for lockAt/resolveAt, seconds [7800]: " _mw
+      _mw="${_mw:-7800}"
+      if [[ -n "$_t" && "$_t" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" activate-epoch --advance --wait "$_w" --max-wait "$_mw" --template-id "$_t"
+      elif [[ -n "$_t" ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" activate-epoch --advance --wait "$_w" --max-wait "$_mw" "$_t"
+      else
+        read -r -p "templateId 0x...: " _tid
+        _tid="${_tid//[[:space:]]/}"
+        "$V1_ROOT/scripts/RETRODEPLOYER" activate-epoch --advance --wait "$_w" --max-wait "$_mw" --template-id "$_tid"
+      fi
+      return
+      ;;
+    "resume open batch") "$V1_ROOT/scripts/RETRODEPLOYER" resume-open; return ;;
+    "prepare all") "$V1_ROOT/scripts/RETRODEPLOYER" prepare all; return ;;
+    "upsert one type") read -r -p "Type 1-9 or 01-09: " _t; _cmd_prepare_upsert "$_t"; return ;;
+    "launch one type") read -r -p "Type 1-9 or 01-09: " _t; "$V1_ROOT/scripts/RETRODEPLOYER" launch "$_t"; return ;;
+    "prepare open all")
+      read -r -p "Out dir: " _od
+      read -r -p "OPEN_AT (unix s): " _oa
+      read -r -p "LOCK_AT (unix s): " _la
+      read -r -p "RESOLVE_AT (unix s): " _ra
+      read -r -p "EPOCH_ID [1]: " _ei
+      "$V1_ROOT/scripts/RETRODEPLOYER" prepare-open-all --out-dir "$_od" --open-at "$_oa" --lock-at "$_la" --resolve-at "$_ra" --epoch-id "${_ei:-1}"
+      return
+      ;;
+    "back") return ;;
+    *) echo "Invalid." >&2 ;;
+    esac
+  done
+}
+
+_cmd_menu_monitoring() {
+  PS3="? "
+  select _sel in "overview" "global live" "published/active templates" "trade-ready" "incidents" "keeper" "oracle" "selector" "watch" "hide from app (fe listing)" "unhide (fe listing)" "list app-hidden" "back"; do
+    case "$_sel" in
+    "overview") "$V1_ROOT/scripts/RETRODEPLOYER" monitor overview; return ;;
+    "global live") "$V1_ROOT/scripts/RETRODEPLOYER" monitor global --live; return ;;
+    "published/active templates") "$V1_ROOT/scripts/RETRODEPLOYER" monitor templates --active; return ;;
+    "trade-ready") "$V1_ROOT/scripts/RETRODEPLOYER" monitor trade-ready; return ;;
+    "incidents") "$V1_ROOT/scripts/RETRODEPLOYER" monitor incidents; return ;;
+    "keeper") "$V1_ROOT/scripts/RETRODEPLOYER" monitor keeper; return ;;
+    "oracle") "$V1_ROOT/scripts/RETRODEPLOYER" monitor oracle; return ;;
+    "selector") read -r -p "Selector (0x...): " _s; "$V1_ROOT/scripts/RETRODEPLOYER" monitor selector "$_s"; return ;;
+    "watch") read -r -p "Interval seconds [10]: " _i; "$V1_ROOT/scripts/RETRODEPLOYER" monitor watch --interval "${_i:-10}"; return ;;
+    "hide from app (fe listing)")
+      read -r -p "templateId 0x... or slug: " _tid
+      "$V1_ROOT/scripts/RETRODEPLOYER" frontend-visibility hide "${_tid//[[:space:]]/}"
+      return
+      ;;
+    "unhide (fe listing)")
+      read -r -p "templateId 0x... or slug: " _tid
+      "$V1_ROOT/scripts/RETRODEPLOYER" frontend-visibility unhide "${_tid//[[:space:]]/}"
+      return
+      ;;
+    "list app-hidden") "$V1_ROOT/scripts/RETRODEPLOYER" frontend-visibility list; return ;;
+    "back") return ;;
+    *) echo "Invalid." >&2 ;;
+    esac
+  done
+}
+
+_cmd_menu_emergency() {
+  echo "Emergency is prepare-only. Generated JSON must be sent explicitly." >&2
+  PS3="? "
+  select _sel in "pause/unpause" "halt rolling" "genesis start rolling (prepare)" "cancel epoch" "yield emergency withdraw" "reset yield router failures" "help" "back"; do
+    case "$_sel" in
+    "pause/unpause") read -r -p "Paused? true/false: " _p; "$V1_ROOT/scripts/RETRODEPLOYER" emergency prepare pause "$_p"; return ;;
+    "halt rolling") read -r -p "templateId: " _t; "$V1_ROOT/scripts/RETRODEPLOYER" emergency prepare halt-rolling "$_t"; return ;;
+    "genesis start rolling (prepare)") read -r -p "templateId: " _t; "$V1_ROOT/scripts/RETRODEPLOYER" emergency prepare genesis-start-rolling "$_t"; return ;;
+    "cancel epoch") read -r -p "templateId: " _t; read -r -p "epochId: " _e; read -r -p "reason uint8 [6=ManualAdminCancel]: " _r; read -r -p "voided true/false [false]: " _v; "$V1_ROOT/scripts/RETRODEPLOYER" emergency prepare cancel-epoch "$_t" "$_e" "${_r:-6}" "${_v:-false}"; return ;;
+    "yield emergency withdraw") read -r -p "templateId: " _t; "$V1_ROOT/scripts/RETRODEPLOYER" emergency prepare yield-withdraw "$_t"; return ;;
+    "reset yield router failures") "$V1_ROOT/scripts/RETRODEPLOYER" emergency prepare reset-yield-router; return ;;
+    "help") _emergency_usage; return ;;
+    "back") return ;;
+    *) echo "Invalid." >&2 ;;
+    esac
+  done
+}
+
+_cmd_menu_advanced() {
+  PS3="? "
+  select _sel in "send one JSON" "batch-send dir" "list upsert fixtures" "prepare lock epoch (JSON)" "prepare resolve epoch (JSON)" "template API routes (0x)" "back"; do
+    case "$_sel" in
+    "send one JSON") read -r -p "Path to JSON (or - for stdin): " _p; "$V1_ROOT/scripts/RETRODEPLOYER" send "$_p"; return ;;
+    "template API routes (0x)") "$V1_ROOT/scripts/RETRODEPLOYER" routes; return ;;
+    "prepare lock epoch (JSON)")
+      read -r -p "TemplateId 0x... or 01-09: " _tid
+      read -r -p "epoch-id [1]: " _eid
+      _eid="${_eid:-1}"
+      _tid="${_tid//[[:space:]]/}"
+      if [[ "$_tid" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" prepare-lock-epoch --template-id "$_tid" --epoch-id "$_eid"
+      else
+        "$V1_ROOT/scripts/RETRODEPLOYER" prepare-lock-epoch --epoch-id "$_eid" "$_tid"
+      fi
+      return
+      ;;
+    "prepare resolve epoch (JSON)")
+      read -r -p "TemplateId 0x... or 01-09: " _tid
+      read -r -p "epoch-id [1]: " _eid
+      _eid="${_eid:-1}"
+      _tid="${_tid//[[:space:]]/}"
+      if [[ "$_tid" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+        "$V1_ROOT/scripts/RETRODEPLOYER" prepare-resolve-epoch --template-id "$_tid" --epoch-id "$_eid"
+      else
+        "$V1_ROOT/scripts/RETRODEPLOYER" prepare-resolve-epoch --epoch-id "$_eid" "$_tid"
+      fi
+      return
+      ;;
+    "batch-send dir")
+      read -r -p "Dir (V1-relative or abs): " _d
+      read -r -p "Auto-confirm all? (y/N) " _ay
+      if [[ "${_ay:-}" == [yY]* ]]; then "$V1_ROOT/scripts/RETRODEPLOYER" batch-send --yes "$_d"; else "$V1_ROOT/scripts/RETRODEPLOYER" batch-send "$_d"; fi
+      return
+      ;;
+    "list upsert fixtures") echo "Fixtures: $UPSERT_DIR/*.manual.json"; find "$UPSERT_DIR" -maxdepth 1 -type f -name '*.manual.json' -print 2>/dev/null | sort || true; return ;;
+    "back") return ;;
+    *) echo "Invalid." >&2 ;;
+    esac
+  done
+}
+
+_cmd_prepare_upsert() {
+  local key="${1:?usage: prepare upsert <01-09|path.json>}"
+  local f
+  if [[ "$key" =~ ^[1-9]$ || "$key" =~ ^0[1-9]$ ]]; then
+    key="$(_normalize_manual_type_key "$key")" || {
+      echo "error: type must be 1-9 or 01-09" >&2
+      exit 1
+    }
+  fi
+  if [[ "$key" =~ ^0[1-9]$ ]]; then
+    f="$(_map_upsert_file "$key")" || {
+      echo "error: type must be 01-09" >&2
+      exit 1
+    }
+  else
+    f="$key"
+    if [[ "$f" != /* ]]; then
+      f="$V1_ROOT/${f#./}"
+    fi
+  fi
+  if [[ ! -f "$f" ]]; then
+    echo "error: file not found: $f" >&2
+    exit 1
+  fi
+  PRETTY="${PRETTY:-1}" BROADCAST=0 API_URL="$API_URL" \
+    "$MARKET_DIR/prepare-upsert-template.sh" "$f"
+}
+
+_cmd_prepare_fn() {
+  local fn="${1:?usage: prepare fn <function> <args.json>}"
+  local argsf="${2:?usage: prepare fn <function> <args.json>}"
+  if [[ "$argsf" != /* ]]; then
+    argsf="$V1_ROOT/${argsf#./}"
+  fi
+  if [[ ! -f "$argsf" ]]; then
+    echo "error: args file not found: $argsf" >&2
+    exit 1
+  fi
+  PRETTY="${PRETTY:-1}" BROADCAST=0 API_URL="$API_URL" \
+    "$MARKET_DIR/prepare-ops-tx.sh" "$fn" "$argsf"
+}
+
+_cmd_prepare_all() {
+  local inner="$V1_ROOT/scripts/market/prepare-all-manual-types.sh"
+  if [[ ! -x "$inner" ]]; then
+    chmod +x "$inner" 2>/dev/null || true
+  fi
+  API_URL="$API_URL" "$inner"
+}
+
+# launch <01-09> [open ...]
+_cmd_launch() {
+  local typ="${1:?usage: launch <1-9|01-09> [open ...]}"
+  shift
+  typ="$(_normalize_manual_type_key "$typ")" || {
+    echo "error: type must be 1-9 or 01-09" >&2
+    exit 1
+  }
+
+  local with_open=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    open)
+      with_open=1
+      shift
+      ;;
+    --open-at)
+      OPEN_AT="${2:?}"
+      shift 2
+      ;;
+    --lock-at)
+      LOCK_AT="${2:?}"
+      shift 2
+      ;;
+    --resolve-at)
+      RESOLVE_AT="${2:?}"
+      shift 2
+      ;;
+    --epoch-id)
+      EPOCH_ID="${2:?}"
+      shift 2
+      ;;
+    *)
+      echo "error: unexpected argument: $1" >&2
+      exit 1
+      ;;
+    esac
+  done
+
+  if [[ "$with_open" -eq 1 ]]; then
+    : "${OPEN_AT:?set OPEN_AT or use --open-at}"
+    : "${LOCK_AT:?set LOCK_AT or use --lock-at}"
+    : "${RESOLVE_AT:?set RESOLVE_AT or use --resolve-at}"
+    export WITH_OPEN_EPOCH=1
+  else
+    unset WITH_OPEN_EPOCH 2>/dev/null || true
+  fi
+
+  export OPEN_AT="${OPEN_AT:-}"
+  export LOCK_AT="${LOCK_AT:-}"
+  export RESOLVE_AT="${RESOLVE_AT:-}"
+  export EPOCH_ID="${EPOCH_ID:-1}"
+
+  PRETTY="${PRETTY:-1}" BROADCAST=0 API_URL="$API_URL" \
+    "$MARKET_DIR/launch/launch-by-type.sh" "$typ"
+}
+
+# Newest mtime under /tmp matching glob (e.g. retropick-lock-epoch-*.json). One line: absolute path, or return 1.
+_retro_newest_retropick_tmp() {
+  local pattern="${1:?glob under /tmp}"
+  local newest=""
+  shopt -s nullglob
+  local files=(/tmp/${pattern})
+  shopt -u nullglob
+  ((${#files[@]})) || return 1
+  newest="$(ls -t "${files[@]}" 2>/dev/null | head -1)"
+  [[ -n "$newest" && -f "$newest" ]] || return 1
+  printf '%s' "$newest"
+}
+
+# True if the user pasted a doc/example path instead of the real /tmp/... from prepare.
+_retro_is_send_path_placeholder() {
+  local p="${1-}"
+  case "$p" in
+  *"/path/printed/"* | *"/path/printed" | *"path/printed"*)
+    return 0
+    ;;
+  *"<path"*) return 0 ;;
+  *"path-to-lock"*) return 0 ;;
+  *"path-to-resolve"*) return 0 ;;
+  *"path-to-"*) return 0 ;;
+  *"/example"*) return 0 ;;
+  esac
+  return 1
+}
+
+_cmd_send() {
+  local f="${1:?usage: send <prepare.json|last-lock|last-resolve|last-activate|->}"
+  case "$f" in
+  last-lock | --last-lock)
+    f="$(_retro_newest_retropick_tmp 'retropick-lock-epoch-*.json')" || {
+      echo "error: no /tmp/retropick-lock-epoch-*.json; run prepare-lock-epoch first" >&2
+      return 1
+    }
+    echo "send: using newest lock prepare JSON: $f" >&2
+    ;;
+  last-resolve | --last-resolve)
+    f="$(_retro_newest_retropick_tmp 'retropick-resolve-epoch-*.json')" || {
+      echo "error: no /tmp/retropick-resolve-epoch-*.json; run prepare-resolve-epoch first" >&2
+      return 1
+    }
+    echo "send: using newest resolve prepare JSON: $f" >&2
+    ;;
+  last-activate | --last-activate)
+    f="$(_retro_newest_retropick_tmp 'retropick-activate-epoch-*.json')" || {
+      echo "error: no /tmp/retropick-activate-epoch-*.json; run activate-epoch --prepare-only first" >&2
+      return 1
+    }
+    echo "send: using newest activate-epoch prepare JSON: $f" >&2
+    ;;
+  esac
+  if [[ "$f" != /* && "$f" != - ]]; then
+    f="$V1_ROOT/${f#./}"
+  fi
+  if [[ "$f" != - && ! -f "$f" ]]; then
+    if _retro_is_send_path_placeholder "$f"; then
+      echo "error: that path is a documentation placeholder, not a real file." >&2
+      echo "hint: re-run the prepare subcommand; use the path printed on the line that starts with file= (e.g. /tmp/retropick-....json) as the argument to send." >&2
+      return 1
+    fi
+    echo "error: file not found: $f" >&2
+    echo "hint: use the file=... path from the prepare output, or a path to a valid prepare-response JSON from the API." >&2
+    return 1
+  fi
+  if [[ "${RETRODEPLOYER_DRY_RUN:-0}" == "1" ]]; then
+    DRY_RUN=1 "$RETRODEPLOYER_BROADCAST_SCRIPT" "$f"
+  else
+    "$RETRODEPLOYER_BROADCAST_SCRIPT" "$f"
+  fi
+}
+
+_send_prepared_resume_safe() {
+  local f="${1:?}" meta fn template_id typ epoch_id reason out st tx_hash="" attempt=1 max_attempts delay
+  meta="$(_prepared_meta "$f")"
+  IFS=$'\t' read -r fn template_id typ epoch_id <<<"$meta"
+  reason="$(_preflight_skip_reason "$fn" "$template_id" "$epoch_id" 2>/dev/null || true)"
+  if [[ -n "$reason" ]]; then
+    echo "skip: $fn ${typ:+type=$typ }${template_id:+templateId=$template_id }${epoch_id:+epochId=$epoch_id }— $reason" >&2
+    _manifest_append skipped "$f" "$fn" "$reason" "" "$template_id" "$typ" "$epoch_id"
+    return 0
+  fi
+
+  max_attempts="${RETRODEPLOYER_SEND_RETRIES:-3}"
+  delay="${RETRODEPLOYER_SEND_RETRY_DELAY:-3}"
+  [[ "$max_attempts" =~ ^[0-9]+$ ]] || max_attempts=3
+  [[ "$delay" =~ ^[0-9]+$ ]] || delay=3
+  (( max_attempts < 1 )) && max_attempts=1
+
+  while true; do
+    set +e
+    out="$(_cmd_send "$f" 2>&1)"
+    st=$?
+    set -e
+    printf '%s\n' "$out"
+    if [[ $st -eq 0 ]]; then
+      break
+    fi
+    reason="$(_classify_send_error "$fn" "$out" 2>/dev/null || true)"
+    if [[ "$reason" == "transient RPC transport failure" && "$attempt" -lt "$max_attempts" ]]; then
+      echo "retry: $fn ${typ:+type=$typ }attempt $attempt/$max_attempts failed — $reason; sleeping ${delay}s" >&2
+      sleep "$delay"
+      ((++attempt)) || true
+      continue
+    fi
+    break
+  done
+  if [[ $st -eq 0 ]]; then
+    tx_hash="$(printf '%s\n' "$out" | awk '/transactionHash[[:space:]]+0x[0-9a-fA-F]+/{print $2; exit}')"
+    _manifest_append sent "$f" "$fn" "" "$tx_hash" "$template_id" "$typ" "$epoch_id"
+    return 0
+  fi
+
+  reason="${reason:-$(_classify_send_error "$fn" "$out" 2>/dev/null || true)}"
+  if [[ -n "$reason" && "$reason" != openEpoch\ InvalidTemplate:* && "${RETRODEPLOYER_RESUME:-0}" == "1" ]]; then
+    echo "skip: $fn ${typ:+type=$typ }${template_id:+templateId=$template_id }${epoch_id:+epochId=$epoch_id }— $reason" >&2
+    _manifest_append skipped "$f" "$fn" "$reason" "" "$template_id" "$typ" "$epoch_id"
+    return 0
+  fi
+
+  [[ -n "$reason" ]] || reason="send failed"
+  _manifest_append failed "$f" "$fn" "$reason" "" "$template_id" "$typ" "$epoch_id"
+  return "$st"
+}
+
+# keccak(utf8 slug) for manual type 01-09; requires cast, python3, xxd
+_template_id_for_type() {
+  local typ="${1:?}"
+  local upsertf
+  upsertf="$(_map_upsert_file "$typ")" || {
+    echo "error: type must be 01-09" >&2
+    return 1
+  }
+  if [[ ! -f "$upsertf" ]]; then
+    echo "error: missing $upsertf" >&2
+    return 1
+  fi
+  if ! command -v python3 &>/dev/null; then
+    echo "error: python3 required" >&2
+    return 1
+  fi
+  local SLUG _bytes_hex
+  SLUG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["slug"])' "$upsertf")"
+  _bytes_hex="$(printf '%s' "$SLUG" | xxd -p -c 1000000 | tr -d '\n')"
+  export PATH="${HOME}/.foundry/bin:${PATH}"
+  if ! command -v cast &>/dev/null; then
+    echo "error: install Foundry cast (templateId = keccak(bytes(slug)))" >&2
+    return 1
+  fi
+  cast keccak "0x${_bytes_hex}"
+}
+
+# Resolve 0x+64hex templateId or a market slug (keccak(utf8(slug)) via same rule as on-chain / fixtures).
+_retro_template_id_from_arg() {
+  local a="${1:?}"
+  a="${a//[[:space:]]/}"
+  if [[ "$a" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+    tr '[:upper:]' '[:lower:]' <<<"$a" | tr -d '\n'
+    return 0
+  fi
+  if ! command -v python3 &>/dev/null; then
+    echo "error: python3 required to hash slug" >&2
+    return 1
+  fi
+  export PATH="${HOME}/.foundry/bin:${PATH}"
+  if ! command -v cast &>/dev/null; then
+    echo "error: pass 0x+64hex templateId or install Foundry cast to derive id from slug" >&2
+    return 1
+  fi
+  local _bytes_hex
+  _bytes_hex="$(printf '%s' "$a" | xxd -p -c 1000000 | tr -d '\n')"
+  cast keccak "0x${_bytes_hex}" | tr '[:upper:]' '[:lower:]' | tr -d '\n'
+}
+
+# POST /api/v1/ops/frontend-visibility — hide | unhide from public /api/v1/markets (fe-v1 chain-markets).
+_cmd_frontend_visibility() {
+  if [[ $# -eq 0 || "$1" == "-h" || "$1" == "--help" || "$1" == help ]]; then
+    cat <<'EOF'
+usage: RETRODEPLOYER frontend-visibility { hide | unhide | list } [templateId|slug]
+  Omits a template from GET /api/v1/markets; market detail and epochs return 404. On-chain
+  state is unchanged. templateId: 0x + 32 bytes, or the slug (keccak(utf8(slug))).
+  Requires API (restart not needed; reads DB each request).
+  Example:  RETRODEPLOYER frontend-visibility hide 0xdf1c...
+             RETRODEPLOYER frontend-visibility unhide my-market-slug
+             RETRODEPLOYER frontend-visibility list
+EOF
+    return 0
+  fi
+  local act="${1:?}" url body out code
+  shift
+  url="${API_URL%/}/api/v1/ops/frontend-visibility"
+  case "$act" in
+  list) body='{"action":"list"}' ;;
+  hide | unhide)
+    local tid_arg="${1:?usage: $act <templateId|slug>}"
+    local tid
+    tid="$(_retro_template_id_from_arg "$tid_arg")" || return 1
+    body="$(python3 -c 'import json,sys; a=sys.argv[1]; t=sys.argv[2]; print(json.dumps({"action":a,"templateId":t}))' "$act" "$tid")"
+    ;;
+  *)
+    echo "error: first arg must be hide, unhide, or list (use --help)" >&2
+    return 1
+    ;;
+  esac
+  out="$(mktemp -t retropick-fe-visibility-XXXXXX.json)" || {
+    echo "error: mktemp failed" >&2
+    return 1
+  }
+  code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "$RETRODEPLOYER_MONITOR_TIMEOUT" -o "$out" -w '%{http_code}' -X POST "$url" \
+    -H 'Content-Type: application/json' -H 'Accept: application/json' --data-binary "$body" 2>/dev/null || true)"
+  if [[ "$code" == 2* ]]; then
+    if command -v python3 &>/dev/null; then
+      python3 -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1])), indent=2))' "$out" 2>/dev/null || cat "$out"
+    else
+      cat "$out"
+    fi
+    echo
+    rm -f "$out"
+    return 0
+  fi
+  echo "error: HTTP ${code:-000} from $url" >&2
+  if [[ "$code" == "404" ]]; then
+    echo "hint: route missing on this API binary — rebuild and restart so POST /api/v1/ops/frontend-visibility is included:" >&2
+    echo "      docker compose up -d --build api   (from repo root)   or   go run ./cmd/api in apps/backend" >&2
+  fi
+  if [[ -z "$code" || "$code" == "000" ]]; then
+    echo "hint: check API_URL and that the API is running (docker compose / go run ./cmd/api)." >&2
+  fi
+  [[ -s "$out" ]] && cat "$out" >&2
+  echo >&2
+  rm -f "$out"
+  return 1
+}
+
+# Write NN-up.json, NN-init.json via API — same calldata as launch per type, split to files
+_cmd_prepare_all_to_dir() {
+  local out_dir="${1:?usage: prepare all-to <dir> [--types all|01,03] [--only upsert|init|all] }"
+  shift || true
+  local types_spec="${RETRODEPLOYER_TYPES:-all}" only="${RETRODEPLOYER_ONLY:-all}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --types)
+      types_spec="${2:?}"
+      shift 2
+      ;;
+    --only)
+      only="${2:?}"
+      shift 2
+      ;;
+    *)
+      echo "usage: prepare all-to <dir> [--types all|01,03] [--only upsert|init|all]" >&2
+      return 1
+      ;;
+    esac
+  done
+  case "$only" in
+  all | upsert | init) ;;
+  *) echo "error: --only must be all, upsert, or init" >&2; return 1 ;;
+  esac
+  if [[ "$out_dir" != /* ]]; then out_dir="$V1_ROOT/${out_dir#./}"; fi
+  mkdir -p "$out_dir" || {
+    echo "error: cannot create $out_dir" >&2
+    return 1
+  }
+  local typ tid init_args n=0
+  while IFS= read -r typ; do
+    [[ -n "$typ" ]] || continue
+    ((++n)) || true
+    tid="$(_template_id_for_type "$typ")" || return 1
+    init_args="$(mktemp)"
+    printf '%s\n' "[\"$tid\"]" >"$init_args"
+    echo "== HTTP prepare type $typ  templateId=$tid ==" >&2
+    if [[ "$only" == "all" || "$only" == "upsert" ]]; then
+      if ! PRETTY=0 BROADCAST=0 API_URL="$API_URL" \
+        "$MARKET_DIR/prepare-upsert-template.sh" "$(_map_upsert_file "$typ")" >"$out_dir/${typ}-up.json"; then
+        rm -f "$out_dir/${typ}-up.json"
+        return 1
+      fi
+      _manifest_append prepared "$out_dir/${typ}-up.json" upsertTemplate "" "" "$tid" "$typ" ""
+    fi
+    if [[ "$only" == "all" || "$only" == "init" ]]; then
+      if ! PRETTY=0 BROADCAST=0 API_URL="$API_URL" \
+        "$MARKET_DIR/prepare-ops-tx.sh" initializeMarket "$init_args" >"$out_dir/${typ}-init.json"; then
+        rm -f "$out_dir/${typ}-init.json"
+        return 1
+      fi
+      _manifest_append prepared "$out_dir/${typ}-init.json" initializeMarket "" "" "$tid" "$typ" ""
+    fi
+    rm -f "$init_args"
+  done < <(_resolve_types "$types_spec")
+  if [[ "$n" -eq 0 ]]; then
+    echo "error: no manual type fixtures found under $UPSERT_DIR" >&2
+    return 1
+  fi
+  echo "Wrote prepare files under $out_dir (types=$types_spec only=$only; ready for batch-send)" >&2
+}
+
+# List JSON paths: order.lst if present, else 01/02/… pattern (+ optional 01-open…09-open)
+_batch_list_jsons() {
+  local d="${1:?}"
+  local t u i o f line
+  if [[ -f "$d/order.lst" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      line="${line#"${line%%[![:space:]]*}"}"
+      line="${line%"${line##*[![:space:]]}"}"
+      [[ -z "$line" || "$line" == \#* ]] && continue
+      if [[ "$line" != /* ]]; then
+        line="$d/$line"
+      fi
+      if [[ -f "$line" ]]; then
+        echo "$line"
+      else
+        echo "error: order.lst line not found: $line" >&2
+        return 1
+      fi
+    done <"$d/order.lst"
+    return 0
+  fi
+  while IFS= read -r t; do
+    [[ -n "$t" ]] || continue
+    u=""
+    for f in "$d/${t}-up.json" "$d/${t}-upsert.json"; do
+      [[ -f "$f" ]] && {
+        u="$f"
+        break
+      }
+    done
+    i=""
+    for f in "$d/${t}-init.json" "$d/${t}-initialize.json"; do
+      [[ -f "$f" ]] && {
+        i="$f"
+        break
+      }
+    done
+    [[ -n "$u" ]] && echo "$u"
+    [[ -n "$i" ]] && echo "$i"
+  done < <(_manual_types)
+  while IFS= read -r t; do
+    [[ -n "$t" ]] || continue
+    o=""
+    for f in "$d/${t}-open.json" "$d/${t}-openepoch.json"; do
+      [[ -f "$f" ]] && {
+        o="$f"
+        break
+      }
+    done
+    [[ -n "$o" ]] && echo "$o"
+  done < <(_manual_types)
+}
+
+_cmd_batch_send() {
+  local auto_yes=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help)
+      echo "usage: batch-send [--yes|-y] [--resume|--strict] [--manifest path] [--dry-run] [--no-preflight] [--retries N] [--retry-delay S] <dir>" >&2
+      return 0
+      ;;
+    --yes | -y) auto_yes=1; shift ;;
+    --resume) RETRODEPLOYER_RESUME=1; shift ;;
+    --strict) RETRODEPLOYER_RESUME=0; shift ;;
+    --manifest) RETRODEPLOYER_MANIFEST="${2:?}"; shift 2 ;;
+    --dry-run) RETRODEPLOYER_DRY_RUN=1; shift ;;
+    --no-preflight) RETRODEPLOYER_PREFLIGHT=0; shift ;;
+    --retries) RETRODEPLOYER_SEND_RETRIES="${2:?}"; shift 2 ;;
+    --retry-delay) RETRODEPLOYER_SEND_RETRY_DELAY="${2:?}"; shift 2 ;;
+    *) break ;;
+    esac
+  done
+  local dir="${1:?usage: batch-send [--yes|-y] [--resume|--strict] [--manifest path] <dir>}"
+  if [[ -n "${2-}" ]]; then
+    echo "error: too many arguments (see: batch-send [--yes] <dir>)" >&2
+    return 1
+  fi
+  if [[ "$dir" != /* ]]; then dir="$V1_ROOT/${dir#./}"; fi
+  if [[ ! -d "$dir" ]]; then
+    echo "error: not a directory: $dir" >&2
+    echo "hint: mkdir -p $dir  then save one prepare JSON per file (or use order.lst); see .scripts.md §2" >&2
+    return 1
+  fi
+  local -a files
+  mapfile -t files < <(_batch_list_jsons "$dir") || return 1
+  if [[ ${#files[@]} -eq 0 ]]; then
+    echo "error: no JSON files to send (add order.lst or NN-up.json/NN-init.json)" >&2
+    return 1
+  fi
+  _warn_open_only_batch "${files[@]}"
+  local n=${#files[@]} idx=0 f fn pyfn ans batch_all=0
+  for f in "${files[@]}"; do
+    ((++idx)) || true
+    fn="${f##*/}"
+    pyfn="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1],encoding="utf-8")).get("function","?"))' "$f" 2>/dev/null || echo "?")"
+    echo "" >&2
+    echo "[$idx/$n] $fn  (function=$pyfn)" >&2
+    if [[ "$auto_yes" -eq 0 && "$batch_all" -eq 0 ]]; then
+      read -r -p "Send this transaction? [y/N/a=all/q=quit] " ans || true
+      case "${ans:-}" in
+      [aA]) batch_all=1 ;;
+      [qQ]) echo "Aborted." >&2; return 0 ;;
+      [yY]) ;;
+      *) echo "Skipped." >&2; continue ;;
+      esac
+    fi
+    _send_prepared_resume_safe "$f" || {
+      echo "error: send failed for $f" >&2
+      if [[ "$pyfn" == "openEpoch" || "$fn" == *open*.json ]]; then
+        echo "hint: if this is InvalidTemplate, upsert+initialize are not mined for this template." >&2
+        echo "      if 0x5bedc9d2 / PreviousEpochUnresolved: the prior manual epoch is not resolved — lock+resolve that epoch, then re-prepare open with correct --epoch-id." >&2
+        echo "      if this is a connection/TLS/RPC error, re-run the same command; retry is automatic and configurable." >&2
+      elif [[ "$pyfn" == "initializeMarket" ]]; then
+        echo "hint: initializeMarket reverts with EpochAlreadyExists when this template is already initialized." >&2
+        echo "      Re-run with --resume to skip already-done init/open steps." >&2
+      fi
+      return 1
+    }
+  done
+  echo "batch-send: done ($n file(s))." >&2
+}
+
+# Warn if batch is only *-open.json: on-chain inits are required first (MarketEngine: ledger.initialized)
+_warn_open_only_batch() {
+  local f base has_init=0 has_open=0
+  for f in "$@"; do
+    base="${f##*/}"
+    case "$base" in
+    *-up.json | *-upsert.json | *-init.json | *-initialize.json) has_init=1 ;;
+    esac
+    case "$base" in
+    *-open.json | *-openepoch.json) has_open=1 ;;
+    esac
+  done
+  if [[ "$has_open" -eq 1 && "$has_init" -eq 0 ]]; then
+    echo "WARNING: this batch has only *-open / openEpoch files (no upsert+init in the list)." >&2
+    echo "  If initializeMarket is not already mined, openEpoch will revert: InvalidTemplate (0xec55b8cd)." >&2
+    echo "  Fix: run batch-send on a directory with 01-up..09-init first; then send opens. See .scripts.md §2" >&2
+  fi
+}
+
+_cmd_prepare_open_all() {
+  local out_dir="" epoch_id=1
+  local open_a="" lock_a="" res_a=""
+  local types_spec="${RETRODEPLOYER_TYPES:-all}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --out-dir)
+      out_dir="${2:?}"
+      shift 2
+      ;;
+    --open-at)
+      open_a="${2:?}"
+      shift 2
+      ;;
+    --lock-at)
+      lock_a="${2:?}"
+      shift 2
+      ;;
+    --resolve-at)
+      res_a="${2:?}"
+      shift 2
+      ;;
+    --epoch-id)
+      epoch_id="${2:?}"
+      shift 2
+      ;;
+    --types)
+      types_spec="${2:?}"
+      shift 2
+      ;;
+    *)
+      echo "error: unknown arg: $1" >&2
+      return 1
+      ;;
+    esac
+  done
+  if [[ -z "$open_a" || -z "$lock_a" || -z "$res_a" || -z "$out_dir" ]]; then
+    echo "usage: prepare-open-all --out-dir <dir> --open-at S --lock-at S --resolve-at S [--epoch-id N]" >&2
+    return 1
+  fi
+  if [[ "$out_dir" != /* ]]; then out_dir="$V1_ROOT/${out_dir#./}"; fi
+  mkdir -p "$out_dir" || {
+    echo "error: cannot create $out_dir" >&2
+    return 1
+  }
+  local typ tid oe n=0
+  while IFS= read -r typ; do
+    [[ -n "$typ" ]] || continue
+    ((++n)) || true
+    tid="$(_template_id_for_type "$typ")" || return 1
+    oe="$(mktemp)"
+    printf '[ "%s", %s, %s, %s, %s ]\n' "$tid" "$epoch_id" "$open_a" "$lock_a" "$res_a" >"$oe"
+    echo "== prepare openEpoch type $typ  templateId=$tid ==" >&2
+    if ! PRETTY="${PRETTY:-1}" BROADCAST=0 API_URL="$API_URL" \
+      "$MARKET_DIR/prepare-ops-tx.sh" openEpoch "$oe" >"$out_dir/${typ}-open.json"; then
+      rm -f "$out_dir/${typ}-open.json"
+      return 1
+    fi
+    _manifest_append prepared "$out_dir/${typ}-open.json" openEpoch "" "" "$tid" "$typ" "$epoch_id"
+    rm -f "$oe"
+  done < <(_resolve_types "$types_spec")
+  if [[ "$n" -eq 0 ]]; then
+    echo "error: no manual type fixtures found under $UPSERT_DIR" >&2
+    return 1
+  fi
+  echo "Wrote openEpoch files under $out_dir (types=$types_spec)" >&2
+  echo "Do not batch-send these until upsert+initialize for each type are confirmed on-chain (or openEpoch reverts InvalidTemplate)." >&2
+  echo "If lockAt is in the past, re-run this command to regenerate; stale *-open.json reverts with InvalidTiming on send." >&2
+}
+
+# Re-fetch ae/lr/init/ex from /api/v1/ops/templates/<id>/state into globals (no echo to stdout).
+_retro_load_template_state() {
+  local template_id="${1:?}" st_json st_url="${API_URL%/}/api/v1/ops/templates/${1}/state" st_code
+  RETRO_STATE_AE=0
+  RETRO_STATE_LR=0
+  RETRO_STATE_INIT=0
+  RETRO_STATE_EX=0
+  st_json="$(mktemp)"
+  st_code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "$RETRODEPLOYER_MONITOR_TIMEOUT" -o "$st_json" -w '%{http_code}' "$st_url" 2>/dev/null || true)"
+  if [[ ! "$st_code" == 2* ]]; then
+    rm -f "$st_json"
+    return 1
+  fi
+  read -r RETRO_STATE_EX RETRO_STATE_INIT RETRO_STATE_AE RETRO_STATE_LR < <(python3 -c '
+import json, sys
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+v=d.get("executionMode", 0)
+ex=int(v) if v is not None else 0
+init=1 if d.get("initialized") else 0
+ae=int(d.get("activeEpochId") or 0)
+lr=int(d.get("lastResolvedEpochId") or 0)
+print(ex, init, ae, lr)
+' "$st_json" 2>/dev/null) || true
+  rm -f "$st_json"
+  RETRO_STATE_AE="${RETRO_STATE_AE:-0}"
+  RETRO_STATE_LR="${RETRO_STATE_LR:-0}"
+  RETRO_STATE_INIT="${RETRO_STATE_INIT:-0}"
+  RETRO_STATE_EX="${RETRO_STATE_EX:-0}"
+  return 0
+}
+
+# Re-fetch openAt/lockAt/resolveAt/status/tx-hashes from /api/v1/ops/templates/<id>/epochs/<eid> into globals.
+# Sets:
+#   RETRO_EPOCH_LOCK_AT_UNIX     unix seconds (0 if missing/invalid)
+#   RETRO_EPOCH_RESOLVE_AT_UNIX  unix seconds (0 if missing/invalid)
+#   RETRO_EPOCH_STATUS           string (e.g. open / locked / resolved)
+#   RETRO_EPOCH_LOCK_TX          tx hash or empty
+#   RETRO_EPOCH_RESOLVE_TX       tx hash or empty
+# Returns 0 on 2xx, 1 on any other status (including 404).
+_retro_load_epoch_times() {
+  local template_id="${1:?}" epoch_id="${2:?}"
+  local url="${API_URL%/}/api/v1/ops/templates/${template_id}/epochs/${epoch_id}"
+  local body code
+  RETRO_EPOCH_LOCK_AT_UNIX=0
+  RETRO_EPOCH_RESOLVE_AT_UNIX=0
+  RETRO_EPOCH_STATUS=""
+  RETRO_EPOCH_LOCK_TX=""
+  RETRO_EPOCH_RESOLVE_TX=""
+  body="$(mktemp)"
+  code="$("$RETRODEPLOYER_CURL_BIN" -sS --max-time "$RETRODEPLOYER_MONITOR_TIMEOUT" -o "$body" -w '%{http_code}' "$url" 2>/dev/null || true)"
+  if [[ ! "$code" == 2* ]]; then
+    rm -f "$body"
+    return 1
+  fi
+  read -r RETRO_EPOCH_LOCK_AT_UNIX RETRO_EPOCH_RESOLVE_AT_UNIX RETRO_EPOCH_STATUS RETRO_EPOCH_LOCK_TX RETRO_EPOCH_RESOLVE_TX < <(python3 -c '
+import json, sys, datetime
+def to_unix(s):
+    if not s: return 0
+    try:
+        # accept "...Z" or "...+00:00"
+        t = s.replace("Z", "+00:00")
+        return int(datetime.datetime.fromisoformat(t).timestamp())
+    except Exception:
+        return 0
+d=json.load(open(sys.argv[1], encoding="utf-8"))
+print(to_unix(d.get("lockAt")), to_unix(d.get("resolveAt")), (d.get("status") or "-"), (d.get("lockTxHash") or "-"), (d.get("resolveTxHash") or "-"))
+' "$body" 2>/dev/null) || true
+  rm -f "$body"
+  RETRO_EPOCH_LOCK_AT_UNIX="${RETRO_EPOCH_LOCK_AT_UNIX:-0}"
+  RETRO_EPOCH_RESOLVE_AT_UNIX="${RETRO_EPOCH_RESOLVE_AT_UNIX:-0}"
+  [[ "$RETRO_EPOCH_STATUS" == "-" ]] && RETRO_EPOCH_STATUS=""
+  [[ "$RETRO_EPOCH_LOCK_TX" == "-" ]] && RETRO_EPOCH_LOCK_TX=""
+  [[ "$RETRO_EPOCH_RESOLVE_TX" == "-" ]] && RETRO_EPOCH_RESOLVE_TX=""
+  return 0
+}
+
+# Sleep until <unix-target> + <slack-sec> on the wall clock, capped by <max-wait-sec>.
+# Args: <target-unix> <slack-sec> <max-wait-sec> <label>
+# Returns 0 if reached, 1 if max-wait would be exceeded (does not sleep at all in that case).
+_retro_wait_until_unix() {
+  local target="${1:?}" slack="${2:-5}" max_wait="${3:?}" label="${4:-deadline}"
+  local now diff
+  now="$(date +%s)"
+  diff=$((target + slack - now))
+  if (( diff <= 0 )); then
+    echo "advance: $label already reached (now=$now target=$((target + slack))); proceeding." >&2
+    return 0
+  fi
+  if (( diff > max_wait )); then
+    local target_iso
+    target_iso="$(date -u -d "@$((target + slack))" +%FT%TZ 2>/dev/null || echo "@$((target + slack))")"
+    echo "advance: $label is in ${diff}s ($target_iso) which exceeds --max-wait ${max_wait}s. Aborting." >&2
+    echo "  options: pass --max-wait $((diff + 60)) (or set RETRODEPLOYER_MAX_WAIT_SEC), or wait and re-run." >&2
+    return 1
+  fi
+  local target_iso
+  target_iso="$(date -u -d "@$((target + slack))" +%FT%TZ 2>/dev/null || echo "@$((target + slack))")"
+  echo "advance: waiting ${diff}s for $label ($target_iso) — Ctrl-C to abort..." >&2
+  while true; do
+    now="$(date +%s)"
+    diff=$((target + slack - now))
+    if (( diff <= 0 )); then break; fi
+    if (( diff > 30 )); then
+      sleep 30
+    elif (( diff > 5 )); then
+      sleep 5
+    else
+      sleep 1
+    fi
+  done
+  echo "advance: $label reached." >&2
+  return 0
+}
+
+# Time-gated lock + resolve for one (templateId, epochId). Reads timing from the indexer, waits
+# until lockAt/resolveAt before each call, and skips a step if the indexer already has a tx hash for it.
+# Args: <templateId> <epochId> <max-wait-sec> <indexer-wait-sec>
+_retro_advance_lock_resolve_one() {
+  local template_id="${1:?}" epoch_id="${2:?}" max_wait="${3:?}" idx_wait="${4:?}"
+  if ! _retro_load_epoch_times "$template_id" "$epoch_id"; then
+    echo "error: cannot read epoch timing from API: ${API_URL%/}/api/v1/ops/templates/${template_id}/epochs/${epoch_id}" >&2
+    echo "hint: is the API up and has this epoch been indexed yet? (status 404 == not yet indexed; wait a few seconds and retry)" >&2
+    return 1
+  fi
+  local lock_at="$RETRO_EPOCH_LOCK_AT_UNIX" resolve_at="$RETRO_EPOCH_RESOLVE_AT_UNIX"
+  local lock_tx="$RETRO_EPOCH_LOCK_TX" resolve_tx="$RETRO_EPOCH_RESOLVE_TX" status="$RETRO_EPOCH_STATUS"
+  local lock_iso resolve_iso
+  lock_iso="$([[ "$lock_at" -gt 0 ]] && date -u -d "@$lock_at" +%FT%TZ 2>/dev/null || echo unknown)"
+  resolve_iso="$([[ "$resolve_at" -gt 0 ]] && date -u -d "@$resolve_at" +%FT%TZ 2>/dev/null || echo unknown)"
+  echo "" >&2
+  echo "RETRODEPLOYER · advance  templateId=$template_id  epoch=$epoch_id  status=${status:-?}" >&2
+  echo "  lockAt=$lock_iso  resolveAt=$resolve_iso" >&2
+  echo "  lockTx=${lock_tx:-(none)}  resolveTx=${resolve_tx:-(none)}" >&2
+  echo "  max-wait=${max_wait}s  indexer-wait-after-tx=${idx_wait}s" >&2
+
+  if [[ -z "$lock_tx" ]]; then
+    if (( lock_at > 0 )); then
+      _retro_wait_until_unix "$lock_at" 5 "$max_wait" "lockAt" || return 1
+    fi
+    echo "" >&2
+    echo "RETRODEPLOYER · advance · lock(epoch=$epoch_id)  templateId=$template_id" >&2
+    if ! _cmd_prepare_lock_epoch --template-id "$template_id" --epoch-id "$epoch_id" --send; then
+      echo "advance: lock failed for epoch=$epoch_id (see broadcast hints above). Aborting." >&2
+      return 1
+    fi
+    if (( idx_wait > 0 )); then
+      echo "advance: waiting ${idx_wait}s for indexer to record lock..." >&2
+      sleep "$idx_wait"
+    fi
+  else
+    echo "advance: lock already on-chain (tx=$lock_tx); skipping prepare-lock-epoch." >&2
+  fi
+
+  if [[ -z "$resolve_tx" ]]; then
+    if ! _retro_load_epoch_times "$template_id" "$epoch_id"; then
+      echo "warn: cannot re-read epoch timing after lock; using previous resolveAt=$resolve_iso" >&2
+    else
+      resolve_at="$RETRO_EPOCH_RESOLVE_AT_UNIX"
+      resolve_tx="$RETRO_EPOCH_RESOLVE_TX"
+    fi
+    if [[ -n "$resolve_tx" ]]; then
+      echo "advance: resolve already on-chain (tx=$resolve_tx); skipping prepare-resolve-epoch." >&2
+    else
+      if (( resolve_at > 0 )); then
+        _retro_wait_until_unix "$resolve_at" 5 "$max_wait" "resolveAt" || return 1
+      fi
+      echo "" >&2
+      echo "RETRODEPLOYER · advance · resolve(epoch=$epoch_id)  templateId=$template_id" >&2
+      if ! _cmd_prepare_resolve_epoch --template-id "$template_id" --epoch-id "$epoch_id" --send; then
+        echo "advance: resolve failed for epoch=$epoch_id (see broadcast hints above). Aborting." >&2
+        return 1
+      fi
+      if (( idx_wait > 0 )); then
+        echo "advance: waiting ${idx_wait}s for indexer to record resolve..." >&2
+        sleep "$idx_wait"
+      fi
+    fi
+  else
+    echo "advance: resolve already on-chain (tx=$resolve_tx); skipping prepare-resolve-epoch." >&2
+  fi
+  return 0
+}
+
+# Manual markets only: prepare fresh open/lock/resolve (same default offsets as deploy-all), then send one openEpoch tx.
+_cmd_activate_epoch() {
+  local typ="" template_id="" epoch_id=1 prepare_only=0 out_path="" explicit_eid=0
+  local advance=0 idx_wait="${RETRODEPLOYER_INDEX_WAIT_SEC:-15}" max_wait="${RETRODEPLOYER_MAX_WAIT_SEC:-7800}" fast=0
+  local oa_off="${RETRODEPLOYER_OPEN_OFFSET_SEC:-120}" la_off="${RETRODEPLOYER_LOCK_OFFSET_SEC:-3600}" ra_off="${RETRODEPLOYER_RESOLVE_OFFSET_SEC:-7200}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help | help)
+      cat >&2 <<'EOF'
+usage: RETRODEPLOYER activate-epoch { <1-9|01-09> | 0x<64 hex> | --template-id 0x... }
+         [--epoch-id N] [--prepare-only] [--advance] [--wait <s>] [--max-wait <s>] [--fast] [--out <path.json>]
+  Opens one Manual-market epoch: HTTP prepare + cast send. Uses same unix offsets as deploy-all
+  (open=now+120s, lock=now+3600s, resolve=now+7200s) unless overridden by env:
+    RETRODEPLOYER_OPEN_OFFSET_SEC, RETRODEPLOYER_LOCK_OFFSET_SEC, RETRODEPLOYER_RESOLVE_OFFSET_SEC
+  --fast (or RETRODEPLOYER_FAST_EPOCH=1): use short windows for dev/demo cycling
+    open=now+10s, lock=now+45s, resolve=now+90s. Lock/resolve become eligible within ~1m.
+  If --epoch-id is omitted, uses next id from API (activeEpochId+1) after preflight; pass --epoch-id only to override.
+  --advance: when activeEpoch != lastResolved, time-gate lock then resolve for the stuck epoch (epochId=ae)
+             before opening. Reads /api/v1/ops/templates/<id>/epochs/<eid>, sleeps until lockAt then resolveAt
+             (with --max-wait safety), then sends each tx. Skips lock or resolve if the indexer already shows a
+             tx hash for that step. On any revert prints broadcast hints and stops.
+             Equivalent: ./scripts/RETRODEPLOYER advance-epoch <type|0x|--template-id ...> [--wait s] [--max-wait s].
+  Default: if activeEpoch != lastResolved and --advance was not passed, activate-epoch auto-promotes to
+  --advance (so menu / one-shot calls self-heal). Pass --strict (or set RETRODEPLOYER_STRICT_ACTIVATE=1)
+  to keep the old behavior of erroring out instead.
+  --wait: indexer settle delay (s) after each successful lock/resolve broadcast. Default 15
+          (env: RETRODEPLOYER_INDEX_WAIT_SEC).
+  --max-wait: max wall-clock seconds to wait for lockAt/resolveAt before aborting. Default 7800
+          (env: RETRODEPLOYER_MAX_WAIT_SEC). Aborts before sleeping if the gate is further out.
+  Refuses templates with executionMode=Rolling; use: emergency prepare genesis-start-rolling <templateId>
+  Respects RETRODEPLOYER_RESUME=1 + API preflight: skips if the epoch is already indexed.
+  Ledger: openEpoch requires indexed activeEpochId==lastResolvedEpochId and --epoch-id == next id; if an epoch is still
+  uncompleted on-chain, run lock/resolve (ops/keeper) first — else PreviousEpochUnresolved (0x5bedc9d2) on send.
+  Chainlink: activate-epoch does not set oracles. oracleFeedId and other market params are set at upsert
+  (package/contract/.operator/upsert-params); see https://docs.chain.link/data-feeds/price-feeds/addresses
+EOF
+      return 0
+      ;;
+    --template-id)
+      template_id="${2:?}"
+      shift 2
+      ;;
+    --epoch-id)
+      epoch_id="${2:?}"
+      explicit_eid=1
+      shift 2
+      ;;
+    --advance)
+      advance=1
+      shift
+      ;;
+    --strict)
+      RETRODEPLOYER_STRICT_ACTIVATE=1
+      shift
+      ;;
+    --wait)
+      idx_wait="${2:?}"
+      shift 2
+      ;;
+    --max-wait)
+      max_wait="${2:?}"
+      shift 2
+      ;;
+    --fast)
+      fast=1
+      shift
+      ;;
+    --prepare-only)
+      prepare_only=1
+      shift
+      ;;
+    --out)
+      out_path="${2:?}"
+      shift 2
+      ;;
+    *)
+      if [[ -n "$typ" ]]; then
+        echo "error: unexpected argument: $1" >&2
+        return 1
+      fi
+      typ="${1:-}"
+      shift
+      ;;
+    esac
+  done
+  if [[ -n "$template_id" && -n "$typ" ]]; then
+    echo "error: pass either a type 1-9/01-09 or --template-id, not both" >&2
+    return 1
+  fi
+  # First positional can be a bare bytes32: 0x + 64 hex (same as --template-id 0x...)
+  if [[ -n "$typ" && -z "$template_id" ]]; then
+    _ate_raw="${typ//[[:space:]]/}"
+    if [[ "$_ate_raw" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
+      template_id="$(tr '[:upper:]' '[:lower:]' <<<"$_ate_raw" | tr -d '\n')"
+      typ=""
+    fi
+  fi
+  if [[ -n "$template_id" && -n "$typ" ]]; then
+    echo "error: pass either a type 1-9/01-09 or --template-id / 0x templateId, not both" >&2
+    return 1
+  fi
+  if [[ -z "$template_id" ]]; then
+    typ="${typ//[[:space:]]/}"
+    typ="$(_normalize_manual_type_key "$typ")" || {
+      echo "error: pass manual type 1-9 or 01-09 (fixtures under $UPSERT_DIR), or --template-id / a bare 0x+64hex templateId" >&2
+      return 1
+    }
+    template_id="$(_template_id_for_type "$typ")" || return 1
+  fi
+  template_id="$(tr '[:upper:]' '[:lower:]' <<<"$template_id" | tr -d '\n')"
+  if [[ ! "$template_id" =~ ^0x[0-9a-f]{64}$ ]]; then
+    echo "error: templateId must be 0x + 32 bytes hex" >&2
+    return 1
+  fi
+
+  if ! _retro_load_template_state "$template_id"; then
+    echo "error: cannot load template state from API: ${API_URL%/}/api/v1/ops/templates/${template_id}/state" >&2
+    echo "hint: is the API up and has this template been indexed? Refusing openEpoch without a Manual-mode check." >&2
+    return 1
+  fi
+  # MarketEngine: openEpoch(e) requires activeEpochId==lastResolvedEpochId and e==activeEpochId+1 (see _requireCanOpenNextEpoch)
+  local ex="$RETRO_STATE_EX" init="$RETRO_STATE_INIT" ae="$RETRO_STATE_AE" lr="$RETRO_STATE_LR" need eid_i
+  if [[ "$init" != "1" ]]; then
+    echo "error: template is not initialized on the indexer. Run upsert+initialize (batch-send or deploy-all) first." >&2
+    return 1
+  fi
+  if [[ "$ex" == "1" ]]; then
+    echo "error: executionMode=Rolling — openEpoch is not valid. Use: ./scripts/RETRODEPLOYER emergency prepare genesis-start-rolling $template_id" >&2
+    return 1
+  fi
+  if [[ "$ex" != "0" && "$ex" != "1" ]]; then
+    echo "error: unexpected executionMode=$ex (expected 0=Manual, 1=Rolling)" >&2
+    return 1
+  fi
+  if (( ae != lr )) && (( advance == 0 )) && [[ "${RETRODEPLOYER_STRICT_ACTIVATE:-0}" != "1" ]]; then
+    echo "activate-epoch: indexer is mid-cycle (activeEpochId=$ae lastResolvedEpochId=$lr); auto-promoting to advance-epoch." >&2
+    echo "  (set RETRODEPLOYER_STRICT_ACTIVATE=1, or pass --strict, to disable this auto-promotion.)" >&2
+    advance=1
+  fi
+  if (( ae != lr )) && (( advance == 1 )); then
+    if ! _retro_advance_lock_resolve_one "$template_id" "$ae" "$max_wait" "$idx_wait"; then
+      return 1
+    fi
+    if ! _retro_load_template_state "$template_id"; then
+      echo "error: cannot re-load template state after advance" >&2
+      return 1
+    fi
+    ae="$RETRO_STATE_AE"
+    lr="$RETRO_STATE_LR"
+    echo "advance: post lock+resolve  activeEpochId=$ae  lastResolvedEpochId=$lr" >&2
+  fi
+  need=$((ae + 1))
+  if (( ae != lr )); then
+    echo "error: cannot open a new manual epoch: indexer has activeEpochId=$ae but lastResolvedEpochId=$lr (must be equal). The on-chain engine reverts PreviousEpochUnresolved (0x5bedc9d2)." >&2
+    echo "  Auto-promotion to advance-epoch failed (likely lock/resolve revert above). Try the one-shot recovery, which" >&2
+    echo "  re-checks the oracle and re-upserts the template before retrying:" >&2
+    echo "    $V1_ROOT/scripts/RETRODEPLOYER auto-deploy ${typ:-$template_id} [--fast]" >&2
+    echo "  Manual sequence (same effect):" >&2
+    echo "    $V1_ROOT/scripts/RETRODEPLOYER advance-epoch ${typ:-$template_id} [--max-wait 7800] [--wait 15]" >&2
+    echo "    $V1_ROOT/scripts/RETRODEPLOYER prepare-lock-epoch --template-id $template_id --epoch-id $ae --send" >&2
+    echo "    $V1_ROOT/scripts/RETRODEPLOYER prepare-resolve-epoch --template-id $template_id --epoch-id $ae --send" >&2
+    return 1
+  fi
+  if (( explicit_eid == 0 )); then
+    epoch_id=$need
+  fi
+  eid_i=$((10#${epoch_id:-0}))
+  if (( eid_i != need )); then
+    echo "error: next openable epochId is $need (from indexed ledger active=$ae lastResolved=$lr); you passed --epoch-id $eid_i" >&2
+    return 1
+  fi
+
+  if (( fast == 1 )) || [[ "${RETRODEPLOYER_FAST_EPOCH:-0}" == "1" ]]; then
+    oa_off=10
+    la_off=45
+    ra_off=90
+    echo "activate-epoch: --fast offsets  open=+${oa_off}s  lock=+${la_off}s  resolve=+${ra_off}s" >&2
+  fi
+  local now oa la ra
+  now=$(date +%s)
+  oa=$((now + oa_off))
+  la=$((now + la_off))
+  ra=$((now + ra_off))
+  if ! [[ "$la" -gt "$now" && "$ra" -gt "$la" && "$oa" -lt "$la" ]]; then
+    echo "error: invalid time offsets (need open < lock < resolve and lock > now)" >&2
+    return 1
+  fi
+  local argsf prepf
+  argsf="$(mktemp)"
+  printf '[ "%s", %s, %s, %s, %s ]\n' "$template_id" "$epoch_id" "$oa" "$la" "$ra" >"$argsf"
+  if [[ -n "$out_path" ]]; then
+    prepf="$out_path"
+  else
+    prepf="$(mktemp -t retropick-activate-epoch-XXXXXX.json)"
+  fi
+  echo "== activate-epoch  templateId=$template_id  epochId=$epoch_id  open=$oa lock=$la resolve=$ra ==" >&2
+  if ! _api_prepare_to_file "openEpoch" "$argsf" "$prepf"; then
+    rm -f "$argsf"
+    return 1
+  fi
+  rm -f "$argsf"
+  if [[ "$prepare_only" -eq 1 ]]; then
+    echo "RETRODEPLOYER activate-epoch · prepare-only" >&2
+    echo "file=$prepf" >&2
+    echo "send: ./scripts/RETRODEPLOYER send $prepf" >&2
+    return 0
+  fi
+  _send_prepared_resume_safe "$prepf" || {
+    if [[ -z "$out_path" ]]; then
+      echo "error: see prepared JSON in $prepf" >&2
+    fi
+    return 1
+  }
+  if [[ -z "$out_path" ]]; then
+    rm -f "$prepf" 2>/dev/null || true
+  fi
+  echo "activate-epoch: done" >&2
+}
+
+_cmd_resume_open() {
+  local work="${RETRODEPLOYER_WORK_DIR:-$V1_ROOT/.retropick-deploy}"
+  local retries="${RETRODEPLOYER_SEND_RETRIES:-8}"
+  local retry_delay="${RETRODEPLOYER_SEND_RETRY_DELAY:-5}"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --work-dir)
+      work="${2:?}"
+      shift 2
+      ;;
+    --retries)
+      retries="${2:?}"
+      shift 2
+      ;;
+    --retry-delay)
+      retry_delay="${2:?}"
+      shift 2
+      ;;
+    --dry-run)
+      RETRODEPLOYER_DRY_RUN=1
+      shift
+      ;;
+    -h | --help)
+      echo "usage: resume-open [--work-dir .retropick-deploy] [--retries N] [--retry-delay S] [--dry-run]" >&2
+      return 0
+      ;;
+    *)
+      echo "usage: resume-open [--work-dir .retropick-deploy] [--retries N] [--retry-delay S] [--dry-run]" >&2
+      return 1
+      ;;
+    esac
+  done
+  if [[ "$work" != /* ]]; then work="$V1_ROOT/${work#./}"; fi
+  local d2="$work/2-open"
+  local manifest="${RETRODEPLOYER_MANIFEST:-$work/manifest.json}"
+  local rpc_def="${RPC_URL:-https://sepolia.base.org}"
+  if [[ ! -d "$d2" ]]; then
+    echo "error: open batch dir not found: $d2" >&2
+    echo "hint: run deploy-all first, or prepare opens with prepare-open-all --out-dir $d2 ..." >&2
+    return 1
+  fi
+
+  RETRODEPLOYER_PWFILE=""
+  cleanup_resume_open() {
+    [[ -n "${RETRODEPLOYER_PWFILE:-}" && -f "$RETRODEPLOYER_PWFILE" ]] && rm -f "$RETRODEPLOYER_PWFILE"
+    RETRODEPLOYER_PWFILE=""
+    unset ETH_PASSWORD 2>/dev/null || true
+  }
+  trap cleanup_resume_open EXIT
+
+  _print_design_banner
+  echo -e "${A}${B}  resume-open${R}  ${D}· auto resume existing openEpoch batch${R}" >&2
+  echo -e "  ${D}dir:${R} ${M}$d2${R}" >&2
+  echo -e "  ${D}RPC:${R} ${M}$rpc_def${R}  ${D}· retries=${retries} delay=${retry_delay}s${R}" >&2
+  if [[ "${RETRODEPLOYER_DRY_RUN:-0}" == "1" ]]; then
+    ks="${CAST_ACCOUNT:-${ETH_KEYSTORE_ACCOUNT:-${DEPLOY_ACCOUNT:-testnet}}}"
+    pw=""
+    echo -e "  ${D}DRY_RUN=1: no transactions will be sent${R}" >&2
+  else
+    read -r -p "$(echo -e "${S}Keystore name${R} (cast --account) ${D}[testnet]:${R} ")" ks
+    ks="${ks:-testnet}"
+    read -r -s -p "$(echo -e "${S}Keystore password${R} ${D}(Enter = prompt each tx) [hidden]:${R} ")" pw
+    echo "" >&2
+  fi
+
+  export RPC_URL="$rpc_def"
+  export CAST_ACCOUNT="$ks"
+  if [[ -n "$pw" ]]; then
+    RETRODEPLOYER_PWFILE="$(mktemp)" || {
+      echo "error: mktemp failed for keystore password file" >&2
+      return 1
+    }
+    chmod 600 "$RETRODEPLOYER_PWFILE"
+    printf '%s' "$pw" >"$RETRODEPLOYER_PWFILE"
+    export ETH_PASSWORD="$RETRODEPLOYER_PWFILE"
+  else
+    unset ETH_PASSWORD 2>/dev/null || true
+  fi
+
+  _cmd_batch_send --yes --resume --manifest "$manifest" --retries "$retries" --retry-delay "$retry_delay" "$d2"
+}
+
+# Interactive: only prompts keystore name + password (optional); defaults for RPC, work dir, epoch times, wait
+_cmd_deploy_all() {
+  local work="${RETRODEPLOYER_WORK_DIR:-$V1_ROOT/.retropick-deploy}"
+  local wait_sec="${RETRODEPLOYER_WAIT_SEC:-90}"
+  local types_spec="${RETRODEPLOYER_TYPES:-all}"
+  local only="${RETRODEPLOYER_ONLY:-all}"
+  local from_step="prepare"
+  local epoch_id="${RETRODEPLOYER_EPOCH_ID:-1}"
+  RETRODEPLOYER_RESUME=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --work-dir)
+      work="${2:?}"
+      shift 2
+      ;;
+    --wait-sec)
+      wait_sec="${2:?}"
+      shift 2
+      ;;
+    --types)
+      types_spec="${2:?}"
+      shift 2
+      ;;
+    --only)
+      only="${2:?}"
+      shift 2
+      ;;
+    --from-step)
+      from_step="${2:?}"
+      shift 2
+      ;;
+    --epoch-id)
+      epoch_id="${2:?}"
+      shift 2
+      ;;
+    --resume)
+      RETRODEPLOYER_RESUME=1
+      shift
+      ;;
+    --strict)
+      RETRODEPLOYER_RESUME=0
+      shift
+      ;;
+    --dry-run)
+      RETRODEPLOYER_DRY_RUN=1
+      shift
+      ;;
+    --no-preflight)
+      RETRODEPLOYER_PREFLIGHT=0
+      shift
+      ;;
+    --retries)
+      RETRODEPLOYER_SEND_RETRIES="${2:?}"
+      shift 2
+      ;;
+    --retry-delay)
+      RETRODEPLOYER_SEND_RETRY_DELAY="${2:?}"
+      shift 2
+      ;;
+    *)
+      echo "usage: deploy-all [--work-dir <path>] [--wait-sec <seconds>] [--types all|01,03] [--only upsert|init|open|all] [--from-step prepare|upinit|open] [--resume|--strict] [--dry-run] [--retries N] [--retry-delay S]" >&2
+      return 1
+      ;;
+    esac
+  done
+  case "$only" in
+  all | upsert | init | open) ;;
+  *) echo "error: --only must be all, upsert, init, or open" >&2; return 1 ;;
+  esac
+  case "$from_step" in
+  prepare | upinit | open) ;;
+  *) echo "error: --from-step must be prepare, upinit, or open" >&2; return 1 ;;
+  esac
+  if [[ "$work" != /* ]]; then work="$V1_ROOT/${work#./}"; fi
+  local d1="$work/1-upinit"
+  local d2="$work/2-open"
+  RETRODEPLOYER_MANIFEST="${RETRODEPLOYER_MANIFEST:-$work/manifest.json}"
+  local rpc_def="${RPC_URL:-https://sepolia.base.org}"
+
+  # Foundry: ETH_PASSWORD is a *path* to a one-line password file (not cleartext in the env var).
+  RETRODEPLOYER_PWFILE=""
+  cleanup_deploy() {
+    [[ -n "${RETRODEPLOYER_PWFILE:-}" && -f "$RETRODEPLOYER_PWFILE" ]] && rm -f "$RETRODEPLOYER_PWFILE"
+    RETRODEPLOYER_PWFILE=""
+    unset ETH_PASSWORD 2>/dev/null || true
+  }
+  trap cleanup_deploy EXIT
+
+  _print_design_banner
+  echo -e "${A}${B}  deploy-all${R}  ${D}· repeatable pipeline · types=${types_spec} only=${only} mode=$([[ "$RETRODEPLOYER_RESUME" == "1" ]] && echo resume || echo strict)${R}" >&2
+  echo -e "  ${D}RPC (override in .env):${R} ${M}${rpc_def}${R}" >&2
+  if [[ "${RETRODEPLOYER_DRY_RUN:-0}" == "1" ]]; then
+    ks="${CAST_ACCOUNT:-${ETH_KEYSTORE_ACCOUNT:-${DEPLOY_ACCOUNT:-testnet}}}"
+    pw=""
+    echo -e "  ${D}DRY_RUN=1: no transactions will be sent${R}" >&2
+  else
+    read -r -p "$(echo -e "${S}Keystore name${R} (cast --account) ${D}[testnet]:${R} ")" ks
+    ks="${ks:-testnet}"
+    read -r -s -p "$(echo -e "${S}Keystore password${R} ${D}(Enter = prompt each tx) [hidden]:${R} ")" pw
+    echo "" >&2
+  fi
+
+  export RPC_URL="$rpc_def"
+  export CAST_ACCOUNT="$ks"
+  if [[ -n "$pw" ]]; then
+    RETRODEPLOYER_PWFILE="$(mktemp)" || {
+      echo "error: mktemp failed for keystore password file" >&2
+      return 1
+    }
+    chmod 600 "$RETRODEPLOYER_PWFILE"
+    printf '%s' "$pw" >"$RETRODEPLOYER_PWFILE"
+    export ETH_PASSWORD="$RETRODEPLOYER_PWFILE"
+  else
+    unset ETH_PASSWORD 2>/dev/null || true
+  fi
+
+  mkdir -p "$d1" "$d2" || {
+    echo "error: cannot mkdir $d1" >&2
+    return 1
+  }
+
+  if [[ "$from_step" == "prepare" && ( "$only" == "all" || "$only" == "upsert" || "$only" == "init" ) ]]; then
+    echo "" >&2
+    echo -e "${T}${B}Step 1/5${R} ${D}·${R} ${S}HTTP${R}  ${D}→ upsert/init JSONs${R}  ${D}→${R} ${M}$d1${R}  ${D}(API_URL=$API_URL)${R}" >&2
+    local prep_only="$only"
+    [[ "$prep_only" == "all" ]] && prep_only="all"
+    _cmd_prepare_all_to_dir "$d1" --types "$types_spec" --only "$prep_only" || return 1
+  fi
+
+  if [[ "$from_step" != "open" && ( "$only" == "all" || "$only" == "upsert" || "$only" == "init" ) ]]; then
+    echo "" >&2
+    echo -e "${T}${B}Step 2/5${R} ${D}·${R} ${A}on-chain${R}  ${D}upsert/init txs${R}" >&2
+    _cmd_batch_send --yes "$([[ "$RETRODEPLOYER_RESUME" == "1" ]] && echo --resume || echo --strict)" --manifest "$RETRODEPLOYER_MANIFEST" "$d1" || return 1
+  fi
+
+  if [[ "$only" == "all" || "$only" == "open" ]]; then
+    echo "" >&2
+    echo -e "${T}${B}Step 3/5${R} ${D}·${R} ${W}wait ${wait_sec}s${R} ${D}(bump ${M}RETRODEPLOYER_WAIT_SEC${D} if openEpoch reverts)${R}" >&2
+    if [[ "$wait_sec" -gt 0 && "${RETRODEPLOYER_DRY_RUN:-0}" != "1" ]]; then
+      sleep "$wait_sec"
+    fi
+  fi
+
+  local now oa la ra
+  local oa_off="${RETRODEPLOYER_OPEN_OFFSET_SEC:-120}" la_off="${RETRODEPLOYER_LOCK_OFFSET_SEC:-3600}" ra_off="${RETRODEPLOYER_RESOLVE_OFFSET_SEC:-7200}"
+  now=$(date +%s)
+  oa=$((now + oa_off))
+  la=$((now + la_off))
+  ra=$((now + ra_off))
+  if [[ "$only" == "all" || "$only" == "open" ]]; then
+    echo -e "  ${D}open / lock / resolve (unix):${R} ${C}$oa${R} ${D}/${R} ${C}$la${R} ${D}/${R} ${C}$ra${R}" >&2
+
+    if [[ "$from_step" == "prepare" || "$from_step" == "upinit" || "$from_step" == "open" ]]; then
+      echo "" >&2
+      echo -e "${T}${B}Step 4/5${R} ${D}·${R} ${S}HTTP${R}  ${D}openEpoch →${R} ${M}$d2${R}" >&2
+      _cmd_prepare_open_all --out-dir "$d2" --open-at "$oa" --lock-at "$la" --resolve-at "$ra" --epoch-id "$epoch_id" --types "$types_spec" || return 1
+    fi
+
+    echo "" >&2
+    echo -e "${T}${B}Step 5/5${R} ${D}·${R} ${A}on-chain${R}  ${D}openEpoch txs${R}" >&2
+    _cmd_batch_send --yes "$([[ "$RETRODEPLOYER_RESUME" == "1" ]] && echo --resume || echo --strict)" --manifest "$RETRODEPLOYER_MANIFEST" "$d2" || return 1
+  fi
+
+  echo "" >&2
+  echo -e "${A}${B} deploy-all done ${R} ${D}· staging:${R} ${M}$work${R} ${D}· manifest:${R} ${M}$RETRODEPLOYER_MANIFEST${R}" >&2
+}
+
+# --- main ---
+
+# Allow `source path/to/RETRODEPLOYER` from tests / repl to call private helpers
+# (e.g. _retro_greenfield_init_open) without the dispatch below taking effect.
+# When the script is executed normally, BASH_SOURCE[0] equals $0 and we proceed.
+if [[ "${BASH_SOURCE[0]:-}" != "${0:-}" ]]; then
+  return 0 2>/dev/null || true
+fi
+
+if [[ $# -eq 0 || "${1-}" == "" ]]; then
+  set -- menu
+fi
+main_cmd=$1
+case "$main_cmd" in
+-h | --help | help)
+  _cmd_help
+  exit 0
+  ;;
+menu)
+  shift
+  _cmd_menu
+  ;;
+prepare)
+  shift
+  sub="${1:-}"
+  if [[ -z "$sub" ]]; then
+    echo "error: prepare { upsert|fn|all|all-to|... } ..." >&2
+    exit 1
+  fi
+  shift
+  case "$sub" in
+  upsert) _cmd_prepare_upsert "$@" ;;
+  fn) _cmd_prepare_fn "$@" ;;
+  all-to) _cmd_prepare_all_to_dir "$@" ;;
+  all) _cmd_prepare_all ;;
+  *)
+    echo "error: prepare { upsert|fn|all|all-to|...} ..." >&2
+    echo "  upsert <01-09|file>   fn <name> <args.json>   all   all-to <dir>" >&2
+    exit 1
+    ;;
+  esac
+  ;;
+deploy-all)
+  shift
+  _cmd_deploy_all "$@"
+  ;;
+launch)
+  shift
+  _cmd_launch "$@"
+  ;;
+send)
+  shift
+  _cmd_send "$@"
+  ;;
+batch-send)
+  shift
+  _cmd_batch_send "$@"
+  ;;
+resume-open)
+  shift
+  _cmd_resume_open "$@"
+  ;;
+monitor)
+  shift
+  _cmd_monitor "$@"
+  ;;
+emergency)
+  shift
+  _cmd_emergency "$@"
+  ;;
+prepare-open-all)
+  shift
+  _cmd_prepare_open_all "$@"
+  ;;
+activate-epoch)
+  shift
+  _cmd_activate_epoch "$@"
+  ;;
+advance-epoch)
+  shift
+  _cmd_activate_epoch --advance "$@"
+  ;;
+prepare-lock-epoch)
+  shift
+  _cmd_prepare_lock_epoch "$@"
+  ;;
+prepare-resolve-epoch)
+  shift
+  _cmd_prepare_resolve_epoch "$@"
+  ;;
+routes | template-routes)
+  shift
+  _cmd_template_routes "$@"
+  ;;
+feeds)
+  shift
+  _cmd_feeds "$@"
+  ;;
+auto-deploy | autodeploy | recover-stuck-epoch | recover)
+  shift
+  _cmd_auto_deploy "$@"
+  ;;
+recover-feed-drift | recover-stuck-feed)
+  shift
+  _cmd_recover_feed_drift "$@"
+  ;;
+frontend-visibility)
+  shift
+  _cmd_frontend_visibility "$@"
+  ;;
+*)
+  echo "error: unknown command: $main_cmd" >&2
+  _cmd_help >&2
+  exit 1
+  ;;
+esac

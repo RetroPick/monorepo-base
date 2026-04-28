@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "skills": {
+    "api-design-principles": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "3316239df2bdcb41e992857b8142e0239e6964564dd5d7224e470c2ab350a03c"
+    },
+    "api-security-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "5a088c5b84b75ed44955e7a153b4af20b5a70b6430e86d0f0398b824cc9efb20"
+    },
+    "backend-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "edfa200927d3d6c02c4d48a4fe934ac4dcada590c1edab42e34134c3ef53e05a"
+    },
+    "blockchain-developer": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "computedHash": "1d587be3d7f1c784e018c140132e8a9d0e1545373cd204cac06f5698d51f1c6d"
+    },
+    "design-taste-frontend": {
+      "source": "leonxlnx/taste-skill",
+      "sourceType": "github",
+      "computedHash": "9d1e82c5c409d2b0247245a005bc0f7e4447c0999b78dcea60f568c1ba4a6694"
+    },
+    "dotnet-backend-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "b9af7afad1aba77bf12adfc523062292b11f629de5c4595a68ae0bb2103f0a28"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
+    },
+    "golang-backend-development": {
+      "source": "manutej/luxor-claude-marketplace",
+      "sourceType": "github",
+      "computedHash": "807ea7b237d8caebfbe34be301b3898963567ae64d120888a82d0f8fe5d0fd23"
+    },
+    "postgres-patterns": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "ce3084b8f555d1c560d849332483428301f30ec78f315e1d60ca1ddd8bc69a51"
+    },
+    "postgresql-code-review": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "1167ec9449aa866e16bc7449e05ab4d391cdce95a0b0c5e1155b793160471eb5"
+    },
+    "postgresql-optimization": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "8022448de70ba9a485e3b5bce34c5bbc644f93eb39b68431c9f7dabcf03aeb09"
+    },
+    "senior-backend": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "1919d688687239bae5880bd935ce8f845e7b4f82293faba882bb8e2cbb9481b6"
+    },
+    "web3-testing": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "computedHash": "0ce43e3b74391be7e8a8ccdccc7b2c3a686052aedeb5612d8bffcbf93ac6c722"
+    },
+    "write-coding-standards-from-file": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "b87eddc73b6f759bafb4956bbe69838a961e0fd927145f612c4694d2cc65e07a"
+    }
+  }
+}

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>README.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="retropick-v1">RetroPick V1</h1>
+<p>Monorepo for the RetroPick prediction-markets stack: Solidity contracts (<code>package/contract</code>), shared ABIs (<code>package/abi</code>), Go backend (API, indexer, keeper binaries under <code>apps/backend</code>), and frontends (<code>apps/fe-v1</code>, <code>apps/ops</code>).</p>
+<p><strong>Canonical on-chain inventory for the documented testnet deployment</strong> is <a href="package/abi/address.md"><code>package/abi/address.md</code></a>. The apps consume the same addresses via <a href="packages/contracts/registry.base-sepolia.json"><code>packages/contracts/registry.base-sepolia.json</code></a> (regenerate with <code>pnpm contracts:registry</code> when <code>address.md</code> or the manifest changes).</p>
+<hr>
+<h2 id="base-sepolia-chain-id-84532">Base Sepolia (chain id <code>84532</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Address</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MarketEngine proxy</strong> (use for all reads/writes)</td>
+<td><code>0x1ed89defc8fbcbd512c562b148868ffdc778018a</code></td>
+<td><code>ERC1967Proxy</code>; see <code>address.md</code> for Basescan / Blockscout links</td>
+</tr>
+<tr>
+<td><strong>Implementation</strong> (<code>MarketEngineDispatcher</code>)</td>
+<td><code>0xf8b69b881fb35feb804cfec761fdeb88c4e45ef1</code></td>
+<td>Verification / upgrades; not the day-to-day call target</td>
+</tr>
+<tr>
+<td><strong>TokenFaucet</strong></td>
+<td><code>0xf6c1b6bddd06972f08772de7954432e10c853231</code></td>
+<td>Testnet faucet</td>
+</tr>
+<tr>
+<td><strong>MockERC20 stake token</strong></td>
+<td><code>0xb7f49377af6adbef64f513cf04dbdac9d0af01b1</code></td>
+<td>Stake token on Base Sepolia</td>
+</tr>
+<tr>
+<td><strong>ChainlinkAdapter</strong></td>
+<td><code>0x682b79d6cbd8bcb4e89aeac487ee94e2c306175e</code></td>
+<td>Labeled “price oracle” in <code>address.md</code></td>
+</tr>
+<tr>
+<td><strong>RateAdapter</strong></td>
+<td><code>0x5b61b033816d710e6da9b659a87fc9c2cef6c145</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>SmartDataAdapter</strong></td>
+<td><code>0x51905ef42a9c794bce5042d1305ab4582eeb3823</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MacroAdapter</strong></td>
+<td><code>0xc2a28f925da7e81d4f66eb006917bdf9a3686f16</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>EquityAdapter</strong></td>
+<td><code>0x6747e65fa8c81f3e0f472b45a4afba9dbe777bd5</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MarketEngineAdminModule</strong></td>
+<td><code>0x98841ad4483403a55d7af7e28899019db5956238</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MarketEngineViewModule</strong></td>
+<td><code>0xec237e5c2821346d3eeb88240dd63e814d42dee9</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MarketEngineUserOpsClaimsModule</strong></td>
+<td><code>0xe052d3986d8409119b2c5253ec70e8e164f146da</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MarketEngineCoreLifecycleModule</strong></td>
+<td><code>0xbc80925f712c6a362bd612eee0bbec22dd6eedb6</code></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>MarketEngineRollingLifecycleModule</strong></td>
+<td><code>0xe2e7bb0127e74b5761efd7560ba0c950a9d2a8a2</code></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Deployment artifact referenced in <code>address.md</code>: <code>package/contract/broadcast/DeployTestnet.s.sol/84532/run-latest.json</code> (path relative to contract package).</p>
+<p><strong>Operator rule:</strong> treat the <strong>proxy</strong> as the single MarketEngine endpoint unless you are debugging implementation or routing.</p>
+<hr>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li><strong>Node:</strong> 20+ recommended; <strong>pnpm</strong> <code>10.x</code> (see root <code>packageManager</code>).</li>
+<li><strong>Docker / Docker Compose:</strong> for local Postgres + API + indexer + ops.</li>
+<li><strong>Go 1.24+</strong> (optional): only if you run <code>apps/backend</code> binaries on the host instead of Docker.</li>
+</ul>
+<hr>
+<h2 id="initialize-the-repo">Initialize the repo</h2>
+<p>From the repository root:</p>
+<pre class="hljs"><code><div>pnpm install
+</div></code></pre>
+<p>Workspace packages live under <code>apps/*</code> and <code>packages/*</code> (<code>pnpm-workspace.yaml</code>).</p>
+<hr>
+<h2 id="run-locally-with-docker-recommended">Run locally with Docker (recommended)</h2>
+<p>Build and start Postgres, API, indexer, and the operator UI:</p>
+<pre class="hljs"><code><div>docker compose up -d --build
+</div></code></pre>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Port</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Postgres</td>
+<td><code>5432</code></td>
+<td>User <code>retropick</code>, password <code>retropick</code>, database <code>retropick</code></td>
+</tr>
+<tr>
+<td>API</td>
+<td><code>8080</code></td>
+<td>REST + WebSocket; migrations run on startup</td>
+</tr>
+<tr>
+<td>Indexer</td>
+<td>(no host port)</td>
+<td>Indexes Base Sepolia using <code>RPC_URL</code></td>
+</tr>
+<tr>
+<td>Ops</td>
+<td><code>3001</code></td>
+<td>Next.js operator dashboard</td>
+</tr>
+</tbody>
+</table>
+<p>Default API env in Compose:</p>
+<ul>
+<li><code>DATABASE_URL</code>: <code>postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable</code></li>
+<li><code>RPC_URL</code>: <code>https://sepolia.base.org</code> (Base Sepolia JSON-RPC; aligns with chain id <strong>84532</strong> in <code>address.md</code>)</li>
+</ul>
+<p>Useful checks:</p>
+<pre class="hljs"><code><div>curl -sS http://127.0.0.1:8080/api/v1/health
+curl -sS http://127.0.0.1:8080/api/v1/config/contracts
+</div></code></pre>
+<p>Stop and remove containers (add <code>-v</code> to drop the Postgres volume):</p>
+<pre class="hljs"><code><div>docker compose down
+</div></code></pre>
+<p>Root shortcuts: <code>pnpm docker:up</code>, <code>pnpm docker:down</code>, <code>pnpm docker:build</code>.</p>
+<hr>
+<h2 id="run-frontends-against-a-local-api">Run frontends against a local API</h2>
+<p>Ensure the API is reachable at <code>http://127.0.0.1:8080</code> (Docker or local Go).</p>
+<pre class="hljs"><code><div><span class="hljs-comment"># Operator dashboard (port 3001)</span>
+pnpm dev:ops
+
+<span class="hljs-comment"># Main user app (Vite; port from app config, often 5173)</span>
+pnpm dev:fe-v1
+</div></code></pre>
+<p>Set <code>NEXT_PUBLIC_API_URL</code> if the API is not on <code>127.0.0.1:8080</code> (required for browser calls from <code>apps/ops</code>).</p>
+<hr>
+<h2 id="run-the-api-on-the-host-without-docker-for-go">Run the API on the host (without Docker for Go)</h2>
+<ol>
+<li>
+<p>Start Postgres only: <code>docker compose up -d postgres</code></p>
+</li>
+<li>
+<p>Export:</p>
+<pre class="hljs"><code><div><span class="hljs-built_in">export</span> DATABASE_URL=<span class="hljs-string">'postgres://retropick:retropick@127.0.0.1:5432/retropick?sslmode=disable'</span>
+<span class="hljs-built_in">export</span> PORT=8080
+<span class="hljs-built_in">export</span> RPC_URL=https://sepolia.base.org
+</div></code></pre>
+</li>
+<li>
+<p>From <code>apps/backend</code>:</p>
+<pre class="hljs"><code><div>GOTOOLCHAIN=auto go run ./cmd/api
+</div></code></pre>
+</li>
+</ol>
+<p>Live operator RPC reads (<code>/api/v1/ops/live/*</code>) need a working <code>RPC_URL</code> and the embedded ABIs under <code>apps/backend/internal/abis/</code> (kept in sync with <a href="package/abi"><code>package/abi</code></a>).</p>
+<hr>
+<h2 id="contracts-and-abis">Contracts and ABIs</h2>
+<ul>
+<li><strong>Sources:</strong> <code>package/contract</code></li>
+<li><strong>Artifacts for apps/backend:</strong> <code>package/abi/*.json</code> and <a href="package/abi/address.md"><code>package/abi/address.md</code></a></li>
+<li><strong>Frontend registry package:</strong> <code>@retropick/contracts</code> → <code>packages/contracts</code></li>
+</ul>
+<p>After changing deployment addresses, update <code>address.md</code> (and the broadcast artifact workflow your team uses), then refresh the JSON registry consumed by apps:</p>
+<pre class="hljs"><code><div>pnpm contracts:registry
+</div></code></pre>
+<hr>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>Operator runbook and procedures: <code>package/contract/.operator/</code></li>
+<li>Architecture notes: <code>.dev/</code></li>
+</ul>
+
+</body>
+</html>
