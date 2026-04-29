@@ -31,7 +31,22 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Deploy on Vercel
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This app lives in a pnpm monorepo, so Vercel must target the app directory rather than the repository root.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Required Vercel project settings:
+
+- Root Directory: `apps/fe-v1`
+- Framework Preset: `Next.js`
+
+The app-level [vercel.json](./vercel.json) then runs:
+
+```json
+{
+  "installCommand": "cd ../.. && pnpm install",
+  "buildCommand": "cd ../.. && pnpm --filter fe-v1 build"
+}
+```
+
+If your Vercel project is currently building from the repository root, change the Root Directory to `apps/fe-v1`. Otherwise Vercel will execute the app-level `cd ../..` commands from the wrong starting directory and `pnpm install` will resolve to `/`, which fails with `ERR_PNPM_NO_PKG_MANIFEST`.
+
 # fe-v1
