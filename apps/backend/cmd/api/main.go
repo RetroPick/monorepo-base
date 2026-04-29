@@ -566,6 +566,7 @@ LIMIT $3
 	for i := range pools {
 		pools[i] = new(big.Int)
 	}
+	outcomeCountLimit := int64(outcomeCount)
 	points := make([]map[string]any, 0)
 	for rows.Next() {
 		var blockNumber int64
@@ -584,20 +585,23 @@ LIMIT $3
 		case "PositionDeposited":
 			oi, ok0 := jsonInt(payload["outcomeIndex"])
 			amount, ok1 := jsonBig(payload["amount"])
-			if ok0 && ok1 && oi >= 0 && oi < outcomeCount {
-				pools[oi].Add(pools[oi], amount)
+			if ok0 && ok1 && oi >= 0 && oi < outcomeCountLimit {
+				idx := int(oi)
+				pools[idx].Add(pools[idx], amount)
 			}
 		case "SideSwitched":
 			from, ok0 := jsonInt(payload["fromOutcome"])
 			to, ok1 := jsonInt(payload["toOutcome"])
 			gross, ok2 := jsonBig(payload["grossAmount"])
 			net, ok3 := jsonBig(payload["netAmount"])
-			if ok0 && ok1 && ok2 && ok3 && from >= 0 && from < outcomeCount && to >= 0 && to < outcomeCount {
-				pools[from].Sub(pools[from], gross)
-				if pools[from].Sign() < 0 {
-					pools[from].SetInt64(0)
+			if ok0 && ok1 && ok2 && ok3 && from >= 0 && from < outcomeCountLimit && to >= 0 && to < outcomeCountLimit {
+				fromIdx := int(from)
+				toIdx := int(to)
+				pools[fromIdx].Sub(pools[fromIdx], gross)
+				if pools[fromIdx].Sign() < 0 {
+					pools[fromIdx].SetInt64(0)
 				}
-				pools[to].Add(pools[to], net)
+				pools[toIdx].Add(pools[toIdx], net)
 			}
 		}
 

@@ -39,7 +39,7 @@ function initAppKit() {
         name:        'RetroPick',
         description: 'Oracle-resolved prediction markets (Base Sepolia testnet)',
         url:         getMetadataUrl(),
-        icons:       ['https://retropick.io/icon.png'],
+        icons:       [`${getMetadataUrl()}/retropick-logo.png`],
       },
       enableEmbedded:  false,
       enableReconnect: false,

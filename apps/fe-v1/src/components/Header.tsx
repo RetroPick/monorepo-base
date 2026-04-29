@@ -5,15 +5,11 @@ import { cn } from "@/lib/utils";
 import { useAssetContext } from "@/context/AssetContext";
 import HowRetroPickWorksDialog from "@/components/HowRetroPickWorksDialog";
 import Logo from "@/components/Logo";
-import { ModeToggle } from "./mode-toggle";
 import type { AssetClass } from "@/lib/market-data/types";
 import { ASSET_CLASS_OPTIONS, ASSET_CLASS_SUBTITLE } from "@/lib/market-data/asset-classes";
 import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
 import { DISCOVERY_VERTICALS } from "@/lib/discovery-verticals";
-
 const WalletButton = lazy(() => import("./WalletButton"));
-
-const DOCS_SITE_URL = process.env.NEXT_PUBLIC_DOCS_URL ?? "http://localhost:3001/docs";
 
 interface HeaderProps {
   /** Drop the sticky header bottom rule so dense body content (manual market headline) blends with page bg. */
@@ -45,7 +41,6 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
   const navItems = [
     { name: "Markets", path: "/app/markets/all" },
     { name: "Portfolio", path: "/app/portfolio" },
-    { name: "Activity", path: "/app/activity" },
   ] as const;
 
   const isNavItemActive = (item: (typeof navItems)[number]) => {
@@ -91,39 +86,6 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
           </div>
         );
       })}
-      <div className="flex shrink-0 items-center">
-        <span className="hidden shrink-0 px-1.5 text-muted-foreground/35 select-none lg:inline" aria-hidden="true">
-          ·
-        </span>
-        <a
-          href={DOCS_SITE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            "whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium transition-colors max-lg:rounded-md max-lg:px-3 max-lg:py-1.5 max-lg:text-[10px] max-lg:font-semibold max-lg:uppercase max-lg:tracking-[0.12em] sm:px-2.5 sm:py-1.5",
-            "text-muted-foreground hover:text-foreground max-lg:border max-lg:border-transparent max-lg:hover:bg-muted",
-          )}
-        >
-          Docs
-        </a>
-      </div>
-      <div className="flex shrink-0 items-center">
-        <span className="hidden shrink-0 px-1.5 text-muted-foreground/35 select-none lg:inline" aria-hidden="true">
-          ·
-        </span>
-        <button
-          type="button"
-          onClick={() => setHowRetroPickOpen(true)}
-          className={cn(
-            "whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium transition-colors max-lg:rounded-md max-lg:px-3 max-lg:py-1.5 max-lg:text-[10px] max-lg:font-semibold max-lg:uppercase max-lg:tracking-[0.12em] sm:px-2.5 sm:py-1.5",
-            "text-muted-foreground hover:text-foreground max-lg:border max-lg:border-transparent max-lg:hover:bg-muted",
-          )}
-          aria-label="How RetroPick works"
-          title="How RetroPick works"
-        >
-          How ?
-        </button>
-      </div>
     </>
   );
 
@@ -173,9 +135,17 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
                 className="h-8 w-full rounded-full border border-border bg-muted/40 py-0 pl-8 pr-2.5 text-xs leading-none text-foreground shadow-sm placeholder:text-muted-foreground outline-none transition-colors focus-visible:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/30 dark:bg-card/90 dark:shadow-none sm:h-9 sm:pl-9 sm:pr-3"
               />
             </div>
-            <div className="rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur [&_button]:h-8 [&_button]:w-8 [&_button]:min-h-0 sm:[&_button]:h-9 sm:[&_button]:w-9">
-              <ModeToggle />
-            </div>
+            <button
+              type="button"
+              onClick={() => setHowRetroPickOpen(true)}
+              className={cn(
+                "inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-border/60 bg-background/75 px-3 text-xs font-semibold text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted hover:text-foreground sm:h-9 sm:px-3.5 sm:text-sm",
+              )}
+              aria-label="How RetroPick works"
+              title="How RetroPick works"
+            >
+              How?
+            </button>
             <Suspense
               fallback={
                 <div className="h-8 w-[118px] shrink-0 rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur sm:h-9 sm:w-[124px]" />

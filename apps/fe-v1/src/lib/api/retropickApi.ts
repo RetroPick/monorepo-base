@@ -425,6 +425,7 @@ export type UserChainEventRow = {
   epochId?: number;
   userAddress?: string;
   indexedAt?: string | null;
+  /** Decoded indexer payload (amounts, indices, etc.). */
   payload?: unknown;
 };
 

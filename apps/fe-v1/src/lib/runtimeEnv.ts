@@ -1,4 +1,5 @@
 const LOCAL_API_BASE_URL = "http://127.0.0.1:8080";
+const LOCAL_DOCS_URL = "http://localhost:3002/docs";
 
 function envValue(name: string): string | undefined {
   const env =
@@ -18,6 +19,14 @@ export function getApiBaseUrl(): string {
     envValue("NEXT_PUBLIC_API_URL") ??
       envValue("VITE_API_URL") ??
       LOCAL_API_BASE_URL,
+  );
+}
+
+export function getDocsSiteUrl(): string {
+  return trimTrailingSlash(
+    envValue("NEXT_PUBLIC_DOCS_URL") ??
+      envValue("VITE_DOCS_URL") ??
+      LOCAL_DOCS_URL,
   );
 }
 

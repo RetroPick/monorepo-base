@@ -46,7 +46,10 @@ export const translations = {
             about: "About",
             contact: "Contact",
             privacy: "Privacy Policy",
-            terms: "Terms of Service"
+            terms: "Terms of Service",
+            docs: "Docs",
+            terms_short: "Terms",
+            version_prefix: "version",
         },
         leaderboard_page: {
             title: "Global Rankings",
@@ -175,7 +178,10 @@ export const translations = {
             about: "Tentang",
             contact: "Kontak",
             privacy: "Kebijakan Privasi",
-            terms: "Syarat Layanan"
+            terms: "Syarat Layanan",
+            docs: "Docs",
+            terms_short: "Syarat",
+            version_prefix: "versi",
         },
         leaderboard_page: {
             title: "Peringkat Global",
@@ -303,7 +309,10 @@ export const translations = {
             about: "关于",
             contact: "联系",
             privacy: "隐私政策",
-            terms: "服务条款"
+            terms: "服务条款",
+            docs: "文档",
+            terms_short: "条款",
+            version_prefix: "版本",
         },
         leaderboard_page: {
             title: "全球排名",
@@ -431,7 +440,10 @@ export const translations = {
             about: "हमारे बारे में",
             contact: "संपर्क",
             privacy: "गोपनीयता नीति",
-            terms: "सेवा की शर्तें"
+            terms: "सेवा की शर्तें",
+            docs: "डॉक्स",
+            terms_short: "शर्तें",
+            version_prefix: "संस्करण",
         },
         leaderboard_page: {
             title: "वैश्विक रैंकिंग",
@@ -559,7 +571,10 @@ export const translations = {
             about: "Acerca de",
             contact: "Contacto",
             privacy: "Política de Privacidad",
-            terms: "Términos de Servicio"
+            terms: "Términos de Servicio",
+            docs: "Docs",
+            terms_short: "Términos",
+            version_prefix: "versión",
         },
         leaderboard_page: {
             title: "Ranking Global",

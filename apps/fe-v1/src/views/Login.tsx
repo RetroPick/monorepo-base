@@ -154,7 +154,7 @@ const Login = () => {
                         >
                             <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
                             <div className="relative bg-white rounded-2xl p-1 shadow-xl">
-                                <Logo className="w-16 h-16 rounded-xl" />
+                                <Logo className="size-16 rounded-full" />
                             </div>
                         </motion.div>
 

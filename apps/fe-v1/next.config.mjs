@@ -7,6 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nextConfig = {
   output: "standalone",
   webpack(config) {
+    config.module.rules.push({
+      test: /\.md$/i,
+      resourceQuery: /raw/,
+      type: "asset/source",
+    });
     config.resolve.alias = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),

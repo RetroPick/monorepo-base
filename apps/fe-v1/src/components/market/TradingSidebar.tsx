@@ -6,6 +6,7 @@ import { relayerApi, BuySharesParams } from "@/lib/relayerApi";
 import { RELAYER_SESSION_VAULT_PLACEHOLDER } from "@/lib/relayerConstants";
 import { useToast } from "@/components/ui/use-toast";
 import { useYellowSession } from "@/hooks/useYellowSession";
+import { siteLinks } from "@/config/siteLinks";
 
 interface TradingSidebarProps {
   marketTitle: string;
@@ -277,7 +278,7 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
 
         {/* Terms text */}
         <div className="mt-5 text-center text-[10px] sm:text-xs text-muted-foreground">
-          By trading, you agree to the <a href="#" className="underline hover:text-foreground transition-colors">Terms of Use</a>.
+          By trading, you agree to the <a href={siteLinks.termsUrl} className="underline hover:text-foreground transition-colors">Terms of Use</a>.
         </div>
       </div>
     </div>

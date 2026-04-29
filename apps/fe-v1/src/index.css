@@ -102,6 +102,9 @@
     /* Directional (YES/NO, Up/Down, skew) — light */
     --up: 152 55% 36%;
     --down: 350 60% 46%;
+
+    --dashboard-accent: 16 78% 52%;
+    --dashboard-accent-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -154,6 +157,10 @@
 
     --up: 145 50% 44%;
     --down: 350 52% 52%;
+
+    /* Portfolio dashboard accent (mock CTA orange) — use via `hsl(var(--dashboard-accent))`. */
+    --dashboard-accent: 16 78% 56%;
+    --dashboard-accent-foreground: 0 0% 100%;
   }
 }
 

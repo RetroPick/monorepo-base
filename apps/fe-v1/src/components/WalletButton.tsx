@@ -8,7 +8,6 @@ import {
     Trophy,
     Coins,
     Settings,
-    Moon,
     ChevronRight,
     Globe,
     Check,
@@ -29,8 +28,6 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuSubContent
 } from "./ui/dropdown-menu";
-import { Switch } from "./ui/switch";
-import { useTheme } from "./theme-provider";
 import { useOnboarding } from "@/context/OnboardingContext";
 import WorldIDVerifier from "./auth/WorldIDVerifier";
 import { cn } from "@/lib/utils";
@@ -39,13 +36,13 @@ import { Language } from "@/data/translations";
 import { openAppKitModal } from "@/lib/openAppKitModal";
 import LazyFundWalletDialog from "@/components/wallet/LazyFundWalletDialog";
 import { formatUnits } from "viem";
+import { siteLinks } from "@/config/siteLinks";
 
 const WalletButton = () => {
     const { address, isConnected } = useAccount();
     const { disconnect } = useDisconnect();
     const { data: balance } = useBalance({ address });
     const { walletInfo } = useWalletInfo();
-    const { theme, setTheme } = useTheme();
     const { t, language, setLanguage } = useLanguage();
     const { isOnboarded, isWorldIDVerified } = useOnboarding();
     const [isFundWalletOpen, setIsFundWalletOpen] = useState(false);
@@ -190,36 +187,35 @@ const WalletButton = () => {
                                 <span className="font-medium">Resolution</span>
                             </DropdownMenuItem>
                         </Link>
-
-                        {/* Dark Mode Toggle */}
-                        <DropdownMenuItem className="focus:bg-transparent rounded-lg py-2.5 px-3 flex items-center justify-between cursor-default">
-                            <div className="flex items-center">
-                                                               <Moon className="mr-3 size-4 text-muted-foreground" />
-                                <span className="font-medium">{t('dark_mode')}</span>
-                            </div>
-                            <Switch
-                                checked={theme === 'dark'}
-                                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                                className="scale-90 data-[state=checked]:bg-blue-500"
-                            />
-                        </DropdownMenuItem>
                     </div>
 
                     <div className="h-px bg-border/50 mx-4" />
 
                     {/* Secondary Links */}
                     <div className="p-2 space-y-0.5">
-                        {[
-                            { label: t('accuracy'), key: 'Accuracy' },
-                            { label: t('support'), key: 'Support' },
-                            { label: t('documentation'), key: 'Documentation' },
-                            { label: t('help_center'), key: 'Help Center' },
-                            { label: t('terms_of_use'), key: 'Terms of Use' }
-                        ].map((item) => (
-                            <DropdownMenuItem key={item.key} className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
-                                <span className="text-sm font-medium">{item.label}</span>
+                        <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                            <span className="text-sm font-medium">{t('accuracy')}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                            <span className="text-sm font-medium">{t('support')}</span>
+                        </DropdownMenuItem>
+                        <a
+                            href={siteLinks.docsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                                <span className="text-sm font-medium">{t('documentation')}</span>
                             </DropdownMenuItem>
-                        ))}
+                        </a>
+                        <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                            <span className="text-sm font-medium">{t('help_center')}</span>
+                        </DropdownMenuItem>
+                        <Link to={siteLinks.termsUrl}>
+                            <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                                <span className="text-sm font-medium">{t('terms_of_use')}</span>
+                            </DropdownMenuItem>
+                        </Link>
                     </div>
 
                     <div className="h-px bg-border/50 mx-4" />

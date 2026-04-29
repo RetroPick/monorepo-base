@@ -22,12 +22,14 @@ vi.mock("@/views/ChainMarketDetail", () => ({
   default: () => <div>Chain Market Detail</div>,
 }));
 
-vi.mock("@/views/Portfolio", () => ({
-  default: () => <div>Portfolio</div>,
+vi.mock("@/views/LegalDocumentPage", () => ({
+  default: ({ kind }: { kind: "terms" | "privacy" }) => (
+    <div>{kind === "terms" ? "Terms Page" : "Privacy Page"}</div>
+  ),
 }));
 
-vi.mock("@/views/Activity", () => ({
-  default: () => <div>Activity</div>,
+vi.mock("@/views/Portfolio", () => ({
+  default: () => <div>Portfolio</div>,
 }));
 
 vi.mock("@/views/Leaderboard", () => ({
@@ -63,11 +65,29 @@ describe("App routing", () => {
     expect(await screen.findByText("Markets Dashboard")).toBeInTheDocument();
   });
 
+  it("redirects legacy activity route to portfolio with activity section", async () => {
+    window.history.pushState({}, "", "/app/activity");
+
+    render(<App />);
+
+    expect(await screen.findByText("Portfolio")).toBeInTheDocument();
+    expect(window.location.pathname).toBe("/app/portfolio");
+    expect(window.location.search).toContain("section=activity");
+  });
+
   it("renders indexed market detail at the canonical market route", async () => {
     window.history.pushState({}, "", "/app/market/0xabc");
 
     render(<App />);
 
     expect(await screen.findByText("Chain Market Detail")).toBeInTheDocument();
+  });
+
+  it("renders the legal routes", async () => {
+    window.history.pushState({}, "", "/app/terms");
+
+    render(<App />);
+
+    expect(await screen.findByText("Terms Page")).toBeInTheDocument();
   });
 });

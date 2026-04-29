@@ -12,6 +12,7 @@ import Portfolio from "@/views/Portfolio";
 import Resolution from "@/views/Resolution";
 import ChainMarkets from "@/views/ChainMarkets";
 import ChainMarketDetail from "@/views/ChainMarketDetail";
+import LegalDocumentPage from "@/views/LegalDocumentPage";
 
 function App() {
   return (
@@ -30,6 +31,8 @@ function App() {
             <Route path="/app/markets/updown/:assetClass" element={<Navigate to="/app/markets/all" replace />} />
             <Route path="/app/markets/abovebelow/:assetClass" element={<Navigate to="/app/markets/all" replace />} />
             <Route path="/app/market/:templateId" element={<ChainMarketDetail />} />
+            <Route path="/app/terms" element={<LegalDocumentPage kind="terms" />} />
+            <Route path="/app/privacy" element={<LegalDocumentPage kind="privacy" />} />
             <Route path="/app/portfolio" element={<Portfolio />} />
             <Route path="/app/activity" element={<Activity />} />
             <Route path="/app/leaderboard" element={<Leaderboard />} />
