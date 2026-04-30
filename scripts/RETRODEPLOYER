@@ -2466,7 +2466,7 @@ _send_prepared_resume_safe() {
   return "$st"
 }
 
-# keccak(utf8 slug) for manual type 01-09; requires cast, python3, xxd
+# keccak(utf8 slug) for manual type 01-09; requires cast + python3
 _template_id_for_type() {
   local typ="${1:?}"
   local upsertf
@@ -2484,7 +2484,7 @@ _template_id_for_type() {
   fi
   local SLUG _bytes_hex
   SLUG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["slug"])' "$upsertf")"
-  _bytes_hex="$(printf '%s' "$SLUG" | xxd -p -c 1000000 | tr -d '\n')"
+  _bytes_hex="$(python3 -c 'import sys; print(sys.argv[1].encode("utf-8").hex())' "$SLUG")"
   export PATH="${HOME}/.foundry/bin:${PATH}"
   if ! command -v cast &>/dev/null; then
     echo "error: install Foundry cast (templateId = keccak(bytes(slug)))" >&2

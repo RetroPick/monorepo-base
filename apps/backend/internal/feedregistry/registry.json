@@ -30,6 +30,51 @@
       "suggestedMaxDelaySeconds": 3600,
       "decimals": 8,
       "sourceUrl": "https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet"
+    },
+    {
+      "proxyAddress": "0x91b21900E91CD302EBeD05E45D8f270ddAED944d",
+      "label": "CBETH / ETH",
+      "category": "price",
+      "oracleClass": 0,
+      "suggestedMaxDelaySeconds": 86400,
+      "decimals": 8,
+      "sourceUrl": "https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet"
+    },
+    {
+      "proxyAddress": "0x3c65e28D357a37589e1C7C86044a9f44dDC17134",
+      "label": "CBETH / USD",
+      "category": "price",
+      "oracleClass": 0,
+      "suggestedMaxDelaySeconds": 86400,
+      "decimals": 8,
+      "sourceUrl": "https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet"
+    },
+    {
+      "proxyAddress": "0xD1092a65338d049DB68D7Be6bD89d17a0929945e",
+      "label": "DAI / USD",
+      "category": "price",
+      "oracleClass": 0,
+      "suggestedMaxDelaySeconds": 86400,
+      "decimals": 8,
+      "sourceUrl": "https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet"
+    },
+    {
+      "proxyAddress": "0x56a43EB56Da12C0dc1D972ACb089c06a5dEF8e69",
+      "label": "LINK / ETH",
+      "category": "price",
+      "oracleClass": 0,
+      "suggestedMaxDelaySeconds": 86400,
+      "decimals": 8,
+      "sourceUrl": "https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet"
+    },
+    {
+      "proxyAddress": "0xd30e2101a97dcbAeBCBC04F14C3f624E67A35165",
+      "label": "USDC / USD",
+      "category": "price",
+      "oracleClass": 0,
+      "suggestedMaxDelaySeconds": 86400,
+      "decimals": 8,
+      "sourceUrl": "https://docs.chain.link/data-feeds/price-feeds/addresses?network=base&networkType=testnet"
     }
   ]
 }
