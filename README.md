@@ -157,6 +157,7 @@ Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 |------|-----|
 | [`.env.example`](.env.example) | Host-run Go API / indexer (`DATABASE_URL`, `PORT`, `RPC_URL`, …) |
 | [`docker-compose.yml`](docker-compose.yml) | Container defaults for the same variables |
+| [`apps/fe-v1/.env.local.example`](apps/fe-v1/.env.local.example) | `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_DOCS_URL` for the user app |
 | [`apps/ops/.env.local.example`](apps/ops/.env.local.example) | `NEXT_PUBLIC_API_URL` for the operator UI |
 | [`package/contract/.env.example`](package/contract/.env.example) | Foundry / deployment scripts |
 
@@ -169,16 +170,62 @@ Do not commit real `.env` files (see root [`.gitignore`](.gitignore)).
 Ensure the API is reachable (default `http://127.0.0.1:8080`).
 
 ```bash
+# User app — http://localhost:3000
+pnpm dev:fe-v1
+
 # Operator UI — prefers port 3001 (see apps/ops/scripts/dev.mjs)
 pnpm dev:ops
 
-# User app (Vite — often http://localhost:5173)
-pnpm dev:fe-v1
+# Docs — http://localhost:3002/docs
+pnpm dev:docs
 ```
 
-If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/ops` (browser-side requests).
+If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/fe-v1` and `apps/ops` (browser-side requests). If docs are not on `localhost:3002`, set `NEXT_PUBLIC_DOCS_URL` for `apps/fe-v1`.
 
 Use a wallet on **Base Sepolia** with test ETH/USDC per your deployment.
+
+---
+
+## Production deployment
+
+Deploy the browser apps and Go backend as separate services:
+
+| Service | Recommended target | Notes |
+|---------|--------------------|-------|
+| User app | Vercel project rooted at `apps/fe-v1` | Build command: `cd ../.. && pnpm --filter fe-v1 build` |
+| Docs | Vercel project rooted at `apps/docs` | Build command: `cd ../.. && pnpm --filter docs build` |
+| API | Container host from [`apps/backend/Dockerfile`](apps/backend/Dockerfile) with `SERVICE=api` | Expose HTTPS at a public API domain |
+| Indexer | Container host from [`apps/backend/Dockerfile`](apps/backend/Dockerfile) with `SERVICE=indexer` | Long-running worker; no public port required |
+| Migrator | Release/predeploy job with `SERVICE=migrator` | Run before API/indexer start after schema changes |
+| Postgres | Managed Postgres | Use provider-required SSL settings, commonly `sslmode=require` |
+
+Vercel only deploys the selected root directory. A project rooted at `apps/fe-v1` will not run `apps/backend` or `apps/docs`, so production must not rely on local fallbacks like `127.0.0.1:8080` or `localhost:3002`.
+
+Set these Vercel variables on the `apps/fe-v1` project:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.example.com
+NEXT_PUBLIC_DOCS_URL=https://docs.example.com/docs
+```
+
+Set these variables on the backend API service:
+
+```bash
+PORT=8080
+DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB?sslmode=require
+RPC_URL=https://sepolia.base.org
+CORS_STRICT=1
+CORS_ALLOWED_ORIGINS=https://app.example.com,https://docs.example.com
+# Optional for Vercel preview deployments:
+CORS_ALLOWED_ORIGIN_PATTERNS=https://*.vercel.app
+```
+
+Smoke-test production after deploy:
+
+```bash
+curl -sS https://api.example.com/api/v1/health
+curl -sS https://api.example.com/api/v1/markets
+```
 
 ---
 

@@ -35,6 +35,33 @@ func TestBuildCORSAllowOriginFunc_StrictBlocksArbitraryPort(t *testing.T) {
 	}
 }
 
+func TestBuildCORSAllowOriginFunc_StrictAllowsConfiguredProductionOrigin(t *testing.T) {
+	t.Setenv("CORS_STRICT", "1")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.retropick.example, https://docs.retropick.example")
+	f := BuildCORSAllowOriginFunc()
+	if !f(nil, "https://app.retropick.example") {
+		t.Fatal("expected configured production origin allowed")
+	}
+	if f(nil, "https://evil.example") {
+		t.Fatal("expected unrelated origin blocked")
+	}
+}
+
+func TestBuildCORSAllowOriginFunc_StrictAllowsConfiguredPreviewPattern(t *testing.T) {
+	t.Setenv("CORS_STRICT", "1")
+	t.Setenv("CORS_ALLOWED_ORIGIN_PATTERNS", "https://*.vercel.app")
+	f := BuildCORSAllowOriginFunc()
+	if !f(nil, "https://retropick-web-git-main-team.vercel.app") {
+		t.Fatal("expected vercel preview origin allowed")
+	}
+	if f(nil, "http://retropick-web-git-main-team.vercel.app") {
+		t.Fatal("expected wrong scheme blocked")
+	}
+	if f(nil, "https://vercel.app.evil.example") {
+		t.Fatal("expected unrelated suffix blocked")
+	}
+}
+
 func TestCORSMiddleware_OptionsAndGETReflectOriginForLocalhost3002(t *testing.T) {
 	t.Setenv("CORS_STRICT", "")
 	t.Cleanup(func() { _ = os.Unsetenv("CORS_STRICT") })
