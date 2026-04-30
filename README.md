@@ -188,6 +188,10 @@ Use a wallet on **Base Sepolia** with test ETH/USDC per your deployment.
 
 ## Production deployment
 
+Step-by-step walkthrough (why Vercel and the API are separate, env vars, CORS, smoke tests): **[docs/vercel-and-api-deployment.md](docs/vercel-and-api-deployment.md)**.
+
+End-to-end tutorial for hosting **only** the Go API on Vercel (`apps/backend`, `cmd/api`): **[docs/vercel-backend.md](docs/vercel-backend.md)** (Postgres + migrator off-Vercel; **indexer** needs another host).
+
 Deploy the browser apps and Go backend as separate services:
 
 | Service | Recommended target | Notes |

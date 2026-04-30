@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useChainId } from "wagmi";
 import { CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
@@ -16,6 +16,11 @@ import {
 } from "@/lib/api/retropickApi";
 import type { MarketOutcome } from "@/types/market";
 import { formatPayoutMultiplier } from "@/lib/market-odds";
+import {
+  computeSwitchFeeTs,
+  parseEpochForProjection,
+  projectWinnerPayoutIfSideWins,
+} from "@/lib/market-payout-projection";
 import type { ManualMarketTradeContext } from "./types";
 
 /**
@@ -29,6 +34,7 @@ const tradeDown3dClass =
   "w-full rounded-lg border border-rose-800/90 bg-gradient-to-b from-rose-600 to-rose-800 py-3 text-sm font-bold text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_4px_0_0_rgb(100,20,40),0_2px_8px_rgba(0,0,0,0.3)] transition-[opacity,transform,box-shadow,filter,background,colors] duration-200 hover:from-rose-500 hover:to-rose-700 hover:text-zinc-100 hover:opacity-100 hover:brightness-[1.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/80 active:translate-y-px active:from-rose-600 active:to-rose-800 active:text-zinc-300 active:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_0_0_rgb(100,20,40),0_1px_4px_rgba(0,0,0,0.22)] disabled:cursor-not-allowed disabled:opacity-40";
 
 type Tab = "Buy" | "Claim";
+type BuyMode = "add" | "move";
 
 interface ManualTradeCardProps {
   outcomes: MarketOutcome[];
@@ -107,6 +113,9 @@ function positionStakeAt(position: PositionViewRow | undefined, index: number): 
 
 export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps) {
   const [tab, setTab] = useState<Tab>("Buy");
+  const [buyMode, setBuyMode] = useState<BuyMode>("add");
+  const [switchFromIndex, setSwitchFromIndex] = useState(0);
+  const [switchToIndex, setSwitchToIndex] = useState(1);
   const [selectedOutcome, setSelectedOutcome] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [lastSubmitted, setLastSubmitted] = useState<`0x${string}` | undefined>();
@@ -164,6 +173,10 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const yesMult = formatPayoutMultiplier(yesOutcome?.probability ?? 50);
   const noMult = formatPayoutMultiplier(noOutcome?.probability ?? 50);
   const selectedOutcomeIndex = Math.max(0, Math.min(selectedOutcome, Math.max(outcomes.length - 1, 0)));
+  const outcomeCount = Math.max(1, tc?.outcomeCount ?? outcomes.length);
+
+  const epochSnap = useMemo(() => parseEpochForProjection(epochQ.data), [epochQ.data]);
+
   const hasOpenPosition =
     toBigInt(activePosition?.totalStake) > 0n ||
     outcomes.some((_, index) => positionStakeAt(activePosition, index) > 0n);
@@ -179,16 +192,76 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     selectedOutcomeIndex >= 0 &&
     selectedOutcomeIndex < tc.outcomeCount;
 
+  const canSwitchOnChain =
+    tc != null &&
+    tc.activeEpochId != null &&
+    !isRollingHalted &&
+    switchFromIndex >= 0 &&
+    switchFromIndex < outcomeCount &&
+    switchToIndex >= 0 &&
+    switchToIndex < outcomeCount;
+
   /** On-chain betting window; `status===Open` alone is not enough (see `BettingClosed` / openAt–lockAt). */
   const depositOpen = isEpochBettingOpenNow(epochQ.data);
   const wrongChain = address != null && chainId !== DEPLOYMENT_CHAIN_ID;
   const parsedAmount = parseAmount(amount);
   const allowance = engine.usdcAllowance ?? 0n;
-  const needsBuyApproval = tab === "Buy" && parsedAmount > 0n && allowance < parsedAmount;
+  const needsBuyApproval =
+    tab === "Buy" && buyMode === "add" && parsedAmount > 0n && allowance < parsedAmount;
   const approvedBuyMatches =
     approvedBuy != null &&
     tc != null &&
     approvedBuyMatchesOrder(approvedBuy, tc, selectedOutcomeIndex, parsedAmount);
+
+  const winUpToProjection = useMemo(() => {
+    if (tab !== "Buy" || buyMode !== "add" || parsedAmount <= 0n || !epochSnap) return null;
+    const stakes = Array.from({ length: epochSnap.outcomeCount }, (_, i) =>
+      positionStakeAt(activePosition, i),
+    );
+    return projectWinnerPayoutIfSideWins({
+      outcomePools: epochSnap.outcomePools,
+      totalPool: epochSnap.totalPool,
+      outcomeCount: epochSnap.outcomeCount,
+      settlementFeeBps: epochSnap.settlementFeeBps,
+      feeOnLosingPool: epochSnap.feeOnLosingPool,
+      refundMode: epochSnap.refundMode,
+      winningOutcomeIndex: Math.min(selectedOutcomeIndex, epochSnap.outcomeCount - 1),
+      userStakes: stakes,
+      additionalStake: parsedAmount,
+    });
+  }, [tab, buyMode, parsedAmount, epochSnap, activePosition, selectedOutcomeIndex]);
+
+  const switchStakeOnFrom = positionStakeAt(activePosition, switchFromIndex);
+  const switchFeePreview =
+    buyMode === "move" && parsedAmount > 0n && epochSnap
+      ? computeSwitchFeeTs(parsedAmount, epochSnap.switchFeeBps)
+      : 0n;
+
+  const selectedWinLabel =
+    outcomes[Math.min(selectedOutcomeIndex, Math.max(outcomes.length - 1, 0))]?.label ?? "this side";
+
+  const activateMoveMode = useCallback(() => {
+    const oc = Math.max(1, tc?.outcomeCount ?? outcomes.length);
+    let from = 0;
+    for (let i = 0; i < oc; i++) {
+      if (positionStakeAt(activePosition, i) > 0n) {
+        from = i;
+        break;
+      }
+    }
+    let to = 0;
+    if (oc <= 1) {
+      to = 0;
+    } else if (oc === 2) {
+      to = from === 0 ? 1 : 0;
+    } else {
+      to = (from + 1) % oc;
+      if (to === from) to = (from + 2) % oc;
+    }
+    setSwitchFromIndex(from);
+    setSwitchToIndex(to);
+    setBuyMode("move");
+  }, [tc?.outcomeCount, outcomes.length, activePosition]);
 
   /** Rolling markets can advance epoch server-side; stale approve must not deposit into the wrong epoch. */
   useEffect(() => {
@@ -233,11 +306,25 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     }
     if (!address) return "Connect wallet to trade.";
     if (commonBlockedReason) return commonBlockedReason;
+    if (buyMode === "move") {
+      if (parsedAmount <= 0n) return "Enter an amount.";
+      const maxSwitch = positionStakeAt(activePosition, switchFromIndex);
+      if (maxSwitch <= 0n) return "No stake on the selected \"from\" outcome.";
+      if (parsedAmount > maxSwitch) return "Amount exceeds stake on that side.";
+      if (switchFromIndex === switchToIndex) return "Pick a different outcome to move into.";
+      return null;
+    }
     if (parsedAmount <= 0n) return "Enter an amount.";
     return null;
   })();
 
   const setMax = () => {
+    if (buyMode === "move") {
+      const m = positionStakeAt(activePosition, switchFromIndex);
+      if (m <= 0n) return;
+      setAmount(formatUsdc(m, 2).replace(/,/g, ""));
+      return;
+    }
     if (engine.usdcBalance == null) return;
     setAmount(formatUsdc(engine.usdcBalance, 2).replace(/,/g, ""));
   };
@@ -253,6 +340,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   };
 
   const handleBuy = async () => {
+    if (buyMode !== "add") return;
     if (!address || !tc || tc.activeEpochId == null || !canTradeOnChain || parsedAmount <= 0n) return;
     try {
       const refetchResult = await engine.refetchUsdcAllowance?.();
@@ -314,6 +402,32 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     }
   };
 
+  const handleSwitch = async () => {
+    if (!address || !tc || tc.activeEpochId == null || !canSwitchOnChain || parsedAmount <= 0n) return;
+    if (switchFromIndex === switchToIndex) return;
+    try {
+      const hash = await engine.switchSide({
+        templateId: tc.templateId,
+        epochId: tc.activeEpochId,
+        fromOutcomeIndex: switchFromIndex,
+        toOutcomeIndex: switchToIndex,
+        amount: parsedAmount,
+      });
+      setLastSubmitted(hash);
+      refreshPositionSoon();
+      toast({
+        title: "Switch submitted",
+        description: "Waiting for wallet confirmation and indexer refresh.",
+      });
+    } catch (e) {
+      toast({
+        title: "Switch failed",
+        description: friendlyMarketEngineError(e),
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleClaim = async () => {
     if (!tc || claimablePositions.length === 0) return;
     try {
@@ -338,23 +452,28 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   };
 
   const isWorking = engine.isDepositing || engine.isClaiming;
-  const isApprovingBuy = tab === "Buy" && engine.isApprovingDeposit;
-  const isAnyWorking = isWorking || isApprovingBuy;
+  const isApprovingBuy = tab === "Buy" && buyMode === "add" && engine.isApprovingDeposit;
+  const isSwitchingStake = tab === "Buy" && buyMode === "move" && engine.isSwitching;
+  const isAnyWorking = isWorking || isApprovingBuy || isSwitchingStake;
   const isConnectOnlyReason =
     actionBlockedReason === "Connect wallet to trade." || actionBlockedReason === "Connect wallet to claim.";
   const showErrorCallout = Boolean(actionBlockedReason && !isConnectOnlyReason);
 
   const primaryLabel =
     tab === "Buy"
-      ? isApprovingBuy
-        ? "Confirm approval"
-        : engine.isDepositing
-          ? "Confirm buy"
-          : needsBuyApproval && !approvedBuyMatches
-            ? "Trade"
-            : approvedBuyMatches
-              ? "Submit buy"
-              : "Trade"
+      ? buyMode === "move"
+        ? engine.isSwitching
+          ? "Confirm switch"
+          : "Switch stake"
+        : isApprovingBuy
+          ? "Confirm approval"
+          : engine.isDepositing
+            ? "Confirm buy"
+            : needsBuyApproval && !approvedBuyMatches
+              ? "Trade"
+              : approvedBuyMatches
+                ? "Submit buy"
+                : "Trade"
       : engine.isClaiming
         ? "Confirm claim"
         : "Claim";
@@ -383,81 +502,160 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
         <div className="p-4 sm:p-5">
           {tab !== "Claim" ? (
             <>
-              <div className="grid grid-cols-2 gap-3 pt-0.5 sm:gap-4">
-                {outcomes.length <= 2 ? (
-                  <>
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
-                      <span
-                        className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
-                        title="Approx. gross return on $1 if this side wins (from implied %)"
-                      >
-                        {yesMult}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedOutcome(0)}
-                        className={cn(
-                          tradeUp3dClass,
-                          selectedOutcomeIndex === 0
-                            ? "opacity-100 ring-2 ring-white/30 ring-offset-2 ring-offset-background"
-                            : "opacity-[0.55]",
-                        )}
-                        aria-pressed={selectedOutcomeIndex === 0}
-                        aria-label={`${yesOutcome?.label ?? "Yes"} ${yesMult}`}
-                      >
-                        {yesOutcome?.label ?? "Yes"}
-                      </button>
-                    </div>
-                    <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
-                      <span
-                        className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
-                        title="Approx. gross return on $1 if this side wins (from implied %)"
-                      >
-                        {noMult}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedOutcome(1)}
-                        className={cn(
-                          tradeDown3dClass,
-                          selectedOutcomeIndex === 1
-                            ? "opacity-100 ring-2 ring-white/20 ring-offset-2 ring-offset-background"
-                            : "opacity-[0.55]",
-                        )}
-                        aria-pressed={selectedOutcomeIndex === 1}
-                        aria-label={`${noOutcome?.label ?? "No"} ${noMult}`}
-                      >
-                        {noOutcome?.label ?? "No"}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="col-span-2 grid grid-cols-2 gap-2">
-                    {outcomes.map((outcome, index) => (
-                      <button
-                        key={outcome.id}
-                        type="button"
-                        onClick={() => setSelectedOutcome(index)}
-                        className={cn(
-                          "min-h-12 rounded-lg border px-3 py-2 text-left transition",
-                          selectedOutcomeIndex === index
-                            ? "border-primary bg-primary/10 text-foreground ring-2 ring-primary/20"
-                            : "border-border/70 bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground",
-                        )}
-                        aria-pressed={selectedOutcomeIndex === index}
-                      >
-                        <span className="block truncate text-sm font-semibold">{outcome.label}</span>
-                        <span className="block font-mono text-xs">{formatPayoutMultiplier(outcome.probability)}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="flex rounded-lg border border-border/70 p-0.5 dark:border-white/[0.08]">
+                <button
+                  type="button"
+                  onClick={() => setBuyMode("add")}
+                  className={cn(
+                    "flex-1 rounded-md py-2 text-xs font-semibold transition",
+                    buyMode === "add"
+                      ? "bg-secondary text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Add funds
+                </button>
+                <button
+                  type="button"
+                  onClick={activateMoveMode}
+                  className={cn(
+                    "flex-1 rounded-md py-2 text-xs font-semibold transition",
+                    buyMode === "move"
+                      ? "bg-secondary text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  Move stake
+                </button>
               </div>
+
+              {buyMode === "add" ? (
+                <div className="grid grid-cols-2 gap-3 pt-3 sm:gap-4">
+                  {outcomes.length <= 2 ? (
+                    <>
+                      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
+                        <span
+                          className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
+                          title="Approx. gross return on $1 if this side wins (from implied %)"
+                        >
+                          {yesMult}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOutcome(0)}
+                          className={cn(
+                            tradeUp3dClass,
+                            selectedOutcomeIndex === 0
+                              ? "opacity-100 ring-2 ring-white/30 ring-offset-2 ring-offset-background"
+                              : "opacity-[0.55]",
+                          )}
+                          aria-pressed={selectedOutcomeIndex === 0}
+                          aria-label={`${yesOutcome?.label ?? "Yes"} ${yesMult}`}
+                        >
+                          {yesOutcome?.label ?? "Yes"}
+                        </button>
+                      </div>
+                      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center gap-1.5">
+                        <span
+                          className="text-center text-[11px] font-medium tabular-nums text-muted-foreground sm:text-xs"
+                          title="Approx. gross return on $1 if this side wins (from implied %)"
+                        >
+                          {noMult}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOutcome(1)}
+                          className={cn(
+                            tradeDown3dClass,
+                            selectedOutcomeIndex === 1
+                              ? "opacity-100 ring-2 ring-white/20 ring-offset-2 ring-offset-background"
+                              : "opacity-[0.55]",
+                          )}
+                          aria-pressed={selectedOutcomeIndex === 1}
+                          aria-label={`${noOutcome?.label ?? "No"} ${noMult}`}
+                        >
+                          {noOutcome?.label ?? "No"}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-span-2 grid grid-cols-2 gap-2">
+                      {outcomes.map((outcome, index) => (
+                        <button
+                          key={outcome.id}
+                          type="button"
+                          onClick={() => setSelectedOutcome(index)}
+                          className={cn(
+                            "min-h-12 rounded-lg border px-3 py-2 text-left transition",
+                            selectedOutcomeIndex === index
+                              ? "border-primary bg-primary/10 text-foreground ring-2 ring-primary/20"
+                              : "border-border/70 bg-background/60 text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                          aria-pressed={selectedOutcomeIndex === index}
+                        >
+                          <span className="block truncate text-sm font-semibold">{outcome.label}</span>
+                          <span className="block font-mono text-xs">{formatPayoutMultiplier(outcome.probability)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="grid gap-3 pt-3 sm:grid-cols-2">
+                  <label className="block min-w-0">
+                    <span className="text-xs font-medium text-muted-foreground">From</span>
+                    <select
+                      className="mt-1 w-full rounded-lg border border-border/70 bg-background px-2 py-2 text-sm text-foreground outline-none dark:border-white/[0.08]"
+                      value={switchFromIndex}
+                      onChange={(e) => {
+                        const i = Number(e.target.value);
+                        setSwitchFromIndex(i);
+                        setSwitchToIndex((prev) =>
+                          prev === i ? (i + 1) % outcomeCount : prev >= outcomeCount ? outcomeCount - 1 : prev,
+                        );
+                      }}
+                    >
+                      {outcomes.slice(0, outcomeCount).map((o, i) => (
+                        <option key={o.id} value={i}>
+                          {o.label} ({formatShortToken(positionStakeAt(activePosition, i))})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block min-w-0">
+                    <span className="text-xs font-medium text-muted-foreground">To</span>
+                    <select
+                      className="mt-1 w-full rounded-lg border border-border/70 bg-background px-2 py-2 text-sm text-foreground outline-none dark:border-white/[0.08]"
+                      value={switchToIndex}
+                      onChange={(e) => setSwitchToIndex(Number(e.target.value))}
+                    >
+                      {outcomes
+                        .slice(0, outcomeCount)
+                        .map((o, i) => ({ o, i }))
+                        .filter(({ i }) => i !== switchFromIndex)
+                        .map(({ o, i }) => (
+                          <option key={o.id} value={i}>
+                            {o.label}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                </div>
+              )}
 
               <div className="mt-4 rounded-xl border border-border/70 bg-background/60 p-3 dark:border-white/[0.08]">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs font-medium text-muted-foreground">Amount</span>
-                  <span className="text-xs text-muted-foreground/90">Balance {balanceLabel}</span>
+                  <span className="text-xs text-muted-foreground/90">
+                    {buyMode === "move" ? (
+                      <>
+                        On From{" "}
+                        <span className="font-mono text-foreground">{formatShortToken(switchStakeOnFrom)}</span>
+                      </>
+                    ) : (
+                      <>Balance {balanceLabel}</>
+                    )}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-baseline gap-1">
                   <span className="text-2xl font-semibold text-muted-foreground">$</span>
@@ -489,6 +687,11 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
                     Max
                   </button>
                 </div>
+                {buyMode === "move" && parsedAmount > 0n && switchFeePreview > 0n ? (
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Est. switch fee ~${formatUsdc(switchFeePreview, switchFeePreview >= 10n ** 16n ? 2 : 4)}
+                  </p>
+                ) : null}
               </div>
             </>
           ) : (
@@ -530,6 +733,17 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
             </p>
           ) : null}
 
+          {buyMode === "add" &&
+          tab !== "Claim" &&
+          winUpToProjection?.payout != null &&
+          winUpToProjection.basis === "pool" &&
+          parsedAmount > 0n ? (
+            <p className="mt-3 text-center text-xs text-emerald-700 dark:text-emerald-300">
+              Estimated win up to ~${formatUsdc(winUpToProjection.payout, 2)} if {selectedWinLabel} wins (pool-based,
+              not guaranteed).
+            </p>
+          ) : null}
+
           {isConnectOnlyReason && actionBlockedReason ? (
             <p className="mt-2 text-center text-xs text-muted-foreground">{actionBlockedReason}</p>
           ) : null}
@@ -548,7 +762,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
             </div>
           ) : null}
 
-          {approvedBuyMatches ? (
+          {approvedBuyMatches && buyMode === "add" ? (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-700 dark:text-sky-300">
               <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
               <span className="min-w-0 truncate">Approved {approvedBuy?.approveHash.slice(0, 10)}… tap Submit buy</span>
@@ -558,7 +772,8 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
           <button
             type="button"
             onClick={() => {
-              if (tab === "Buy") void handleBuy();
+              if (tab === "Buy" && buyMode === "move") void handleSwitch();
+              else if (tab === "Buy") void handleBuy();
               else void handleClaim();
             }}
             disabled={Boolean(actionBlockedReason) || isAnyWorking}

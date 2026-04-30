@@ -2,15 +2,27 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ManualTradeCard } from "./ManualTradeCard";
+const hoisted = vi.hoisted(() => ({
+  deposit: vi.fn(),
+  approveDepositSpending: vi.fn(),
+  batchApproveAndDeposit: vi.fn(),
+  depositApproved: vi.fn(),
+  claimMany: vi.fn(),
+  fetchUserPositions: vi.fn(),
+  refetchUsdcAllowance: vi.fn().mockResolvedValue({ data: 0n }),
+  switchSide: vi.fn(),
+}));
 
-const deposit = vi.fn();
-const approveDepositSpending = vi.fn();
-const batchApproveAndDeposit = vi.fn();
-const depositApproved = vi.fn();
-const claimMany = vi.fn();
-const fetchUserPositions = vi.fn();
-const refetchUsdcAllowance = vi.fn().mockResolvedValue({ data: 0n });
+const {
+  deposit,
+  approveDepositSpending,
+  batchApproveAndDeposit,
+  depositApproved,
+  claimMany,
+  fetchUserPositions,
+  refetchUsdcAllowance,
+  switchSide,
+} = hoisted;
 
 vi.mock("wagmi", async (importOriginal) => {
   const actual = await importOriginal<typeof import("wagmi")>();
@@ -29,18 +41,22 @@ vi.mock("@/hooks/useMarketEngine", () => ({
   useMarketEngine: () => ({
     usdcBalance: 250n * 10n ** 18n,
     usdcAllowance: 0n,
-    refetchUsdcAllowance,
-    deposit,
-    approveDepositSpending,
-    batchApproveAndDeposit,
-    depositApproved,
-    claimMany,
+    refetchUsdcAllowance: hoisted.refetchUsdcAllowance,
+    deposit: hoisted.deposit,
+    approveDepositSpending: hoisted.approveDepositSpending,
+    batchApproveAndDeposit: hoisted.batchApproveAndDeposit,
+    depositApproved: hoisted.depositApproved,
+    switchSide: hoisted.switchSide,
+    claimMany: hoisted.claimMany,
     isApprovingDeposit: false,
     isBatchingDeposit: false,
     isDepositing: false,
     isClaiming: false,
+    isSwitching: false,
   }),
 }));
+
+const W = 10n ** 18n;
 
 vi.mock("@/lib/contracts/marketEngine", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/contracts/marketEngine")>();
@@ -50,10 +66,14 @@ vi.mock("@/lib/contracts/marketEngine", async (importOriginal) => {
       data: {
         status: 1,
         timing: { openAt: 0n, lockAt: 9_999_999_999n, resolveAt: 9_999_999_999n },
-        outcomePools: [0n, 0n] as const,
-        totalPool: 0n,
+        outcomePools: [60n * W, 40n * W] as const,
+        totalPool: 100n * W,
         winningOutcomeMask: 0n,
         outcomeCount: 2,
+        settlementFeeBps: 1000,
+        feeOnLosingPool: true,
+        refundMode: false,
+        switchFeeBps: 100,
       },
       isSuccess: true,
       isFetching: false,
@@ -67,9 +87,11 @@ vi.mock("@/lib/api/retropickApi", async () => {
   );
   return {
     ...actual,
-    fetchUserPositions: (...args: unknown[]) => fetchUserPositions(...args),
+    fetchUserPositions: (...args: unknown[]) => hoisted.fetchUserPositions(...args),
   };
 });
+
+import { ManualTradeCard } from "./ManualTradeCard";
 
 const tradeContext = {
   templateId: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const,
@@ -106,6 +128,7 @@ describe("ManualTradeCard", () => {
     approveDepositSpending.mockResolvedValue("0xapprove");
     depositApproved.mockResolvedValue("0xdep");
     claimMany.mockResolvedValue("0xclaim");
+    switchSide.mockResolvedValue("0xswitch");
     fetchUserPositions.mockResolvedValue({
       wallet: "0x1111111111111111111111111111111111111111",
       positions: [
@@ -168,6 +191,33 @@ describe("ManualTradeCard", () => {
           epochId: 7n,
         },
       ]);
+    });
+  });
+
+  it("shows estimated win up to when amount is entered (Add funds)", async () => {
+    renderCard();
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "10" } });
+    expect(await screen.findByText(/Estimated win up to ~\$15\.14/)).toBeInTheDocument();
+  });
+
+  it("submits switchSide when Move stake is confirmed", async () => {
+    renderCard();
+    fireEvent.click(screen.getByRole("button", { name: "Move stake" }));
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "5" } });
+    const switchBtn = screen.getByRole("button", { name: /Switch stake/i });
+    await waitFor(() => {
+      expect(switchBtn).not.toBeDisabled();
+    });
+    fireEvent.click(switchBtn);
+
+    await waitFor(() => {
+      expect(switchSide).toHaveBeenCalledWith({
+        templateId: tradeContext.templateId,
+        epochId: 7n,
+        fromOutcomeIndex: 0,
+        toOutcomeIndex: 1,
+        amount: 5n * W,
+      });
     });
   });
 

@@ -18,3 +18,5 @@ test-ledger
 .retropick-deploy
 .progress.md
 .turbo/
+.vercel
+.env*.local

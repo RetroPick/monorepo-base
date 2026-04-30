@@ -1,7 +1,7 @@
 <claude-mem-context>
 # Memory Context
 
-# [monorepo-base] recent context, 2026-04-30 5:05pm GMT+7
+# [monorepo-base] recent context, 2026-04-30 10:41pm GMT+7
 
 No previous sessions found.
 </claude-mem-context>
@@ -23,6 +23,8 @@ No previous sessions found.
 - **`apps/fe-v1/Dockerfile`** uses Dockerfile syntax `# syntax=docker/dockerfile:1`, **`NEXT_TELEMETRY_DISABLED=1`**, **`corepack prepare pnpm@10.0.0`**, **filtered** `pnpm install --filter fe-v1... --store-dir=/pnpm/store`, and (with BuildKit) cache mounts for the pnpm store and **`apps/fe-v1/.next/cache`** so repeat image builds hit cache when dependencies are unchanged.
 - **`ManualMarketPage`** passes **`<Header omitBottomDivider />`** so the sticky site header has no bottom rule above the market headline (blends with **`main`** / page background); sticky offsets still come from measuring **`#app-site-header`** via **`useSiteHeaderOffset`** into **`--market-page-sticky-top`**.
 - Sticky market UI (`.market-page-sticky-below-chrome`, `.market-manual-trade-aside`) should align **`top`** with **`calc(var(--market-page-sticky-top, …) + safe-area)`**; avoid clamping sticky **`top`** with a fixed **~9.5rem** floor against a smaller measured header or scrolling content can show in a band between the real header and the sticky title row.
-- **Portfolio** (`PortfolioPage`) is **wallet-style**: **`CategoryDistributionCard`** sits in the summary row (replacing the old balance-spot emphasis); **`PortfolioTradingPanel`** often runs with **`embeddedActivity="sidebar"`** and **`PortfolioActivitySidebar`** shows indexed on-chain **Activity** beside trades.
+- **Portfolio** (`PortfolioPage`) is **wallet-style**: **`CategoryDistributionCard`** sits in the summary row (replacing the old balance-spot emphasis); **`PortfolioTradingPanel`** often runs with **`embeddedActivity="sidebar"`** and **`PortfolioActivitySidebar`** shows indexed on-chain **Activity** beside trades; the portfolio route may use **`PortfolioMiniFooter`** instead of the full **`Footer`** for a tighter above-fold layout.
 - **`?section=transactions`** on portfolio normalizes to **`section=positions`** so legacy deep links still land on trades while the events table remains in the **Activity** column.
 - **`apps/fe-v1/src/config/siteLinks.ts`** holds **Discord / Telegram / X** and placeholder **docs / terms / privacy** URLs consumed by the thin fixed **`Footer`** bar (`socialLinks` + `siteLinks`).
+- A **Vercel** project rooted at **`apps/fe-v1`** only builds the **Next.js** frontend; **`apps/backend`** (Go API) must be deployed separately and reachable at a public **HTTPS** origin. Set **`NEXT_PUBLIC_API_URL`** in Vercel (**Production** / **Preview** as needed) and **redeploy** after changes so the client bundle picks it up.
+- Browser access from Vercel requires the deployed API’s **CORS** config to allow those origins (**`CORS_STRICT`**, **`CORS_ALLOWED_ORIGINS`**, optional **`CORS_ALLOWED_ORIGIN_PATTERNS`** such as `https://*.vercel.app`). When **`process.env.VERCEL`** is set at build time, **`apps/fe-v1/next.config.mjs`** fails the build if **`NEXT_PUBLIC_API_URL`** is missing or points at **localhost** / **127.0.0.1**.
