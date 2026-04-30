@@ -49,7 +49,7 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	minConns, err := int32FromEnv("DB_MIN_CONNS", 2)
+	minConns, err := int32FromEnv("DB_MIN_CONNS", defaultMinConns())
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +87,15 @@ func Load() (*Config, error) {
 		BuildTime:             envDefault("BUILD_TIME", "unknown"),
 		LogLevel:              level,
 	}, nil
+}
+
+func defaultMinConns() int32 {
+	// Vercel/serverless environments are bursty and work better without
+	// pre-opening idle DB connections.
+	if os.Getenv("VERCEL") != "" {
+		return 0
+	}
+	return 2
 }
 
 func envDefault(key, fallback string) string {

@@ -2,8 +2,10 @@ package db
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -22,6 +24,11 @@ func NewPoolWithConfig(ctx context.Context, databaseURL string, cfg PoolConfig) 
 	pc, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, err
+	}
+	// Supabase transaction pooler (port 6543) is pgbouncer-based.
+	// Use simple protocol to avoid prepared-statement issues in transaction pooling.
+	if strings.Contains(databaseURL, "pooler.supabase.com:6543") {
+		pc.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 	}
 	if cfg.MaxConns > 0 {
 		pc.MaxConns = cfg.MaxConns
