@@ -1,11 +1,13 @@
 /**
  * Map indexed `MarketRow` (Go API) to `Market` card models for Discover.
- * Pool shares are not on the list payload yet — use neutral split (see `manualMarketFromChainDetail`).
+ * Uses live outcome views when the API hydrates them; falls back to neutral splits for older payloads.
  * `marketType` uint order matches `MarketTypes.MarketType` in `package/contract/src/types/MarketTypes.sol`.
  */
 
 import type { Market, MarketOutcome } from "@/types/market";
 import type { MarketRow } from "@/lib/api/retropickApi";
+import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
+import { formatUsdc } from "@/config/tokens";
 import { binaryPresentationForMarketType } from "./discoverMarketClassification";
 
 const MARKET_TYPE_NAMES = [
@@ -43,6 +45,61 @@ function pickIconForSlug(slug: string): string {
   if (s.includes("sol") || s.includes("solana")) return "blur_on";
   if (s.includes("chainlink") || /(^|[-/])link($|[-/])/.test(s)) return "link";
   return "show_chart";
+}
+
+function parseRawAmount(raw?: string | null): bigint | null {
+  if (!raw) return null;
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+
+function formatStakeAmount(raw: bigint): string {
+  const decimals = raw >= 10n ** 18n ? 2 : 4;
+  return formatUsdc(raw, decimals);
+}
+
+/** Non-zero parsed amounts only; zero pool / volume → undefined so cards show "—". */
+function volumeFieldToDisplay(raw: string | null | undefined): string | undefined {
+  if (raw == null || raw === "") return undefined;
+  const parsed = parseRawAmount(raw);
+  if (parsed == null) return raw;
+  if (parsed === 0n) return undefined;
+  return formatStakeAmount(parsed);
+}
+
+function formatTotalPool(row: MarketRow): string | undefined {
+  const rawPool = row.totalPool ?? row.volume;
+  if (rawPool) {
+    const parsed = parseRawAmount(rawPool);
+    if (parsed != null) {
+      if (parsed === 0n) return undefined;
+      return formatStakeAmount(parsed);
+    }
+  }
+  const views = row.outcomes ?? [];
+  if (views.length === 0) {
+    return volumeFieldToDisplay(row.volume);
+  }
+  let total = 0n;
+  let sawValue = false;
+  for (const view of views) {
+    const parsed = parseRawAmount(view.poolSize);
+    if (parsed == null) continue;
+    total += parsed;
+    sawValue = true;
+  }
+  if (!sawValue) {
+    return volumeFieldToDisplay(row.volume);
+  }
+  if (total === 0n) return undefined;
+  return formatStakeAmount(total);
+}
+
+function outcomeViewsByIndex(row: MarketRow) {
+  return new Map((row.outcomes ?? []).map((view) => [view.outcomeIndex, view] as const));
 }
 
 export function chainMarketIsLive(row: MarketRow): boolean {
@@ -96,6 +153,26 @@ export function isDiscoverCryptoRow(row: MarketRow): boolean {
   return inferCryptoFromSlug(row.slug);
 }
 
+/** Maps indexed template metadata to the Discover tab that best fits this market (for header context on detail pages). */
+export function discoverVerticalForIndexedSlug(slug: string, marketType: number): DiscoveryVerticalId {
+  const row: MarketRow = {
+    templateId: "",
+    slug,
+    marketType,
+    outcomeCount: 2,
+    initialized: true,
+    executionMode: 0,
+    rollingPhase: 0,
+    rollingHaltReason: 0,
+    lastIndexedBlock: 0,
+    lastIndexedAt: null,
+  };
+  if (isDiscoverCryptoRow(row)) {
+    return "crypto";
+  }
+  return "trending";
+}
+
 export function inferChainAssetFromSlug(
   slug: string,
 ): "BTC" | "ETH" | "SOL" | "LINK" | null {
@@ -125,6 +202,8 @@ export function marketRowToCardMarket(row: MarketRow): Market {
   const typeName = marketTypeName(mt);
   const rawOc = row.outcomeCount > 0 ? row.outcomeCount : 2;
   const oc = Math.min(8, Math.max(2, rawOc));
+  const byIndex = outcomeViewsByIndex(row);
+  const totalPool = formatTotalPool(row);
 
   let outcomes: MarketOutcome[];
   let isBinary: boolean;
@@ -135,13 +214,13 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     isBinary = true;
     if (mt === 0) {
       outcomes = [
-        { id: "0", label: "Up", probability: rowOutcomeProbability(row, 0, 50) },
-        { id: "1", label: "Down", probability: rowOutcomeProbability(row, 1, 50) },
+        { id: "0", label: "Up", probability: rowOutcomeProbability(byIndex, 0, 50) },
+        { id: "1", label: "Down", probability: rowOutcomeProbability(byIndex, 1, 50) },
       ];
     } else {
       outcomes = [
-        { id: "0", label: "Yes", probability: rowOutcomeProbability(row, 0, 50) },
-        { id: "1", label: "No", probability: rowOutcomeProbability(row, 1, 50) },
+        { id: "0", label: "Yes", probability: rowOutcomeProbability(byIndex, 0, 50) },
+        { id: "1", label: "No", probability: rowOutcomeProbability(byIndex, 1, 50) },
       ];
     }
   } else {
@@ -154,7 +233,7 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     outcomes = Array.from({ length: oc }, (_, i) => ({
       id: String(i),
       label: `Outcome ${i + 1}`,
-      probability: rowOutcomeProbability(row, i, base + (i < rem ? 1 : 0)),
+      probability: rowOutcomeProbability(byIndex, i, base + (i < rem ? 1 : 0)),
     }));
   }
 
@@ -173,8 +252,8 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     icon: pickIconForSlug(row.slug),
     iconColor: "text-foreground",
     outcomes,
-    volume: "—",
-    totalPool: "—",
+    volume: totalPool ?? "—",
+    totalPool: totalPool ?? "—",
     isBinary,
     binaryPresentation,
     status: deriveStatus(row),
@@ -182,8 +261,12 @@ export function marketRowToCardMarket(row: MarketRow): Market {
   };
 }
 
-function rowOutcomeProbability(row: MarketRow, outcomeIndex: number, fallback: number): number {
-  const view = row.outcomes?.find((o) => o.outcomeIndex === outcomeIndex);
+function rowOutcomeProbability(
+  views: Map<number, NonNullable<MarketRow["outcomes"]>[number]>,
+  outcomeIndex: number,
+  fallback: number,
+): number {
+  const view = views.get(outcomeIndex);
   if (!view) return fallback;
   const raw = Number(view.impliedProbabilityE6);
   if (!Number.isFinite(raw)) return fallback;

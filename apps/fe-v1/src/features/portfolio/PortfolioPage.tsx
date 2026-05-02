@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient, useQueries } from "@tanstack/react-query";
-import { useAccount, useBalance, useReadContracts, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import {
+  useAccount,
+  useBalance,
+  useReadContracts,
+  useSignMessage,
+  useSignTypedData,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
 import { Loader2, Wallet } from "lucide-react";
 import { formatUnits } from "viem";
 
@@ -15,14 +24,19 @@ import { STAKE_TOKEN_SYMBOL } from "@/config/tokens";
 import { useIndexerWebSocket } from "@/hooks/useIndexerWebSocket";
 import {
   apiErrorSummary,
+  fetchFaucetRelay,
   fetchFaucetState,
   fetchHealth,
   fetchMarkets,
   fetchMarketOutcomes,
+  fetchPortfolioSummary,
   fetchRegistryContracts,
   fetchUserClaims,
   fetchUserEvents,
   fetchUserPositions,
+  fetchUserWatchlist,
+  fetchWatchlistNonce,
+  postWatchlistMutate,
   type MarketRow,
   type OutcomeView,
 } from "@/lib/api/retropickApi";
@@ -37,8 +51,9 @@ import {
   type PortfolioSubTab,
   type WatchlistPanelSub,
 } from "@/features/portfolio/PortfolioTradingPanel";
-import { formatStakeUsd, parseStakeRaw, sumNumericStringKey } from "@/features/portfolio/formatStakeUsd";
+import { formatSignedStakeUsd, formatStakeUsd, parseStakeRaw, sumNumericStringKey } from "@/features/portfolio/formatStakeUsd";
 import { openAppKitModal } from "@/lib/openAppKitModal";
+import { buildWatchlistImportSignMessage, defaultWatchlistChainId } from "@/lib/watchlistSign";
 import {
   buildCategorySlices,
   sumClaimProfits,
@@ -50,7 +65,8 @@ import {
   outcomeLabelForIndex,
   parseStakesArray,
 } from "@/features/portfolio/positionMath";
-import { readWatchlist } from "@/features/portfolio/watchlistStorage";
+import { clearLocalWatchlist, readWatchlist } from "@/features/portfolio/watchlistStorage";
+import { buildFaucetMintSignRequest } from "@/lib/faucetTypedData";
 
 const BASE_SEPOLIA_ETH_FAUCETS = [
   { label: "Coinbase", href: "https://portal.cdp.coinbase.com/products/faucet?token=ETH&network=base-sepolia" },
@@ -121,10 +137,14 @@ export function PortfolioPage() {
   const [subTab, setSubTab] = useState<PortfolioSubTab>("position");
   const [watchlistPanel, setWatchlistPanel] = useState<WatchlistPanelSub>("markets");
   const [hideSmallPositions, setHideSmallPositions] = useState(false);
+  const [faucetRelayPending, setFaucetRelayPending] = useState(false);
+  const watchlistMigrationDoneRef = useRef(false);
 
   const qc = useQueryClient();
   const { toast } = useToast();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
+  const { signTypedDataAsync, isPending: isFaucetSignPending } = useSignTypedData();
+  const { signMessageAsync } = useSignMessage();
   const { writeContractAsync, data: faucetTxHash, isPending: isFaucetWritePending } = useWriteContract();
   const { isLoading: isFaucetConfirming, isSuccess: isFaucetSuccess } = useWaitForTransactionReceipt({
     hash: faucetTxHash,
@@ -176,6 +196,20 @@ export function PortfolioPage() {
     staleTime: 8_000,
   });
 
+  const portfolioSummaryQ = useQuery({
+    queryKey: ["retropick-api", "portfolio-summary", address],
+    queryFn: () => fetchPortfolioSummary(address!),
+    enabled: Boolean(address),
+    staleTime: 12_000,
+  });
+
+  const watchlistQ = useQuery({
+    queryKey: ["retropick-api", "user-watchlist", address],
+    queryFn: () => fetchUserWatchlist(address!),
+    enabled: Boolean(address),
+    staleTime: 15_000,
+  });
+
   const faucetQ = useQuery({
     queryKey: ["retropick-api", "faucet-state", address],
     queryFn: () => fetchFaucetState(address!),
@@ -184,7 +218,10 @@ export function PortfolioPage() {
   });
 
   const lastSync = healthQ.data?.lastSyncAt ?? positionsQ.data?.dataFreshness?.lastSyncAt;
-  const posRows = (positionsQ.data?.positions ?? []) as Record<string, unknown>[];
+  const posRows = useMemo(
+    () => (positionsQ.data?.positions ?? []) as Record<string, unknown>[],
+    [positionsQ.data?.positions],
+  );
   const validPos = useMemo(() => posRows.filter((p) => !p.error), [posRows]);
   const enrichSource = useMemo(() => validPos.slice(0, OUTCOME_ENRICH_CAP), [validPos]);
 
@@ -221,6 +258,16 @@ export function PortfolioPage() {
     return m;
   }, [enrichSource, outcomeQueries]);
 
+  const summaryUnrealizedByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const row of portfolioSummaryQ.data?.positions ?? []) {
+      if (!row.templateId || row.epochId == null || row.error) continue;
+      const key = `${row.templateId.toLowerCase()}:${row.epochId}`;
+      if (typeof row.unrealizedPnlWei === "string") m.set(key, row.unrealizedPnlWei);
+    }
+    return m;
+  }, [portfolioSummaryQ.data?.positions]);
+
   const explorerTxBase = registryQ.data?.explorers?.basescan ?? "https://sepolia.basescan.org";
 
   const enrichedPositions: EnrichedPositionRow[] = useMemo(() => {
@@ -255,10 +302,15 @@ export function PortfolioPage() {
       const outcomes = outcomeByKey.get(oKey);
       const ov = outcomes?.find((o) => o.outcomeIndex === idx);
       const lastPrice = formatImpliedPercent(ov?.impliedProbabilityE6);
-      const pending = parseStakeRaw(position.pendingClaimAmount);
+      const weiStr = summaryUnrealizedByKey.get(oKey);
       let unrealizedPnl = "—";
-      if (pending !== undefined && pending > 0n) {
-        unrealizedPnl = `+${formatStakeUsd(pending)}`;
+      if (weiStr !== undefined && /^-?\d+$/.test(weiStr)) {
+        unrealizedPnl = formatSignedStakeUsd(BigInt(weiStr));
+      } else {
+        const pending = parseStakeRaw(position.pendingClaimAmount);
+        if (pending !== undefined && pending > 0n) {
+          unrealizedPnl = `+${formatStakeUsd(pending)}`;
+        }
       }
       return {
         key: `${tid}-${epochId}`,
@@ -273,7 +325,7 @@ export function PortfolioPage() {
         dominantRaw,
       };
     });
-  }, [posRows, marketsByTemplate, outcomeByKey]);
+  }, [posRows, marketsByTemplate, outcomeByKey, summaryUnrealizedByKey]);
 
   const pendingClaimTotal = useMemo(() => sumNumericStringKey(validPos, "pendingClaimAmount"), [validPos]);
   const totalStakeAll = useMemo(() => sumNumericStringKey(validPos, "totalStake"), [validPos]);
@@ -285,7 +337,45 @@ export function PortfolioPage() {
     [validPos, marketsByTemplate],
   );
 
-  const watchlistIds = useMemo(() => readWatchlist(address), [address]);
+  const watchlistIds = useMemo(() => watchlistQ.data?.templateIds ?? [], [watchlistQ.data?.templateIds]);
+
+  useEffect(() => {
+    if (!address || !watchlistQ.isSuccess || watchlistMigrationDoneRef.current) return;
+    const local = readWatchlist(address);
+    const server = watchlistQ.data?.templateIds ?? [];
+    if (local.length === 0 || server.length > 0) {
+      watchlistMigrationDoneRef.current = true;
+      return;
+    }
+    watchlistMigrationDoneRef.current = true;
+    void (async () => {
+      try {
+        const { nonce } = await fetchWatchlistNonce(address);
+        const deadline = Math.floor(Date.now() / 1000) + 14 * 60;
+        const sorted = [...local]
+          .map((x) => {
+            const t = x.trim();
+            return (t.startsWith("0x") ? t : `0x${t}`).toLowerCase();
+          })
+          .sort();
+        const message = buildWatchlistImportSignMessage(defaultWatchlistChainId(), address, sorted, deadline, nonce);
+        const signature = await signMessageAsync({ message });
+        await postWatchlistMutate({
+          wallet: address,
+          action: "import",
+          templateIds: sorted,
+          deadline,
+          nonce,
+          signature,
+        });
+        clearLocalWatchlist(address);
+        void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist"] });
+        void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary"] });
+      } catch {
+        watchlistMigrationDoneRef.current = false;
+      }
+    })();
+  }, [address, qc, signMessageAsync, watchlistQ.data?.templateIds, watchlistQ.isSuccess]);
   const watchlistLabels = useMemo(() => {
     const m = new Map<string, string>();
     for (const id of watchlistIds) {
@@ -373,6 +463,7 @@ export function PortfolioPage() {
   const registryContracts = getContractAddresses(DEPLOYMENT_CHAIN_ID);
   const faucetAddress = asAddress(faucet?.tokenFaucet) ?? CONTRACT_ADDRESSES.Faucet;
   const stakeTokenAddress = asAddress(faucet?.stakeToken) ?? registryContracts.stakeToken;
+  const faucetRelayEnabled = registryQ.data?.faucetRelayEnabled === true;
 
   const faucetReadsQ = useReadContracts({
     allowFailure: true,
@@ -387,6 +478,13 @@ export function PortfolioPage() {
         address: faucetAddress,
         abi: ABIS.TokenFaucet,
         functionName: "lastMintAt",
+        args: [readWalletAddress],
+        chainId: DEPLOYMENT_CHAIN_ID,
+      },
+      {
+        address: faucetAddress,
+        abi: ABIS.TokenFaucet,
+        functionName: "nonces",
         args: [readWalletAddress],
         chainId: DEPLOYMENT_CHAIN_ID,
       },
@@ -415,10 +513,12 @@ export function PortfolioPage() {
   const onchainMaxMintAmount = asBigInt(tupleValue(faucetConfig, 1, "maxMintAmount"));
   const onchainLastMintAt =
     faucetReadsQ.data?.[1]?.status === "success" ? asNumber(faucetReadsQ.data[1].result) : undefined;
+  const onchainFaucetNonce =
+    faucetReadsQ.data?.[2]?.status === "success" ? asBigInt(faucetReadsQ.data[2].result) : undefined;
   const onchainDecimals =
-    faucetReadsQ.data?.[2]?.status === "success" ? asNumber(faucetReadsQ.data[2].result) : undefined;
+    faucetReadsQ.data?.[3]?.status === "success" ? asNumber(faucetReadsQ.data[3].result) : undefined;
   const onchainBalance =
-    faucetReadsQ.data?.[3]?.status === "success" ? asBigInt(faucetReadsQ.data[3].result) : undefined;
+    faucetReadsQ.data?.[4]?.status === "success" ? asBigInt(faucetReadsQ.data[4].result) : undefined;
   const hasOnchainFaucetState =
     onchainBalance !== undefined || onchainDecimals !== undefined || onchainMaxMintAmount !== undefined;
   const faucetDecimals = onchainDecimals ?? faucet?.stakeTokenDecimals ?? 18;
@@ -441,19 +541,28 @@ export function PortfolioPage() {
   const nativeGasBalance = gasBalanceQ.data?.value;
   const needsBaseSepoliaGas =
     isConnected && chainId === DEPLOYMENT_CHAIN_ID && nativeGasBalance !== undefined && nativeGasBalance === 0n;
-  const faucetBusy = isSwitchingChain || isFaucetWritePending || isFaucetConfirming;
+  const faucetBusy =
+    isSwitchingChain ||
+    isFaucetWritePending ||
+    isFaucetConfirming ||
+    faucetRelayPending ||
+    isFaucetSignPending;
   let faucetLabel = "Add Funds";
   if (!isConnected) {
     faucetLabel = "Connect wallet";
   } else if (chainId !== DEPLOYMENT_CHAIN_ID) {
     faucetLabel = "Switch to Base Sepolia";
+  } else if (isFaucetSignPending) {
+    faucetLabel = "Sign in wallet";
+  } else if (faucetRelayPending) {
+    faucetLabel = "Submitting claim…";
   } else if (isFaucetWritePending) {
     faucetLabel = "Confirm in wallet";
   } else if (isFaucetConfirming) {
     faucetLabel = "Confirm pending";
   } else if (faucetConfigLoading) {
     faucetLabel = "Loading";
-  } else if (needsBaseSepoliaGas) {
+  } else if (needsBaseSepoliaGas && !faucetRelayEnabled) {
     faucetLabel = "Need Base Sepolia ETH";
   }
 
@@ -473,6 +582,8 @@ export function PortfolioPage() {
     void gasBalanceQ.refetch();
     void qc.invalidateQueries({ queryKey: ["retropick-api", "faucet-state", address] });
     void qc.invalidateQueries({ queryKey: ["retropick-api", "user-positions", address] });
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary", address] });
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist", address] });
   }, [address, faucetReadsQ, gasBalanceQ, isFaucetSuccess, qc, toast]);
 
   const handleFaucetClaim = async () => {
@@ -490,14 +601,6 @@ export function PortfolioPage() {
         });
         return;
       }
-      if (nativeGasBalance !== undefined && nativeGasBalance === 0n) {
-        toast({
-          title: "Need Base Sepolia ETH",
-          description: "Minting needs gas. Claim Base Sepolia ETH first.",
-          variant: "destructive",
-        });
-        return;
-      }
       if (faucetAmount === undefined || faucetAmount <= 0n) {
         toast({
           title: "Faucet unavailable",
@@ -506,11 +609,69 @@ export function PortfolioPage() {
         });
         return;
       }
+
+      if (faucetRelayEnabled) {
+        const mintNonce =
+          onchainFaucetNonce ??
+          (typeof faucet?.nonce === "string" && /^\d+$/.test(faucet.nonce) ? BigInt(faucet.nonce) : undefined);
+        if (mintNonce === undefined) {
+          toast({
+            title: "Faucet unavailable",
+            description: "Could not read signature nonce from chain.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+        const signReq = buildFaucetMintSignRequest({
+          chainId: DEPLOYMENT_CHAIN_ID,
+          faucetAddress: faucetAddress as `0x${string}`,
+          recipient: address as `0x${string}`,
+          amount: faucetAmount,
+          nonce: mintNonce,
+          deadline,
+        });
+        const signature = await signTypedDataAsync(
+          signReq as unknown as Parameters<typeof signTypedDataAsync>[0],
+        );
+        setFaucetRelayPending(true);
+        try {
+          const { txHash } = await fetchFaucetRelay({
+            recipient: address,
+            amount: faucetAmount.toString(),
+            deadline: Number(deadline),
+            signature: signature as `0x${string}`,
+          });
+          toast({
+            title: "Gasless faucet submitted",
+            description: `Tx ${txHash.slice(0, 10)}… — balances will update shortly.`,
+          });
+          void faucetReadsQ.refetch();
+          void gasBalanceQ.refetch();
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "faucet-state", address] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-positions", address] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary", address] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist", address] });
+        } finally {
+          setFaucetRelayPending(false);
+        }
+        return;
+      }
+
+      if (nativeGasBalance !== undefined && nativeGasBalance === 0n) {
+        toast({
+          title: "Need Base Sepolia ETH",
+          description: "Minting needs gas. Claim Base Sepolia ETH first.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       await writeContractAsync({
-        address: stakeTokenAddress,
-        abi: ABIS.MockERC20,
-        functionName: "mint",
-        args: [address, faucetAmount],
+        address: faucetAddress,
+        abi: ABIS.TokenFaucet,
+        functionName: "request",
+        args: [faucetAmount],
         chainId: DEPLOYMENT_CHAIN_ID,
       } as unknown as Parameters<typeof writeContractAsync>[0]);
     } catch (error) {
@@ -539,7 +700,7 @@ export function PortfolioPage() {
     ) : null;
 
   const gasLinks =
-    needsBaseSepoliaGas && isConnected ? (
+    needsBaseSepoliaGas && isConnected && !faucetRelayEnabled ? (
       <span className="font-semibold text-amber-700 dark:text-amber-300">
         Gas required:{" "}
         {BASE_SEPOLIA_ETH_FAUCETS.map((item, index) => (
@@ -555,17 +716,32 @@ export function PortfolioPage() {
 
   const eventsRows = eventsQ.data ?? [];
   const claimsRows = claimsQ.data?.claims ?? [];
-  const unrealizedPnlLabel =
-    isConnected && pendingClaimTotal > 0n
-      ? `+${formatStakeUsd(pendingClaimTotal)}`
+  const aggUn = portfolioSummaryQ.data?.aggregate.unrealizedPnlWei;
+  const unrealizedPnlLabel = !isConnected
+    ? "$0.00"
+    : aggUn !== undefined && /^-?\d+$/.test(aggUn)
+      ? formatSignedStakeUsd(BigInt(aggUn))
+      : pendingClaimTotal > 0n
+        ? `+${formatStakeUsd(pendingClaimTotal)}`
+        : "—";
+  const realizedWei = portfolioSummaryQ.data?.aggregate.realizedPnlClaimsWei;
+  const profitSignedLabel = !isConnected
+    ? "$0.00"
+    : realizedWei !== undefined && /^-?\d+$/.test(realizedWei)
+      ? formatSignedStakeUsd(BigInt(realizedWei))
+      : profitRaw > 0n
+        ? `+${formatStakeUsd(profitRaw)}`
+        : formatStakeUsd(profitRaw);
+  const refNetWei = portfolioSummaryQ.data?.aggregate.referenceNetStakeWei;
+  const netWorthDisplayLabel =
+    isConnected && refNetWei !== undefined && /^-?\d+$/.test(refNetWei)
+      ? formatStakeUsd(BigInt(refNetWei))
       : isConnected
-        ? "—"
+        ? formatStakeUsd(netWorthRaw)
         : "$0.00";
-  const profitSignedLabel = isConnected
-    ? profitRaw > 0n
-      ? `+${formatStakeUsd(profitRaw)}`
-      : formatStakeUsd(profitRaw)
-    : "$0.00";
+  const profitPositive =
+    !isConnected ||
+    (realizedWei !== undefined && /^-?\d+$/.test(realizedWei) ? BigInt(realizedWei) >= 0n : profitRaw >= 0n);
 
   return (
     <div className="flex min-h-dvh flex-col overflow-x-clip bg-background text-foreground">
@@ -601,6 +777,11 @@ export function PortfolioPage() {
               Positions unavailable: <code className="text-[10px]">{apiErrorSummary(positionsQ.error)}</code>
             </p>
           ) : null}
+          {portfolioSummaryQ.isError ? (
+            <p className="text-amber-600 dark:text-amber-400">
+              Portfolio summary unavailable: <code className="text-[10px]">{apiErrorSummary(portfolioSummaryQ.error)}</code>
+            </p>
+          ) : null}
           {marketsQ.isLoading ? (
             <p className="flex items-center gap-2">
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -614,7 +795,7 @@ export function PortfolioPage() {
             <div className="px-4 py-4 lg:col-span-3 lg:py-5">
               <PortfolioOverviewCard
                 surface="plain"
-                totalValueLabel={isConnected ? formatStakeUsd(netWorthRaw) : "$0.00"}
+                totalValueLabel={netWorthDisplayLabel}
                 unrealizedPnlLabel={unrealizedPnlLabel}
                 tradeableBalanceLabel={isConnected ? formatStakeUsd(balanceRaw) : "$0.00"}
                 totalPnlLabel={profitSignedLabel}
@@ -627,15 +808,15 @@ export function PortfolioPage() {
             <div className="px-4 py-4 lg:col-span-6 lg:py-5">
               <NetWorthCard
                 surface="plain"
-                title="Realized PNL"
+                title="Exposure and claims"
                 showSecondaryMetrics={false}
                 compactChart
-                netWorthLabel={isConnected ? formatStakeUsd(netWorthRaw) : "$0.00"}
+                netWorthLabel={netWorthDisplayLabel}
                 timeframe={timeframe}
                 onTimeframeChange={setTimeframe}
                 volumeLabel={isConnected ? formatStakeUsd(volumeRaw) : "$0.00"}
-                profitLabel={isConnected ? (profitRaw > 0n ? `+${formatStakeUsd(profitRaw)}` : formatStakeUsd(profitRaw)) : "$0.00"}
-                profitPositive
+                profitLabel={profitSignedLabel}
+                profitPositive={profitPositive}
               />
             </div>
             <div className="px-4 py-4 lg:col-span-3 lg:py-5">
@@ -665,7 +846,9 @@ export function PortfolioPage() {
                     faucetBusy ||
                     faucetConfigLoading ||
                     (chainId === DEPLOYMENT_CHAIN_ID &&
-                      (needsBaseSepoliaGas || faucetAmount === undefined || !canUseFaucet))
+                      ((!faucetRelayEnabled && needsBaseSepoliaGas) ||
+                        faucetAmount === undefined ||
+                        !canUseFaucet))
                   }
                   className="inline-flex shrink-0 gap-2 px-4 py-2.5 text-sm font-semibold transition-colors hover:brightness-110"
                 >

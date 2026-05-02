@@ -10,7 +10,15 @@ import (
 )
 
 func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
-	return pgxpool.New(ctx, databaseURL)
+	pc, err := pgxpool.ParseConfig(databaseURL)
+	if err != nil {
+		return nil, err
+	}
+	// Keep behavior consistent with NewPoolWithConfig for Supabase pooler.
+	if strings.Contains(databaseURL, "pooler.supabase.com:6543") {
+		pc.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+	}
+	return pgxpool.NewWithConfig(ctx, pc)
 }
 
 type PoolConfig struct {
@@ -26,9 +34,10 @@ func NewPoolWithConfig(ctx context.Context, databaseURL string, cfg PoolConfig) 
 		return nil, err
 	}
 	// Supabase transaction pooler (port 6543) is pgbouncer-based.
-	// Use simple protocol to avoid prepared-statement issues in transaction pooling.
+	// Use Exec mode to avoid prepared-statement caching while preserving
+	// typed parameter encoding (for example JSONB payload inserts).
 	if strings.Contains(databaseURL, "pooler.supabase.com:6543") {
-		pc.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+		pc.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
 	}
 	if cfg.MaxConns > 0 {
 		pc.MaxConns = cfg.MaxConns

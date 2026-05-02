@@ -251,7 +251,7 @@ type InsertChainEventParams struct {
 	TemplateID   []byte      `json:"template_id"`
 	EpochID      pgtype.Int8 `json:"epoch_id"`
 	UserAddress  pgtype.Text `json:"user_address"`
-	Payload      []byte      `json:"payload"`
+	Payload      string      `json:"payload"`
 }
 
 func (q *Queries) InsertChainEvent(ctx context.Context, arg InsertChainEventParams) error {
@@ -1084,4 +1084,172 @@ func (q *Queries) ListFrontendHidden(ctx context.Context) ([]ListFrontendHiddenR
 		return nil, err
 	}
 	return items, nil
+}
+
+const listUserChainEventsForTemplateEpoch = `-- name: ListUserChainEventsForTemplateEpoch :many
+SELECT
+    id,
+    block_number,
+    tx_hash,
+    log_index,
+    contract_addr,
+    event_name,
+    template_id,
+    epoch_id,
+    user_address,
+    payload,
+    indexed_at
+FROM chain_events
+WHERE user_address IS NOT NULL
+  AND LOWER(user_address::text) = LOWER($1::text)
+  AND template_id = $2
+  AND epoch_id IS NOT NULL
+  AND epoch_id = $3
+  AND event_name IN ('PositionDeposited', 'SideSwitched', 'Claimed')
+ORDER BY block_number ASC, log_index ASC, id ASC
+`
+
+type ListUserChainEventsForTemplateEpochParams struct {
+	UserAddress string `json:"user_address"`
+	TemplateID  []byte `json:"template_id"`
+	EpochID     int64  `json:"epoch_id"`
+}
+
+func (q *Queries) ListUserChainEventsForTemplateEpoch(ctx context.Context, arg ListUserChainEventsForTemplateEpochParams) ([]ChainEvent, error) {
+	rows, err := q.db.Query(ctx, listUserChainEventsForTemplateEpoch, arg.UserAddress, arg.TemplateID, arg.EpochID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ChainEvent{}
+	for rows.Next() {
+		var i ChainEvent
+		if err := rows.Scan(
+			&i.ID,
+			&i.BlockNumber,
+			&i.TxHash,
+			&i.LogIndex,
+			&i.ContractAddr,
+			&i.EventName,
+			&i.TemplateID,
+			&i.EpochID,
+			&i.UserAddress,
+			&i.Payload,
+			&i.IndexedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserWatchlist = `-- name: ListUserWatchlist :many
+SELECT
+    template_id,
+    created_at
+FROM user_watchlist
+WHERE LOWER(user_address) = LOWER($1)
+ORDER BY created_at DESC
+`
+
+type ListUserWatchlistRow struct {
+	TemplateID []byte             `json:"template_id"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+func (q *Queries) ListUserWatchlist(ctx context.Context, userAddress string) ([]ListUserWatchlistRow, error) {
+	rows, err := q.db.Query(ctx, listUserWatchlist, userAddress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserWatchlistRow{}
+	for rows.Next() {
+		var i ListUserWatchlistRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertUserWatchlist = `-- name: UpsertUserWatchlist :exec
+INSERT INTO user_watchlist (user_address, template_id)
+VALUES ($1, $2)
+ON CONFLICT (user_address, template_id) DO NOTHING
+`
+
+type UpsertUserWatchlistParams struct {
+	UserAddress string `json:"user_address"`
+	TemplateID  []byte `json:"template_id"`
+}
+
+func (q *Queries) UpsertUserWatchlist(ctx context.Context, arg UpsertUserWatchlistParams) error {
+	_, err := q.db.Exec(ctx, upsertUserWatchlist, arg.UserAddress, arg.TemplateID)
+	return err
+}
+
+const deleteUserWatchlist = `-- name: DeleteUserWatchlist :exec
+DELETE FROM user_watchlist
+WHERE LOWER(user_address) = LOWER($1) AND template_id = $2
+`
+
+type DeleteUserWatchlistParams struct {
+	UserAddress string `json:"user_address"`
+	TemplateID  []byte `json:"template_id"`
+}
+
+func (q *Queries) DeleteUserWatchlist(ctx context.Context, arg DeleteUserWatchlistParams) error {
+	_, err := q.db.Exec(ctx, deleteUserWatchlist, arg.UserAddress, arg.TemplateID)
+	return err
+}
+
+const getUserWatchlistNonce = `-- name: GetUserWatchlistNonce :one
+SELECT nonce
+FROM user_watchlist_nonce
+WHERE LOWER(user_address) = LOWER($1)
+`
+
+func (q *Queries) GetUserWatchlistNonce(ctx context.Context, userAddress string) (int64, error) {
+	row := q.db.QueryRow(ctx, getUserWatchlistNonce, userAddress)
+	var nonce int64
+	err := row.Scan(&nonce)
+	return nonce, err
+}
+
+const createUserWatchlistNonceIfMissing = `-- name: CreateUserWatchlistNonceIfMissing :exec
+INSERT INTO user_watchlist_nonce (user_address, nonce)
+VALUES ($1, 0)
+ON CONFLICT (user_address) DO NOTHING
+`
+
+func (q *Queries) CreateUserWatchlistNonceIfMissing(ctx context.Context, userAddress string) error {
+	_, err := q.db.Exec(ctx, createUserWatchlistNonceIfMissing, userAddress)
+	return err
+}
+
+const incrementUserWatchlistNonce = `-- name: IncrementUserWatchlistNonce :one
+UPDATE user_watchlist_nonce
+SET nonce = nonce + 1,
+    updated_at = NOW()
+WHERE LOWER(user_address) = LOWER($1)
+RETURNING nonce
+`
+
+func (q *Queries) IncrementUserWatchlistNonce(ctx context.Context, userAddress string) (int64, error) {
+	row := q.db.QueryRow(ctx, incrementUserWatchlistNonce, userAddress)
+	var nonce int64
+	err := row.Scan(&nonce)
+	return nonce, err
 }

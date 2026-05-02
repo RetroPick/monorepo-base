@@ -78,6 +78,23 @@ vi.mock("@/lib/contracts/marketEngine", async (importOriginal) => {
       isSuccess: true,
       isFetching: false,
     }),
+    useTemplateYieldView: () => ({
+      data: {
+        routerAssigned: true,
+        routerDisabled: false,
+        recoveryPending: false,
+        yieldPath: 0,
+        currentPrincipal: 50n * W,
+        currentValue: 52n * W,
+        unrealizedYieldAmount: 2n * W,
+        yieldRatioE6: 40_000n,
+        scaledPrincipal: 0n,
+        stataShares: 0n,
+        yieldFeeBpsCurrent: 500,
+      },
+      isLoading: false,
+      isError: false,
+    }),
   };
 });
 
@@ -194,10 +211,14 @@ describe("ManualTradeCard", () => {
     });
   });
 
-  it("shows estimated win up to when amount is entered (Add funds)", async () => {
+  it("shows payout preview and stake multiple when amount is entered on Buy", async () => {
     renderCard();
     fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "10" } });
-    expect(await screen.findByText(/Estimated win up to ~\$15\.14/)).toBeInTheDocument();
+    const preview = await screen.findByTestId("stake-payout-preview");
+    expect(preview.textContent).toMatch(/Return if/);
+    expect(preview.textContent).toMatch(/Yes/);
+    expect(preview.textContent).toMatch(/15\.14/);
+    expect(screen.getByText(/×1\.51/)).toBeInTheDocument();
   });
 
   it("submits switchSide when Move stake is confirmed", async () => {

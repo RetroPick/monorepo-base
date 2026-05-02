@@ -37,9 +37,17 @@ vi.mock("@reown/appkit-pay", () => ({
   ethereumUSDT: { network: "eip155:1", asset: "0xethusdt", metadata: { name: "Tether", symbol: "USDT", decimals: 6 } },
 }));
 
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: { faucetRelayEnabled: false } }),
+}));
+
 vi.mock("wagmi", () => ({
   useAccount: () => ({ chainId: 43113 }),
   useSwitchChain: () => ({ switchChainAsync: switchChainAsyncMock, isPending: false }),
+  useSignTypedData: () => ({
+    signTypedDataAsync: vi.fn().mockResolvedValue(`0x${"11".repeat(65)}`),
+    isPending: false,
+  }),
   useWriteContract: () => ({
     writeContractAsync: writeContractAsyncMock,
     data: undefined,

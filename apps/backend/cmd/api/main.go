@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -63,6 +64,18 @@ func main() {
 	ethCaller.SetGlobalCacheTTL(cfg.LiveRPCGlobalCacheTTL)
 	defer ethCaller.Close()
 
+	var faucetRelayer *ethops.FaucetRelayer
+	if cfg.FaucetRelayEnabled {
+		fr, err := ethops.NewFaucetRelayer(cfg.RPCURL, cfg.FaucetRelayPrivateKey, reg.ChainID)
+		if err != nil {
+			log.Error("faucet relayer", "err", err)
+			os.Exit(1)
+		}
+		faucetRelayer = fr
+		defer faucetRelayer.Close()
+		log.Info("faucet relay enabled", "relayer", fr.RelayerAddress().Hex())
+	}
+
 	if err := db.WaitForSchema(ctx, cfg.DatabaseURL, log); err != nil {
 		log.Error("wait for schema", "err", err)
 		os.Exit(1)
@@ -103,18 +116,34 @@ func main() {
 		Commit:  cfg.BuildCommit,
 		Time:    cfg.BuildTime,
 		ABIHash: api.ABIHash(),
-	})
+	}, cfg.FaucetRelayEnabled)
 
 	r.Get("/api/v1/config/contracts", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(reg)
+		regBytes, err := json.Marshal(reg)
+		if err != nil {
+			http.Error(w, `{"error":"encode registry"}`, http.StatusInternalServerError)
+			return
+		}
+		var contractsPayload map[string]any
+		if err := json.Unmarshal(regBytes, &contractsPayload); err != nil {
+			http.Error(w, `{"error":"encode registry"}`, http.StatusInternalServerError)
+			return
+		}
+		contractsPayload["faucetRelayEnabled"] = cfg.FaucetRelayEnabled
+		_ = json.NewEncoder(w).Encode(contractsPayload)
 	})
 
 	r.Mount("/api/v1/ops", api.OpsRouter(pool, reg, ethCaller))
 
 	r.Get("/api/v1/user/positions", api.UserPositionsHandler(pool, ethCaller, reg))
 	r.Get("/api/v1/user/claims", api.UserClaimsHandler(pool))
+	r.Get("/api/v1/user/portfolio-summary", api.UserPortfolioSummaryHandler(pool, ethCaller, reg))
+	r.Get("/api/v1/user/watchlist/nonce", api.UserWatchlistNonceHandler(pool))
+	r.Get("/api/v1/user/watchlist", api.UserWatchlistListHandler(pool))
+	r.Post("/api/v1/user/watchlist", api.UserWatchlistMutateHandler(pool, reg))
 	r.Get("/api/v1/user/faucet-state", api.UserFaucetStateHandler(ethCaller, reg))
+	r.Post("/api/v1/user/faucet-relay", api.UserFaucetRelayHandler(cfg, faucetRelayer, reg))
 
 	r.Get("/api/v1/markets", func(w http.ResponseWriter, r *http.Request) {
 		q := dbqueries.New(pool)
@@ -134,6 +163,58 @@ func main() {
 			hidden[hex.EncodeToString(h.TemplateID)] = struct{}{}
 		}
 		st, _ := q.GetIndexerState(ctx)
+
+		type liveMarketSnapshot struct {
+			outcomes         []map[string]any
+			outcomeViewBlock uint64
+			totalPool        string
+		}
+
+		liveByTemplate := map[string]liveMarketSnapshot{}
+		if ethCaller != nil {
+			sem := make(chan struct{}, 4)
+			var mu sync.Mutex
+			var wg sync.WaitGroup
+			for _, row := range rows {
+				if !row.Initialized || !row.ActiveEpochID.Valid {
+					continue
+				}
+				row := row
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					sem <- struct{}{}
+					defer func() { <-sem }()
+
+					rpcCtx, cancel := apiLiveRPCContext(r)
+					defer cancel()
+
+					outcomes, blockNum, err := ethCaller.GetOutcomeViews(
+						rpcCtx,
+						common.HexToAddress(reg.Contracts.MarketEngineProxy),
+						common.BytesToHash(row.TemplateID),
+						uint64(row.ActiveEpochID.Int64),
+					)
+					if err != nil {
+						return
+					}
+					total := new(big.Int)
+					for _, outcome := range outcomes {
+						total.Add(total, outcomePoolBigInt(outcome))
+					}
+
+					mu.Lock()
+					liveByTemplate[hex.EncodeToString(row.TemplateID)] = liveMarketSnapshot{
+						outcomes:         outcomes,
+						outcomeViewBlock: blockNum,
+						totalPool:        total.String(),
+					}
+					mu.Unlock()
+				}()
+			}
+			wg.Wait()
+		}
+
 		out := make([]map[string]any, 0, len(rows))
 		for _, row := range rows {
 			if _, ok := hidden[hex.EncodeToString(row.TemplateID)]; ok {
@@ -163,6 +244,14 @@ func main() {
 			}
 			if row.HaltedAtEpochID.Valid {
 				m["haltedAtEpochId"] = row.HaltedAtEpochID.Int64
+			}
+			if snap, ok := liveByTemplate[hex.EncodeToString(row.TemplateID)]; ok {
+				m["outcomes"] = snap.outcomes
+				m["outcomeViewBlock"] = snap.outcomeViewBlock
+				if snap.totalPool != "" {
+					m["totalPool"] = snap.totalPool
+					m["volume"] = snap.totalPool
+				}
 			}
 			out = append(out, m)
 		}
@@ -410,13 +499,30 @@ func main() {
 			})
 			return
 		}
-		limit := int32(200)
-		if ls := r.URL.Query().Get("limit"); ls != "" {
+		maxEvents := int32(5000)
+		if me := r.URL.Query().Get("maxEvents"); me != "" {
+			if n, err := strconv.ParseInt(me, 10, 32); err == nil && n > 0 && n <= 10000 {
+				maxEvents = int32(n)
+			} else {
+				http.Error(w, `{"error":"invalid maxEvents"}`, http.StatusBadRequest)
+				return
+			}
+		} else if ls := r.URL.Query().Get("limit"); ls != "" {
 			if n, err := strconv.ParseInt(ls, 10, 32); err == nil && n > 0 && n <= 1000 {
-				limit = int32(n)
+				maxEvents = int32(n)
 			}
 		}
-		points, err := probabilityHistoryFromEvents(r.Context(), pool, b, epochID, int(row.OutcomeCount), limit)
+		var minIndexedAt *time.Time
+		if ms := r.URL.Query().Get("minIndexedAt"); ms != "" {
+			tm, err := time.Parse(time.RFC3339, ms)
+			if err != nil {
+				http.Error(w, `{"error":"invalid minIndexedAt"}`, http.StatusBadRequest)
+				return
+			}
+			u := tm.UTC()
+			minIndexedAt = &u
+		}
+		phr, err := probabilityHistoryFromEvents(r.Context(), pool, b, epochID, int(row.OutcomeCount), maxEvents, minIndexedAt)
 		if err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 			return
@@ -426,8 +532,11 @@ func main() {
 			"templateId":   "0x" + hex.EncodeToString(b),
 			"epochId":      epochID,
 			"outcomeCount": row.OutcomeCount,
-			"points":       points,
+			"points":       phr.Points,
 			"source":       "indexed-events",
+			"truncated":    phr.Truncated,
+			"eventCount":   phr.EventCount,
+			"maxEvents":    maxEvents,
 		})
 	})
 
@@ -532,33 +641,84 @@ func apiLiveRPCContext(r *http.Request) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(r.Context(), 12*time.Second)
 }
 
+func outcomePoolBigInt(outcome map[string]any) *big.Int {
+	if outcome == nil {
+		return new(big.Int)
+	}
+	if n, ok := jsonBig(outcome["poolSize"]); ok {
+		return n
+	}
+	return new(big.Int)
+}
+
+type probabilityHistoryReplayResult struct {
+	Points     []map[string]any
+	Truncated  bool
+	EventCount int64
+}
+
+var probabilityHistoryEventNames = []string{
+	"EpochOpened",
+	"PositionDeposited",
+	"SideSwitched",
+	"EpochLocked",
+	"EpochResolved",
+	"EpochResolvedV2",
+	"EpochCancelled",
+}
+
 func probabilityHistoryFromEvents(
 	ctx context.Context,
 	pool interface {
 		Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+		QueryRow(context.Context, string, ...interface{}) pgx.Row
 	},
 	templateID []byte,
 	epochID int64,
 	outcomeCount int,
-	limit int32,
-) ([]map[string]any, error) {
+	maxEvents int32,
+	minIndexedAt *time.Time,
+) (probabilityHistoryReplayResult, error) {
+	empty := probabilityHistoryReplayResult{Points: []map[string]any{}}
 	if outcomeCount < 2 {
 		outcomeCount = 2
 	}
 	if outcomeCount > 8 {
 		outcomeCount = 8
 	}
+	if maxEvents < 1 {
+		maxEvents = 1
+	}
+
+	var eventCount int64
+	err := pool.QueryRow(ctx, `
+SELECT COUNT(*)::bigint
+FROM chain_events
+WHERE template_id = $1
+  AND epoch_id = $2
+  AND event_name = ANY($3)
+`, templateID, epochID, probabilityHistoryEventNames).Scan(&eventCount)
+	if err != nil {
+		return empty, err
+	}
+
+	skip := int64(0)
+	truncated := false
+	if eventCount > int64(maxEvents) {
+		skip = eventCount - int64(maxEvents)
+		truncated = true
+	}
+
 	rows, err := pool.Query(ctx, `
 SELECT block_number, tx_hash, log_index, event_name, payload, indexed_at
 FROM chain_events
 WHERE template_id = $1
   AND epoch_id = $2
-  AND event_name IN ('EpochOpened', 'PositionDeposited', 'SideSwitched', 'EpochLocked', 'EpochResolved', 'EpochResolvedV2', 'EpochCancelled')
+  AND event_name = ANY($3)
 ORDER BY block_number ASC, log_index ASC
-LIMIT $3
-`, templateID, epochID, limit)
+`, templateID, epochID, probabilityHistoryEventNames)
 	if err != nil {
-		return nil, err
+		return empty, err
 	}
 	defer rows.Close()
 
@@ -567,7 +727,8 @@ LIMIT $3
 		pools[i] = new(big.Int)
 	}
 	outcomeCountLimit := int64(outcomeCount)
-	points := make([]map[string]any, 0)
+	points := make([]map[string]any, 0, maxEvents)
+	var seen int64
 	for rows.Next() {
 		var blockNumber int64
 		var txHash string
@@ -576,7 +737,7 @@ LIMIT $3
 		var payloadBytes []byte
 		var indexedAt pgtype.Timestamptz
 		if err := rows.Scan(&blockNumber, &txHash, &logIndex, &eventName, &payloadBytes, &indexedAt); err != nil {
-			return nil, err
+			return empty, err
 		}
 		var payload map[string]any
 		_ = json.Unmarshal(payloadBytes, &payload)
@@ -603,6 +764,17 @@ LIMIT $3
 				}
 				pools[toIdx].Add(pools[toIdx], net)
 			}
+		}
+
+		seen++
+		emit := seen > skip
+		if emit && minIndexedAt != nil {
+			if !indexedAt.Valid || indexedAt.Time.Before(*minIndexedAt) {
+				emit = false
+			}
+		}
+		if !emit {
+			continue
 		}
 
 		total := new(big.Int)
@@ -633,9 +805,13 @@ LIMIT $3
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return empty, err
 	}
-	return points, nil
+	return probabilityHistoryReplayResult{
+		Points:     points,
+		Truncated:  truncated,
+		EventCount: eventCount,
+	}, nil
 }
 
 func jsonBig(v any) (*big.Int, bool) {

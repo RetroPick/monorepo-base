@@ -9,6 +9,7 @@ import type { AssetClass } from "@/lib/market-data/types";
 import { ASSET_CLASS_OPTIONS, ASSET_CLASS_SUBTITLE } from "@/lib/market-data/asset-classes";
 import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
 import { DISCOVERY_VERTICALS } from "@/lib/discovery-verticals";
+import { discoverVerticalForIndexedSlug, marketTypeName } from "@/lib/market-data/chainDiscover";
 const WalletButton = lazy(() => import("./WalletButton"));
 
 interface HeaderProps {
@@ -29,14 +30,27 @@ interface HeaderProps {
     basePath: "/app/markets/updown" | "/app/markets/abovebelow";
     activeClass: AssetClass;
   };
+  /** Indexed on-chain market detail: category / market-type strip (not crypto price tickers). */
+  indexedMarketContext?: {
+    slug: string;
+    marketType: number;
+  };
 }
 
-const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAssetClassNav }: HeaderProps) => {
+const Header = ({
+  omitBottomDivider,
+  discoveryNav,
+  assetClassNav,
+  marketFamilyAssetClassNav,
+  indexedMarketContext,
+}: HeaderProps) => {
   const location = useLocation();
   const { assets, selectedSymbol, setSelectedSymbol } = useAssetContext();
   const railRef = useRef<HTMLDivElement>(null);
   const [howRetroPickOpen, setHowRetroPickOpen] = useState(false);
-  const isMarketsAllPage = location.pathname === "/app/markets/all";
+  const pathNorm = location.pathname.replace(/\/+$/, "") || "/";
+  const isMarketsAllPage = pathNorm === "/app/markets/all";
+  const isPortfolioPage = pathNorm === "/app/portfolio";
 
   const navItems = [
     { name: "Markets", path: "/app/markets/all" },
@@ -168,7 +182,107 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
           </nav>
 
           <div className="min-w-0">
-            {isMarketsAllPage && discoveryNav ? (
+            {(() => {
+              const assetPriceLowerRail = (
+                <div
+                  ref={railRef}
+                  onWheel={handleWheel}
+                  className="w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain"
+                  style={{ WebkitOverflowScrolling: "touch" }}
+                >
+                  <div
+                    className="flex min-h-10 min-w-max flex-nowrap items-center gap-1.5 px-0 sm:gap-2"
+                    aria-label="Crypto reference prices"
+                  >
+                    {assets.map((asset) => (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        onClick={() => setSelectedSymbol(asset.symbol)}
+                        className={cn(
+                          "grid min-h-9 min-w-[132px] shrink-0 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left transition-all duration-200 sm:min-w-[148px] sm:gap-2 sm:px-2 sm:py-1.5",
+                          selectedSymbol === asset.symbol
+                            ? "border-border bg-card shadow-[0_10px_18px_-16px_rgba(15,23,42,0.12)] dark:border-white/15 dark:bg-slate-900"
+                            : "border-border/50 bg-card/70 hover:border-border hover:bg-card dark:border-white/8 dark:bg-slate-900/55 dark:hover:border-white/14 dark:hover:bg-slate-900/80",
+                        )}
+                        aria-label={`Select ${asset.name}`}
+                      >
+                        <img
+                          src={asset.image}
+                          alt=""
+                          className={cn(
+                            "size-6 rounded-full object-contain ring-1 sm:size-7",
+                            selectedSymbol === asset.symbol
+                              ? "ring-slate-900/10 dark:ring-white/15"
+                              : "ring-slate-900/5 dark:ring-white/10",
+                          )}
+                        />
+                        <div className="min-w-0 whitespace-nowrap text-xs font-semibold tracking-tight text-foreground tabular-nums sm:text-sm">
+                          ${asset.priceUsd.toLocaleString(undefined, { maximumFractionDigits: asset.priceUsd >= 100 ? 2 : 4 })}
+                        </div>
+                        <div
+                          className={cn(
+                            "min-w-[52px] rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold whitespace-nowrap tabular-nums sm:min-w-[58px] sm:text-[11px]",
+                            (asset.priceChangePct24h ?? 0) >= 0 ? "text-up" : "text-down",
+                          )}
+                        >
+                          {(asset.priceChangePct24h ?? 0) >= 0 ? "+" : ""}
+                          {(asset.priceChangePct24h ?? 0).toFixed(2)}%
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+
+              if (indexedMarketContext) {
+                const vertical = discoverVerticalForIndexedSlug(
+                  indexedMarketContext.slug,
+                  indexedMarketContext.marketType,
+                );
+                const typeLabel = marketTypeName(indexedMarketContext.marketType);
+                return (
+                  <div
+                    ref={railRef}
+                    onWheel={handleWheel}
+                    className="w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                  >
+                    <div
+                      className="flex min-h-10 min-w-max flex-nowrap items-center gap-1.5 px-0 sm:gap-2"
+                      aria-label="Market category"
+                    >
+                      <span
+                        className="shrink-0 whitespace-nowrap rounded-md border border-primary/25 bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary sm:px-2.5 sm:py-1.5"
+                        title="Contract market type"
+                      >
+                        {typeLabel}
+                      </span>
+                      <span className="shrink-0 px-1 text-muted-foreground/45 select-none" aria-hidden="true">
+                        |
+                      </span>
+                      {DISCOVERY_VERTICALS.map((v) => (
+                        <Link
+                          key={v.id}
+                          to="/app/markets/all"
+                          state={{ discoverVertical: v.id }}
+                          className={cn(
+                            "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
+                            v.id === vertical
+                              ? "border border-primary/25 bg-primary/15 text-primary"
+                              : "border border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          {v.title}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
+
+              if (isMarketsAllPage && discoveryNav) {
+                return (
               <div
                 ref={railRef}
                 onWheel={handleWheel}
@@ -229,7 +343,11 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
                   })}
                 </div>
               </div>
-            ) : marketFamilyAssetClassNav ? (
+                );
+              }
+
+              if (marketFamilyAssetClassNav) {
+                return (
               <div
                 ref={railRef}
                 onWheel={handleWheel}
@@ -309,52 +427,47 @@ const Header = ({ omitBottomDivider, discoveryNav, assetClassNav, marketFamilyAs
                   )}
                 </div>
               </div>
-            ) : (
-              <div
-                ref={railRef}
-                onWheel={handleWheel}
-                className="w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain"
-                style={{ WebkitOverflowScrolling: "touch" }}
-              >
-                <div className="flex min-h-10 min-w-max flex-nowrap items-center gap-1.5 px-0 sm:gap-2">
-                  {assets.map((asset) => (
-                    <button
-                      key={asset.id}
-                      type="button"
-                      onClick={() => setSelectedSymbol(asset.symbol)}
-                      className={cn(
-                        "grid min-h-9 min-w-[132px] shrink-0 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left transition-all duration-200 sm:min-w-[148px] sm:gap-2 sm:px-2 sm:py-1.5",
-                        selectedSymbol === asset.symbol
-                          ? "border-border bg-card shadow-[0_10px_18px_-16px_rgba(15,23,42,0.12)] dark:border-white/15 dark:bg-slate-900"
-                          : "border-border/50 bg-card/70 hover:border-border hover:bg-card dark:border-white/8 dark:bg-slate-900/55 dark:hover:border-white/14 dark:hover:bg-slate-900/80",
-                      )}
-                      aria-label={`Select ${asset.name}`}
+                );
+              }
+
+              if (isPortfolioPage) {
+                const portfolioStripActiveId = "trending" as const;
+                return (
+                  <div
+                    ref={railRef}
+                    onWheel={handleWheel}
+                    className="w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                  >
+                    <div
+                      className="flex min-h-10 min-w-max flex-nowrap items-center gap-2 px-0 sm:gap-3"
+                      aria-label="Discover categories"
                     >
-                      <img
-                        src={asset.image}
-                        alt=""
-                        className={cn(
-                          "size-6 rounded-full object-contain ring-1 sm:size-7",
-                          selectedSymbol === asset.symbol
-                            ? "ring-slate-900/10 dark:ring-white/15"
-                            : "ring-slate-900/5 dark:ring-white/10",
-                        )}
-                      />
-                      <div className="min-w-0 whitespace-nowrap text-xs font-semibold tracking-tight text-foreground tabular-nums sm:text-sm">
-                        ${asset.priceUsd.toLocaleString(undefined, { maximumFractionDigits: asset.priceUsd >= 100 ? 2 : 4 })}
-                      </div>
-                      <div className={cn(
-                        "min-w-[52px] rounded-full px-1.5 py-0.5 text-center text-[10px] font-semibold whitespace-nowrap tabular-nums sm:min-w-[58px] sm:text-[11px]",
-                        (asset.priceChangePct24h ?? 0) >= 0 ? "text-up" : "text-down",
-                      )}>
-                        {(asset.priceChangePct24h ?? 0) >= 0 ? "+" : ""}
-                        {(asset.priceChangePct24h ?? 0).toFixed(2)}%
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                      {DISCOVERY_VERTICALS.map((v) => {
+                        const isActive = v.id === portfolioStripActiveId;
+                        return (
+                          <Link
+                            key={v.id}
+                            to="/app/markets/all"
+                            state={{ discoverVertical: v.id }}
+                            className={cn(
+                              "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
+                              isActive
+                                ? "border border-primary text-primary"
+                                : "border border-transparent text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {v.title}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
+              return assetPriceLowerRail;
+            })()}
           </div>
         </div>
       </div>

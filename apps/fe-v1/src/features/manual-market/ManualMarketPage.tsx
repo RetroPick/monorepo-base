@@ -4,20 +4,34 @@ import { Activity, Clock3, Database, RadioTower } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import ProbabilityChart from "@/components/market/ProbabilityChart";
+import ProbabilityChart, { type ProbabilityChartEpochMarkers } from "@/components/market/ProbabilityChart";
 import MarketRules from "@/components/market/MarketRules";
 import IdeasActivityPanel from "@/components/market/IdeasActivityPanel";
 import RelatedMarkets from "@/components/market/RelatedMarkets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { MarketPageTitleBar } from "./MarketPageTitleBar";
+import { ManualMarketWatchlistButton } from "./ManualMarketWatchlistButton";
 import { ManualTradeCard } from "./ManualTradeCard";
 import { marketStickyClassName, useSiteHeaderOffset } from "./useSiteHeaderOffset";
 import type { ManualMarketViewModel } from "./types";
+
+function probabilityChartEpochMarkers(model: ManualMarketViewModel): ProbabilityChartEpochMarkers | undefined {
+  const ae = model.activeEpoch;
+  if (!ae) return undefined;
+  const lockAtMs = ae.lockAt != null ? Date.parse(ae.lockAt) : NaN;
+  const resolveAtMs = ae.resolveAt != null ? Date.parse(ae.resolveAt) : NaN;
+  const markers: ProbabilityChartEpochMarkers = {};
+  if (Number.isFinite(lockAtMs)) markers.lockAtMs = lockAtMs;
+  if (Number.isFinite(resolveAtMs)) markers.resolveAtMs = resolveAtMs;
+  return markers.lockAtMs != null || markers.resolveAtMs != null ? markers : undefined;
+}
 
 interface ManualMarketPageProps {
   model: ManualMarketViewModel;
   onBack: () => void;
   backLabel?: string;
+  /** When set (indexed chain market), header lower rail shows market type + Discover categories instead of crypto tickers. */
+  indexedHeaderContext?: { slug: string; marketType: number };
 }
 
 function StatPill({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
@@ -122,16 +136,23 @@ function ChainMarketDetailsAccordion({ model, resolutionExtras }: { model: Manua
   );
 }
 
-export function ManualMarketPage({ model, onBack, backLabel = "Back to Markets" }: ManualMarketPageProps) {
+export function ManualMarketPage({
+  model,
+  onBack,
+  backLabel = "Back to Markets",
+  indexedHeaderContext,
+}: ManualMarketPageProps) {
   const category = model.category ?? "Markets";
   const isChain = model.kind === "chain";
   const resolutionExtras = model.resolutionExtras ?? null;
+  const watchlistTemplateId =
+    isChain && model.tradeContext?.templateId ? (model.tradeContext.templateId as `0x${string}`) : null;
 
   useSiteHeaderOffset();
 
   return (
     <div className="market-page-sticky-offset min-h-screen w-full bg-background text-foreground">
-      <Header omitBottomDivider />
+      <Header omitBottomDivider indexedMarketContext={indexedHeaderContext} />
       <main className="mx-auto max-w-[1440px] pb-12">
         {/* Polymarket-style: title + main column only; trade panel sits in the right column and never shares the title row width */}
         <div className="grid items-start gap-6 px-4 pt-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_352px]">
@@ -143,40 +164,39 @@ export function ManualMarketPage({ model, onBack, backLabel = "Back to Markets" 
               icon={model.icon}
               iconColor={model.iconColor}
               category={category}
+              volumeLabel={model.volumeLabel}
               onBack={onBack}
               backLabel={backLabel}
               description={isChain ? undefined : model.description}
               showLivePill={isChain}
               className="mb-6 sm:mb-8"
+              watchlistAction={watchlistTemplateId ? <ManualMarketWatchlistButton templateId={watchlistTemplateId} /> : undefined}
             />
 
-            <div className="flex flex-col rounded-xl border border-border/60 bg-card dark:border-white/[0.08]">
+            <div className="flex flex-col gap-4">
               {!isChain && model.headerStats.length > 0 ? (
-                <section className="px-3 py-4 dark:border-white/[0.06] sm:px-4">
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
-                    {model.headerStats.map((s) => (
-                      <StatPill key={s.label} {...s} />
-                    ))}
-                  </div>
-                </section>
+                <div className="rounded-xl border border-border/60 bg-card dark:border-white/[0.08]">
+                  <section className="px-3 py-4 dark:border-white/[0.06] sm:px-4">
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-4">
+                      {model.headerStats.map((s) => (
+                        <StatPill key={s.label} {...s} />
+                      ))}
+                    </div>
+                  </section>
+                </div>
               ) : null}
 
-              <section className="rounded-b-xl border-t border-border/50 px-3 pb-3 pt-3 dark:border-white/[0.06] sm:px-4">
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-base font-semibold tracking-tight">Chance</h2>
-                    <p className="mt-0.5 text-xs text-muted-foreground">Market-implied probability over time</p>
-                  </div>
-                  <span className="rounded border border-border/70 px-2 py-1 font-mono text-xs text-muted-foreground dark:border-white/[0.07]">
-                    Vol {model.volumeLabel}
-                  </span>
+              <section className="px-0 pb-1 pt-0 sm:px-0">
+                <div className="mb-2">
+                  <h2 className="text-base font-semibold tracking-tight">Chance</h2>
+                  <p className="mt-0.5 text-xs text-muted-foreground">Market-implied probability over time</p>
                 </div>
                 <div className="min-h-[300px]">
                   <ProbabilityChart
                     outcomes={model.outcomes}
-                    volume={model.volumeLabel}
                     history={model.probabilityHistory}
                     embedded
+                    epochMarkers={probabilityChartEpochMarkers(model)}
                   />
                 </div>
               </section>

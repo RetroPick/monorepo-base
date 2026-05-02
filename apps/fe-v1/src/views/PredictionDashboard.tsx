@@ -4,13 +4,20 @@ import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import { InfoCard } from "@/components/prediction/InfoCard";
 import { LineChartPanel } from "@/components/markets/LineChartPanel";
-import { TradingChart } from "@/components/markets/TradingChart";
 import { RoundCarousel } from "@/components/prediction/RoundCarousel";
 import { useAssetContext } from "@/context/AssetContext";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { isValidAssetClassParam, parseAssetClassParam } from "@/lib/market-data/asset-class-params";
 import { loadReferenceChartData } from "@/lib/market-data/reference-series";
-import type { AssetClass, AssetUniverseEntry, CandlePoint, KlineInterval, LinePoint, ReferenceChartResult } from "@/lib/market-data/types";
+import {
+  candlePointsToLinePoints,
+  type AssetClass,
+  type AssetUniverseEntry,
+  type CandlePoint,
+  type KlineInterval,
+  type LinePoint,
+  type ReferenceChartResult,
+} from "@/lib/market-data/types";
 import type { PredictionRound } from "@/types/prediction";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +133,17 @@ function makePseudoAssetForReference(assetClass: AssetClass, meta: { title: stri
   };
 }
 
-function TradingChartLoadingState() {
+function formatUsdAxis(value: number) {
+  const core =
+    value >= 1000
+      ? value.toLocaleString(undefined, { maximumFractionDigits: 2 })
+      : value >= 1
+        ? value.toLocaleString(undefined, { maximumFractionDigits: 4 })
+        : value.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  return `$${core}`;
+}
+
+function ChartLoadingState() {
   return (
     <div className="relative flex h-full overflow-hidden bg-background text-card-foreground dark:text-slate-100">
       <div className="relative flex-1 overflow-hidden px-2 py-2">
@@ -340,19 +357,19 @@ export default function PredictionDashboard() {
               <div className="h-[280px]">
                 {assetClass === "crypto" ? (
                   detailLoading || !detail ? (
-                    <TradingChartLoadingState />
+                    <ChartLoadingState />
                   ) : (
-                    <TradingChart
-                      candles={detail.candles}
+                    <LineChartPanel
+                      points={candlePointsToLinePoints(detail.candles)}
                       height={TRADING_CHART_HEIGHT}
-                      pair={selectedAsset?.displayPair ?? detail.asset.displayPair}
-                      assetName={selectedAsset?.name ?? detail.asset.name}
-                      interval={interval}
-                      livePriceUsd={detail.livePriceUsd}
+                      title={selectedAsset?.name ?? detail.asset.name}
+                      subtitle={selectedAsset?.displayPair ?? detail.asset.displayPair}
+                      sourceLine={`Binance · ${interval} close`}
+                      formatValue={formatUsdAxis}
                     />
                   )
                 ) : referenceLoading ? (
-                  <TradingChartLoadingState />
+                  <ChartLoadingState />
                 ) : referenceResult?.kind === "unavailable" ? (
                   <div className="flex h-full flex-col justify-center bg-background px-2 py-8 text-sm text-muted-foreground">
                     <p className="font-medium text-foreground">{referenceResult.message}</p>

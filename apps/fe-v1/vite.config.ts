@@ -14,12 +14,6 @@ export default defineConfig(({ mode }) => ({
       overlay: true,
     },
     proxy: {
-      '/api/polymarket': {
-        target: 'https://gamma-api.polymarket.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/polymarket/, ''),
-        timeout: 60000,
-      },
       // FRED API — avoids browser CORS; client passes api_key via VITE_FRED_API_KEY
       '/api/fred': {
         target: 'https://api.stlouisfed.org/fred',

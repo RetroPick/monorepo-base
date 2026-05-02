@@ -1,15 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAccount, useChainId } from "wagmi";
-import { CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
+import { ArrowRight, CheckCircle2, Loader2, ShieldAlert } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { useMarketEngine } from "@/hooks/useMarketEngine";
 import { parseUsdc, formatUsdc } from "@/config/tokens";
 import { DEPLOYMENT_CHAIN_ID } from "@/config/chains";
+import { openAppKitModal } from "@/lib/openAppKitModal";
 import { RollingPhase, EpochState } from "@/types/engine";
-import { isEpochBettingOpenNow, useEpoch } from "@/lib/contracts/marketEngine";
+import {
+  buildYieldAmountHintLines,
+  isEpochBettingOpenNow,
+  type TemplateYieldView,
+  useEpoch,
+  useTemplateYieldView,
+} from "@/lib/contracts/marketEngine";
 import {
   fetchUserPositions,
   type PositionViewRow,
@@ -18,6 +32,7 @@ import type { MarketOutcome } from "@/types/market";
 import { formatPayoutMultiplier } from "@/lib/market-odds";
 import {
   computeSwitchFeeTs,
+  formatPayoutMultiple,
   parseEpochForProjection,
   projectWinnerPayoutIfSideWins,
 } from "@/lib/market-payout-projection";
@@ -33,8 +48,7 @@ const tradeUp3dClass =
 const tradeDown3dClass =
   "w-full rounded-lg border border-rose-800/90 bg-gradient-to-b from-rose-600 to-rose-800 py-3 text-sm font-bold text-zinc-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_4px_0_0_rgb(100,20,40),0_2px_8px_rgba(0,0,0,0.3)] transition-[opacity,transform,box-shadow,filter,background,colors] duration-200 hover:from-rose-500 hover:to-rose-700 hover:text-zinc-100 hover:opacity-100 hover:brightness-[1.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/80 active:translate-y-px active:from-rose-600 active:to-rose-800 active:text-zinc-300 active:shadow-[inset_0_1px_0_rgba(255,255,255,0.1),0_2px_0_0_rgb(100,20,40),0_1px_4px_rgba(0,0,0,0.22)] disabled:cursor-not-allowed disabled:opacity-40";
 
-type Tab = "Buy" | "Claim";
-type BuyMode = "add" | "move";
+type Tab = "Buy" | "Move stake" | "Claim";
 
 interface ManualTradeCardProps {
   outcomes: MarketOutcome[];
@@ -113,7 +127,6 @@ function positionStakeAt(position: PositionViewRow | undefined, index: number): 
 
 export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps) {
   const [tab, setTab] = useState<Tab>("Buy");
-  const [buyMode, setBuyMode] = useState<BuyMode>("add");
   const [switchFromIndex, setSwitchFromIndex] = useState(0);
   const [switchToIndex, setSwitchToIndex] = useState(1);
   const [selectedOutcome, setSelectedOutcome] = useState(0);
@@ -136,6 +149,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const templateId = tc?.templateId;
   const activeEpochId = tc?.activeEpochId ?? null;
   const epochQ = useEpoch(templateId, activeEpochId ?? undefined, chainId);
+  const yieldViewQ = useTemplateYieldView(templateId, chainId);
   const epoch = epochQ.data as { status?: number | bigint } | undefined;
   const epochStatus =
     epoch?.status === undefined ? undefined : Number(epoch.status);
@@ -206,41 +220,49 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const wrongChain = address != null && chainId !== DEPLOYMENT_CHAIN_ID;
   const parsedAmount = parseAmount(amount);
   const allowance = engine.usdcAllowance ?? 0n;
-  const needsBuyApproval =
-    tab === "Buy" && buyMode === "add" && parsedAmount > 0n && allowance < parsedAmount;
+  const needsBuyApproval = tab === "Buy" && parsedAmount > 0n && allowance < parsedAmount;
   const approvedBuyMatches =
     approvedBuy != null &&
     tc != null &&
     approvedBuyMatchesOrder(approvedBuy, tc, selectedOutcomeIndex, parsedAmount);
 
-  const winUpToProjection = useMemo(() => {
-    if (tab !== "Buy" || buyMode !== "add" || parsedAmount <= 0n || !epochSnap) return null;
+  /** Pool-based payout preview for Buy: capped to post-deposit pool, multiplier vs marginal stake. */
+  const buyAddPayoutPreview = useMemo(() => {
+    if (tab !== "Buy" || parsedAmount <= 0n || !epochSnap) return null;
     const stakes = Array.from({ length: epochSnap.outcomeCount }, (_, i) =>
       positionStakeAt(activePosition, i),
     );
-    return projectWinnerPayoutIfSideWins({
+    const winIdx = Math.min(selectedOutcomeIndex, epochSnap.outcomeCount - 1);
+    const proj = projectWinnerPayoutIfSideWins({
       outcomePools: epochSnap.outcomePools,
       totalPool: epochSnap.totalPool,
       outcomeCount: epochSnap.outcomeCount,
       settlementFeeBps: epochSnap.settlementFeeBps,
       feeOnLosingPool: epochSnap.feeOnLosingPool,
       refundMode: epochSnap.refundMode,
-      winningOutcomeIndex: Math.min(selectedOutcomeIndex, epochSnap.outcomeCount - 1),
+      winningOutcomeIndex: winIdx,
       userStakes: stakes,
       additionalStake: parsedAmount,
     });
-  }, [tab, buyMode, parsedAmount, epochSnap, activePosition, selectedOutcomeIndex]);
+    if (proj.payout == null || proj.basis !== "pool") return null;
+    const totalPrime = epochSnap.totalPool + parsedAmount;
+    const cappedPayout = proj.payout > totalPrime ? totalPrime : proj.payout;
+    return {
+      cappedPayout,
+      multLabel: formatPayoutMultiple(cappedPayout, parsedAmount),
+    };
+  }, [tab, parsedAmount, epochSnap, activePosition, selectedOutcomeIndex]);
 
   const switchStakeOnFrom = positionStakeAt(activePosition, switchFromIndex);
   const switchFeePreview =
-    buyMode === "move" && parsedAmount > 0n && epochSnap
+    tab === "Move stake" && parsedAmount > 0n && epochSnap
       ? computeSwitchFeeTs(parsedAmount, epochSnap.switchFeeBps)
       : 0n;
 
   const selectedWinLabel =
     outcomes[Math.min(selectedOutcomeIndex, Math.max(outcomes.length - 1, 0))]?.label ?? "this side";
 
-  const activateMoveMode = useCallback(() => {
+  const syncMoveStakeSelection = useCallback(() => {
     const oc = Math.max(1, tc?.outcomeCount ?? outcomes.length);
     let from = 0;
     for (let i = 0; i < oc; i++) {
@@ -260,7 +282,6 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     }
     setSwitchFromIndex(from);
     setSwitchToIndex(to);
-    setBuyMode("move");
   }, [tc?.outcomeCount, outcomes.length, activePosition]);
 
   /** Rolling markets can advance epoch server-side; stale approve must not deposit into the wrong epoch. */
@@ -279,6 +300,16 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     if (raw === undefined) return "$0.00";
     return `$${formatUsdc(raw)}`;
   }, [engine.usdcBalance]);
+
+  const yieldAmountHintLines = useMemo(() => {
+    if (!tc) return null;
+    if (tab !== "Buy" && tab !== "Move stake") return null;
+    const buyMode = tab === "Move stake" ? "move" : "add";
+    return buildYieldAmountHintLines(buyMode, yieldViewQ.data as TemplateYieldView | undefined, {
+      isLoading: yieldViewQ.isLoading,
+      isError: yieldViewQ.isError,
+    });
+  }, [tab, tc, yieldViewQ.data, yieldViewQ.isLoading, yieldViewQ.isError]);
 
   const commonBlockedReason = (() => {
     if (!tc) return "Indexed on-chain market required.";
@@ -306,7 +337,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     }
     if (!address) return "Connect wallet to trade.";
     if (commonBlockedReason) return commonBlockedReason;
-    if (buyMode === "move") {
+    if (tab === "Move stake") {
       if (parsedAmount <= 0n) return "Enter an amount.";
       const maxSwitch = positionStakeAt(activePosition, switchFromIndex);
       if (maxSwitch <= 0n) return "No stake on the selected \"from\" outcome.";
@@ -319,7 +350,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   })();
 
   const setMax = () => {
-    if (buyMode === "move") {
+    if (tab === "Move stake") {
       const m = positionStakeAt(activePosition, switchFromIndex);
       if (m <= 0n) return;
       setAmount(formatUsdc(m, 2).replace(/,/g, ""));
@@ -340,7 +371,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   };
 
   const handleBuy = async () => {
-    if (buyMode !== "add") return;
+    if (tab !== "Buy") return;
     if (!address || !tc || tc.activeEpochId == null || !canTradeOnChain || parsedAmount <= 0n) return;
     try {
       const refetchResult = await engine.refetchUsdcAllowance?.();
@@ -452,41 +483,46 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   };
 
   const isWorking = engine.isDepositing || engine.isClaiming;
-  const isApprovingBuy = tab === "Buy" && buyMode === "add" && engine.isApprovingDeposit;
-  const isSwitchingStake = tab === "Buy" && buyMode === "move" && engine.isSwitching;
+  const isApprovingBuy = tab === "Buy" && engine.isApprovingDeposit;
+  const isSwitchingStake = tab === "Move stake" && engine.isSwitching;
   const isAnyWorking = isWorking || isApprovingBuy || isSwitchingStake;
   const isConnectOnlyReason =
     actionBlockedReason === "Connect wallet to trade." || actionBlockedReason === "Connect wallet to claim.";
   const showErrorCallout = Boolean(actionBlockedReason && !isConnectOnlyReason);
+  /** When disconnected, primary button opens AppKit instead of blocking with disabled. */
+  const executionBlockedReason = address != null ? actionBlockedReason : null;
 
   const primaryLabel =
     tab === "Buy"
-      ? buyMode === "move"
+      ? isApprovingBuy
+        ? "Confirm approval"
+        : engine.isDepositing
+          ? "Confirm buy"
+          : needsBuyApproval && !approvedBuyMatches
+            ? "Trade"
+            : approvedBuyMatches
+              ? "Submit buy"
+              : "Trade"
+      : tab === "Move stake"
         ? engine.isSwitching
           ? "Confirm switch"
           : "Switch stake"
-        : isApprovingBuy
-          ? "Confirm approval"
-          : engine.isDepositing
-            ? "Confirm buy"
-            : needsBuyApproval && !approvedBuyMatches
-              ? "Trade"
-              : approvedBuyMatches
-                ? "Submit buy"
-                : "Trade"
-      : engine.isClaiming
-        ? "Confirm claim"
-        : "Claim";
+        : engine.isClaiming
+          ? "Confirm claim"
+          : "Claim";
 
   return (
     <div className="w-full">
       <div className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm dark:border-white/[0.1]">
         <div className="flex items-end gap-1 border-b border-border/60 px-3 pt-3 dark:border-white/[0.08] sm:px-4">
-          {(["Buy", "Claim"] as const).map((t) => (
+          {(["Buy", "Move stake", "Claim"] as const).map((t) => (
             <button
               key={t}
               type="button"
-              onClick={() => setTab(t)}
+              onClick={() => {
+                if (t === "Move stake") syncMoveStakeSelection();
+                setTab(t);
+              }}
               className={cn(
                 "-mb-px border-b-2 px-3 py-2 text-sm font-semibold transition",
                 tab === t
@@ -502,34 +538,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
         <div className="p-4 sm:p-5">
           {tab !== "Claim" ? (
             <>
-              <div className="flex rounded-lg border border-border/70 p-0.5 dark:border-white/[0.08]">
-                <button
-                  type="button"
-                  onClick={() => setBuyMode("add")}
-                  className={cn(
-                    "flex-1 rounded-md py-2 text-xs font-semibold transition",
-                    buyMode === "add"
-                      ? "bg-secondary text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Add funds
-                </button>
-                <button
-                  type="button"
-                  onClick={activateMoveMode}
-                  className={cn(
-                    "flex-1 rounded-md py-2 text-xs font-semibold transition",
-                    buyMode === "move"
-                      ? "bg-secondary text-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  Move stake
-                </button>
-              </div>
-
-              {buyMode === "add" ? (
+              {tab === "Buy" ? (
                 <div className="grid grid-cols-2 gap-3 pt-3 sm:gap-4">
                   {outcomes.length <= 2 ? (
                     <>
@@ -601,80 +610,139 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
                   )}
                 </div>
               ) : (
-                <div className="grid gap-3 pt-3 sm:grid-cols-2">
-                  <label className="block min-w-0">
-                    <span className="text-xs font-medium text-muted-foreground">From</span>
-                    <select
-                      className="mt-1 w-full rounded-lg border border-border/70 bg-background px-2 py-2 text-sm text-foreground outline-none dark:border-white/[0.08]"
-                      value={switchFromIndex}
-                      onChange={(e) => {
-                        const i = Number(e.target.value);
-                        setSwitchFromIndex(i);
-                        setSwitchToIndex((prev) =>
-                          prev === i ? (i + 1) % outcomeCount : prev >= outcomeCount ? outcomeCount - 1 : prev,
-                        );
-                      }}
-                    >
-                      {outcomes.slice(0, outcomeCount).map((o, i) => (
-                        <option key={o.id} value={i}>
-                          {o.label} ({formatShortToken(positionStakeAt(activePosition, i))})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block min-w-0">
-                    <span className="text-xs font-medium text-muted-foreground">To</span>
-                    <select
-                      className="mt-1 w-full rounded-lg border border-border/70 bg-background px-2 py-2 text-sm text-foreground outline-none dark:border-white/[0.08]"
-                      value={switchToIndex}
-                      onChange={(e) => setSwitchToIndex(Number(e.target.value))}
-                    >
-                      {outcomes
-                        .slice(0, outcomeCount)
-                        .map((o, i) => ({ o, i }))
-                        .filter(({ i }) => i !== switchFromIndex)
-                        .map(({ o, i }) => (
-                          <option key={o.id} value={i}>
-                            {o.label}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
+                <div className="space-y-4 pt-0">
+                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                    Reallocate staked USDC from one outcome to another. Nothing is withdrawn to your wallet.
+                  </p>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-3">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <span className="block text-xs font-medium text-foreground">From</span>
+                      <Select
+                        value={String(switchFromIndex)}
+                        onValueChange={(v) => {
+                          const i = Number(v);
+                          setSwitchFromIndex(i);
+                          setSwitchToIndex((prev) =>
+                            prev === i ? (i + 1) % outcomeCount : prev >= outcomeCount ? outcomeCount - 1 : prev,
+                          );
+                        }}
+                      >
+                        <SelectTrigger
+                          className="h-11 w-full border-border/80 bg-muted/25 px-3 text-sm font-medium shadow-sm dark:border-white/[0.12] dark:bg-muted/20 [&>span]:w-full [&>span]:text-left"
+                          aria-label="Outcome to move stake from"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" sideOffset={6} className="z-[300] max-h-[min(18rem,var(--radix-select-content-available-height))]">
+                          {outcomes.slice(0, outcomeCount).map((o, i) => (
+                            <SelectItem key={o.id} value={String(i)}>
+                              {o.label} (${formatShortToken(positionStakeAt(activePosition, i))})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex shrink-0 justify-center sm:pb-2" aria-hidden>
+                      <div className="rounded-full border border-border/70 bg-background/80 p-2 shadow-sm dark:border-white/[0.1] dark:bg-muted/30">
+                        <ArrowRight className="size-4 rotate-90 text-muted-foreground sm:rotate-0" />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <span className="block text-xs font-medium text-foreground">To</span>
+                      <Select
+                        value={String(switchToIndex)}
+                        onValueChange={(v) => setSwitchToIndex(Number(v))}
+                      >
+                        <SelectTrigger
+                          className="h-11 w-full border-border/80 bg-muted/25 px-3 text-sm font-medium shadow-sm dark:border-white/[0.12] dark:bg-muted/20 [&>span]:w-full [&>span]:text-left"
+                          aria-label="Outcome to move stake to"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent position="popper" sideOffset={6} className="z-[300] max-h-[min(18rem,var(--radix-select-content-available-height))]">
+                          {outcomes
+                            .slice(0, outcomeCount)
+                            .map((o, i) => ({ o, i }))
+                            .filter(({ i }) => i !== switchFromIndex)
+                            .map(({ o, i }) => (
+                              <SelectItem key={o.id} value={String(i)}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
               )}
 
-              <div className="mt-4 rounded-xl border border-border/70 bg-background/60 p-3 dark:border-white/[0.08]">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">Amount</span>
-                  <span className="text-xs text-muted-foreground/90">
-                    {buyMode === "move" ? (
-                      <>
-                        On From{" "}
-                        <span className="font-mono text-foreground">{formatShortToken(switchStakeOnFrom)}</span>
-                      </>
-                    ) : (
-                      <>Balance {balanceLabel}</>
-                    )}
+              <div
+                className={cn(
+                  "relative mt-4 overflow-hidden rounded-2xl border p-4 sm:p-5",
+                  "border-border/60 bg-gradient-to-b from-muted/[0.12] to-background/90",
+                  "dark:border-white/[0.07] dark:from-muted/15 dark:to-card/40",
+                  "before:pointer-events-none before:absolute before:inset-y-3 before:left-0 before:w-px before:bg-gradient-to-b before:from-cyan-500/0 before:via-cyan-500/55 before:to-violet-500/0",
+                  tab === "Move stake"
+                    ? "ring-1 ring-primary/15 dark:ring-primary/20"
+                    : "",
+                )}
+              >
+                <div className="flex items-start justify-between gap-3 pl-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {tab === "Move stake" ? "Move" : "Stake"}
                   </span>
+                  {tab === "Move stake" ? (
+                    <div className="text-right">
+                      <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        From {outcomes[switchFromIndex]?.label ?? "—"}
+                      </div>
+                      <div className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground">
+                        ${formatShortToken(switchStakeOnFrom)}
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] tabular-nums text-muted-foreground">{balanceLabel}</span>
+                  )}
                 </div>
-                <div className="mt-1 flex items-baseline gap-1">
-                  <span className="text-2xl font-semibold text-muted-foreground">$</span>
-                  <input
-                    type="text"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-                    placeholder="0"
-                    className="min-w-0 flex-1 bg-transparent text-4xl font-semibold tabular-nums text-foreground outline-none placeholder:text-muted-foreground/25"
-                    aria-label="Amount in USDC"
-                  />
+                <div className="mt-2 flex flex-wrap items-end gap-x-2 gap-y-1 pl-2">
+                  <div className="flex min-w-0 flex-1 items-baseline gap-0.5">
+                    <span className="text-2xl font-medium text-muted-foreground/80">$</span>
+                    <input
+                      type="text"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                      placeholder="0"
+                      className="min-w-0 flex-1 bg-transparent text-4xl font-semibold tabular-nums tracking-tight text-foreground outline-none placeholder:text-muted-foreground/25"
+                      aria-label="Amount in USDC"
+                    />
+                  </div>
+                  {tab === "Buy" && buyAddPayoutPreview ? (
+                    <span
+                      className="mb-1 shrink-0 rounded-md border border-cyan-500/35 bg-cyan-500/[0.07] px-2 py-1 font-mono text-[11px] font-semibold tabular-nums text-cyan-700 dark:text-cyan-300"
+                      title={`~${buyAddPayoutPreview.multLabel}× return on this stake if ${selectedWinLabel} wins (pool-sized, illustrative)`}
+                    >
+                      ×{buyAddPayoutPreview.multLabel}
+                    </span>
+                  ) : null}
                 </div>
-                <div className="mt-3 flex flex-wrap justify-end gap-1.5">
+                {yieldAmountHintLines && yieldAmountHintLines.length > 0 ? (
+                  <p
+                    className="mt-2 line-clamp-2 pl-2 text-[10px] leading-snug text-muted-foreground"
+                    title={yieldAmountHintLines.join(" ")}
+                    role="note"
+                  >
+                    {yieldAmountHintLines.join(" ")}
+                  </p>
+                ) : null}
+                <div className="mt-3 flex flex-nowrap items-center justify-end gap-1.5 overflow-x-auto pl-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {["1", "5", "10", "100"].map((val) => (
                     <button
                       key={val}
                       type="button"
                       onClick={() => setAmount((Number(amount || 0) + Number(val)).toString())}
-                      className="rounded-full border border-border/80 bg-secondary/50 px-2.5 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                      className="shrink-0 rounded-md border border-border/70 bg-background/50 px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:border-border hover:bg-muted/40 hover:text-foreground"
                     >
                       +${val}
                     </button>
@@ -682,12 +750,27 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
                   <button
                     type="button"
                     onClick={setMax}
-                    className="rounded-full border border-border/80 bg-secondary/30 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:bg-secondary"
+                    className="shrink-0 rounded-md border border-foreground/20 bg-foreground/5 px-2.5 py-1 text-xs font-semibold text-foreground transition hover:bg-foreground/10"
                   >
                     Max
                   </button>
                 </div>
-                {buyMode === "move" && parsedAmount > 0n && switchFeePreview > 0n ? (
+                {tab === "Buy" && buyAddPayoutPreview ? (
+                  <div
+                    className="mt-4 flex items-baseline justify-between gap-3 border-t border-border/40 pt-4 pl-2 dark:border-white/[0.06]"
+                    data-testid="stake-payout-preview"
+                  >
+                    <p className="min-w-0 flex-1 text-sm leading-snug text-muted-foreground">
+                      Return if{" "}
+                      <span className="font-semibold text-foreground">{selectedWinLabel}</span>{" "}
+                      <span className="text-muted-foreground/80">resolves</span>
+                    </p>
+                    <span className="shrink-0 text-right text-xl font-bold tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400 sm:text-2xl">
+                      ${formatUsdc(buyAddPayoutPreview.cappedPayout, 2)}
+                    </span>
+                  </div>
+                ) : null}
+                {tab === "Move stake" && parsedAmount > 0n && switchFeePreview > 0n ? (
                   <p className="mt-2 text-[11px] text-muted-foreground">
                     Est. switch fee ~${formatUsdc(switchFeePreview, switchFeePreview >= 10n ** 16n ? 2 : 4)}
                   </p>
@@ -733,17 +816,6 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
             </p>
           ) : null}
 
-          {buyMode === "add" &&
-          tab !== "Claim" &&
-          winUpToProjection?.payout != null &&
-          winUpToProjection.basis === "pool" &&
-          parsedAmount > 0n ? (
-            <p className="mt-3 text-center text-xs text-emerald-700 dark:text-emerald-300">
-              Estimated win up to ~${formatUsdc(winUpToProjection.payout, 2)} if {selectedWinLabel} wins (pool-based,
-              not guaranteed).
-            </p>
-          ) : null}
-
           {isConnectOnlyReason && actionBlockedReason ? (
             <p className="mt-2 text-center text-xs text-muted-foreground">{actionBlockedReason}</p>
           ) : null}
@@ -758,11 +830,11 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
           {lastSubmitted ? (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
-              <span className="min-w-0 truncate">Submitted {lastSubmitted.slice(0, 10)}… awaiting indexer</span>
+              <span>Transaction successful</span>
             </div>
           ) : null}
 
-          {approvedBuyMatches && buyMode === "add" ? (
+          {approvedBuyMatches && tab === "Buy" ? (
             <div className="mt-3 flex items-center gap-2 rounded-lg border border-sky-500/25 bg-sky-500/10 px-3 py-2 text-xs text-sky-700 dark:text-sky-300">
               <CheckCircle2 className="size-3.5 shrink-0" aria-hidden />
               <span className="min-w-0 truncate">Approved {approvedBuy?.approveHash.slice(0, 10)}… tap Submit buy</span>
@@ -772,11 +844,15 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
           <button
             type="button"
             onClick={() => {
-              if (tab === "Buy" && buyMode === "move") void handleSwitch();
+              if (!address) {
+                void openAppKitModal();
+                return;
+              }
+              if (tab === "Move stake") void handleSwitch();
               else if (tab === "Buy") void handleBuy();
               else void handleClaim();
             }}
-            disabled={Boolean(actionBlockedReason) || isAnyWorking}
+            disabled={Boolean(executionBlockedReason) || isAnyWorking}
             className="mt-4 flex w-full min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3.5 text-sm font-bold text-primary-foreground transition hover:bg-primary/90 active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40"
           >
             {isAnyWorking ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}

@@ -21,6 +21,7 @@
     "cargo:check": "cargo check",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up -d",
+    "docker:up:desktop": "docker compose --env-file compose.desktop-hairpin.env up -d",
     "docker:down": "docker compose down -v"
   },
   "dependencies": {

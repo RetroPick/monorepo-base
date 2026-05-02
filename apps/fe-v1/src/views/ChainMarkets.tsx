@@ -13,6 +13,8 @@ import {
 } from "@/lib/api/retropickApi";
 import { useIndexerWebSocket } from "@/hooks/useIndexerWebSocket";
 
+const MARKETS_REFETCH_MS = 15_000;
+
 function Row({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex justify-between gap-4 text-sm">
@@ -65,6 +67,9 @@ export default function ChainMarkets() {
     queryKey: ["retropick-api", "markets"],
     queryFn: fetchMarkets,
     staleTime: 5_000,
+    refetchInterval: MARKETS_REFETCH_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const health = healthQ.data;

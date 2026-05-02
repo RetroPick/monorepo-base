@@ -17,3 +17,12 @@ export function writeWatchlist(wallet: string, templateIds: string[]) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(PREFIX + wallet.toLowerCase(), JSON.stringify(templateIds));
 }
+
+export function clearLocalWatchlist(wallet: string | undefined) {
+  if (!wallet || typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(PREFIX + wallet.toLowerCase());
+  } catch {
+    /* ignore */
+  }
+}

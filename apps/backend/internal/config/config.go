@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,12 @@ type Config struct {
 	BuildTime             string
 	// LogLevel: debug, info, warn, error
 	LogLevel string
+
+	// FaucetRelayEnabled requires FAUCET_RELAY_ENABLED=1 and a funded FAUCET_RELAYER_PRIVATE_KEY (Base Sepolia).
+	FaucetRelayEnabled    bool
+	FaucetRelayPrivateKey string // hex, optional; omit 0x prefix ok
+	// FaucetRelayDeadlineMax caps how far in the future users may set EIP-712 deadline (default 15m).
+	FaucetRelayDeadlineMax time.Duration
 }
 
 func Load() (*Config, error) {
@@ -72,6 +79,12 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	faucetRelayDeadlineMax, err := durationFromEnv("FAUCET_RELAY_DEADLINE_MAX", 15*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	faucetRelayKey := strings.TrimSpace(os.Getenv("FAUCET_RELAYER_PRIVATE_KEY"))
+	faucetRelayEnabled := os.Getenv("FAUCET_RELAY_ENABLED") == "1" && faucetRelayKey != ""
 	return &Config{
 		DatabaseURL:           db,
 		RPCURL:                rpc,
@@ -86,6 +99,9 @@ func Load() (*Config, error) {
 		BuildCommit:           envDefault("BUILD_COMMIT", "unknown"),
 		BuildTime:             envDefault("BUILD_TIME", "unknown"),
 		LogLevel:              level,
+		FaucetRelayEnabled:    faucetRelayEnabled,
+		FaucetRelayPrivateKey: faucetRelayKey,
+		FaucetRelayDeadlineMax: faucetRelayDeadlineMax,
 	}, nil
 }
 

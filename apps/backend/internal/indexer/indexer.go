@@ -8,7 +8,9 @@ import (
 	"log/slog"
 	"math/big"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -106,6 +108,20 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 		}
 	}
 
+	templateSet := make(map[string]struct{})
+	for _, lg := range logs {
+		tpl, _ := templateEpochFromTopics(lg)
+		if tpl != nil && len(*tpl) == 32 {
+			id := strings.ToLower(common.BytesToHash(*tpl).Hex())
+			templateSet[id] = struct{}{}
+		}
+	}
+	templateIDs := make([]string, 0, len(templateSet))
+	for id := range templateSet {
+		templateIDs = append(templateIDs, id)
+	}
+	sort.Strings(templateIDs)
+
 	hdr, err := s.client.HeaderByNumber(ctx, new(big.Int).SetUint64(to))
 	if err != nil {
 		return fmt.Errorf("header %d: %w", to, err)
@@ -119,12 +135,19 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 		return err
 	}
 
-	summary, _ := json.Marshal(map[string]any{
+	summaryObj := map[string]any{
 		"type":        "indexer_tick",
 		"fromBlock":   from,
 		"toBlock":     to,
 		"logsIndexed": len(logs),
-	})
+	}
+	if len(templateIDs) == 1 {
+		summaryObj["templateId"] = templateIDs[0]
+	}
+	if len(templateIDs) > 0 {
+		summaryObj["templateIds"] = templateIDs
+	}
+	summary, _ := json.Marshal(summaryObj)
 	if _, err := tx.Exec(ctx, `SELECT pg_notify($1, $2)`, notifyChannel, string(summary)); err != nil {
 		return fmt.Errorf("notify: %w", err)
 	}
@@ -296,7 +319,7 @@ func (s *Service) recordChainEvent(ctx context.Context, q *dbqueries.Queries, lg
 		TemplateID:   tid,
 		EpochID:      eid,
 		UserAddress:  ua,
-		Payload:      b,
+		Payload:      string(b),
 	})
 }
 

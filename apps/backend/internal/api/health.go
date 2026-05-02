@@ -23,14 +23,15 @@ type BuildInfo struct {
 
 func RegisterHealthRoutes(r interface {
 	Get(pattern string, h http.HandlerFunc)
-}, pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry, build BuildInfo) {
+}, pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry, build BuildInfo, faucetRelayEnabled bool) {
 	r.Get("/api/v1/livez", func(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":          true,
-			"service":     "retropick-api",
-			"environment": reg.Environment,
-			"chainId":     reg.ChainID,
-			"build":       build,
+			"ok":                 true,
+			"service":            "retropick-api",
+			"environment":        reg.Environment,
+			"chainId":            reg.ChainID,
+			"faucetRelayEnabled": faucetRelayEnabled,
+			"build":              build,
 		})
 	})
 

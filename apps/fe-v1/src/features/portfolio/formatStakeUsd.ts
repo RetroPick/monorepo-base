@@ -9,6 +9,20 @@ export function formatStakeUsd(raw: bigint | string | undefined | null, fraction
   return `$${core}`;
 }
 
+/** Stake-token wei as USD-style with an explicit + / − prefix (excluding the $ sign duplication on negatives). */
+export function formatSignedStakeUsd(raw: bigint | string | undefined | null, fractionDigits = 2): string {
+  if (raw === undefined || raw === null) return "$0.00";
+  const n =
+    typeof raw === "string" ? (/^-?\d+$/.test(raw) ? BigInt(raw) : null) : typeof raw === "bigint" ? raw : null;
+  if (n === null) return "$0.00";
+  if (n === 0n) return "$0.00";
+  const neg = n < 0n;
+  const abs = neg ? -n : n;
+  const core = formatUsdc(abs, fractionDigits);
+  if (neg) return `-$${core}`;
+  return `+$${core}`;
+}
+
 export function parseStakeRaw(raw: unknown): bigint | undefined {
   if (typeof raw === "bigint") return raw;
   if (typeof raw === "number" && Number.isFinite(raw)) return BigInt(Math.trunc(raw));

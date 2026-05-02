@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { getApiWebSocketUrl } from "@/lib/api/retropickApi";
 
 const WS_STALE_MS = 12_000;
@@ -10,10 +10,46 @@ function normalizeWsTemplateId(raw: string | undefined): string | undefined {
   return s.startsWith("0x") ? s : `0x${s}`;
 }
 
+function parseNotifyTemplateIds(raw: string): string[] {
+  try {
+    const p = JSON.parse(raw) as { templateId?: string; templateIds?: string[] };
+    const out: string[] = [];
+    if (typeof p.templateId === "string") out.push(p.templateId);
+    if (Array.isArray(p.templateIds)) {
+      for (const id of p.templateIds) {
+        if (typeof id === "string") out.push(id);
+      }
+    }
+    const norm = (x: string) => normalizeWsTemplateId(x);
+    const seen = new Set<string>();
+    const dedup: string[] = [];
+    for (const id of out) {
+      const n = norm(id);
+      if (n && !seen.has(n)) {
+        seen.add(n);
+        dedup.push(n);
+      }
+    }
+    return dedup;
+  } catch {
+    return [];
+  }
+}
+
+/** Refetch probability history immediately so the chart updates without waiting for the debounced batch. */
+function invalidateProbabilityHistoryNow(qc: QueryClient, templateId?: string) {
+  const t = normalizeWsTemplateId(templateId);
+  if (t) {
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "probability-history", t] });
+  } else {
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "probability-history"] });
+  }
+}
+
 /**
  * Subscribes to the backend `/ws` fanout (Postgres NOTIFY).
- * When the payload is JSON with a `templateId` field, narrows invalidation to that market;
- * otherwise invalidates all `retropick-api` queries.
+ * Probability history is invalidated immediately; other `retropick-api` queries are debounced.
+ * Scoped pages ignore NOTIFY payloads that only mention other template IDs when `templateIds` is present.
  */
 export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
   const qc = useQueryClient();
@@ -29,6 +65,8 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const scheduleInvalidate = (templateId?: string) => {
+      invalidateProbabilityHistoryNow(qc, templateId);
+
       if (refetchTimer.current) clearTimeout(refetchTimer.current);
       refetchTimer.current = setTimeout(() => {
         const t = normalizeWsTemplateId(templateId);
@@ -39,6 +77,8 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
           void qc.invalidateQueries({ queryKey: ["retropick-api", "user-positions"] });
           void qc.invalidateQueries({ queryKey: ["retropick-api", "user-claims"] });
           void qc.invalidateQueries({ queryKey: ["retropick-api", "user-events"] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary"] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist"] });
         } else {
           void qc.invalidateQueries({ queryKey: ["retropick-api"] });
         }
@@ -60,15 +100,20 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
 
       ws.onmessage = (ev) => {
         retryAttempt = 0;
-        let narrow: string | undefined;
-        try {
-          const p = JSON.parse(String(ev.data)) as { templateId?: string };
-          if (typeof p.templateId === "string") narrow = p.templateId;
-        } catch {
-          /* opaque payload */
+        const raw = String(ev.data);
+        const ids = parseNotifyTemplateIds(raw);
+
+        if (scope) {
+          if (ids.length === 0) {
+            scheduleInvalidate(scope);
+            return;
+          }
+          if (!ids.some((id) => id === scope)) return;
+          scheduleInvalidate(scope);
+          return;
         }
-        if (scope && narrow && normalizeWsTemplateId(narrow) !== scope) return;
-        scheduleInvalidate(narrow ?? scope);
+
+        scheduleInvalidate(undefined);
       };
 
       ws.onclose = () => {

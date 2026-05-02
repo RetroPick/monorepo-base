@@ -3,13 +3,20 @@ import { Navigate, useParams } from "react-router-dom";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import { LineChartPanel } from "@/components/markets/LineChartPanel";
-import { TradingChart } from "@/components/markets/TradingChart";
 import { ThresholdRoundCarousel } from "@/components/threshold/ThresholdRoundCarousel";
 import { useAssetContext } from "@/context/AssetContext";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { isValidAssetClassParam, parseAssetClassParam } from "@/lib/market-data/asset-class-params";
 import { loadReferenceChartData } from "@/lib/market-data/reference-series";
-import type { AssetClass, AssetUniverseEntry, CandlePoint, KlineInterval, LinePoint, ReferenceChartResult } from "@/lib/market-data/types";
+import {
+  candlePointsToLinePoints,
+  type AssetClass,
+  type AssetUniverseEntry,
+  type CandlePoint,
+  type KlineInterval,
+  type LinePoint,
+  type ReferenceChartResult,
+} from "@/lib/market-data/types";
 import type { ThresholdRound } from "@/types/threshold";
 import { cn } from "@/lib/utils";
 
@@ -440,13 +447,13 @@ export default function AboveBelowDashboard() {
                       Loading threshold market...
                     </div>
                   ) : (
-                    <TradingChart
-                      candles={detail.candles}
+                    <LineChartPanel
+                      points={candlePointsToLinePoints(detail.candles)}
                       height={TRADING_CHART_HEIGHT}
-                      pair={selectedAsset?.displayPair ?? detail.asset.displayPair}
-                      assetName={selectedAsset?.name ?? detail.asset.name}
-                      interval={interval}
-                      livePriceUsd={detail.livePriceUsd}
+                      title={selectedAsset?.name ?? detail.asset.name}
+                      subtitle={selectedAsset?.displayPair ?? detail.asset.displayPair}
+                      sourceLine={`Binance · ${interval} close`}
+                      formatValue={(n) => formatPrice(n)}
                       priceLines={[
                         {
                           price: activeRound.thresholdValue,

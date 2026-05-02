@@ -6,6 +6,24 @@ const loop = { duration: 2.2, repeat: Infinity, ease: "easeInOut" as const };
 export function DemoShell({ children, caption }: { children: ReactNode; caption: string }) {
   return (
     <div className="relative flex h-[240px] w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-muted/30 px-4 dark:border-white/[0.08]">
+      <motion.div
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_45%),radial-gradient(circle_at_bottom,rgba(255,255,255,0.06),transparent_40%)] opacity-70"
+        animate={{ opacity: [0.45, 0.75, 0.45], scale: [1, 1.015, 1] }}
+        transition={{ duration: 4.4, repeat: Infinity, ease: "easeInOut" }}
+        aria-hidden
+      />
+      <motion.div
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/35 to-transparent"
+        animate={{ x: ["-18%", "18%"] }}
+        transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+        aria-hidden
+      />
+      <motion.div
+        className="pointer-events-none absolute left-1/2 top-1/2 size-40 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/10 blur-3xl"
+        animate={{ scale: [0.88, 1.06, 0.88], opacity: [0.35, 0.6, 0.35] }}
+        transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+        aria-hidden
+      />
       {children}
       <p className="pointer-events-none absolute bottom-2 left-2 right-2 text-center text-[10px] leading-snug text-muted-foreground">
         {caption}
@@ -37,7 +55,13 @@ export function BinaryPayoutVisual({
           className={`flex min-h-[100px] flex-1 flex-col items-center justify-center rounded-lg border-2 px-3 py-3 ${
             leftWin ? "border-primary bg-primary/15" : "border-border/60 bg-muted/40"
           }`}
-          animate={reducedMotion ? {} : leftWin ? { scale: [1, 1.03, 1] } : {}}
+          animate={
+            reducedMotion
+              ? {}
+              : leftWin
+                ? { scale: [1, 1.03, 1], y: [0, -2, 0] }
+                : { opacity: [0.95, 0.82, 0.95] }
+          }
           transition={reducedMotion ? {} : { ...loop }}
         >
           <span className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -62,7 +86,13 @@ export function BinaryPayoutVisual({
           className={`flex min-h-[100px] flex-1 flex-col items-center justify-center rounded-lg border-2 px-3 py-3 ${
             rightWin ? "border-primary bg-primary/15" : "border-border/60 bg-muted/40"
           }`}
-          animate={reducedMotion ? {} : rightWin ? { scale: [1, 1.03, 1] } : {}}
+          animate={
+            reducedMotion
+              ? {}
+              : rightWin
+                ? { scale: [1, 1.03, 1], y: [0, -2, 0] }
+                : { opacity: [0.95, 0.82, 0.95] }
+          }
           transition={reducedMotion ? {} : { ...loop }}
         >
           <span className="text-center text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -98,9 +128,7 @@ export function MultiBucketPayoutVisual({
             className={`flex h-20 w-11 flex-col justify-end rounded-md border-2 ${
               i === winnerIndex ? "border-primary bg-primary/20" : "border-border/50 bg-muted/30"
             }`}
-            animate={
-              reducedMotion ? {} : i === winnerIndex ? { scaleY: [0.95, 1, 0.95] } : {}
-            }
+            animate={reducedMotion ? {} : i === winnerIndex ? { scaleY: [0.95, 1, 0.95], y: [0, -2, 0] } : { opacity: [0.8, 0.95, 0.8] }}
             style={{ transformOrigin: "bottom" }}
             transition={reducedMotion ? {} : { ...loop }}
           >
@@ -131,7 +159,13 @@ export function LadderPayoutVisual({ caption }: { caption: string }) {
             }`}
           >
             <span className="font-medium text-foreground">{row.label}</span>
-            <span className="text-muted-foreground">{row.weight}</span>
+            <motion.span
+              className="text-muted-foreground"
+              animate={row.active ? { opacity: [0.65, 1, 0.65] } : { opacity: [0.75, 0.9, 0.75] }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+            >
+              {row.weight}
+            </motion.span>
           </div>
         ))}
       </div>
@@ -143,9 +177,14 @@ export function UseCaseHintVisual({ caption }: { caption: string }) {
   return (
     <DemoShell caption={caption}>
       <div className="flex flex-col items-center justify-center gap-2 text-center">
-        <div className="text-4xl opacity-80" aria-hidden>
+        <motion.div
+          className="text-4xl opacity-80"
+          aria-hidden
+          animate={{ scale: [0.96, 1.04, 0.96], rotate: [-2, 2, -2] }}
+          transition={{ duration: 3.8, repeat: Infinity, ease: "easeInOut" }}
+        >
           ✓
-        </div>
+        </motion.div>
         <p className="max-w-xs text-xs text-muted-foreground">A good fit when this matches how you think about the market.</p>
       </div>
     </DemoShell>

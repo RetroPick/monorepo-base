@@ -1,5 +1,6 @@
 import { Calendar, Share2 } from "lucide-react";
 
+import { ChartLabelWatermark } from "@/components/market/ChartLabelWatermark";
 import { cn } from "@/lib/utils";
 import { discoverChipActive, discoverChipIdle, discoverChipPill } from "@/lib/ui/discover-chip-styles";
 
@@ -110,6 +111,8 @@ export function NetWorthCard({
           compactChart ? "mt-2 min-h-[13rem] sm:min-h-[15rem]" : "mt-4 min-h-[10rem]",
         )}
       >
+        <ChartLabelWatermark variant="portfolio" className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3" />
+        <span className="sr-only">{chartHint}</span>
         <svg
           viewBox="0 0 100 24"
           preserveAspectRatio="none"
@@ -127,17 +130,6 @@ export function NetWorthCard({
             vectorEffect="non-scaling-stroke"
           />
         </svg>
-        <div className={cn("pointer-events-none select-none text-center", compactChart && "px-1")}>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground/60">RetroPick</p>
-          <p
-            className={cn(
-              "max-w-[16rem] text-muted-foreground/80",
-              compactChart ? "mt-1 text-[10px] leading-snug" : "mt-2 text-[11px] leading-relaxed",
-            )}
-          >
-            {chartHint}
-          </p>
-        </div>
       </div>
     </div>
   );

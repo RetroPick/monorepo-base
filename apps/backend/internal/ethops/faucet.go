@@ -23,6 +23,8 @@ type FaucetState struct {
 	CooldownSeconds   *uint64 `json:"cooldownSeconds,omitempty"`
 	MaxMintAmount     string  `json:"maxMintAmount,omitempty"`
 	LastMintAt        *uint64 `json:"lastMintAt,omitempty"`
+	// Nonce is TokenFaucet.nonces(user) for EIP-712 MintRequest signing.
+	Nonce             string  `json:"nonce,omitempty"`
 	StakeTokenBalance string  `json:"stakeTokenBalance,omitempty"`
 	StakeTokenDecimals *uint8 `json:"stakeTokenDecimals,omitempty"`
 }
@@ -92,6 +94,18 @@ func (c *Caller) GetFaucetState(ctx context.Context, chainID int64, faucet, stak
 			if err == nil && len(u) >= 1 {
 				if t, ok := u[0].(uint64); ok {
 					out.LastMintAt = &t
+				}
+			}
+		}
+	}
+
+	// nonces(user) -> uint256
+	if data, err := fa.Pack("nonces", user); err == nil {
+		if raw, _, err := c.callContract(ctx, faucet, data); err == nil {
+			u, err := fa.Unpack("nonces", raw)
+			if err == nil && len(u) >= 1 {
+				if n, ok := u[0].(*big.Int); ok {
+					out.Nonce = n.String()
 				}
 			}
 		}

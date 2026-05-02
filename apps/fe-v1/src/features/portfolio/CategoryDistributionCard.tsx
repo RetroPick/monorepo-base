@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 
+import { ChartLabelWatermark } from "@/components/market/ChartLabelWatermark";
 import { cn } from "@/lib/utils";
 import type { CategorySlice } from "@/features/portfolio/portfolioBuckets";
 import { PORTFOLIO_CATEGORY_LEGEND } from "@/features/portfolio/portfolioBuckets";
@@ -73,7 +74,7 @@ export function CategoryDistributionCard({
   return (
     <div
       className={cn(
-        "flex flex-col",
+        "relative flex flex-col",
         surface === "card"
           ? cn(
               "rounded-2xl border border-border/60 bg-card shadow-sm dark:border-white/[0.08]",
@@ -82,6 +83,7 @@ export function CategoryDistributionCard({
           : cn(aboveFold ? "gap-2" : compact ? "gap-4" : "gap-4 sm:flex-row sm:items-center"),
       )}
     >
+      <ChartLabelWatermark variant="portfolio" className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3" />
       <div className="min-w-0 flex-1">
         <h2 className="text-sm font-semibold text-foreground">Category Distribution</h2>
         {aboveFold ? null : (

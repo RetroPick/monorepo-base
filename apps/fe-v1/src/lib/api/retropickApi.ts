@@ -106,6 +106,50 @@ async function getJson<T>(path: string): Promise<T> {
   throw new ApiError(0, `${path} failed`, undefined, "network", path);
 }
 
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const attempts = Math.max(0, API_RETRIES) + 1;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const ctrl = new AbortController();
+    const timeout = window.setTimeout(() => ctrl.abort(), API_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${base}${path}`, {
+        method: "POST",
+        cache: "no-store",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        let parsed: unknown = text;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          /* keep text */
+        }
+        throw new ApiError(res.status, responseMessage(path, res.status, parsed), parsed, "http", path);
+      }
+      return res.json() as Promise<T>;
+    } catch (error) {
+      const apiError =
+        error instanceof ApiError
+          ? error
+          : new ApiError(
+              0,
+              isAbortError(error) ? `${path} timed out` : `${path} network error`,
+              undefined,
+              isAbortError(error) ? "timeout" : "network",
+              path,
+            );
+      if (attempt + 1 >= attempts || !isTransientApiError(apiError)) throw apiError;
+      await delay(250 * 2 ** attempt);
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+  throw new ApiError(0, `${path} failed`, undefined, "network", path);
+}
+
 export type HealthResponse = {
   ok: boolean;
   lastIndexedBlock: number;
@@ -133,6 +177,9 @@ export type MarketRow = {
   lastResolvedEpochId?: number;
   rollingNextEpochId?: number;
   haltedAtEpochId?: number;
+  outcomeViewBlock?: number;
+  totalPool?: string;
+  volume?: string;
   outcomes?: OutcomeView[];
 };
 
@@ -157,6 +204,8 @@ export type MarketDetail = {
   rollingHaltReason: number;
   lastIndexedBlock: number;
   lastIndexedAt: string | null;
+  totalPool?: string;
+  volume?: string;
   activeEpochId?: number;
   lastResolvedEpochId?: number;
   activeEpoch?: {
@@ -207,6 +256,10 @@ export type ProbabilityHistoryResponse = {
   outcomeCount: number;
   points: ProbabilityHistoryPoint[];
   source: string;
+  /** True when the epoch had more matching events than maxEvents; replay used full chain state but points omit the earliest events. */
+  truncated?: boolean;
+  eventCount?: number;
+  maxEvents?: number;
 };
 
 /** Shapes planned in `.dev/frontend/user/README.md` (implement when backend exposes routes). */
@@ -309,6 +362,8 @@ export type FaucetStateResponse = {
   cooldownSeconds?: number;
   maxMintAmount?: string;
   lastMintAt?: number;
+  /** TokenFaucet.nonces(wallet) for EIP-712 MintRequest */
+  nonce?: string;
   stakeTokenBalance?: string;
   stakeTokenDecimals?: number;
   note?: string;
@@ -323,6 +378,22 @@ export async function fetchFaucetState(
   return getJson<FaucetStateResponse>(
     `/api/v1/user/faucet-state?wallet=${encodeURIComponent(addr)}`,
   );
+}
+
+export type FaucetRelayResponse = {
+  txHash: string;
+};
+
+export type FaucetRelayRequestBody = {
+  recipient: string;
+  amount: string;
+  deadline: number;
+  signature: `0x${string}`;
+};
+
+/** POST gasless faucet mint via backend relayer (Base Sepolia, `requestWithSig`). */
+export async function fetchFaucetRelay(body: FaucetRelayRequestBody): Promise<FaucetRelayResponse> {
+  return postJson<FaucetRelayResponse>("/api/v1/user/faucet-relay", body);
 }
 
 export async function fetchMarket(templateId: string): Promise<MarketDetail> {
@@ -362,15 +433,27 @@ export async function fetchMarketOutcomes(
   return data.outcomes;
 }
 
+export type FetchMarketProbabilityHistoryOpts = {
+  /** Server replay cap (default 5000, max 10000). */
+  maxEvents?: number;
+  /** RFC3339 — server filters emitted points after full replay (pools stay correct). */
+  minIndexedAt?: string;
+  /** @deprecated Prefer maxEvents; mapped to backend limit for older URLs. */
+  limit?: number;
+};
+
 export async function fetchMarketProbabilityHistory(
   templateId: string,
   epochId?: bigint | number | string | null,
-  limit = 200,
+  opts?: FetchMarketProbabilityHistoryOpts | number,
 ): Promise<ProbabilityHistoryResponse> {
+  const o: FetchMarketProbabilityHistoryOpts = typeof opts === "number" ? { limit: opts } : (opts ?? {});
   const id = templateId.startsWith("0x") ? templateId : `0x${templateId}`;
   const params = new URLSearchParams();
   if (epochId != null) params.set("epochId", String(epochId));
-  if (limit !== 200) params.set("limit", String(limit));
+  if (o.maxEvents != null) params.set("maxEvents", String(o.maxEvents));
+  else if (o.limit != null) params.set("limit", String(o.limit));
+  if (o.minIndexedAt) params.set("minIndexedAt", o.minIndexedAt);
   const q = params.toString();
   return getJson<ProbabilityHistoryResponse>(
     `/api/v1/markets/${encodeURIComponent(id)}/probability-history${q ? `?${q}` : ""}`,
@@ -383,6 +466,9 @@ export type RegistryContractsResponse = {
   explorers: { basescan: string; blockscout: string };
   contracts: Record<string, string>;
   abiFiles: Record<string, string>;
+  tokenMetadata?: { stakeTokenSymbol: string; stakeTokenDecimals: number };
+  /** Present when API merges deployment flags into `/api/v1/config/contracts`. */
+  faucetRelayEnabled?: boolean;
 };
 
 export async function fetchRegistryContracts(): Promise<RegistryContractsResponse> {
@@ -441,6 +527,73 @@ export async function fetchUserEvents(
     `/api/v1/user/${encodeURIComponent(addr)}/events${q}`,
   );
   return data.events;
+}
+
+export type PortfolioSummaryPositionRow = {
+  templateId?: string;
+  epochId?: number;
+  error?: string;
+  claimed?: boolean;
+  costBasisWei?: string;
+  markValueWei?: string;
+  unrealizedPnlWei?: string;
+  pendingClaimWei?: string;
+  totalStakeWei?: string;
+  positionViewBlock?: number;
+};
+
+export type PortfolioSummaryResponse = {
+  wallet: string;
+  aggregate: {
+    unrealizedPnlWei: string;
+    realizedPnlClaimsWei: string;
+    pendingClaimTotalWei: string;
+    totalStakeWei: string;
+    referenceNetStakeWei: string;
+    pnlModelNote: string;
+  };
+  positions: PortfolioSummaryPositionRow[];
+  dataFreshness: DataFreshness;
+};
+
+export async function fetchPortfolioSummary(walletAddress: string): Promise<PortfolioSummaryResponse> {
+  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
+  return getJson<PortfolioSummaryResponse>(`/api/v1/user/portfolio-summary?wallet=${encodeURIComponent(addr)}`);
+}
+
+export async function fetchWatchlistNonce(walletAddress: string): Promise<{ wallet: string; nonce: number }> {
+  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
+  return getJson<{ wallet: string; nonce: number }>(
+    `/api/v1/user/watchlist/nonce?wallet=${encodeURIComponent(addr)}`,
+  );
+}
+
+export async function fetchUserWatchlist(walletAddress: string): Promise<{ wallet: string; templateIds: string[] }> {
+  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
+  return getJson<{ wallet: string; templateIds: string[] }>(
+    `/api/v1/user/watchlist?wallet=${encodeURIComponent(addr)}`,
+  );
+}
+
+export type WatchlistMutateRequest = {
+  wallet: string;
+  action: "add" | "remove" | "import";
+  templateId?: string;
+  templateIds?: string[];
+  deadline: number;
+  nonce: number;
+  signature: `0x${string}`;
+};
+
+export async function postWatchlistMutate(body: WatchlistMutateRequest): Promise<{
+  ok: boolean;
+  wallet: string;
+  action: string;
+  nextNonce: number;
+  templateId?: string;
+  templateIds?: string[];
+}> {
+  return postJson("/api/v1/user/watchlist", body);
 }
 
 export function getApiBaseUrl(): string {

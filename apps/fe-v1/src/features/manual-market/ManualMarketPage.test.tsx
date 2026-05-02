@@ -12,9 +12,7 @@ vi.mock("@/components/Footer", () => ({
 }));
 
 vi.mock("@/components/market/ProbabilityChart", () => ({
-  default: ({ volume }: { volume: string }) => (
-    <div data-testid="probability-chart">Chart · {volume}</div>
-  ),
+  default: () => <div data-testid="probability-chart">Chart</div>,
 }));
 
 vi.mock("@/components/market/MarketRules", () => ({
@@ -57,9 +55,12 @@ describe("ManualMarketPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Test exact market" })).toBeInTheDocument();
+    const headlineVol = screen.getByTestId("market-headline-volume");
+    expect(headlineVol).toHaveTextContent("Vol");
+    expect(headlineVol).toHaveTextContent("$1.2M");
     expect(screen.getByTestId("trade-card")).toBeInTheDocument();
     expect(screen.getByTestId("market-rules")).toBeInTheDocument();
     expect(screen.getByTestId("activity")).toBeInTheDocument();
-    expect(screen.getByTestId("probability-chart")).toHaveTextContent("$1.2M");
+    expect(screen.getByTestId("probability-chart")).toHaveTextContent("Chart");
   });
 });

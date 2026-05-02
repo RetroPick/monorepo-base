@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { fallbackMarkets } from '@/data/allMarkets';
 import { Market } from '@/types/market';
-import { fetchLiveMarkets } from '@/lib/polymarket';
 
 const CACHE_KEY = 'retropick_all_markets_cache';
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -37,49 +36,25 @@ export const AllMarketsProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     try {
       setIsLoading(true);
       setError(null);
+      const nextMarkets = cachedMarkets || fallbackMarkets;
+      setMarkets(nextMarkets);
 
-      const limit = 200;
-      const maxPages = 2;
-      const fetches = Array.from({ length: maxPages }, (_, i) =>
-        fetchLiveMarkets(limit, i * limit)
-      );
-      const results = await Promise.all(fetches);
-      const allLiveData = results.flat();
-
-      if (allLiveData.length > 0) {
-        const combined = [...allLiveData];
-        const liveCategories = new Set(allLiveData.map((m) => m.category));
-
-        fallbackMarkets.forEach((fm) => {
-          if (!liveCategories.has(fm.category)) {
-            combined.push(fm);
-          }
-        });
-
-        setMarkets(combined);
-
-        try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify({ data: combined, ts: Date.now() }));
-        } catch {
-          /* quota exceeded */
-        }
-      } else {
-        setMarkets(fallbackMarkets);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ data: nextMarkets, ts: Date.now() }));
+      } catch {
+        /* quota exceeded */
       }
     } catch (err) {
       console.error('Error loading all markets context', err);
-      setError('Failed to load live markets. Using fallback data.');
+      setError('Using local fallback markets.');
       setMarkets(fallbackMarkets);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [cachedMarkets]);
 
   useEffect(() => {
     loadMarkets();
-
-    const intervalId = setInterval(loadMarkets, 3 * 60 * 1000);
-    return () => clearInterval(intervalId);
   }, [loadMarkets]);
 
   return (

@@ -357,3 +357,59 @@ SELECT
     hidden_at
 FROM frontend_hidden_templates
 ORDER BY hidden_at DESC;
+
+-- name: ListUserChainEventsForTemplateEpoch :many
+SELECT
+    id,
+    block_number,
+    tx_hash,
+    log_index,
+    contract_addr,
+    event_name,
+    template_id,
+    epoch_id,
+    user_address,
+    payload,
+    indexed_at
+FROM chain_events
+WHERE user_address IS NOT NULL
+  AND LOWER(user_address::text) = LOWER($1::text)
+  AND template_id = $2
+  AND epoch_id IS NOT NULL
+  AND epoch_id = $3
+  AND event_name IN ('PositionDeposited', 'SideSwitched', 'Claimed')
+ORDER BY block_number ASC, log_index ASC, id ASC;
+
+-- name: ListUserWatchlist :many
+SELECT
+    template_id,
+    created_at
+FROM user_watchlist
+WHERE LOWER(user_address) = LOWER($1)
+ORDER BY created_at DESC;
+
+-- name: UpsertUserWatchlist :exec
+INSERT INTO user_watchlist (user_address, template_id)
+VALUES ($1, $2)
+ON CONFLICT (user_address, template_id) DO NOTHING;
+
+-- name: DeleteUserWatchlist :exec
+DELETE FROM user_watchlist
+WHERE LOWER(user_address) = LOWER($1) AND template_id = $2;
+
+-- name: GetUserWatchlistNonce :one
+SELECT nonce
+FROM user_watchlist_nonce
+WHERE LOWER(user_address) = LOWER($1);
+
+-- name: CreateUserWatchlistNonceIfMissing :exec
+INSERT INTO user_watchlist_nonce (user_address, nonce)
+VALUES ($1, 0)
+ON CONFLICT (user_address) DO NOTHING;
+
+-- name: IncrementUserWatchlistNonce :one
+UPDATE user_watchlist_nonce
+SET nonce = nonce + 1,
+    updated_at = NOW()
+WHERE LOWER(user_address) = LOWER($1)
+RETURNING nonce;

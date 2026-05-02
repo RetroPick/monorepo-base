@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import DiscoverMarketTypesStrip from "@/components/discover/DiscoverMarketTypesStrip";
 import DiscoverLeftNav from "@/components/discover/DiscoverLeftNav";
 import Footer from "@/components/Footer";
@@ -29,11 +29,21 @@ const NON_CRYPTO_VERTICALS: ReadonlySet<MarketDiscoveryVerticalId> = new Set([
   "climate",
 ]);
 
+const MARKETS_REFETCH_MS = 15_000;
+
 type MarketsAllProps = { initialVertical?: DiscoveryVerticalId };
 
 const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
+  const location = useLocation();
   const [activeVertical, setActiveVertical] = useState<DiscoveryVerticalId>(initialVertical);
   const [cryptoAssetFilter, setCryptoAssetFilter] = useState<CryptoAssetFilterId>("all");
+
+  useEffect(() => {
+    const v = (location.state as { discoverVertical?: DiscoveryVerticalId } | null)?.discoverVertical;
+    if (v && DISCOVERY_VERTICALS.some((x) => x.id === v)) {
+      setActiveVertical(v);
+    }
+  }, [location.state, location.key]);
 
   useIndexerWebSocket(true);
 
@@ -42,6 +52,9 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
     queryKey: ["retropick-api", "markets"],
     queryFn: fetchMarkets,
     staleTime: 5_000,
+    refetchInterval: MARKETS_REFETCH_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   });
 
   const chainRows = useMemo(() => marketsQ.data ?? [], [marketsQ.data]);
@@ -115,8 +128,16 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
 
   const showEmpty = showCategoryEmpty || gridMarkets.length === 0;
 
-  const gridClass =
-    "grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-2 lg:gap-6 xl:grid-cols-3 xl:gap-5";
+  const discoverGridGap =
+    "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-2 lg:gap-6 xl:gap-5";
+  /**
+   * Trending “All markets” is full-width: 4 columns from `lg` so typical laptop/desktop
+   * widths match a 4×N grid (not only from `xl` / 1280px). Crypto keeps 3 beside the nav.
+   */
+  /** `lg` + `xl` both set 4 cols so wide viewports always match even if one utility is missing from a stale CSS chunk. */
+  const trendingMarketGridClass =
+    "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-6 xl:grid-cols-4 xl:gap-5";
+  const gridClass = cn(discoverGridGap, "xl:grid-cols-3");
 
   const marketCardProps = (market: Market) => ({
     market,
@@ -151,9 +172,12 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
             <DiscoverMarketTypesStrip />
             <div className="min-w-0">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">All markets</h2>
-              <div className={cn("mt-4", gridClass)}>
+              <div
+                className={cn("mt-4", trendingMarketGridClass)}
+                data-testid="discover-trending-market-grid"
+              >
                 {gridMarkets.map((market) => (
-                  <div key={market.id} className="h-full min-h-0">
+                  <div key={market.id} className="min-h-0 w-full self-start">
                     <MarketCard {...marketCardProps(market)} />
                   </div>
                 ))}
@@ -180,7 +204,7 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
               </div>
               <div className={gridClass}>
                 {gridMarkets.map((market) => (
-                  <div key={market.id} className="h-full min-h-0">
+                  <div key={market.id} className="min-h-0 w-full self-start">
                     <MarketCard {...marketCardProps(market)} />
                   </div>
                 ))}
@@ -201,7 +225,7 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
         ) : !marketsQ.isLoading ? (
           <div className={gridClass}>
             {gridMarkets.map((market) => (
-              <div key={market.id} className="h-full min-h-0">
+              <div key={market.id} className="min-h-0 w-full self-start">
                 <MarketCard {...marketCardProps(market)} />
               </div>
             ))}

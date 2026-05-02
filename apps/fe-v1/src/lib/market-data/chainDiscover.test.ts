@@ -56,4 +56,41 @@ describe("marketRowToCardMarket", () => {
     expect(m.outcomes[0]?.probability).toBe(75);
     expect(m.outcomes[1]?.probability).toBe(25);
   });
+
+  it("derives card pool volume from live outcome pools", () => {
+    const m = marketRowToCardMarket({
+      ...base,
+      marketType: 1,
+      outcomes: [
+        { outcomeIndex: 0, poolSize: "100000000000000000000", impliedProbabilityE6: "750000" },
+        { outcomeIndex: 1, poolSize: "200000000000000000000", impliedProbabilityE6: "250000" },
+      ],
+    });
+    expect(m.totalPool).toBe("300.00");
+    expect(m.volume).toBe("300.00");
+  });
+
+  it("shows em dash for zero totalPool until there is non-zero pool", () => {
+    const m = marketRowToCardMarket({
+      ...base,
+      marketType: 1,
+      totalPool: "0",
+      volume: "0",
+    });
+    expect(m.totalPool).toBe("—");
+    expect(m.volume).toBe("—");
+  });
+
+  it("shows em dash when summed outcome pools are zero", () => {
+    const m = marketRowToCardMarket({
+      ...base,
+      marketType: 1,
+      outcomes: [
+        { outcomeIndex: 0, poolSize: "0", impliedProbabilityE6: "500000" },
+        { outcomeIndex: 1, poolSize: "0", impliedProbabilityE6: "500000" },
+      ],
+    });
+    expect(m.totalPool).toBe("—");
+    expect(m.volume).toBe("—");
+  });
 });

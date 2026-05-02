@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   computeClaimLiabilityComponentsTs,
   computeSwitchFeeTs,
+  formatPayoutMultiple,
+  projectedImpliedAvgPriceCents,
   projectWinnerPayoutIfSideWins,
 } from "./market-payout-projection";
 
@@ -99,5 +101,38 @@ describe("projectWinnerPayoutIfSideWins", () => {
     });
     expect(r.basis).toBe("unavailable");
     expect(r.payout).toBeNull();
+  });
+
+  it("never exceeds post-deposit pool (totalPool + additionalStake)", () => {
+    const r = projectWinnerPayoutIfSideWins({
+      outcomePools: [60n, 40n],
+      totalPool: 100n,
+      outcomeCount: 2,
+      settlementFeeBps: 1000,
+      feeOnLosingPool: true,
+      refundMode: false,
+      winningOutcomeIndex: 0,
+      userStakes: [0n, 0n],
+      additionalStake: 10n,
+    });
+    expect(r.payout).not.toBeNull();
+    expect(r.payout!).toBeLessThanOrEqual(110n);
+  });
+});
+
+describe("projectedImpliedAvgPriceCents & formatPayoutMultiple", () => {
+  it("formats implied avg price after deposit", () => {
+    const p = projectedImpliedAvgPriceCents({
+      outcomePools: [60n, 40n],
+      totalPool: 100n,
+      outcomeCount: 2,
+      winningOutcomeIndex: 0,
+      additionalStake: 10n,
+    });
+    expect(p).toBe("63.6¢");
+  });
+
+  it("formats payout multiple", () => {
+    expect(formatPayoutMultiple(151n, 100n)).toBe("1.51");
   });
 });

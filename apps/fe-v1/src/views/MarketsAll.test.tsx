@@ -70,6 +70,7 @@ describe("MarketsAll", () => {
     await waitFor(() => {
       expect(screen.getByTestId("discover-layout-trending")).toBeInTheDocument();
     });
+    expect(screen.getByTestId("discover-trending-market-grid")).toBeInTheDocument();
     expect(screen.getByTestId("discover-market-types-strip")).toBeInTheDocument();
     expect(screen.getByTestId("discover-market-types-scroll-prev")).toBeInTheDocument();
     expect(screen.getByTestId("discover-market-types-scroll-next")).toBeInTheDocument();

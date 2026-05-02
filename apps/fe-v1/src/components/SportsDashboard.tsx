@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAllMarkets } from "@/context/AllMarketsContext";
 import NeonMarketCard from "./NeonMarketCard";
@@ -6,7 +6,6 @@ import Icon from "./Icon";
 import BetaTutorialBanner from "./BetaTutorialBanner";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchTrendingEvents } from "@/lib/polymarket";
 
 const SportsDashboard = () => {
   const { t } = useLanguage();
@@ -14,7 +13,6 @@ const SportsDashboard = () => {
   const { markets } = useAllMarkets();
   const [activeSport, setActiveSport] = useState("All");
   const [activeNewsIndex, setActiveNewsIndex] = useState(0);
-  const [newsItems, setNewsItems] = useState<string[]>(["Loading live sports events..."]);
   const [visibleCount, setVisibleCount] = useState(10);
 
   const sportsCategories = [
@@ -52,17 +50,13 @@ const SportsDashboard = () => {
       return true;
     });
 
-  useEffect(() => {
-    const loadLiveNews = async () => {
-      const events = await fetchTrendingEvents(10, "Sports");
-      if (events.length > 0) {
-        setNewsItems(events.map((e) => e.title));
-      } else {
-        setNewsItems(["Live sports data unavailable..."]);
-      }
-    };
+  const newsItems = useMemo(() => {
+    const titles = sportsMarkets.map((market) => market.title).slice(0, 10);
+    return titles.length > 0 ? titles : ["Live sports data unavailable..."];
+  }, [sportsMarkets]);
 
-    loadLiveNews();
+  useEffect(() => {
+    setActiveNewsIndex(0);
 
     const interval = setInterval(() => {
       setActiveNewsIndex((prev) => (prev + 1) % (newsItems.length || 1));

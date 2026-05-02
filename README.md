@@ -129,16 +129,26 @@ Build and start Postgres, API, indexer, and the operator UI:
 docker compose up -d --build
 ```
 
-Shortcuts: `pnpm docker:up`, `pnpm docker:down`, `pnpm docker:build`. Image builds use **BuildKit** by default (expects `DOCKER_BUILDKIT=1`) for layer and cache mounts in Dockerfiles.
+In-stack **`DATABASE_URL`** defaults to **`postgres:5432`** (Compose service DNS). That matches **Linux Docker Engine**, **WSL**, and many setups.
+
+If **`retropick-migrator`** waits ~5 minutes then exits **1** while Postgres is healthy (Docker Desktop userland bridge cannot reach **`postgres:5432`**), start with the host-published port:
+
+```bash
+docker compose --env-file compose.desktop-hairpin.env up -d --build
+```
+
+(`compose.desktop-hairpin.env` sets **`host.docker.internal:5433`**; **`extra_hosts: host.docker.internal:host-gateway`** is already in **`docker-compose.yml`** so that name resolves on engines that do not define it—fixing **`no such host`**.)
+
+Shortcuts: `pnpm docker:up`, `pnpm docker:up:desktop`, `pnpm docker:down`, `pnpm docker:build`. Image builds use **BuildKit** by default (expects `DOCKER_BUILDKIT=1`) for layer and cache mounts in Dockerfiles.
 
 | Service | Host port | Purpose |
 |---------|-----------|---------|
-| Postgres | `5432` | User `retropick`, password `retropick`, DB `retropick` |
+| Postgres | `5433`→`5432` | Published on host `5433` (container still listens on `5432`); avoids host conflicts on `5432` |
 | API | `8080` | REST + WebSocket; migrations run in `cmd/api` on startup |
 | Indexer | — | Follows Base Sepolia via `RPC_URL` |
 | Ops | `3001` | Next.js operator UI |
 
-Compose defaults align with **`84532`**: `RPC_URL=https://sepolia.base.org`, `DATABASE_URL` pointing at the `postgres` service.
+Compose defaults align with **`84532`**: `RPC_URL=https://sepolia.base.org`. In-stack **`DATABASE_URL`** defaults to **`postgres:5432`**; use **`compose.desktop-hairpin.env`** (or **`RETROPICK_COMPOSE_DATABASE_URL`**) when the bridge path to Postgres times out. Host tools use **`127.0.0.1:5433`**.
 
 ### Verify
 
@@ -156,7 +166,8 @@ Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 | File | Use |
 |------|-----|
 | [`.env.example`](.env.example) | Host-run Go API / indexer (`DATABASE_URL`, `PORT`, `RPC_URL`, …) |
-| [`docker-compose.yml`](docker-compose.yml) | Container defaults for the same variables |
+| [`compose.desktop-hairpin.env`](compose.desktop-hairpin.env) | `RETROPICK_COMPOSE_DATABASE_URL` → `host.docker.internal:5433` when `postgres:5432` from containers fails |
+| [`docker-compose.yml`](docker-compose.yml) | Container defaults; optional `RETROPICK_COMPOSE_DATABASE_URL` interpolation |
 | [`apps/fe-v1/.env.local.example`](apps/fe-v1/.env.local.example) | `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_DOCS_URL` for the user app |
 | [`apps/ops/.env.local.example`](apps/ops/.env.local.example) | `NEXT_PUBLIC_API_URL` for the operator UI |
 | [`package/contract/.env.example`](package/contract/.env.example) | Foundry / deployment scripts |
@@ -239,7 +250,7 @@ curl -sS https://api.example.com/api/v1/markets
 2. Export vars (see [`.env.example`](.env.example)) or:
 
    ```bash
-   export DATABASE_URL='postgres://retropick:retropick@127.0.0.1:5432/retropick?sslmode=disable'
+   export DATABASE_URL='postgres://retropick:retropick@127.0.0.1:5433/retropick?sslmode=disable'
    export PORT=8080
    export RPC_URL=https://sepolia.base.org
    ```

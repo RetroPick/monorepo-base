@@ -23,11 +23,15 @@ export interface MarketPageTitleBarProps {
   icon?: string;
   iconColor?: string;
   category: string;
+  /** Shown in the title meta row (e.g. next to category / Live), e.g. formatted USDC volume. */
+  volumeLabel?: string;
   onBack: () => void;
   backLabel: string;
   description?: string | null;
   showLivePill: boolean;
   className?: string;
+  /** When set, replaces the decorative bookmark control (e.g. chain watchlist). */
+  watchlistAction?: ReactNode;
 }
 
 const COMPACT_AT_PX = 48;
@@ -38,11 +42,13 @@ export function MarketPageTitleBar({
   icon,
   iconColor,
   category,
+  volumeLabel,
   onBack,
   backLabel,
   description,
   showLivePill,
   className,
+  watchlistAction,
 }: MarketPageTitleBarProps) {
   const [compact, setCompact] = useState(false);
   const barRef = useRef<HTMLDivElement>(null);
@@ -169,6 +175,24 @@ export function MarketPageTitleBar({
                   </span>
                 </>
               ) : null}
+              {volumeLabel ? (
+                <>
+                  <span aria-hidden className="text-muted-foreground/35">
+                    ·
+                  </span>
+                  <span
+                    className="inline-flex items-baseline gap-1 normal-case tracking-normal"
+                    data-testid="market-headline-volume"
+                  >
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground sm:text-[11px]">
+                      Vol
+                    </span>
+                    <span className="font-mono text-[11px] font-semibold tabular-nums text-foreground/90 sm:text-xs">
+                      {volumeLabel}
+                    </span>
+                  </span>
+                </>
+              ) : null}
             </p>
 
             <h1
@@ -189,7 +213,7 @@ export function MarketPageTitleBar({
 
           <div
             className={cn(
-              "hidden shrink-0 pt-1 sm:flex sm:items-center sm:gap-0.5",
+              "flex shrink-0 flex-wrap items-center justify-end gap-0.5 pt-1 sm:gap-0.5",
               compact ? "opacity-70" : undefined,
             )}
           >
@@ -199,9 +223,11 @@ export function MarketPageTitleBar({
             <HeadlineGhostIcon label="Share">
               <Share2 className="size-[18px]" strokeWidth={2} aria-hidden />
             </HeadlineGhostIcon>
-            <HeadlineGhostIcon label="Bookmark">
-              <Bookmark className="size-[18px]" strokeWidth={2} aria-hidden />
-            </HeadlineGhostIcon>
+            {watchlistAction ?? (
+              <HeadlineGhostIcon label="Bookmark">
+                <Bookmark className="size-[18px]" strokeWidth={2} aria-hidden />
+              </HeadlineGhostIcon>
+            )}
           </div>
         </div>
       </div>

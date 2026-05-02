@@ -7,6 +7,7 @@ import type {
   OutcomeView,
   ProbabilityHistoryPoint,
 } from "@/lib/api/retropickApi";
+import { formatUsdc } from "@/config/tokens";
 
 export type ManualHeaderStat = {
   label: string;
@@ -52,6 +53,13 @@ function normalizeTemplateId(raw: string): `0x${string}` {
   return s as `0x${string}`;
 }
 
+/** Prefix headline / stat volume with $ when it is a dollar amount (not em dash, not already prefixed). */
+function usdVolumeLabel(label: string): string {
+  if (label === "—" || label === "") return label;
+  if (label.startsWith("$")) return label;
+  return `$${label}`;
+}
+
 /** View-model for `/app/market/:id` (Polymarket / discovery data). */
 export function manualMarketFromDiscovery(
   market: Market,
@@ -80,7 +88,7 @@ export function manualMarketFromDiscovery(
     iconColor: market.iconColor,
     image: market.image,
     outcomes,
-    volumeLabel: market.volume || "—",
+    volumeLabel: usdVolumeLabel(market.volume || "—"),
     headerStats: [
       {
         label: "Price to beat",
@@ -88,7 +96,7 @@ export function manualMarketFromDiscovery(
         valueClassName: "text-emerald-600 dark:text-emerald-400",
       },
       { label: "Final price", value: market.expiry ? `Ends ${market.expiry}` : "Waiting …" },
-      { label: "Vol", value: market.volume || "—" },
+      { label: "Vol", value: usdVolumeLabel(market.volume || "—") },
     ],
     recentEpochs: [],
     relatedMarkets,
@@ -99,12 +107,12 @@ export function manualMarketFromDiscovery(
 /** View-model for indexed on-chain template (`/app/chain-markets/:templateId`). */
 export function manualMarketFromChainDetail(
   api: ApiMarketDetail,
-  volumeHint?: string,
   probabilityHistory: ProbabilityHistoryPoint[] = [],
 ): ManualMarketViewModel {
   const oc = api.outcomeCount > 0 ? api.outcomeCount : 2;
   const outcomeViews = api.outcomes ?? [];
   const outcomes = buildChainOutcomes(api.marketType, oc, outcomeViews);
+  const volumeLabel = usdVolumeLabel(formatOutcomePoolVolume(outcomeViews) ?? "—");
 
   const activeEpochId =
     api.activeEpochId != null && api.activeEpochId >= 0
@@ -118,7 +126,7 @@ export function manualMarketFromChainDetail(
     category: "On-chain",
     description: undefined,
     outcomes,
-    volumeLabel: volumeHint ?? "—",
+    volumeLabel,
     headerStats: [
       {
         label: "Rolling phase",
@@ -150,6 +158,23 @@ export function manualMarketFromChainDetail(
       marketType: api.marketType,
     },
   };
+}
+
+function formatOutcomePoolVolume(outcomeViews: OutcomeView[]): string | undefined {
+  if (outcomeViews.length === 0) return undefined;
+  let total = 0n;
+  let sawValue = false;
+  for (const view of outcomeViews) {
+    try {
+      total += BigInt(view.poolSize);
+      sawValue = true;
+    } catch {
+      /* ignore malformed pool entries */
+    }
+  }
+  if (!sawValue) return undefined;
+  const decimals = total >= 10n ** 18n ? 2 : 4;
+  return formatUsdc(total, decimals);
 }
 
 function outcomeProbability(view: OutcomeView | undefined, fallback: number) {

@@ -3,6 +3,8 @@ import type { Config } from "tailwindcss";
 export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
+  /** Discover trending grid: always emit these so Docker/CI CSS is never missing cols after a partial cache hit. */
+  safelist: ["lg:grid-cols-4", "xl:grid-cols-4"],
   prefix: "",
   theme: {
     container: {

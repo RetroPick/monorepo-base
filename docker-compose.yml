@@ -1,3 +1,7 @@
+# Default DB URL: postgres:5432 (Compose DNS). For Docker Desktop bridge timeouts, use
+# compose.desktop-hairpin.env. extra_hosts defines host.docker.internal where the engine
+# does not (Linux Engine / WSL), so hairpin URLs resolve.
+
 services:
   postgres:
     image: postgres:16
@@ -7,8 +11,10 @@ services:
       POSTGRES_USER: retropick
       POSTGRES_PASSWORD: retropick
       POSTGRES_DB: retropick
+    # Host 5433 avoids clashing with a local Postgres on 5432. Containers use the
+    # service hostname `postgres` on port 5432 (Compose network), not the host publish port.
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,6 +33,8 @@ services:
         SERVICE: api
     container_name: retropick-api
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -34,7 +42,7 @@ services:
         condition: service_completed_successfully
     environment:
       PORT: "8080"
-      DATABASE_URL: postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable
+      DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
       LIVE_RPC_TIMEOUT: 15s
       LIVE_RPC_GLOBAL_CACHE_TTL: 5s
@@ -58,11 +66,13 @@ services:
         SERVICE: migrator
     container_name: retropick-migrator
     restart: "no"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable
+      DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
 
   indexer:
@@ -73,13 +83,15 @@ services:
         SERVICE: indexer
     container_name: retropick-indexer
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       api:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable
+      DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
       INDEXER_LOOKBACK_BLOCKS: "50000"
 

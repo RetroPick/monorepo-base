@@ -7,7 +7,6 @@ import {
   fetchEpochsForMarket,
   fetchMarket,
   fetchMarketProbabilityHistory,
-  fetchMarkets,
   type EpochRow,
   type MarketDetail,
 } from "@/lib/api/retropickApi";
@@ -62,16 +61,6 @@ export default function ChainMarketDetail() {
     staleTime: 5_000,
   });
 
-  const marketsRowQ = useQuery({
-    queryKey: ["retropick-api", "markets", "for-volume", queryTemplateKey],
-    queryFn: async () => {
-      const rows = await fetchMarkets();
-      return rows.find((r) => r.templateId.toLowerCase() === queryTemplateKey) ?? null;
-    },
-    enabled: !!queryTemplateKey,
-    staleTime: 15_000,
-  });
-
   const epochsQ = useQuery({
     queryKey: ["retropick-api", "epochs", queryTemplateKey],
     queryFn: () => fetchEpochsForMarket(id, 50),
@@ -84,6 +73,7 @@ export default function ChainMarketDetail() {
     queryFn: () => fetchMarketProbabilityHistory(id, marketQ.data?.activeEpochId),
     enabled: !!id && marketQ.data?.activeEpochId != null,
     staleTime: 5_000,
+    refetchInterval: 20_000,
   });
 
   const data = marketQ.data;
@@ -111,11 +101,7 @@ export default function ChainMarketDetail() {
     );
   }
 
-  const volumeHint = marketsRowQ.data
-    ? `Idx · block ${data.lastIndexedBlock}`
-    : undefined;
-
-  const model = manualMarketFromChainDetail(data, volumeHint, probabilityQ.data?.points ?? []);
+  const model = manualMarketFromChainDetail(data, probabilityQ.data?.points ?? []);
 
   const resolutionExtras = (
     <div className="flex flex-col gap-6">
@@ -131,6 +117,7 @@ export default function ChainMarketDetail() {
   return (
     <ManualMarketPage
       model={{ ...model, recentEpochs: epochs, resolutionExtras }}
+      indexedHeaderContext={{ slug: data.slug, marketType: data.marketType }}
       backLabel="Markets"
       onBack={() => navigate("/app/markets/all")}
     />

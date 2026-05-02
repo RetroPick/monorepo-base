@@ -100,3 +100,15 @@ type Template struct {
 	RollingHaltReason      int16              `json:"rolling_halt_reason"`
 	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
 }
+
+type UserWatchlist struct {
+	UserAddress string             `json:"user_address"`
+	TemplateID  []byte             `json:"template_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type UserWatchlistNonce struct {
+	UserAddress string             `json:"user_address"`
+	Nonce       int64              `json:"nonce"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}

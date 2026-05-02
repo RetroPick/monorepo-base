@@ -48,23 +48,73 @@ export function DirectionDemo({ reducedMotion, stepIndex }: DemoProps) {
     >
       {s === 0 ? (
         <div className="flex flex-col items-center gap-2">
-          <span className="text-2xl" aria-hidden>
+          <motion.span
+            className="text-2xl"
+            aria-hidden
+            animate={reducedMotion ? undefined : { y: [0, -3, 0], scale: [0.98, 1.02, 0.98] }}
+            transition={reducedMotion ? undefined : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+          >
             ?
-          </span>
-          <div className="h-12 w-24 rounded border-2 border-dashed border-primary/50" />
+          </motion.span>
+          <motion.div
+            className="h-12 w-24 rounded border-2 border-dashed border-primary/50"
+            animate={reducedMotion ? undefined : { opacity: [0.55, 1, 0.55], scale: [0.98, 1, 0.98] }}
+            transition={reducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+          />
         </div>
       ) : s === 1 ? (
         <div className="flex gap-3">
-          <div className="rounded-lg bg-primary/20 px-4 py-2 text-sm font-semibold text-primary">Up</div>
-          <div className="rounded-lg bg-muted px-4 py-2 text-sm font-semibold text-muted-foreground">Down</div>
+          <motion.div
+            className="rounded-lg bg-primary/20 px-4 py-2 text-sm font-semibold text-primary"
+            animate={reducedMotion ? undefined : { y: [0, -2, 0], scale: [0.98, 1.02, 0.98] }}
+            transition={reducedMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+          >
+            Up
+          </motion.div>
+          <motion.div
+            className="rounded-lg bg-muted px-4 py-2 text-sm font-semibold text-muted-foreground"
+            animate={reducedMotion ? undefined : { y: [0, 2, 0], scale: [1.02, 0.98, 1.02] }}
+            transition={reducedMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+          >
+            Down
+          </motion.div>
         </div>
       ) : (
         <svg viewBox="0 0 200 120" className="h-32 w-full max-w-[200px]" aria-hidden>
-          <line x1="100" y1="10" x2="100" y2="110" stroke="currentColor" className="text-muted-foreground/50" strokeWidth="2" />
-          <circle cx="100" cy="70" r="6" className="fill-sky-400" />
-          <circle cx="100" cy={s === 3 ? 40 : 45} r="6" className="fill-amber-400" />
+          <motion.line
+            x1="100"
+            y1="10"
+            x2="100"
+            y2="110"
+            stroke="currentColor"
+            className="text-muted-foreground/50"
+            strokeWidth="2"
+            animate={reducedMotion ? undefined : { opacity: [0.5, 0.95, 0.5] }}
+            transition={reducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.circle
+            cx="100"
+            cy="70"
+            r="6"
+            className="fill-sky-400"
+            animate={reducedMotion ? undefined : { cy: [70, 66, 70], opacity: [0.75, 1, 0.75] }}
+            transition={reducedMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.circle
+            cx="100"
+            cy={s === 3 ? 40 : 45}
+            r="6"
+            className="fill-amber-400"
+            animate={reducedMotion ? undefined : { cy: s === 3 ? [40, 36, 40] : [45, 42, 45], opacity: [0.8, 1, 0.8] }}
+            transition={reducedMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+          />
           {s === 3 ? (
-            <path d="M 118 42 L 132 35 L 132 48 Z" className="fill-primary" />
+            <motion.path
+              d="M 118 42 L 132 35 L 132 48 Z"
+              className="fill-primary"
+              animate={reducedMotion ? undefined : { x: [0, 2, 0], opacity: [0.85, 1, 0.85] }}
+              transition={reducedMotion ? undefined : { duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+            />
           ) : null}
         </svg>
       )}
@@ -101,12 +151,25 @@ export function ThresholdDemo({ reducedMotion, stepIndex }: DemoProps) {
       }
     >
       <svg viewBox="0 0 220 100" className="h-28 w-full max-w-[220px]" aria-hidden>
-        <line x1="10" y1="50" x2="210" y2="50" stroke="#fbbf24" strokeWidth="3" strokeDasharray="8 6" opacity={0.9} />
-        <circle
+        <motion.line
+          x1="10"
+          y1="50"
+          x2="210"
+          y2="50"
+          stroke="#fbbf24"
+          strokeWidth="3"
+          strokeDasharray="8 6"
+          opacity={0.9}
+          animate={reducedMotion ? undefined : { strokeDashoffset: [0, -28] }}
+          transition={reducedMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.circle
           cx={s >= 3 ? 170 : 110}
           cy="35"
           r="8"
           className="fill-foreground"
+          animate={reducedMotion ? undefined : { cx: s >= 3 ? [170, 166, 170] : [110, 116, 110], cy: [35, 32, 35] }}
+          transition={reducedMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
         />
       </svg>
     </DemoShell>
@@ -141,16 +204,29 @@ export function RangeCloseDemo({ reducedMotion, stepIndex }: DemoProps) {
     >
       <div className="flex h-24 items-end gap-1.5">
         {[0, 1, 2, 3].map((i) => (
-          <div
+          <motion.div
             key={i}
             className={`h-16 w-10 rounded-md ${
               i === 1 && s >= 1 ? "bg-violet-500/70 ring-2 ring-primary" : "bg-muted-foreground/20"
             } ${s === 3 && i === 1 ? "ring-2 ring-primary" : ""}`}
+            animate={
+              reducedMotion
+                ? undefined
+                : i === 1
+                  ? { y: [0, -3, 0], scaleY: [1, 1.03, 1] }
+                  : { opacity: [0.6, 0.95, 0.6] }
+            }
+            transition={reducedMotion ? undefined : { duration: 2.6, repeat: Infinity, ease: "easeInOut", delay: i * 0.08 }}
           />
         ))}
       </div>
       {s >= 2 ? (
-        <div className="absolute top-10 left-1/2 size-3 -translate-x-1/2 rounded-full bg-foreground" aria-hidden />
+        <motion.div
+          className="absolute top-10 left-1/2 size-3 -translate-x-1/2 rounded-full bg-foreground"
+          aria-hidden
+          animate={reducedMotion ? undefined : { y: [0, -3, 0], opacity: [0.75, 1, 0.75] }}
+          transition={reducedMotion ? undefined : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        />
       ) : null}
     </DemoShell>
   );
@@ -304,8 +380,20 @@ export function ConvergenceDemo({ reducedMotion, stepIndex }: DemoProps) {
           strokeWidth="3"
           animate={reducedMotion ? undefined : { y1: [70, 64, 70], y2: [30, 36, 30] }}
           transition={reducedMotion ? undefined : { ...loopTransition }}
+          />
+        <motion.rect
+          x="70"
+          y="38"
+          width="60"
+          height="24"
+          fill="none"
+          stroke="rgba(255,255,255,0.2)"
+          strokeWidth="1"
+          strokeDasharray="4 3"
+          rx="4"
+          animate={reducedMotion ? undefined : { opacity: [0.55, 1, 0.55], scale: [0.98, 1, 0.98] }}
+          transition={reducedMotion ? undefined : { duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
         />
-        <rect x="70" y="38" width="60" height="24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1" strokeDasharray="4 3" rx="4" />
       </svg>
     </DemoShell>
   );
@@ -355,7 +443,13 @@ export function CompositeDemo({ reducedMotion, stepIndex }: DemoProps) {
           ))}
         </div>
         {s >= 3 ? (
-          <div className="text-xs font-semibold text-foreground">→ Yes or No</div>
+          <motion.div
+            className="text-xs font-semibold text-foreground"
+            animate={reducedMotion ? undefined : { opacity: [0.7, 1, 0.7], y: [0, -2, 0] }}
+            transition={reducedMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          >
+            → Yes or No
+          </motion.div>
         ) : null}
       </div>
     </DemoShell>
@@ -391,9 +485,37 @@ export function CorridorDemo({ reducedMotion, stepIndex }: DemoProps) {
       }
     >
       <svg viewBox="0 0 220 100" className="h-28 w-full max-w-[220px]" aria-hidden>
-        <rect x="20" y="25" width="180" height="50" fill="rgba(113,113,122,0.25)" stroke="rgba(255,255,255,0.2)" rx="4" />
-        <line x1="20" y1="40" x2="200" y2="40" stroke="rgba(255,255,255,0.15)" strokeDasharray="4 2" />
-        <line x1="20" y1="60" x2="200" y2="60" stroke="rgba(255,255,255,0.15)" strokeDasharray="4 2" />
+        <motion.rect
+          x="20"
+          y="25"
+          width="180"
+          height="50"
+          fill="rgba(113,113,122,0.25)"
+          stroke="rgba(255,255,255,0.2)"
+          rx="4"
+          animate={reducedMotion ? undefined : { opacity: [0.65, 0.9, 0.65] }}
+          transition={reducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.line
+          x1="20"
+          y1="40"
+          x2="200"
+          y2="40"
+          stroke="rgba(255,255,255,0.15)"
+          strokeDasharray="4 2"
+          animate={reducedMotion ? undefined : { strokeDashoffset: [0, 12] }}
+          transition={reducedMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "linear" }}
+        />
+        <motion.line
+          x1="20"
+          y1="60"
+          x2="200"
+          y2="60"
+          stroke="rgba(255,255,255,0.15)"
+          strokeDasharray="4 2"
+          animate={reducedMotion ? undefined : { strokeDashoffset: [0, -12] }}
+          transition={reducedMotion ? undefined : { duration: 1.6, repeat: Infinity, ease: "linear" }}
+        />
         <motion.rect
           x="95"
           width="10"
@@ -435,9 +557,36 @@ export function CascadeDemo({ reducedMotion, stepIndex }: DemoProps) {
       }
     >
       <svg viewBox="0 0 220 100" className="h-28 w-full max-w-[220px]" aria-hidden>
-        <line x1="20" y1="72" x2="200" y2="72" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
-        <line x1="20" y1="52" x2="200" y2="52" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
-        <line x1="20" y1="32" x2="200" y2="32" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+        <motion.line
+          x1="20"
+          y1="72"
+          x2="200"
+          y2="72"
+          stroke="rgba(255,255,255,0.35)"
+          strokeWidth="2"
+          animate={reducedMotion ? undefined : { opacity: [0.3, 0.75, 0.3] }}
+          transition={reducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <motion.line
+          x1="20"
+          y1="52"
+          x2="200"
+          y2="52"
+          stroke="rgba(255,255,255,0.35)"
+          strokeWidth="2"
+          animate={reducedMotion ? undefined : { opacity: [0.45, 0.95, 0.45] }}
+          transition={reducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut", delay: 0.15 }}
+        />
+        <motion.line
+          x1="20"
+          y1="32"
+          x2="200"
+          y2="32"
+          stroke="rgba(255,255,255,0.35)"
+          strokeWidth="2"
+          animate={reducedMotion ? undefined : { opacity: [0.3, 0.75, 0.3] }}
+          transition={reducedMotion ? undefined : { duration: 2.8, repeat: Infinity, ease: "easeInOut", delay: 0.3 }}
+        />
         <motion.circle
           cx="120"
           r="6"

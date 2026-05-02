@@ -116,9 +116,44 @@ export function projectWinnerPayoutIfSideWins(args: ProjectWinnerPayoutArgs): Wi
   }
 
   const share = (userWin * distributableLosing) / winningPool;
-  const entitlement = userWin + share;
+  const entitlementRaw = userWin + share;
+  /** No payout can exceed the post-deposit pool (all USDC in the epoch). */
+  const entitlement = entitlementRaw > totalPrime ? totalPrime : entitlementRaw;
 
   return { payout: entitlement, basis: "pool" };
+}
+
+/**
+ * Implied “avg. price” for the selected outcome after the hypothetical deposit:
+ * `(winningPool + additionalStake) / (totalPool + additionalStake)` in cents (0–100), one decimal.
+ */
+export function projectedImpliedAvgPriceCents(args: {
+  outcomePools: readonly bigint[];
+  totalPool: bigint;
+  outcomeCount: number;
+  winningOutcomeIndex: number;
+  additionalStake: bigint;
+}): string | null {
+  const { outcomePools, totalPool, outcomeCount, winningOutcomeIndex, additionalStake } = args;
+  if (outcomeCount <= 0 || winningOutcomeIndex < 0 || winningOutcomeIndex >= outcomeCount) return null;
+  const pools = outcomePools.slice(0, outcomeCount);
+  while (pools.length < outcomeCount) pools.push(0n);
+  const totalPrime = totalPool + additionalStake;
+  if (totalPrime <= 0n) return null;
+  const winPool = (pools[winningOutcomeIndex] ?? 0n) + additionalStake;
+  const bps = (winPool * 1000n) / totalPrime;
+  const centsOneDecimal = Number(bps) / 10;
+  if (!Number.isFinite(centsOneDecimal)) return null;
+  return `${centsOneDecimal.toFixed(1)}¢`;
+}
+
+/** Return multiple capped payout / marginal stake for UX (floor at 0.01×). */
+export function formatPayoutMultiple(cappedPayout: bigint, marginalStake: bigint): string {
+  if (marginalStake <= 0n || cappedPayout <= 0n) return "—";
+  const mult100 = (cappedPayout * 100n) / marginalStake;
+  const n = Number(mult100) / 100;
+  if (!Number.isFinite(n) || n < 0.01) return "<0.01";
+  return n >= 10 ? n.toFixed(1) : n.toFixed(2);
 }
 
 function toBigField(raw: unknown): bigint {

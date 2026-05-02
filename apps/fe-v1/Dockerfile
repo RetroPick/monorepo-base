@@ -18,6 +18,7 @@ COPY apps/fe-v1 apps/fe-v1
 COPY packages/contracts packages/contracts
 COPY packages/types packages/types
 COPY package/abi package/abi
+COPY .docs/production .docs/production
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL

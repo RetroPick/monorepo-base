@@ -1,243 +1,169 @@
-
-import { memo, useState, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
-  AreaChart,
   Area,
+  AreaChart,
+  CartesianGrid,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell,
-  ReferenceLine
 } from "recharts";
-import Icon from "@/components/Icon";
 import { MarketOutcome } from "@/types/market";
 import type { ProbabilityHistoryPoint } from "@/lib/api/retropickApi";
 import { cn } from "@/lib/utils";
+import {
+  appendSyntheticNowRow,
+  downsampleProbabilityRowsForDisplay,
+  filterRowsByTimeWindow,
+  historyToChartRows,
+  lastOutcomePercents,
+  presetToDurationMs,
+  PROBABILITY_CHART_PRESET_LABEL,
+  PROBABILITY_CHART_PRESETS,
+  rowsToRechartsData,
+  strokeColorsForProbabilityChart,
+  takeRowsByIndices,
+  type ProbabilityChartPreset,
+  type RechartsProbabilityDatum,
+} from "@/lib/market-probability-chart";
+import { ChartLabelWatermark, type ChartLabelWatermarkVariant } from "@/components/market/ChartLabelWatermark";
+
+export type ProbabilityChartEpochMarkers = {
+  /** Unix ms for active epoch lock time, if known and in range. */
+  lockAtMs?: number;
+  /** Unix ms for scheduled resolve time, if known and in range. */
+  resolveAtMs?: number;
+};
 
 interface ProbabilityChartProps {
   outcomes: MarketOutcome[];
-  volume: string;
+  /** Optional; kept for API compatibility with existing call sites. */
+  volume?: string;
   history?: ProbabilityHistoryPoint[];
   /** When true, removes the inner card frame so the chart blends into the parent (e.g. FeaturedMarket) */
   embedded?: boolean;
+  /** Vertical markers when timestamps fall inside the visible series domain (e.g. chain active epoch). */
+  epochMarkers?: ProbabilityChartEpochMarkers;
+  /** Upper-right branding; `portfolio` crops footer copy on the asset. Default: markets. */
+  chartLabelVariant?: ChartLabelWatermarkVariant | "none";
 }
 
-// --- Custom Candlestick Shape ---
-const CandlestickShape = (props: any) => {
-  const {
-    x,
-    y,
-    width,
-    height,
-    low,
-    high,
-    open,
-    close,
-    fill // standard fill from the bar
-  } = props;
+function formatChartTime(ms: number) {
+  return new Date(ms).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
-  // We need to map values to Y pixels using the yAxis scale function passed potentially?
-  // Actually, Recharts purely passes x,y,width,height based on the `dataKey`.
-  // The `dataKey` for the Bar should be the `high` value to define the top of the wick, 
-  // but that doesn't help with the bottom.
-
-  // WORKAROUND: In Recharts, custom shapes receive the `yAxis` scale function if inside a customized component, 
-  // but in `Bar.shape`, it receives pixel values for the MAIN dataKey.
-  // We need the Y-Scale to calculate the pixel positions for Open, Close, Low.
-  // The props usually contain `yAxis` which has the `scale` function.
-
-  const { yAxis } = props;
-  const scale = yAxis?.scale;
-
-  if (!scale) return null;
-
-  const yHigh = scale(high);
-  const yLow = scale(low);
-  const yOpen = scale(open);
-  const yClose = scale(close);
-
-  const isUp = close >= open;
-  const color = isUp ? "#10B981" : "#EF4444"; // Green / Red
-  const wickWidth = 2;
-  const bodyWidth = Math.max(width * 0.6, 6);
-  const xCenter = x + width / 2;
-
-  return (
-    <g>
-      {/* Wick */}
-      <line
-        x1={xCenter}
-        y1={yHigh}
-        x2={xCenter}
-        y2={yLow}
-        stroke={color}
-        strokeWidth={wickWidth}
-      />
-      {/* Body */}
-      <rect
-        x={xCenter - bodyWidth / 2}
-        y={Math.min(yOpen, yClose)}
-        width={bodyWidth}
-        height={Math.max(Math.abs(yOpen - yClose), 1)} // Min height 1px
-        fill={color}
-        stroke="none"
-      />
-    </g>
-  );
-};
-
-const CustomTooltip = ({ active, payload, label, mode }: any) => {
-  if (active && payload && payload.length) {
-    // Candle Mode Tooltip
-    if (mode === 'candle') {
-      const data = payload[0].payload;
-      // Find which outcome is currently selected to show relevant OHLC
-      // Actually the payload comes from the Bar, so it has the specific outcome data
-      // We look for properties starting with the selected ID or just the raw ones passed
-      // Since we render ONE bar, we can grab o/h/l/c from the data object directly if mapped correctly.
-
-      // However, we mapped data such that `outcome_${id}_open` exists.
-      // We need to know WHICH outcome is being hovered? 
-      // Or we just grab the props that were passed to the Bar. 
-      // Simplification: The data point has all fields. We display the one that matches the active `dataKey`?
-      // Actually, we can pass "activeOutcome" to this component or context.
-      // But `Recharts` renders this separately.
-
-      // Let's rely on the `name` property of the payload which usually matches the outcome id/label.
-      const name = payload[0].name; // "Outcome Label"
-      const value = payload[0].value; // High?
-
-      // Let's assume we pass the full OHLC in the data payload
-      const o = data.open;
-      const h = data.high;
-      const l = data.low;
-      const c = data.close;
-
-      // Is it up or down?
-      const isUp = c >= o;
-      const color = isUp ? "#10B981" : "#EF4444";
-
-      return (
-        <div className="bg-background/90 backdrop-blur-xl border border-border/50 p-3 rounded-xl shadow-2xl text-xs font-mono">
-          <div className="mb-2 text-muted-foreground">{label}</div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            <span className="text-muted-foreground">Open:</span> <span className={color}>{o.toFixed(1)}%</span>
-            <span className="text-muted-foreground">High:</span> <span className={color}>{h.toFixed(1)}%</span>
-            <span className="text-muted-foreground">Low:</span> <span className={color}>{l.toFixed(1)}%</span>
-            <span className="text-muted-foreground">Close:</span> <span className={color}>{c.toFixed(1)}%</span>
-          </div>
-        </div>
-      )
-    }
-
-    // Area Mode Tooltip (Existing)
-    return (
-      <div className="bg-background/80 backdrop-blur-xl border border-border/50 p-4 rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-        <p className="text-xs text-muted-foreground font-mono mb-2">{label}</p>
-        <div className="space-y-1.5">
-          {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 text-sm">
-              <div
-                className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]"
-                style={{ backgroundColor: entry.color, color: entry.color }}
-              />
-              <span className="font-medium text-foreground">{entry.name}:</span>
-              <span className="font-bold font-mono" style={{ color: entry.color }}>
-                {Math.round(entry.value)}%
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+const CustomTooltip = ({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: { name: string; value: number; color: string; payload: RechartsProbabilityDatum }[];
+}) => {
+  if (!active || !payload?.length) {
+    return null;
   }
-  return null;
+  const t = payload[0].payload.t;
+  const label = typeof t === "number" ? formatChartTime(t) : "";
+  return (
+    <div className="bg-background/80 backdrop-blur-xl border border-border/50 p-4 rounded-xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <p className="text-xs text-muted-foreground font-mono mb-2">{label}</p>
+      <div className="space-y-1.5">
+        {payload.map((entry, index) => (
+          <div key={index} className="flex items-center gap-2 text-sm">
+            <div
+              className="w-2 h-2 rounded-full shadow-[0_0_8px_currentColor]"
+              style={{ backgroundColor: entry.color, color: entry.color }}
+            />
+            <span className="font-medium text-foreground">{entry.name}:</span>
+            <span className="font-bold font-mono" style={{ color: entry.color }}>
+              {Math.round(entry.value)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 };
 
 const ProbabilityChart = memo(function ProbabilityChart({
   outcomes,
-  volume,
   history = [],
   embedded = false,
+  epochMarkers,
+  chartLabelVariant = "markets",
 }: ProbabilityChartProps) {
-  const [timeRange, setTimeRange] = useState('1D');
-  const [chartType, setChartType] = useState<'area' | 'candle'>('area'); // Default to Area (Normal)
-  const [selectedOutcomeId, setSelectedOutcomeId] = useState<string>(outcomes[0]?.id);
+  const [preset, setPreset] = useState<ProbabilityChartPreset>("all");
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const ranges = ['1D', '1W', '1M', 'ALL'];
+  useEffect(() => {
+    setNowMs(Date.now());
+  }, [history]);
 
-  // Ensure selected outcome is valid
-  const currentOutcome = outcomes.find(o => o.id === selectedOutcomeId) || outcomes[0];
+  useEffect(() => {
+    const id = window.setInterval(
+      () => {
+        setNowMs(Date.now());
+      },
+      20_000,
+    );
+    return () => window.clearInterval(id);
+  }, []);
 
-  const chartData = useMemo(() => {
+  const { data, topOutcomes, seriesColors, legendPercents } = useMemo(() => {
     const sortedOutcomes = [...outcomes].sort((a, b) => b.probability - a.probability).slice(0, 3);
-    const historyData = history.map((point) => {
-      const label = point.indexedAt
-        ? new Date(point.indexedAt).toLocaleString(undefined, {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : `Block ${point.blockNumber}`;
-      const row: Record<string, number | string> = { date: label };
-      sortedOutcomes.forEach((outcome) => {
-        const outcomeIndex = Number(outcome.id);
-        const histOutcome = point.outcomes.find((o) => o.outcomeIndex === outcomeIndex);
-        const p = histOutcome ? Number(histOutcome.impliedProbabilityE6) / 10_000 : outcome.probability;
-        row[`outcome_${outcome.id}`] = Math.max(0, Math.min(100, p));
+    const colors = strokeColorsForProbabilityChart(outcomes, sortedOutcomes);
+    const sortedIds = sortedOutcomes.map((o) => String(o.id));
+    const fallbackPercents: Record<string, number> = {};
+    sortedOutcomes.forEach((o) => {
+      fallbackPercents[String(o.id)] = Math.max(0, Math.min(100, o.probability));
+    });
+
+    const fullRows = historyToChartRows(history, sortedIds);
+    const windowMs = presetToDurationMs(preset);
+    const idx = filterRowsByTimeWindow(fullRows, nowMs, windowMs);
+    const windowed = takeRowsByIndices(fullRows, idx);
+    const narrowWindow = windowMs != null && windowMs <= 60 * 60 * 1000;
+    const displayRows = downsampleProbabilityRowsForDisplay(windowed, sortedIds, {
+      minBucketMs: narrowWindow ? 4_000 : 12_000,
+      maxBuckets: narrowWindow ? 144 : 160,
+    });
+    const baseFallback = lastOutcomePercents(fullRows, sortedIds, fallbackPercents);
+    const withLive = appendSyntheticNowRow(displayRows, sortedIds, nowMs, baseFallback);
+    const data = rowsToRechartsData(withLive, sortedIds);
+
+    if (history.length === 0) {
+      const row: RechartsProbabilityDatum = { t: nowMs, isSyntheticNow: true };
+      sortedIds.forEach((id) => {
+        row[`outcome_${id}`] = fallbackPercents[id] ?? 0;
       });
-      return row;
+      const legendPercents = sortedIds.map((id) => fallbackPercents[id] ?? 0);
+      return { data: [row], topOutcomes: sortedOutcomes, seriesColors: colors, legendPercents };
+    }
+
+    const last = data[data.length - 1];
+    const legendPercents = sortedIds.map((id) => {
+      const v = last?.[`outcome_${id}`];
+      return typeof v === "number" ? v : fallbackPercents[id] ?? 0;
     });
+    return { data, topOutcomes: sortedOutcomes, seriesColors: colors, legendPercents };
+  }, [history, nowMs, outcomes, preset]);
 
-    const data = historyData.length > 0
-      ? historyData
-      : [
-          sortedOutcomes.reduce<Record<string, number | string>>(
-            (point, outcome) => {
-              point[`outcome_${outcome.id}`] = Math.max(0, Math.min(100, outcome.probability));
-              return point;
-            },
-            { date: "Current" },
-          ),
-        ];
+  const lastIndex = Math.max(0, data.length - 1);
+  const timeDomainMin = typeof data[0]?.t === "number" ? (data[0].t as number) : nowMs;
+  const timeDomainMax =
+    typeof data[lastIndex]?.t === "number" ? (data[lastIndex].t as number) : nowMs;
 
-    const previousByOutcome = new Map<string, number>();
-    const candleData = data.map((d) => {
-      const closeRaw = Number(d[`outcome_${selectedOutcomeId}`] ?? currentOutcome?.probability ?? 0);
-      const close = Number.isFinite(closeRaw) ? closeRaw : 0;
-      const open = previousByOutcome.get(selectedOutcomeId) ?? close;
-      previousByOutcome.set(selectedOutcomeId, close);
-      return {
-        ...d,
-        open,
-        high: Math.max(open, close),
-        low: Math.min(open, close),
-        close,
-      };
-    });
+  const markerInDomain = (ms: number | undefined) =>
+    ms != null && Number.isFinite(ms) && ms >= timeDomainMin && ms <= timeDomainMax;
 
-    return { data: candleData, topOutcomes: sortedOutcomes };
-  }, [currentOutcome?.probability, history, outcomes, selectedOutcomeId]);
-
-  // Prepare data for the 2-bar approach (Body + Wick)
-  const preparedCandleData = useMemo(() => {
-    if (!chartData?.data) return [];
-    return chartData.data.map(d => {
-      const isUp = d.close >= d.open;
-      return {
-        ...d,
-        // Ranges for the bars. [min, max]
-        bodyRange: [Math.min(d.open, d.close), Math.max(d.open, d.close)],
-        wickRange: [d.low, d.high],
-        color: isUp ? "#10B981" : "#EF4444"
-      };
-    });
-  }, [chartData]);
+  const showLockLine = markerInDomain(epochMarkers?.lockAtMs);
+  const showResolveLine = markerInDomain(epochMarkers?.resolveAtMs);
 
   return (
     <div
@@ -245,166 +171,167 @@ const ProbabilityChart = memo(function ProbabilityChart({
         embedded ? "p-0" : "p-6 rounded-2xl border border-border/50 bg-card shadow-sm transition-shadow duration-200 md:hover:shadow-md",
       )}
     >
-
-      {/* Header / Controls — tighter when embedded under market title so YES/NO row sits closer to the chart */}
       <div
         className={cn(
           "flex flex-col justify-between gap-4 sm:flex-row sm:items-center",
           embedded ? "mb-3 gap-3" : "mb-6 gap-4",
         )}
       >
-
-        {/* Outcome Selector (Only for Candle View) */}
-        {chartType === 'candle' ? (
-          <div className="flex gap-2 bg-secondary/30 p-1 rounded-lg">
-            {chartData.topOutcomes.map(outcome => (
-              <button
-                key={outcome.id}
-                onClick={() => setSelectedOutcomeId(outcome.id)}
-                className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold transition-colors duration-200",
-                  selectedOutcomeId === outcome.id
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border"
-                    : "text-muted-foreground hover:bg-background/50 hover:text-foreground",
-                )}
-              >
-                <span className="w-2 h-2 rounded-full" style={{
-                  backgroundColor:
-                    outcome.id === outcomes[0].id ? "#0EA5E9" :
-                      outcome.id === outcomes[1]?.id ? "#10B981" : "#6B7280"
-                }} />
-                {outcome.label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          // Legend for Area View
-          <div className="flex flex-wrap gap-4 text-[11px] font-bold uppercase tracking-wider">
-            {chartData.topOutcomes.map((outcome, i) => (
-              <div key={outcome.id} className="flex items-center gap-2 group cursor-default">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: i === 0 ? "#0EA5E9" : i === 1 ? "#10B981" : "#6B7280" }} />
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <p className="text-[10px] font-medium normal-case tracking-normal text-muted-foreground">
+            Pool-implied probability
+          </p>
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-bold uppercase tracking-wider">
+            {topOutcomes.map((outcome, i) => (
+              <div key={outcome.id} className="group flex cursor-default items-center gap-2">
+                <div className="size-2 shrink-0 rounded-full" style={{ backgroundColor: seriesColors[i] }} />
                 <span className="text-muted-foreground">{outcome.label}</span>
+                <span
+                  className="font-mono text-[11px] font-semibold tabular-nums normal-case tracking-normal"
+                  style={{ color: seriesColors[i] }}
+                >
+                  {Math.round(legendPercents[i] ?? 0)}%
+                </span>
               </div>
             ))}
           </div>
-        )}
-
-        {/* View Toggle */}
-        {/* View Toggle */}
-        <div className="flex items-center gap-1 bg-secondary/30 p-1 rounded-lg">
-          <button
-            onClick={() => setChartType("area")}
-            className={cn(
-              "rounded-md p-1.5 transition-colors duration-200",
-              chartType === "area"
-                ? "bg-background text-primary shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            title="Line Chart"
+        </div>
+        <div className="flex flex-wrap items-start justify-end gap-2 sm:gap-3">
+          {chartLabelVariant !== "none" ? (
+            <ChartLabelWatermark
+              variant={chartLabelVariant}
+              className={cn("shrink-0", embedded && "origin-top-right scale-[0.92]")}
+            />
+          ) : null}
+          <div
+            className="flex flex-wrap gap-1 rounded-lg border border-border/60 bg-muted/30 p-1"
+            role="tablist"
+            aria-label="Probability time range"
           >
-            <Icon name="show_chart" className="text-lg" />
-          </button>
-          <button
-            onClick={() => setChartType("candle")}
-            className={cn(
-              "rounded-md p-1.5 transition-colors duration-200",
-              chartType === "candle"
-                ? "bg-background text-primary shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-            title="Candlestick Chart"
-          >
-            <Icon name="candlestick_chart" className="text-lg" />
-          </button>
+            {PROBABILITY_CHART_PRESETS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                role="tab"
+                aria-selected={preset === p}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition-colors",
+                  preset === p
+                    ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/40"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setPreset(p)}
+              >
+                {PROBABILITY_CHART_PRESET_LABEL[p]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Chart Render - transparent to blend with card, no inner square */}
-      <div className="relative h-[300px] w-full mb-4 bg-transparent">
+      <div className="relative h-[300px] w-full bg-transparent">
         <ResponsiveContainer width="100%" height="100%" debounce={32}>
-          {chartType === 'area' ? (
-            <AreaChart data={chartData.data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} style={{ background: 'transparent' }}>
-              <defs>
-                {chartData.topOutcomes.map((outcome, i) => {
-                  const color = i === 0 ? "#0EA5E9" : i === 1 ? "#10B981" : "#6B7280";
-                  return (
-                    <linearGradient key={`gradient-${outcome.id}`} id={`gradient-${outcome.id}`} x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor={color} stopOpacity={0.1} />
-                      <stop offset="95%" stopColor={color} stopOpacity={0} />
-                    </linearGradient>
-                  );
-                })}
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.2} />
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} minTickGap={30} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#888' }} domain={[0, 100]} dx={-10} />
-              <Tooltip content={<CustomTooltip mode="area" />} />
-              {chartData.topOutcomes.map((outcome, i) => {
-                const color = i === 0 ? "#10B981" : i === 1 ? "#EF4444" : "#6B7280";
-                return (
-                  <Area
-                    key={outcome.id}
-                    type="monotone"
-                    dataKey={`outcome_${outcome.id}`}
-                    stroke={color}
-                    fill={`url(#gradient-${outcome.id})`}
-                    strokeWidth={2}
-                  />
-                )
-              })}
-            </AreaChart>
-          ) : (
-            <BarChart data={preparedCandleData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} style={{ background: 'transparent' }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.2} />
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#888' }} minTickGap={30} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: '#888' }} domain={[0, 100]} dx={-10} />
-              <Tooltip content={<CustomTooltip mode="candle" />} cursor={{ fill: 'transparent' }} />
-
-              {/* Wick (Thin Bar) */}
-              <Bar dataKey="wickRange" barSize={2}>
-                {preparedCandleData.map((entry: any, index: number) => (
-                  <Cell key={`wick-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-
-              {/* Body (Thick Bar) */}
-              <Bar dataKey="bodyRange" barSize={8}>
-                {preparedCandleData.map((entry: any, index: number) => (
-                  <Cell key={`body-${index}`} fill={entry.color} />
-                ))}
-              </Bar>
-            </BarChart>
-          )}
+          <AreaChart data={data} margin={{ top: 10, right: 10, left: 4, bottom: 4 }} style={{ background: "transparent" }}>
+            <defs>
+              {topOutcomes.map((outcome, i) => (
+                <linearGradient key={`gradient-${outcome.id}`} id={`gradient-${outcome.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={seriesColors[i]} stopOpacity={0.12} />
+                  <stop offset="95%" stopColor={seriesColors[i]} stopOpacity={0} />
+                </linearGradient>
+              ))}
+            </defs>
+            <CartesianGrid
+              strokeDasharray="3 3"
+              vertical={false}
+              stroke="hsl(var(--border))"
+              strokeOpacity={0.45}
+            />
+            <XAxis
+              dataKey="t"
+              type="number"
+              scale="time"
+              domain={["dataMin", "dataMax"]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fontSize: 10, fill: "#888" }}
+              minTickGap={28}
+              dy={10}
+              tickFormatter={(v) => (typeof v === "number" ? formatChartTime(v) : String(v))}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tickFormatter={(v) => `${v}%`}
+              tick={{ fontSize: 10, fill: "#888" }}
+              domain={[0, 100]}
+              dx={-10}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            {showLockLine && epochMarkers?.lockAtMs != null ? (
+              <ReferenceLine
+                x={epochMarkers.lockAtMs}
+                stroke="hsl(var(--muted-foreground))"
+                strokeDasharray="4 4"
+                strokeOpacity={0.85}
+                label={{
+                  value: "Lock",
+                  position: "top",
+                  fill: "hsl(var(--muted-foreground))",
+                  fontSize: 10,
+                }}
+              />
+            ) : null}
+            {showResolveLine && epochMarkers?.resolveAtMs != null ? (
+              <ReferenceLine
+                x={epochMarkers.resolveAtMs}
+                stroke="hsl(var(--muted-foreground))"
+                strokeDasharray="2 6"
+                strokeOpacity={0.75}
+                label={{
+                  value: "Resolve",
+                  position: "top",
+                  fill: "hsl(var(--muted-foreground))",
+                  fontSize: 10,
+                }}
+              />
+            ) : null}
+            {topOutcomes.map((outcome, i) => {
+              const color = seriesColors[i];
+              return (
+                <Area
+                  key={outcome.id}
+                  type="monotone"
+                  dataKey={`outcome_${outcome.id}`}
+                  stroke={color}
+                  fill={`url(#gradient-${outcome.id})`}
+                  strokeWidth={2}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  name={outcome.label}
+                  isAnimationActive={false}
+                  dot={(dotProps) => {
+                    const { cx, cy, index, stroke } = dotProps;
+                    if (index !== lastIndex || cx == null || cy == null) {
+                      return null;
+                    }
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={4}
+                        fill={stroke}
+                        stroke="var(--background)"
+                        strokeWidth={1.5}
+                        style={{ filter: `drop-shadow(0 0 6px ${color}66)` }}
+                      />
+                    );
+                  }}
+                  activeDot={{ r: 5 }}
+                />
+              );
+            })}
+          </AreaChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Footer Controls */}
-      <div className="flex items-center justify-between border-t border-border/30 pt-4 mt-2">
-        <div className="flex items-center gap-2">
-          <div className="size-6 rounded-full bg-accent-green/10 flex items-center justify-center animate-pulse">
-            <Icon name="attach_money" className="text-xs text-accent-green" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase text-muted-foreground font-bold tracking-wider">24h Volume</span>
-            <span className="text-sm font-bold text-foreground font-mono">{volume}</span>
-          </div>
-        </div>
-
-        <div className="bg-secondary/30 p-1 rounded-xl flex items-center gap-1 backdrop-blur-sm">
-          {ranges.map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`rounded-lg px-3 py-1.5 text-[10px] font-bold transition-colors duration-200 ${
-                timeRange === range
-                  ? "bg-background text-foreground shadow-sm ring-1 ring-border"
-                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
-              }`}
-            >
-              {range}
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   );

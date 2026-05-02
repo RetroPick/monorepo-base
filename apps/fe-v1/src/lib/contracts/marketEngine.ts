@@ -121,6 +121,114 @@ export function useRollingLifecycle(templateId: `0x${string}` | undefined, chain
   });
 }
 
+/** Matches `IMarketEngine.TemplateYieldView` from `getTemplateYieldView` (see MarketEngineViewModule). */
+export type TemplateYieldView = {
+  routerAssigned: boolean;
+  routerDisabled: boolean;
+  recoveryPending: boolean;
+  yieldPath: number;
+  currentPrincipal: bigint;
+  currentValue: bigint;
+  unrealizedYieldAmount: bigint;
+  yieldRatioE6: bigint;
+  scaledPrincipal: bigint;
+  stataShares: bigint;
+  yieldFeeBpsCurrent: number;
+};
+
+export function useTemplateYieldView(templateId: `0x${string}` | undefined, chainId: number) {
+  return useReadContract({
+    address: getMarketEngineAddress(chainId),
+    abi: ABIS.MarketEngine,
+    functionName: "getTemplateYieldView",
+    args: templateId ? [templateId] : undefined,
+    query: { enabled: !!templateId },
+    chainId,
+  });
+}
+
+/** `yieldRatioE6 = unrealizedYield * 1e6 / currentPrincipal` → display % = ratio / 10000. */
+export function formatYieldRatioPercent(yieldRatioE6: bigint): string {
+  if (yieldRatioE6 <= 0n) return "";
+  const n = Number(yieldRatioE6) / 10000;
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n < 0.005) return "<0.01";
+  return n >= 10 ? n.toFixed(1) : n.toFixed(2);
+}
+
+function formatYieldFeePercent(bps: number): string {
+  if (bps <= 0) return "";
+  const pct = bps / 100;
+  return pct >= 10 || bps % 100 === 0 ? pct.toFixed(0) : pct.toFixed(2);
+}
+
+/**
+ * Plain-language lines for the trade “Amount” card, driven by `getTemplateYieldView` /
+ * `TemplateYieldView` (see package smart-contract `MarketEngineViewModule`).
+ */
+export function buildYieldAmountHintLines(
+  buyMode: "add" | "move",
+  view: TemplateYieldView | undefined,
+  status: { isLoading: boolean; isError: boolean },
+): string[] {
+  if (status.isLoading) {
+    return ["Checking yield routing on-chain…"];
+  }
+  if (status.isError || view == null) {
+    return [
+      buyMode === "add"
+        ? "When yield routing is on, pooled USDC can earn passive DeFi yield until settlement. A larger stake increases your share of the epoch pool."
+        : "When yield routing is on, returns accrue on routed pool capital until the epoch resolves.",
+    ];
+  }
+
+  const lines: string[] = [];
+  const feeLine =
+    view.yieldFeeBpsCurrent > 0
+      ? `Protocol yield fee: up to ${formatYieldFeePercent(view.yieldFeeBpsCurrent)}% of gross yield at settlement.`
+      : null;
+
+  if (!view.routerAssigned) {
+    return [];
+  }
+  if (view.routerDisabled) {
+    lines.push("Yield routing is paused; deposits are held on the engine until routing is restored.");
+    return lines;
+  }
+  if (view.recoveryPending) {
+    lines.push(
+      "Operator recovery is in progress for routed funds—check market status before sizing a new deposit.",
+    );
+    return lines;
+  }
+
+  const pct = formatYieldRatioPercent(view.yieldRatioE6);
+  if (view.currentPrincipal > 0n) {
+    if (pct) {
+      lines.push(
+        `Routed pool principal shows ~${pct}% unrealized yield (vs. principal) in the engine view—settlement splits gross yield after fees.`,
+      );
+    } else {
+      lines.push("Routed principal is on deposit; unrealized yield is negligible in this snapshot.");
+    }
+  } else {
+    lines.push(
+      buyMode === "add"
+        ? "No routed principal yet for this template—yield appears as the pool routes to DeFi. Adding stake scales the epoch and your position."
+        : "No routed principal in this snapshot yet.",
+    );
+  }
+
+  if (feeLine) lines.push(feeLine);
+  if (buyMode === "add") {
+    lines.push(
+      "Bigger stakes increase how much of the epoch pool is yours if your outcome wins—any accrued pool yield lifts payouts for participants after fees.",
+    );
+  }
+
+  return lines;
+}
+
 const DEFAULT_USER_EPOCHS_PAGE = 100n;
 
 export function useUserEpochs(
