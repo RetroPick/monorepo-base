@@ -2,19 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import type { ProbabilityHistoryPoint } from "@/lib/api/retropickApi";
 
+import type { MarketOutcome } from "@/types/market";
+
 import {
   appendSyntheticNowRow,
+  applyEmaToRows,
   collapseRedundantProbabilityRows,
   downsampleProbabilityRowsForDisplay,
   filterRowsByTimeWindow,
   historyToChartRows,
   lastOutcomePercents,
+  pickYesOutcome,
+  presetSmoothingMode,
   presetToDurationMs,
   PROBABILITY_BINARY_GREEN,
   PROBABILITY_BINARY_RED,
+  PROBABILITY_CHART_PRESETS,
   rowsToRechartsData,
   strokeColorsForProbabilityChart,
   takeRowsByIndices,
+  windowDeltaPercent,
 } from "./market-probability-chart";
 
 function point(
@@ -96,6 +103,18 @@ describe("appendSyntheticNowRow", () => {
     expect(out).toHaveLength(1);
     expect(out[0].outcomePercents).toEqual({ "0": 12, "1": 88 });
     expect(out[0].isSyntheticNow).toBe(true);
+  });
+
+  it("uses liveImpliedPercents for synthetic tip when provided", () => {
+    const rows = historyToChartRows([point("2020-01-01T00:00:00.000Z", [700_000, 300_000])], ["0", "1"]);
+    const now = new Date("2020-01-02T00:00:00.000Z").getTime();
+    const out = appendSyntheticNowRow(rows, ["0", "1"], now, { "0": 50, "1": 50 }, {
+      liveImpliedPercents: { "0": 19, "1": 81 },
+    });
+    expect(out).toHaveLength(2);
+    expect(out[1].isSyntheticNow).toBe(true);
+    expect(out[1].outcomePercents["0"]).toBe(19);
+    expect(out[1].outcomePercents["1"]).toBe(81);
   });
 });
 
@@ -201,6 +220,104 @@ describe("downsampleProbabilityRowsForDisplay", () => {
     expect(out.length).toBeLessThan(rows.length);
     expect(out.length).toBeGreaterThanOrEqual(2);
     expect(out[out.length - 1].outcomePercents["0"]).toBe(99);
+  });
+});
+
+describe("presetSmoothingMode", () => {
+  it("uses EMA + monotone only on short presets", () => {
+    expect(presetSmoothingMode("15m").ema).not.toBeNull();
+    expect(presetSmoothingMode("15m").curve).toBe("monotone");
+    expect(presetSmoothingMode("1h").ema).not.toBeNull();
+    expect(presetSmoothingMode("6h").ema).not.toBeNull();
+    expect(presetSmoothingMode("1d").ema).toBeNull();
+    expect(presetSmoothingMode("1d").curve).toBe("monotone");
+    expect(presetSmoothingMode("1w").ema).toBeNull();
+    expect(presetSmoothingMode("1w").curve).toBe("linear");
+    expect(presetSmoothingMode("1m").curve).toBe("linear");
+    expect(presetSmoothingMode("all").curve).toBe("linear");
+  });
+
+  it("covers every preset without throwing", () => {
+    for (const p of PROBABILITY_CHART_PRESETS) {
+      const c = presetSmoothingMode(p);
+      expect(c.minBucketMs).toBeGreaterThan(0);
+      expect(c.maxBuckets).toBeGreaterThan(0);
+      if (c.ema) {
+        expect(c.ema.alpha).toBeGreaterThan(0);
+        expect(c.ema.alpha).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+});
+
+describe("pickYesOutcome", () => {
+  it("picks Yes side by id when labels are arbitrary", () => {
+    const negative: MarketOutcome = { id: "no", label: "Side A", probability: 60 };
+    const positive: MarketOutcome = { id: "yes", label: "Side B", probability: 40 };
+    expect(pickYesOutcome([negative, positive]).id).toBe("yes");
+  });
+
+  it("picks Yes over No by label when ids are neutral", () => {
+    const n: MarketOutcome = { id: "a", label: "No", probability: 70 };
+    const y: MarketOutcome = { id: "b", label: "Yes", probability: 30 };
+    expect(pickYesOutcome([n, y]).label).toBe("Yes");
+  });
+
+  it("picks Up over Down by id", () => {
+    const down: MarketOutcome = { id: "down", label: "DOWN", probability: 55 };
+    const up: MarketOutcome = { id: "up", label: "UP", probability: 45 };
+    expect(pickYesOutcome([down, up]).id).toBe("up");
+  });
+
+  it("picks index 0 when labels are ambiguous", () => {
+    const a: MarketOutcome = { id: "0", label: "Side A", probability: 30 };
+    const b: MarketOutcome = { id: "1", label: "Side B", probability: 70 };
+    expect(pickYesOutcome([b, a]).id).toBe("0");
+  });
+});
+
+describe("applyEmaToRows", () => {
+  it("leaves a flat series flat", () => {
+    const t0 = 1_000_000;
+    const rows = [
+      { t: t0, indexedAtIso: null, blockNumber: 1, outcomePercents: { "0": 50, "1": 50 } },
+      { t: t0 + 1000, indexedAtIso: null, blockNumber: 2, outcomePercents: { "0": 50, "1": 50 } },
+      { t: t0 + 2000, indexedAtIso: null, blockNumber: 3, outcomePercents: { "0": 50, "1": 50 } },
+    ];
+    const alpha = 2 / 6;
+    const out = applyEmaToRows(rows, ["0", "1"], alpha);
+    expect(out.every((r) => r.outcomePercents["0"] === 50)).toBe(true);
+    expect(out.every((r) => r.outcomePercents["1"] === 50)).toBe(true);
+  });
+
+  it("smooths a step without leaving [0,100]", () => {
+    const t0 = 1_000_000;
+    const rows = [
+      { t: t0, indexedAtIso: null, blockNumber: 1, outcomePercents: { "0": 0 } },
+      { t: t0 + 1000, indexedAtIso: null, blockNumber: 2, outcomePercents: { "0": 100 } },
+      { t: t0 + 2000, indexedAtIso: null, blockNumber: 3, outcomePercents: { "0": 100 } },
+    ];
+    const alpha = 2 / 6;
+    const out = applyEmaToRows(rows, ["0"], alpha);
+    expect(out[0].outcomePercents["0"]).toBe(0);
+    expect(out[1].outcomePercents["0"]).toBeGreaterThan(0);
+    expect(out[1].outcomePercents["0"]).toBeLessThan(100);
+    expect(out[2].outcomePercents["0"]).toBeLessThanOrEqual(100);
+  });
+});
+
+describe("windowDeltaPercent", () => {
+  it("returns 0 for fewer than 2 rows", () => {
+    expect(windowDeltaPercent([], "0")).toBe(0);
+    expect(windowDeltaPercent([{ outcomePercents: { "0": 40 } }], "0")).toBe(0);
+  });
+
+  it("returns rounded end minus start for yes id", () => {
+    const rows = [
+      { outcomePercents: { "0": 37 } },
+      { outcomePercents: { "0": 55 } },
+    ];
+    expect(windowDeltaPercent(rows, "0")).toBe(18);
   });
 });
 

@@ -40,10 +40,6 @@ vi.mock("@/views/Resolution", () => ({
   default: () => <div>Resolution</div>,
 }));
 
-vi.mock("@/views/Login", () => ({
-  default: () => <div>Login</div>,
-}));
-
 vi.mock("@/views/NotFound", () => ({
   default: () => <div>Not Found</div>,
 }));

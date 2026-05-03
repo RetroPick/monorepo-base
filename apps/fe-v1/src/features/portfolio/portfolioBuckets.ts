@@ -1,55 +1,100 @@
 import type { ClaimRow, MarketRow, UserChainEventRow } from "@/lib/api/retropickApi";
 import { STAKE_TOKEN_DECIMALS } from "@/config/tokens";
-import { isDiscoverCryptoRow } from "@/lib/market-data/chainDiscover";
+import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
+import { inferCryptoFromSlug, isDiscoverCryptoRow } from "@/lib/market-data/chainDiscover";
 import { parseStakeRaw, sumNumericStringKey } from "@/features/portfolio/formatStakeUsd";
 
-export type PortfolioCategoryId = "crypto" | "politics" | "sports" | "business" | "entertainment" | "other";
+/** Portfolio donut / legend buckets — aligned with Discover verticals (no legacy Sports/Politics strip). */
+export type PortfolioCategoryId = "crypto" | "economics" | "financials" | "tech_science" | "climate" | "other";
 
 const CATEGORY_ORDER: PortfolioCategoryId[] = [
-  "sports",
   "crypto",
-  "politics",
-  "business",
-  "entertainment",
+  "economics",
+  "financials",
+  "tech_science",
+  "climate",
   "other",
 ];
 
 const CATEGORY_LABEL: Record<PortfolioCategoryId, string> = {
-  sports: "Sports",
   crypto: "Crypto",
-  politics: "Politics",
-  business: "Business",
-  entertainment: "Entertainment",
-  other: "Other",
+  economics: "Economics",
+  financials: "Financials",
+  tech_science: "Tech & Science",
+  climate: "Climate",
+  other: "Others",
 };
 
-/** Approximate palette aligned with dashboard mock (distinct slices). */
+/** Distinct slice colors for the donut + legend. */
 export const CATEGORY_COLOR: Record<PortfolioCategoryId, string> = {
-  sports: "hsl(16 78% 56%)",
   crypto: "hsl(215 90% 58%)",
-  politics: "hsl(292 48% 52%)",
-  business: "hsl(199 65% 50%)",
-  entertainment: "hsl(142 70% 48%)",
+  economics: "hsl(32 88% 52%)",
+  financials: "hsl(292 48% 52%)",
+  tech_science: "hsl(199 70% 50%)",
+  climate: "hsl(142 70% 46%)",
   other: "hsl(228 10% 45%)",
 };
 
-function slugKeywordBucket(slug: string): PortfolioCategoryId | null {
+/** Slug heuristics aligned with `positionMatchesDiscoveryVertical` (non-crypto tabs). */
+function portfolioCategoryFromSlug(slug: string): PortfolioCategoryId {
   const s = slug.toLowerCase();
-  if (/\b(nfl|nba|mlb|soccer|football|olymp|tennis|ufc|sport)\b/.test(s)) return "sports";
-  if (/\b(election|trump|biden|congress|senate|govern|politic|vote|policy|geopol)\b/.test(s))
-    return "politics";
-  if (/\b(earn|revenue|stock|nasdaq|company|corp|ceo|merger|business|fed\s|rate\s hike)\b/.test(s))
-    return "business";
-  if (/\b(movie|music|oscar|celebr|entertain|hollywood|grammy)\b/.test(s)) return "entertainment";
-  return null;
+  if (
+    /\b(fed|gdp|inflation|cpi|unemployment|recession|macro|central bank|interest rate|fomc|economy|deficit|treasury)\b/.test(
+      s,
+    )
+  ) {
+    return "economics";
+  }
+  if (/\b(stock|nasdaq|sp500|s&p|earnings|merger|bank|bond|ipo|sec|etf|nyse|dow)\b/.test(s)) {
+    return "financials";
+  }
+  if (/\b(ai|tech|science|chip|spacex|nasa|quantum|software|hardware|robot|llm|neural|openai)\b/.test(s)) {
+    return "tech_science";
+  }
+  if (/\b(climate|carbon|environment|green|renewable|warming|emission|solar|cop\d)\b/.test(s)) {
+    return "climate";
+  }
+  return "other";
 }
 
 export function inferPortfolioCategory(row: MarketRow | undefined, slugFallback: string): PortfolioCategoryId {
   if (row && isDiscoverCryptoRow(row)) return "crypto";
-  const kw = slugKeywordBucket(slugFallback);
-  if (kw && kw !== "crypto") return kw;
-  if (row) return "other";
-  return slugKeywordBucket(slugFallback) ?? "other";
+  if (inferCryptoFromSlug(slugFallback)) return "crypto";
+  const fromSlug = portfolioCategoryFromSlug(slugFallback);
+  if (fromSlug !== "other") return fromSlug;
+  return "other";
+}
+
+/**
+ * Whether a position’s market belongs in the given Discover strip bucket (portfolio donut filter).
+ * Trending = no filter. Non-crypto tabs use slug heuristics (aligned with empty Discover grids for those tabs).
+ */
+export function positionMatchesDiscoveryVertical(
+  vertical: DiscoveryVerticalId,
+  row: MarketRow | undefined,
+  slug: string,
+): boolean {
+  if (vertical === "trending") return true;
+  const s = slug.toLowerCase();
+  if (vertical === "crypto") {
+    if (row) return isDiscoverCryptoRow(row);
+    return inferCryptoFromSlug(slug);
+  }
+  if (vertical === "economics") {
+    return /\b(fed|gdp|inflation|cpi|unemployment|recession|macro|central bank|interest rate|fomc|economy|deficit|treasury)\b/.test(
+      s,
+    );
+  }
+  if (vertical === "financials") {
+    return /\b(stock|nasdaq|sp500|s&p|earnings|merger|bank|bond|ipo|sec|etf|nyse|dow)\b/.test(s);
+  }
+  if (vertical === "tech_science") {
+    return /\b(ai|tech|science|chip|spacex|nasa|quantum|software|hardware|robot|llm|neural|openai)\b/.test(s);
+  }
+  if (vertical === "climate") {
+    return /\b(climate|carbon|environment|green|renewable|warming|emission|solar|cop\d)\b/.test(s);
+  }
+  return true;
 }
 
 export function sumClaimProfits(claims: ClaimRow[]): bigint {
@@ -91,10 +136,10 @@ export function buildCategorySlices(
 ): CategorySlice[] {
   const totals: Record<PortfolioCategoryId, bigint> = {
     crypto: 0n,
-    politics: 0n,
-    sports: 0n,
-    business: 0n,
-    entertainment: 0n,
+    economics: 0n,
+    financials: 0n,
+    tech_science: 0n,
+    climate: 0n,
     other: 0n,
   };
 

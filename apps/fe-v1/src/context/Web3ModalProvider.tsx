@@ -17,7 +17,11 @@ const queryClient = new QueryClient({
 /** Above Radix Dialog (z-50) and in-app menus (z-[10000]) so WalletConnect stays usable */
 const APPKIT_Z_INDEX = 100_150
 
-let isAppKitInitialized = false
+declare global {
+  interface Window {
+    __retropickReownAppKitInit?: boolean
+  }
+}
 
 function getMetadataUrl() {
   if (typeof window === 'undefined') return 'https://retropick.io'
@@ -27,7 +31,7 @@ function getMetadataUrl() {
 }
 
 function initAppKit() {
-  if (typeof window === 'undefined' || isAppKitInitialized) return
+  if (typeof window === 'undefined' || window.__retropickReownAppKitInit) return
 
   try {
     createAppKit({
@@ -52,20 +56,24 @@ function initAppKit() {
       },
       features: {
         analytics: true,
-        email:     false,
-        socials:   ['google'],
+        email: false,
+        socials: ['google'],
+        connectMethodsOrder: ['social', 'email', 'wallet'],
+        emailShowWallets: false,
       },
     })
 
-    isAppKitInitialized = true
+    window.__retropickReownAppKitInit = true
   } catch (err) {
     console.error('[RetroPick] Reown AppKit failed to initialize — UI may load without wallet modal.', err)
   }
 }
 
-initAppKit()
-
 export function Web3ModalProvider({ children, cookies }: { children: ReactNode; cookies?: string }) {
+  useEffect(() => {
+    initAppKit()
+  }, [])
+
   /** Pre-warm AppKit before auth actions — Google sign-in needs a synchronous popup. */
   useEffect(() => {
     void modal?.ready().catch(() => undefined)

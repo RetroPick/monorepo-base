@@ -44,7 +44,7 @@ export function ProfileCard({ address, isConnected, variant = "default" }: Profi
             onClick={() => void openAppKitModal()}
             className="h-9 w-full text-xs font-semibold transition-colors hover:brightness-110"
           >
-            Connect wallet
+            Sign Up
           </Button>
         ) : null}
       </div>
@@ -102,14 +102,14 @@ export function ProfileCard({ address, isConnected, variant = "default" }: Profi
       </div>
       {!isConnected ? (
         <div className="mt-3 space-y-2">
-          <p className="text-xs text-muted-foreground">Use Connect Wallet in the top bar, or:</p>
+          <p className="text-xs text-muted-foreground">Use Sign Up or Sign In in the header, or:</p>
           <Button
             type="button"
             variant="default"
             onClick={() => void openAppKitModal()}
             className="h-auto w-full py-2.5 text-xs font-semibold transition-colors hover:brightness-110"
           >
-            Connect wallet
+            Sign Up
           </Button>
         </div>
       ) : null}

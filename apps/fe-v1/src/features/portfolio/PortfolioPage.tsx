@@ -5,7 +5,6 @@ import {
   useAccount,
   useBalance,
   useReadContracts,
-  useSignMessage,
   useSignTypedData,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -26,7 +25,6 @@ import {
   apiErrorSummary,
   fetchFaucetRelay,
   fetchFaucetState,
-  fetchHealth,
   fetchMarkets,
   fetchMarketOutcomes,
   fetchPortfolioSummary,
@@ -35,7 +33,6 @@ import {
   fetchUserEvents,
   fetchUserPositions,
   fetchUserWatchlist,
-  fetchWatchlistNonce,
   postWatchlistMutate,
   type MarketRow,
   type OutcomeView,
@@ -43,6 +40,7 @@ import {
 
 import { CategoryDistributionCard } from "@/features/portfolio/CategoryDistributionCard";
 import { NetWorthCard, type NetWorthTimeframe } from "@/features/portfolio/NetWorthCard";
+import { PortfolioPnLSplitSection } from "@/features/portfolio/PortfolioPnLSplitSection";
 import { PortfolioOverviewCard } from "@/features/portfolio/PortfolioOverviewCard";
 import {
   PortfolioTradingPanel,
@@ -52,10 +50,9 @@ import {
   type WatchlistPanelSub,
 } from "@/features/portfolio/PortfolioTradingPanel";
 import { formatSignedStakeUsd, formatStakeUsd, parseStakeRaw, sumNumericStringKey } from "@/features/portfolio/formatStakeUsd";
-import { openAppKitModal } from "@/lib/openAppKitModal";
-import { buildWatchlistImportSignMessage, defaultWatchlistChainId } from "@/lib/watchlistSign";
 import {
   buildCategorySlices,
+  positionMatchesDiscoveryVertical,
   sumClaimProfits,
   sumEventVolume,
 } from "@/features/portfolio/portfolioBuckets";
@@ -67,6 +64,12 @@ import {
 } from "@/features/portfolio/positionMath";
 import { clearLocalWatchlist, readWatchlist } from "@/features/portfolio/watchlistStorage";
 import { buildFaucetMintSignRequest } from "@/lib/faucetTypedData";
+import { openAppKitModal } from "@/lib/openAppKitModal";
+import {
+  DISCOVERY_VERTICALS,
+  discoveryVerticalFromSearchParam,
+  type DiscoveryVerticalId,
+} from "@/lib/discovery-verticals";
 
 const BASE_SEPOLIA_ETH_FAUCETS = [
   { label: "Coinbase", href: "https://portal.cdp.coinbase.com/products/faucet?token=ETH&network=base-sepolia" },
@@ -74,6 +77,14 @@ const BASE_SEPOLIA_ETH_FAUCETS = [
 ] as const;
 
 const OUTCOME_ENRICH_CAP = 12;
+
+/** Stable join for matching `portfolio-summary` rows to `user/positions` rows. */
+function templateEpochKey(templateId: string, epochId: unknown): string {
+  const tid = templateId.trim().toLowerCase();
+  if (!tid) return ":";
+  const e = epochId == null || epochId === "" ? "" : String(epochId);
+  return `${tid}:${e}`;
+}
 
 function asAddress(value: unknown): `0x${string}` | undefined {
   return typeof value === "string" && /^0x[a-fA-F0-9]{40}$/.test(value)
@@ -144,7 +155,6 @@ export function PortfolioPage() {
   const { toast } = useToast();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
   const { signTypedDataAsync, isPending: isFaucetSignPending } = useSignTypedData();
-  const { signMessageAsync } = useSignMessage();
   const { writeContractAsync, data: faucetTxHash, isPending: isFaucetWritePending } = useWriteContract();
   const { isLoading: isFaucetConfirming, isSuccess: isFaucetSuccess } = useWaitForTransactionReceipt({
     hash: faucetTxHash,
@@ -158,12 +168,6 @@ export function PortfolioPage() {
   });
 
   useIndexerWebSocket(!!address);
-
-  const healthQ = useQuery({
-    queryKey: ["retropick-api", "health"],
-    queryFn: fetchHealth,
-    staleTime: 5_000,
-  });
 
   const marketsQ = useQuery({
     queryKey: ["retropick-api", "markets"],
@@ -217,7 +221,6 @@ export function PortfolioPage() {
     staleTime: 15_000,
   });
 
-  const lastSync = healthQ.data?.lastSyncAt ?? positionsQ.data?.dataFreshness?.lastSyncAt;
   const posRows = useMemo(
     () => (positionsQ.data?.positions ?? []) as Record<string, unknown>[],
     [positionsQ.data?.positions],
@@ -251,7 +254,7 @@ export function PortfolioPage() {
     enrichSource.forEach((p, i) => {
       const tid = typeof p.templateId === "string" ? p.templateId : "";
       const eid = p.epochId;
-      const key = `${tid.toLowerCase()}:${eid}`;
+      const key = templateEpochKey(tid, eid);
       const data = outcomeQueries[i]?.data;
       if (data) m.set(key, data);
     });
@@ -262,7 +265,7 @@ export function PortfolioPage() {
     const m = new Map<string, string>();
     for (const row of portfolioSummaryQ.data?.positions ?? []) {
       if (!row.templateId || row.epochId == null || row.error) continue;
-      const key = `${row.templateId.toLowerCase()}:${row.epochId}`;
+      const key = templateEpochKey(row.templateId, row.epochId);
       if (typeof row.unrealizedPnlWei === "string") m.set(key, row.unrealizedPnlWei);
     }
     return m;
@@ -298,7 +301,7 @@ export function PortfolioPage() {
       const outcome = outcomeLabelForIndex(row, idx, outcomeCount);
       const dominantRaw = stakes[idx] ?? 0n;
       const totalStake = sumNumericStringKey([position], "totalStake");
-      const oKey = `${tid.toLowerCase()}:${position.epochId}`;
+      const oKey = templateEpochKey(tid, position.epochId);
       const outcomes = outcomeByKey.get(oKey);
       const ov = outcomes?.find((o) => o.outcomeIndex === idx);
       const lastPrice = formatImpliedPercent(ov?.impliedProbabilityE6);
@@ -332,12 +335,62 @@ export function PortfolioPage() {
   const netWorthRaw = pendingClaimTotal + totalStakeAll;
   const volumeRaw = useMemo(() => sumEventVolume(eventsQ.data ?? []), [eventsQ.data]);
   const profitRaw = useMemo(() => sumClaimProfits(claimsQ.data?.claims ?? []), [claimsQ.data?.claims]);
+
+  const portfolioDiscoverVertical = discoveryVerticalFromSearchParam(searchParams.get("vertical"));
+  const positionsForCategoryDistribution = useMemo(() => {
+    return validPos.filter((p) => {
+      const tid = typeof p.templateId === "string" ? p.templateId : "";
+      const row = tid ? marketsByTemplate.get(tid.toLowerCase()) : undefined;
+      const slug = row?.slug ?? "";
+      return positionMatchesDiscoveryVertical(portfolioDiscoverVertical, row, slug);
+    });
+  }, [validPos, marketsByTemplate, portfolioDiscoverVertical]);
+
   const categorySlices = useMemo(
-    () => buildCategorySlices(validPos, marketsByTemplate),
-    [validPos, marketsByTemplate],
+    () => buildCategorySlices(positionsForCategoryDistribution, marketsByTemplate),
+    [positionsForCategoryDistribution, marketsByTemplate],
   );
 
-  const watchlistIds = useMemo(() => watchlistQ.data?.templateIds ?? [], [watchlistQ.data?.templateIds]);
+  const categoryDistributionDiscoverTitle =
+    portfolioDiscoverVertical === "trending"
+      ? null
+      : (DISCOVERY_VERTICALS.find((v) => v.id === portfolioDiscoverVertical)?.title ?? null);
+
+  const portfolioActivityHref = useMemo(() => {
+    const p = new URLSearchParams(searchParams);
+    p.set("section", "activity");
+    return `/app/portfolio?${p.toString()}`;
+  }, [searchParams]);
+
+  const setPortfolioDiscoverVertical = useCallback(
+    (id: DiscoveryVerticalId) => {
+      const p = new URLSearchParams(searchParams);
+      if (id === "trending") p.delete("vertical");
+      else p.set("vertical", id);
+      setSearchParams(p, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
+
+  /** Prefer API; while loading or on API error, fall back to device list so the tab is not empty. */
+  const watchlistIds = useMemo(() => {
+    if (!address) return [];
+    if (watchlistQ.isSuccess && Array.isArray(watchlistQ.data?.templateIds)) {
+      return watchlistQ.data.templateIds;
+    }
+    if (watchlistQ.isError || watchlistQ.isPending || watchlistQ.isLoading) {
+      const local = readWatchlist(address);
+      if (local.length > 0) return local;
+    }
+    return watchlistQ.data?.templateIds ?? [];
+  }, [
+    address,
+    watchlistQ.data?.templateIds,
+    watchlistQ.isError,
+    watchlistQ.isLoading,
+    watchlistQ.isPending,
+    watchlistQ.isSuccess,
+  ]);
 
   useEffect(() => {
     if (!address || !watchlistQ.isSuccess || watchlistMigrationDoneRef.current) return;
@@ -350,23 +403,16 @@ export function PortfolioPage() {
     watchlistMigrationDoneRef.current = true;
     void (async () => {
       try {
-        const { nonce } = await fetchWatchlistNonce(address);
-        const deadline = Math.floor(Date.now() / 1000) + 14 * 60;
         const sorted = [...local]
           .map((x) => {
             const t = x.trim();
             return (t.startsWith("0x") ? t : `0x${t}`).toLowerCase();
           })
           .sort();
-        const message = buildWatchlistImportSignMessage(defaultWatchlistChainId(), address, sorted, deadline, nonce);
-        const signature = await signMessageAsync({ message, account: address });
         await postWatchlistMutate({
           wallet: address,
           action: "import",
           templateIds: sorted,
-          deadline,
-          nonce,
-          signature,
         });
         clearLocalWatchlist(address);
         void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist"] });
@@ -375,7 +421,7 @@ export function PortfolioPage() {
         watchlistMigrationDoneRef.current = false;
       }
     })();
-  }, [address, qc, signMessageAsync, watchlistQ.data?.templateIds, watchlistQ.isSuccess]);
+  }, [address, qc, watchlistQ.data?.templateIds, watchlistQ.isSuccess]);
   const watchlistLabels = useMemo(() => {
     const m = new Map<string, string>();
     for (const id of watchlistIds) {
@@ -549,7 +595,7 @@ export function PortfolioPage() {
     isFaucetSignPending;
   let faucetLabel = "Add Funds";
   if (!isConnected) {
-    faucetLabel = "Connect wallet";
+    faucetLabel = "Sign Up";
   } else if (chainId !== DEPLOYMENT_CHAIN_ID) {
     faucetLabel = "Switch to Base Sepolia";
   } else if (isFaucetSignPending) {
@@ -745,15 +791,21 @@ export function PortfolioPage() {
 
   return (
     <div className="flex min-h-dvh flex-col overflow-x-clip bg-background text-foreground">
-      <Header />
+      <Header
+        portfolioDiscoverNav={{
+          verticals: DISCOVERY_VERTICALS,
+          activeVerticalId: portfolioDiscoverVertical,
+          onVerticalChange: setPortfolioDiscoverVertical,
+        }}
+      />
 
       <main className="mx-auto flex w-full max-w-[1440px] flex-1 min-h-0 flex-col gap-2 overflow-x-clip overflow-y-auto px-5 pb-20 pt-4 lg:overflow-hidden lg:px-10">
         {!isConnected ? (
           <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2.5 dark:border-white/[0.1] dark:bg-white/[0.03]">
             <Wallet className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-              Connect a wallet to load positions and balances. Use <strong className="text-foreground">Connect Wallet</strong> in the
-              header, or open the wallet modal below.
+              Sign in to load positions and balances. Use <strong className="text-foreground">Sign Up</strong> or{" "}
+              <strong className="text-foreground">Sign In</strong> in the header, or open the wallet below.
             </p>
             <Button
               type="button"
@@ -761,15 +813,16 @@ export function PortfolioPage() {
               onClick={() => void openAppKitModal()}
               className="h-10 shrink-0 px-5 text-sm font-semibold transition-colors hover:brightness-110"
             >
-              Connect wallet
+              Sign Up
             </Button>
           </div>
         ) : null}
 
         <div className="flex shrink-0 flex-col gap-1 text-[11px] leading-tight text-muted-foreground">
-          {isConnected && lastSync ? (
-            <p>
-              Indexer sync: <span className="font-mono text-foreground">{String(lastSync)}</span>
+          {isConnected && (portfolioSummaryQ.isFetching || watchlistQ.isFetching) ? (
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" aria-hidden />
+              Updating portfolio…
             </p>
           ) : null}
           {positionsQ.isError ? (
@@ -780,6 +833,12 @@ export function PortfolioPage() {
           {portfolioSummaryQ.isError ? (
             <p className="text-amber-600 dark:text-amber-400">
               Portfolio summary unavailable: <code className="text-[10px]">{apiErrorSummary(portfolioSummaryQ.error)}</code>
+            </p>
+          ) : null}
+          {watchlistQ.isError ? (
+            <p className="text-amber-600 dark:text-amber-400">
+              Watchlist server unavailable (showing on-device list if any):{" "}
+              <code className="text-[10px]">{apiErrorSummary(watchlistQ.error)}</code>
             </p>
           ) : null}
           {marketsQ.isLoading ? (
@@ -805,11 +864,24 @@ export function PortfolioPage() {
                 isConnected={isConnected}
               />
             </div>
-            <div className="px-4 py-4 lg:col-span-6 lg:py-5">
+            <div className="px-4 py-4 lg:col-span-6 lg:self-start lg:w-full lg:py-5">
               <NetWorthCard
                 surface="plain"
                 title="Exposure and claims"
                 showSecondaryMetrics={false}
+                volumeMetricTitle="Volume"
+                profitMetricTitle="Realized (claims)"
+                unrealizedLabel={isConnected ? unrealizedPnlLabel : undefined}
+                chartSlot={
+                  isConnected ? (
+                    <PortfolioPnLSplitSection
+                      timeframe={timeframe}
+                      claims={claimsRows}
+                      summaryPositions={portfolioSummaryQ.data?.positions ?? []}
+                      unrealizedHeadline={unrealizedPnlLabel}
+                    />
+                  ) : undefined
+                }
                 compactChart
                 netWorthLabel={netWorthDisplayLabel}
                 timeframe={timeframe}
@@ -820,7 +892,15 @@ export function PortfolioPage() {
               />
             </div>
             <div className="px-4 py-4 lg:col-span-3 lg:py-5">
-              <CategoryDistributionCard slices={categorySlices} compact aboveFold showHistoryLink surface="plain" />
+              <CategoryDistributionCard
+                slices={categorySlices}
+                compact
+                aboveFold
+                showHistoryLink
+                surface="plain"
+                discoverFilterTitle={categoryDistributionDiscoverTitle}
+                activityHistoryTo={portfolioActivityHref}
+              />
             </div>
           </div>
 

@@ -124,6 +124,11 @@ export function PortfolioTradingPanel({
           >
             <Bookmark className="size-4" aria-hidden />
             Watchlist
+            {watchlistTemplateIds.length > 0 ? (
+              <span className="ml-0.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-primary">
+                {watchlistTemplateIds.length}
+              </span>
+            ) : null}
           </button>
         </div>
       </div>
@@ -348,7 +353,7 @@ export function PortfolioTradingPanel({
                   <>
                     <p className="text-sm font-medium text-foreground">Your watchlist is empty</p>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Save template IDs from Discover (coming soon) or browse{" "}
+                      On a chain market, use <strong className="text-foreground">Watchlist</strong> in the header, or browse{" "}
                       <Link to="/app/markets/all" className="font-semibold text-primary hover:underline">
                         markets
                       </Link>

@@ -1,14 +1,17 @@
 import { lazy, Suspense, useRef, useState, type WheelEvent as ReactWheelEvent } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useAccount } from "wagmi";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { openAppKitModal } from "@/lib/openAppKitModal";
 import { useAssetContext } from "@/context/AssetContext";
 import HowRetroPickWorksDialog from "@/components/HowRetroPickWorksDialog";
 import Logo from "@/components/Logo";
 import type { AssetClass } from "@/lib/market-data/types";
 import { ASSET_CLASS_OPTIONS, ASSET_CLASS_SUBTITLE } from "@/lib/market-data/asset-classes";
 import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
-import { DISCOVERY_VERTICALS } from "@/lib/discovery-verticals";
+import { DISCOVERY_VERTICALS, discoveryVerticalFromSearchParam } from "@/lib/discovery-verticals";
 import { discoverVerticalForIndexedSlug, marketTypeName } from "@/lib/market-data/chainDiscover";
 const WalletButton = lazy(() => import("./WalletButton"));
 
@@ -35,6 +38,15 @@ interface HeaderProps {
     slug: string;
     marketType: number;
   };
+  /**
+   * Portfolio: same strip as Discover — drives `?vertical=` via parent `setSearchParams` so category
+   * distribution stays in sync (buttons, not inert links).
+   */
+  portfolioDiscoverNav?: {
+    verticals: typeof DISCOVERY_VERTICALS;
+    activeVerticalId: DiscoveryVerticalId;
+    onVerticalChange: (id: DiscoveryVerticalId) => void;
+  };
 }
 
 const Header = ({
@@ -43,8 +55,11 @@ const Header = ({
   assetClassNav,
   marketFamilyAssetClassNav,
   indexedMarketContext,
+  portfolioDiscoverNav,
 }: HeaderProps) => {
+  const { isConnected } = useAccount();
   const location = useLocation();
+  const [headerSearchParams] = useSearchParams();
   const { assets, selectedSymbol, setSelectedSymbol } = useAssetContext();
   const railRef = useRef<HTMLDivElement>(null);
   const [howRetroPickOpen, setHowRetroPickOpen] = useState(false);
@@ -160,13 +175,34 @@ const Header = ({
             >
               How?
             </button>
-            <Suspense
-              fallback={
-                <div className="h-8 w-[118px] shrink-0 rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur sm:h-9 sm:w-[124px]" />
-              }
-            >
-              <WalletButton />
-            </Suspense>
+            {!isConnected ? (
+              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => void openAppKitModal()}
+                  className="h-8 shrink-0 rounded-lg border border-zinc-600/85 bg-zinc-700 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 sm:h-9 sm:px-4 sm:text-sm"
+                >
+                  Sign In
+                </Button>
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={() => void openAppKitModal()}
+                  className="h-8 shrink-0 rounded-lg border border-blue-600/90 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500 sm:h-9 sm:px-4 sm:text-sm"
+                >
+                  Sign Up
+                </Button>
+              </div>
+            ) : (
+              <Suspense
+                fallback={
+                  <div className="h-8 min-w-[10rem] shrink-0 rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur sm:h-9" />
+                }
+              >
+                <WalletButton />
+              </Suspense>
+            )}
           </div>
         </div>
       </div>
@@ -430,8 +466,51 @@ const Header = ({
                 );
               }
 
+              if (portfolioDiscoverNav) {
+                return (
+                  <div
+                    ref={railRef}
+                    onWheel={handleWheel}
+                    className="w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                  >
+                    <div
+                      className="flex min-h-10 min-w-max flex-nowrap items-center gap-1.5 px-0 sm:gap-2"
+                      aria-label="Discover categories"
+                    >
+                      {portfolioDiscoverNav.verticals.map((v) => {
+                        const isActive = v.id === portfolioDiscoverNav.activeVerticalId;
+                        return (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => portfolioDiscoverNav.onVerticalChange(v.id)}
+                            aria-pressed={isActive}
+                            className={cn(
+                              "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
+                              isActive
+                                ? "border border-primary/25 bg-primary/15 text-primary"
+                                : "border border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                            )}
+                          >
+                            {v.title}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              }
+
               if (isPortfolioPage) {
-                const portfolioStripActiveId = "trending" as const;
+                const portfolioStripActiveId = discoveryVerticalFromSearchParam(headerSearchParams.get("vertical"));
+                const portfolioVerticalHref = (id: (typeof DISCOVERY_VERTICALS)[number]["id"]) => {
+                  const p = new URLSearchParams(headerSearchParams);
+                  if (id === "trending") p.delete("vertical");
+                  else p.set("vertical", id);
+                  const qs = p.toString();
+                  return qs.length > 0 ? `/app/portfolio?${qs}` : "/app/portfolio";
+                };
                 return (
                   <div
                     ref={railRef}
@@ -448,8 +527,8 @@ const Header = ({
                         return (
                           <Link
                             key={v.id}
-                            to="/app/markets/all"
-                            state={{ discoverVertical: v.id }}
+                            to={portfolioVerticalHref(v.id)}
+                            replace
                             className={cn(
                               "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
                               isActive

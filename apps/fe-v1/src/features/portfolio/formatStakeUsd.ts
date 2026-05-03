@@ -30,6 +30,13 @@ export function parseStakeRaw(raw: unknown): bigint | undefined {
   return undefined;
 }
 
+/** Parse signed integer strings (e.g. wei from portfolio-summary). */
+export function parseSignedIntString(raw: string | undefined): bigint | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== "string" || !/^-?\d+$/.test(raw)) return undefined;
+  return BigInt(raw);
+}
+
 export function sumNumericStringKey(rows: Record<string, unknown>[], key: string): bigint {
   let t = 0n;
   for (const r of rows) {

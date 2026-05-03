@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -104,8 +105,113 @@ type watchlistMutateBody struct {
 	Signature    string   `json:"signature"`
 }
 
-// UserWatchlistMutateHandler applies add/remove after verifying EIP-191 personal_sign and nonce.
-func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry) http.HandlerFunc {
+// resolveWatchlistTemplates parses and validates template id bytes for add/remove/import.
+func resolveWatchlistTemplates(body *watchlistMutateBody, action string) ([][]byte, error) {
+	if action == "import" {
+		if len(body.TemplateIDs) == 0 {
+			return nil, fmt.Errorf("templateIds required")
+		}
+		if len(body.TemplateIDs) > 64 {
+			return nil, fmt.Errorf("too many templateIds")
+		}
+		seen := make(map[string]struct{}, len(body.TemplateIDs))
+		parts := make([]string, 0, len(body.TemplateIDs))
+		for _, raw := range body.TemplateIDs {
+			tplRaw := strings.TrimPrefix(strings.TrimSpace(raw), "0x")
+			if len(tplRaw) != 64 {
+				return nil, fmt.Errorf("invalid templateId")
+			}
+			if _, err := hex.DecodeString(tplRaw); err != nil {
+				return nil, fmt.Errorf("invalid templateId")
+			}
+			hexID := "0x" + strings.ToLower(tplRaw)
+			if _, ok := seen[hexID]; ok {
+				continue
+			}
+			seen[hexID] = struct{}{}
+			parts = append(parts, hexID)
+		}
+		if len(parts) == 0 {
+			return nil, fmt.Errorf("templateIds required")
+		}
+		sort.Strings(parts)
+		out := make([][]byte, 0, len(parts))
+		for _, hexID := range parts {
+			raw := strings.TrimPrefix(hexID, "0x")
+			tb, err := hex.DecodeString(raw)
+			if err != nil || len(tb) != 32 {
+				return nil, fmt.Errorf("invalid templateId")
+			}
+			cp := make([]byte, 32)
+			copy(cp, tb)
+			out = append(out, cp)
+		}
+		return out, nil
+	}
+	tplRaw := strings.TrimPrefix(strings.TrimSpace(body.TemplateID), "0x")
+	if len(tplRaw) != 64 {
+		return nil, fmt.Errorf("invalid templateId")
+	}
+	tplBytes, err := hex.DecodeString(tplRaw)
+	if err != nil || len(tplBytes) != 32 {
+		return nil, fmt.Errorf("invalid templateId")
+	}
+	cp := make([]byte, 32)
+	copy(cp, tplBytes)
+	return [][]byte{cp}, nil
+}
+
+func applyWatchlistMutation(ctx context.Context, q *dbqueries.Queries, wallet, action string, tplBytesList [][]byte) error {
+	switch action {
+	case "add":
+		return q.UpsertUserWatchlist(ctx, dbqueries.UpsertUserWatchlistParams{
+			UserAddress: wallet,
+			TemplateID:  tplBytesList[0],
+		})
+	case "remove":
+		return q.DeleteUserWatchlist(ctx, dbqueries.DeleteUserWatchlistParams{
+			UserAddress: wallet,
+			TemplateID:  tplBytesList[0],
+		})
+	case "import":
+		for _, tb := range tplBytesList {
+			if err := q.UpsertUserWatchlist(ctx, dbqueries.UpsertUserWatchlistParams{
+				UserAddress: wallet,
+				TemplateID:  tb,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("invalid action")
+	}
+}
+
+func writeWatchlistMutateOK(w http.ResponseWriter, wallet, action string, tplBytesList [][]byte, nextNonce *int64) {
+	out := map[string]any{
+		"ok":     true,
+		"wallet": wallet,
+		"action": action,
+	}
+	if nextNonce != nil {
+		out["nextNonce"] = *nextNonce
+	}
+	if action == "import" {
+		imported := make([]string, 0, len(tplBytesList))
+		for _, tb := range tplBytesList {
+			imported = append(imported, "0x"+hex.EncodeToString(tb))
+		}
+		out["templateIds"] = imported
+	} else {
+		out["templateId"] = "0x" + hex.EncodeToString(tplBytesList[0])
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// UserWatchlistMutateHandler applies add/remove/import. When requireSignature is true, verifies EIP-191 personal_sign and nonce.
+func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry, requireSignature bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, `{"error":"method"}`, http.StatusMethodNotAllowed)
@@ -127,68 +233,46 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry) http
 			http.Error(w, `{"error":"invalid action"}`, http.StatusBadRequest)
 			return
 		}
-		var tplBytesList [][]byte
+
+		tplBytesList, err := resolveWatchlistTemplates(&body, action)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusBadRequest)
+			return
+		}
+
+		ctx := r.Context()
+
+		if !requireSignature {
+			tx, err := pool.Begin(ctx)
+			if err != nil {
+				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				return
+			}
+			defer func() { _ = tx.Rollback(ctx) }()
+			qtx := dbqueries.New(tx)
+			if err := applyWatchlistMutation(ctx, qtx, wallet, action, tplBytesList); err != nil {
+				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				return
+			}
+			if err := tx.Commit(ctx); err != nil {
+				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				return
+			}
+			writeWatchlistMutateOK(w, wallet, action, tplBytesList, nil)
+			return
+		}
+
 		var msg string
 		if action == "import" {
-			if len(body.TemplateIDs) == 0 {
-				http.Error(w, `{"error":"templateIds required"}`, http.StatusBadRequest)
-				return
-			}
-			if len(body.TemplateIDs) > 64 {
-				http.Error(w, `{"error":"too many templateIds"}`, http.StatusBadRequest)
-				return
-			}
-			seen := make(map[string]struct{}, len(body.TemplateIDs))
-			parts := make([]string, 0, len(body.TemplateIDs))
-			for _, raw := range body.TemplateIDs {
-				tplRaw := strings.TrimPrefix(strings.TrimSpace(raw), "0x")
-				if len(tplRaw) != 64 {
-					http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
-					return
-				}
-				if _, err := hex.DecodeString(tplRaw); err != nil {
-					http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
-					return
-				}
-				hexID := "0x" + strings.ToLower(tplRaw)
-				if _, ok := seen[hexID]; ok {
-					continue
-				}
-				seen[hexID] = struct{}{}
-				parts = append(parts, hexID)
-			}
-			if len(parts) == 0 {
-				http.Error(w, `{"error":"templateIds required"}`, http.StatusBadRequest)
-				return
+			parts := make([]string, 0, len(tplBytesList))
+			for _, tb := range tplBytesList {
+				parts = append(parts, "0x"+hex.EncodeToString(tb))
 			}
 			sort.Strings(parts)
-			for _, hexID := range parts {
-				raw := strings.TrimPrefix(hexID, "0x")
-				tb, err := hex.DecodeString(raw)
-				if err != nil || len(tb) != 32 {
-					http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
-					return
-				}
-				cp := make([]byte, 32)
-				copy(cp, tb)
-				tplBytesList = append(tplBytesList, cp)
-			}
 			msg = WatchlistImportSignMessage(reg.ChainID, wallet, strings.Join(parts, ","), body.Deadline, body.Nonce)
 		} else {
-			tplRaw := strings.TrimPrefix(strings.TrimSpace(body.TemplateID), "0x")
-			if len(tplRaw) != 64 {
-				http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
-				return
-			}
-			tplBytes, err := hex.DecodeString(tplRaw)
-			if err != nil || len(tplBytes) != 32 {
-				http.Error(w, `{"error":"invalid templateId"}`, http.StatusBadRequest)
-				return
-			}
-			cp := make([]byte, 32)
-			copy(cp, tplBytes)
-			tplBytesList = append(tplBytesList, cp)
-			msg = WatchlistSignMessage(reg.ChainID, wallet, body.TemplateID, action, body.Deadline, body.Nonce)
+			tid := "0x" + hex.EncodeToString(tplBytesList[0])
+			msg = WatchlistSignMessage(reg.ChainID, wallet, tid, action, body.Deadline, body.Nonce)
 		}
 		sig := strings.TrimSpace(body.Signature)
 		if !strings.HasPrefix(sig, "0x") || len(sig) < 130 {
@@ -212,7 +296,6 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry) http
 			return
 		}
 
-		ctx := r.Context()
 		tx, err := pool.Begin(ctx)
 		if err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
@@ -235,33 +318,9 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry) http
 		}
 
 		qtx := dbqueries.New(tx)
-		switch action {
-		case "add":
-			if err := qtx.UpsertUserWatchlist(ctx, dbqueries.UpsertUserWatchlistParams{
-				UserAddress: wallet,
-				TemplateID:  tplBytesList[0],
-			}); err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-				return
-			}
-		case "remove":
-			if err := qtx.DeleteUserWatchlist(ctx, dbqueries.DeleteUserWatchlistParams{
-				UserAddress: wallet,
-				TemplateID:  tplBytesList[0],
-			}); err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-				return
-			}
-		case "import":
-			for _, tb := range tplBytesList {
-				if err := qtx.UpsertUserWatchlist(ctx, dbqueries.UpsertUserWatchlistParams{
-					UserAddress: wallet,
-					TemplateID:  tb,
-				}); err != nil {
-					http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-					return
-				}
-			}
+		if err := applyWatchlistMutation(ctx, qtx, wallet, action, tplBytesList); err != nil {
+			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			return
 		}
 
 		if _, err := tx.Exec(ctx, `UPDATE user_watchlist_nonce SET nonce = nonce + 1, updated_at = NOW() WHERE LOWER(user_address)=LOWER($1)`, wallet); err != nil {
@@ -273,24 +332,7 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry) http
 			return
 		}
 
-		out := map[string]any{
-			"ok":        true,
-			"wallet":    wallet,
-			"action":    action,
-			"nextNonce": dbNonce + 1,
-		}
-		if action == "import" {
-			imported := make([]string, 0, len(tplBytesList))
-			for _, tb := range tplBytesList {
-				imported = append(imported, "0x"+hex.EncodeToString(tb))
-			}
-			out["templateIds"] = imported
-		} else {
-			out["templateId"] = "0x" + hex.EncodeToString(tplBytesList[0])
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(out)
+		next := dbNonce + 1
+		writeWatchlistMutateOK(w, wallet, action, tplBytesList, &next)
 	}
 }
-
-// Remove unused import strconv if any - I used strconv? I didn't - remove

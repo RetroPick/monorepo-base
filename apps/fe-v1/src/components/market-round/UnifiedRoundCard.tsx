@@ -415,7 +415,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                       isPositiveEntry ? marketCtaUp3d : marketCtaDown3d,
                     )}
                   >
-                    {!isConnected ? "Connect wallet" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
+                    {!isConnected ? "Sign in" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
                   </button>
                 </div>
               </div>

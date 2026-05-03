@@ -65,7 +65,7 @@ export function useMarketEngine() {
 
     const approveHash = await approveHook.approve(maxUint256)
     if (!publicClient) {
-      throw new Error('No RPC client: reconnect your wallet and try again.')
+      throw new Error("No RPC client: sign in again and try again.");
     }
     const receipt = await publicClient.waitForTransactionReceipt({ hash: approveHash })
     if (receipt.status === 'reverted') {

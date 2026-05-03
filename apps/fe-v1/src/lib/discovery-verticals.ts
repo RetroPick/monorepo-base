@@ -12,3 +12,9 @@ export const DISCOVERY_VERTICALS: readonly { id: DiscoveryVerticalId; title: str
   { id: "tech_science", title: "Tech & Science" },
   { id: "climate", title: "Climate" },
 ];
+
+/** `?vertical=` on portfolio (and strip highlight); invalid or missing → trending. */
+export function discoveryVerticalFromSearchParam(value: string | null): DiscoveryVerticalId {
+  if (!value) return "trending";
+  return DISCOVERY_VERTICALS.some((x) => x.id === value) ? (value as DiscoveryVerticalId) : "trending";
+}

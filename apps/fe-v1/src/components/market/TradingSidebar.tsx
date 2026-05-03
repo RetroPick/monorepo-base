@@ -44,7 +44,7 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
 
   const handleTrade = async () => {
     if (!address) {
-      toast({ title: "Wallet not connected", description: "Please connect your wallet first", variant: "destructive" });
+      toast({ title: "Not signed in", description: "Please sign in first", variant: "destructive" });
       return;
     }
 

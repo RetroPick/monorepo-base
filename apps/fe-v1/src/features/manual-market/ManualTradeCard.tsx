@@ -329,13 +329,13 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const actionBlockedReason = (() => {
     if (tab === "Claim") {
       if (!tc) return "Indexed on-chain market required.";
-      if (!address) return "Connect wallet to claim.";
+      if (!address) return "Sign in to claim.";
       if (wrongChain) return `Switch wallet to chain ${DEPLOYMENT_CHAIN_ID}.`;
       if (positionsQ.isLoading) return "Loading indexed positions.";
       if (claimablePositions.length === 0) return "No claimable epochs for this market.";
       return null;
     }
-    if (!address) return "Connect wallet to trade.";
+    if (!address) return "Sign in to trade.";
     if (commonBlockedReason) return commonBlockedReason;
     if (tab === "Move stake") {
       if (parsedAmount <= 0n) return "Enter an amount.";
@@ -487,7 +487,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const isSwitchingStake = tab === "Move stake" && engine.isSwitching;
   const isAnyWorking = isWorking || isApprovingBuy || isSwitchingStake;
   const isConnectOnlyReason =
-    actionBlockedReason === "Connect wallet to trade." || actionBlockedReason === "Connect wallet to claim.";
+    actionBlockedReason === "Sign in to trade." || actionBlockedReason === "Sign in to claim.";
   const showErrorCallout = Boolean(actionBlockedReason && !isConnectOnlyReason);
   /** When disconnected, primary button opens AppKit instead of blocking with disabled. */
   const executionBlockedReason = address != null ? actionBlockedReason : null;

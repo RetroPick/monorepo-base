@@ -74,8 +74,122 @@ export function strokeColorsForProbabilityChart(allOutcomes: MarketOutcome[], to
   });
 }
 
+/** Max simultaneous outcome lines on multi-outcome probability charts. */
+export const MULTI_OUTCOME_TOP_N = 6;
+
 export const PROBABILITY_CHART_PRESETS = ["15m", "1h", "6h", "1d", "1w", "1m", "all"] as const;
 export type ProbabilityChartPreset = (typeof PROBABILITY_CHART_PRESETS)[number];
+
+export type ProbabilityChartCurveType = "monotone" | "linear";
+
+export type PresetSmoothingConfig = {
+  /** EMA on bucketed rows (short presets only); null = no smoothing, strict to data. */
+  ema: { window: number; alpha: number } | null;
+  curve: ProbabilityChartCurveType;
+  minBucketMs: number;
+  maxBuckets: number;
+};
+
+function emaAlphaFromWindow(window: number): number {
+  return 2 / (window + 1);
+}
+
+/** Per preset: bucket sizes, optional EMA (short windows), and Recharts curve strictness (long = linear). */
+export function presetSmoothingMode(preset: ProbabilityChartPreset): PresetSmoothingConfig {
+  switch (preset) {
+    case "15m":
+      return {
+        ema: { window: 5, alpha: emaAlphaFromWindow(5) },
+        curve: "monotone",
+        minBucketMs: 4_000,
+        maxBuckets: 144,
+      };
+    case "1h":
+      return {
+        ema: { window: 5, alpha: emaAlphaFromWindow(5) },
+        curve: "monotone",
+        minBucketMs: 8_000,
+        maxBuckets: 160,
+      };
+    case "6h":
+      return {
+        ema: { window: 4, alpha: emaAlphaFromWindow(4) },
+        curve: "monotone",
+        minBucketMs: 60_000,
+        maxBuckets: 160,
+      };
+    case "1d":
+      return { ema: null, curve: "monotone", minBucketMs: 5 * 60_000, maxBuckets: 160 };
+    case "1w":
+      return { ema: null, curve: "linear", minBucketMs: 30 * 60_000, maxBuckets: 160 };
+    case "1m":
+      return { ema: null, curve: "linear", minBucketMs: 2 * 3_600_000, maxBuckets: 160 };
+    case "all":
+      return { ema: null, curve: "linear", minBucketMs: 6 * 3_600_000, maxBuckets: 200 };
+    default: {
+      const _x: never = preset;
+      return _x;
+    }
+  }
+}
+
+/** Single two-outcome market (Yes/No, Up/Down, etc.). */
+export function isBinaryOutcomes(outcomes: MarketOutcome[]): boolean {
+  return outcomes.length === 2;
+}
+
+/** Positive / YES side for binary markets (Up / Yes / index 0). Caller must ensure `outcomes.length === 2`. */
+export function pickYesOutcome(outcomes: MarketOutcome[]): MarketOutcome {
+  const ordered = [...outcomes].sort(binaryOutcomeSort);
+  return ordered[0];
+}
+
+/**
+ * Percentage-point change from first to last row in the windowed series (pre-EMA), for the YES outcome.
+ * Rounded integer; 0 when fewer than 2 points.
+ */
+export function windowDeltaPercent(
+  rows: Pick<ProbabilityChartRow, "outcomePercents">[],
+  yesId: string,
+): number {
+  if (rows.length < 2) {
+    return 0;
+  }
+  const startY = rows[0].outcomePercents[yesId] ?? 0;
+  const endY = rows[rows.length - 1].outcomePercents[yesId] ?? 0;
+  return Math.round(endY - startY);
+}
+
+/**
+ * Exponential moving average per outcome: s_i = α·y_i + (1-α)·s_{i-1}, clamped [0,100].
+ * First row is unchanged (seed). Apply only to real history rows, before appending synthetic-now.
+ */
+export function applyEmaToRows(
+  rows: Omit<ProbabilityChartRow, "isSyntheticNow">[],
+  sortedOutcomeIds: string[],
+  alpha: number,
+): Omit<ProbabilityChartRow, "isSyntheticNow">[] {
+  if (rows.length === 0) {
+    return [];
+  }
+  const state: Record<string, number> = {};
+  return rows.map((row, i) => {
+    const nextPercents: Record<string, number> = { ...row.outcomePercents };
+    for (const id of sortedOutcomeIds) {
+      const y = row.outcomePercents[id] ?? 0;
+      if (i === 0) {
+        state[id] = y;
+        nextPercents[id] = y;
+      } else {
+        const s = alpha * y + (1 - alpha) * state[id];
+        const clamped = Math.max(0, Math.min(100, s));
+        state[id] = clamped;
+        nextPercents[id] = clamped;
+      }
+    }
+    return { ...row, outcomePercents: nextPercents };
+  });
+}
 
 export const PROBABILITY_CHART_PRESET_LABEL: Record<ProbabilityChartPreset, string> = {
   "15m": "15m",
@@ -291,14 +405,32 @@ export function lastOutcomePercents(
   return o;
 }
 
+export type AppendSyntheticNowRowOptions = {
+  /**
+   * When set, the synthetic “now” tip uses these implied percents (e.g. latest chain state),
+   * not the last row of `rows` — so EMA-smoothed history can still end at the true live %.
+   */
+  liveImpliedPercents?: Record<string, number>;
+};
+
 /** Extends the series to `nowMs` with flat probabilities when the last trade is older than now. */
 export function appendSyntheticNowRow(
   rows: Omit<ProbabilityChartRow, "isSyntheticNow">[],
   sortedOutcomeIds: string[],
   nowMs: number,
   fallbackPercents: Record<string, number>,
+  options?: AppendSyntheticNowRowOptions,
 ): ProbabilityChartRow[] {
-  const base = lastOutcomePercents(rows, sortedOutcomeIds, fallbackPercents);
+  const fromRows = lastOutcomePercents(rows, sortedOutcomeIds, fallbackPercents);
+  const base = options?.liveImpliedPercents
+    ? Object.fromEntries(
+        sortedOutcomeIds.map((id) => {
+          const v =
+            options.liveImpliedPercents[id] ?? fromRows[id] ?? fallbackPercents[id] ?? 0;
+          return [id, Math.max(0, Math.min(100, v))] as const;
+        }),
+      )
+    : fromRows;
   const last = rows[rows.length - 1];
   const synthetic: ProbabilityChartRow = {
     t: nowMs,

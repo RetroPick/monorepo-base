@@ -42,7 +42,7 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
 
     const handleSell = async () => {
         if (!address) {
-            alert("Please connect your wallet first!");
+            alert("Please sign in first!");
             return;
         }
         if (sharesToSell <= 0 || sharesToSell > availableShares) {

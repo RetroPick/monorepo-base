@@ -19,8 +19,6 @@ import (
 
 const portfolioSummaryMaxPairs = 48
 
-const portfolioPnlModelNote = "v1: per (template,epoch) costBasisWei = sum(PositionDeposited.amount)+sum(SideSwitched.feeAmount); markValueWei = getPositionView.totalStake; unrealizedWei = markValueWei-costBasisWei when claimed=false else 0. aggregate.realizedPnlClaimsWei = sum(Claimed.amount) for the wallet (indexed)."
-
 // UserPortfolioSummaryHandler returns aggregate PnL and per-position metrics derived from indexer events + live RPC views.
 func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -141,12 +139,11 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"wallet": wallet,
 			"aggregate": map[string]any{
-				"unrealizedPnlWei":       unrealizedAgg.String(),
-				"realizedPnlClaimsWei":   realized.String(),
-				"pendingClaimTotalWei":   pendingClaimAgg.String(),
-				"totalStakeWei":          totalStakeAgg.String(),
-				"referenceNetStakeWei":   new(big.Int).Add(totalStakeAgg, pendingClaimAgg).String(),
-				"pnlModelNote":           portfolioPnlModelNote,
+				"unrealizedPnlWei":     unrealizedAgg.String(),
+				"realizedPnlClaimsWei": realized.String(),
+				"pendingClaimTotalWei": pendingClaimAgg.String(),
+				"totalStakeWei":        totalStakeAgg.String(),
+				"referenceNetStakeWei": new(big.Int).Add(totalStakeAgg, pendingClaimAgg).String(),
 			},
 			"positions": positionsOut,
 			"dataFreshness": map[string]any{

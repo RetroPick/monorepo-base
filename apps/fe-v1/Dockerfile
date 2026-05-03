@@ -23,6 +23,9 @@ COPY .docs/production .docs/production
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 
+ARG NEXT_PUBLIC_REOWN_PROJECT_ID=d2f5d76bb1b000f9443e2172d3a560ba
+ENV NEXT_PUBLIC_REOWN_PROJECT_ID=$NEXT_PUBLIC_REOWN_PROJECT_ID
+
 RUN --mount=type=cache,target=/pnpm/store,id=pnpm-fe-v1 \
     --mount=type=cache,target=/app/apps/fe-v1/.next/cache,id=next-fe-v1 \
     pnpm --filter fe-v1 build

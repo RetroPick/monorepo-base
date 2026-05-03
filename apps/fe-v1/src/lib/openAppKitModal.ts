@@ -10,5 +10,5 @@ export async function openAppKitModal(): Promise<void> {
     throw new Error("Wallet UI is not initialized. Ensure the app is wrapped in Web3ModalProvider.");
   }
   await modal.ready();
-  await modal.open();
+  await modal.open({ view: 'Connect' });
 }

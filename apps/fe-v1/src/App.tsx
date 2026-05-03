@@ -5,7 +5,6 @@ import RetroErrorState from "@/components/RetroErrorState";
 import AppProviders from "@/app/AppProviders";
 import Activity from "@/views/Activity";
 import Leaderboard from "@/views/Leaderboard";
-import Login from "@/views/Login";
 import MarketsAll from "@/views/MarketsAll";
 import NotFound from "@/views/NotFound";
 import Portfolio from "@/views/Portfolio";
@@ -24,7 +23,7 @@ function App() {
           <Route element={<AppProviders />}>
             <Route path="/" element={<Navigate to="/app/markets/all" replace />} />
             <Route path="/app" element={<Navigate to="/app/markets/all" replace />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<Navigate to="/app/markets/all" replace />} />
             <Route path="/app/markets/all" element={<MarketsAll />} />
             <Route path="/app/markets/updown" element={<Navigate to="/app/markets/all" replace />} />
             <Route path="/app/markets/abovebelow" element={<Navigate to="/app/markets/all" replace />} />

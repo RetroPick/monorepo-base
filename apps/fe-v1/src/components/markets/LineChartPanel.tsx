@@ -145,8 +145,9 @@ export function LineChartPanel({
 
   return (
     <div ref={wrapperRef} className="relative w-full overflow-hidden bg-background" style={{ height }}>
-      <ChartLabelWatermark variant="markets" className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3" />
-      <div ref={containerRef} className="w-full" style={{ height: Math.max(height, 200) }} />
+      <div ref={containerRef} className="relative z-0 w-full" style={{ height: Math.max(height, 200) }} />
+      {/** After chart mount target so canvas paints underneath; lightweight-charts uses sibling canvases. */}
+      <ChartLabelWatermark variant="markets" className="absolute right-2 top-2 z-20 sm:right-3 sm:top-3" />
     </div>
   );
 }

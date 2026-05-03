@@ -168,11 +168,13 @@ Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 | [`.env.example`](.env.example) | Host-run Go API / indexer (`DATABASE_URL`, `PORT`, `RPC_URL`, …) |
 | [`compose.desktop-hairpin.env`](compose.desktop-hairpin.env) | `RETROPICK_COMPOSE_DATABASE_URL` → `host.docker.internal:5433` when `postgres:5432` from containers fails |
 | [`docker-compose.yml`](docker-compose.yml) | Container defaults; optional `RETROPICK_COMPOSE_DATABASE_URL` interpolation |
-| [`apps/fe-v1/.env.local.example`](apps/fe-v1/.env.local.example) | `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_DOCS_URL` for the user app |
+| [`apps/fe-v1/.env.local.example`](apps/fe-v1/.env.local.example) | `NEXT_PUBLIC_API_URL`, optional `NEXT_PUBLIC_DOCS_URL`, and `NEXT_PUBLIC_REOWN_PROJECT_ID` (Reown / WalletConnect) for the user app |
 | [`apps/ops/.env.local.example`](apps/ops/.env.local.example) | `NEXT_PUBLIC_API_URL` for the operator UI |
 | [`package/contract/.env.example`](package/contract/.env.example) | Foundry / deployment scripts |
 
 Do not commit real `.env` files (see root [`.gitignore`](.gitignore)).
+
+**Watchlist mutations:** the Go API defaults to requiring an EIP-191 signature (`RETROPICK_WATCHLIST_REQUIRE_SIGNATURE` unset or `1`). Docker Compose sets `RETROPICK_WATCHLIST_REQUIRE_SIGNATURE=0` so the user app can add markets without signing; use signed mode on any internet-exposed API (see [`.env.example`](.env.example)).
 
 ---
 
@@ -191,7 +193,7 @@ pnpm dev:ops
 pnpm dev:docs
 ```
 
-If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/fe-v1` and `apps/ops` (browser-side requests). If docs are not on `localhost:3002`, set `NEXT_PUBLIC_DOCS_URL` for `apps/fe-v1`.
+If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/fe-v1` and `apps/ops` (browser-side requests). If docs are not on `localhost:3002`, set `NEXT_PUBLIC_DOCS_URL` for `apps/fe-v1`. Set `NEXT_PUBLIC_REOWN_PROJECT_ID` to override the bundled Reown (WalletConnect Cloud) project id; in the [Reown Dashboard](https://dashboard.reown.com) enable **Google** under Email & Socials and add your app origins (e.g. `http://localhost:3000`) under allowed domains.
 
 Use a wallet on **Base Sepolia** with test ETH/USDC per your deployment.
 
@@ -221,6 +223,7 @@ Set these Vercel variables on the `apps/fe-v1` project:
 ```bash
 NEXT_PUBLIC_API_URL=https://api.example.com
 NEXT_PUBLIC_DOCS_URL=https://docs.example.com/docs
+NEXT_PUBLIC_REOWN_PROJECT_ID=d2f5d76bb1b000f9443e2172d3a560ba
 ```
 
 Set these variables on the backend API service:
@@ -229,6 +232,8 @@ Set these variables on the backend API service:
 PORT=8080
 DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB?sslmode=require
 RPC_URL=https://sepolia.base.org
+# Require wallet-signed watchlist POSTs (recommended for production):
+RETROPICK_WATCHLIST_REQUIRE_SIGNATURE=1
 CORS_STRICT=1
 CORS_ALLOWED_ORIGINS=https://app.example.com,https://docs.example.com
 # Optional for Vercel preview deployments:

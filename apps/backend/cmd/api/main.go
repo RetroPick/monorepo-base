@@ -141,7 +141,7 @@ func main() {
 	r.Get("/api/v1/user/portfolio-summary", api.UserPortfolioSummaryHandler(pool, ethCaller, reg))
 	r.Get("/api/v1/user/watchlist/nonce", api.UserWatchlistNonceHandler(pool))
 	r.Get("/api/v1/user/watchlist", api.UserWatchlistListHandler(pool))
-	r.Post("/api/v1/user/watchlist", api.UserWatchlistMutateHandler(pool, reg))
+	r.Post("/api/v1/user/watchlist", api.UserWatchlistMutateHandler(pool, reg, cfg.WatchlistRequireSignature))
 	r.Get("/api/v1/user/faucet-state", api.UserFaucetStateHandler(ethCaller, reg))
 	r.Post("/api/v1/user/faucet-relay", api.UserFaucetRelayHandler(cfg, faucetRelayer, reg))
 

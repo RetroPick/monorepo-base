@@ -83,7 +83,7 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
   const handleBuy = async () => {
     try {
       if (!address) {
-        alert('Please connect your wallet first!');
+        alert("Please sign in first!");
         return;
       }
 

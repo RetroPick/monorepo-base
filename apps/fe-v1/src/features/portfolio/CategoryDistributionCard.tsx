@@ -13,6 +13,10 @@ export type CategoryDistributionCardProps = {
   aboveFold?: boolean;
   /** Show link to Transactions tab below the legend. */
   showHistoryLink?: boolean;
+  /** e.g. Discover strip label — stake is filtered to this bucket before slicing. */
+  discoverFilterTitle?: string | null;
+  /** Preserve `?vertical=` (and other params) when opening Activity from this card. */
+  activityHistoryTo?: string;
   /** `plain` drops outer card chrome when nested in a unified dashboard shell */
   surface?: "card" | "plain";
 };
@@ -42,6 +46,8 @@ export function CategoryDistributionCard({
   compact = false,
   aboveFold = false,
   showHistoryLink = false,
+  discoverFilterTitle,
+  activityHistoryTo = "/app/portfolio?section=activity",
   surface = "card",
 }: CategoryDistributionCardProps) {
   const total = slices.reduce((a, s) => a + Math.max(0, s.value), 0);
@@ -83,9 +89,14 @@ export function CategoryDistributionCard({
           : cn(aboveFold ? "gap-2" : compact ? "gap-4" : "gap-4 sm:flex-row sm:items-center"),
       )}
     >
-      <ChartLabelWatermark variant="portfolio" className="absolute right-2 top-2 z-10 sm:right-3 sm:top-3" />
       <div className="min-w-0 flex-1">
         <h2 className="text-sm font-semibold text-foreground">Category Distribution</h2>
+        {discoverFilterTitle ? (
+          <p className="mt-0.5 text-[10px] font-medium text-primary sm:text-[11px]">
+            Strip: {discoverFilterTitle}
+            <span className="font-normal text-muted-foreground"> — stake in this bucket only</span>
+          </p>
+        ) : null}
         {aboveFold ? null : (
           <p className="mt-1 text-xs text-muted-foreground">By indexed market slug heuristics and stake exposure.</p>
         )}
@@ -130,12 +141,13 @@ export function CategoryDistributionCard({
       </div>
       {showHistoryLink ? (
         <Link
-          to="/app/portfolio?section=activity"
+          to={activityHistoryTo}
           className="text-center text-xs font-semibold text-primary underline-offset-4 hover:underline sm:text-left"
         >
           View History log
         </Link>
       ) : null}
+      <ChartLabelWatermark variant="portfolio" className="pointer-events-none absolute right-2 top-2 z-20 sm:right-3 sm:top-3" />
     </div>
   );
 }

@@ -29,6 +29,10 @@ type Config struct {
 	FaucetRelayPrivateKey string // hex, optional; omit 0x prefix ok
 	// FaucetRelayDeadlineMax caps how far in the future users may set EIP-712 deadline (default 15m).
 	FaucetRelayDeadlineMax time.Duration
+
+	// WatchlistRequireSignature: when true (default), POST /api/v1/user/watchlist requires EIP-191 signature + nonce.
+	// Set RETROPICK_WATCHLIST_REQUIRE_SIGNATURE=0 for unsigned mutations (any caller can mutate any wallet — dev/trusted only).
+	WatchlistRequireSignature bool
 }
 
 func Load() (*Config, error) {
@@ -85,6 +89,10 @@ func Load() (*Config, error) {
 	}
 	faucetRelayKey := strings.TrimSpace(os.Getenv("FAUCET_RELAYER_PRIVATE_KEY"))
 	faucetRelayEnabled := os.Getenv("FAUCET_RELAY_ENABLED") == "1" && faucetRelayKey != ""
+	watchlistRequireSig := true
+	if v := strings.TrimSpace(strings.ToLower(os.Getenv("RETROPICK_WATCHLIST_REQUIRE_SIGNATURE"))); v == "0" || v == "false" {
+		watchlistRequireSig = false
+	}
 	return &Config{
 		DatabaseURL:           db,
 		RPCURL:                rpc,
@@ -102,6 +110,7 @@ func Load() (*Config, error) {
 		FaucetRelayEnabled:    faucetRelayEnabled,
 		FaucetRelayPrivateKey: faucetRelayKey,
 		FaucetRelayDeadlineMax: faucetRelayDeadlineMax,
+		WatchlistRequireSignature: watchlistRequireSig,
 	}, nil
 }
 

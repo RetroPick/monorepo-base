@@ -280,7 +280,7 @@ export function useApproveUsdc(usdcAddress: Address, chainId: number) {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   async function approve(amount: bigint) {
-    if (!address) throw new Error("Connect wallet to approve USDC.");
+    if (!address) throw new Error("Sign in to approve USDC.");
     if (!chain) throw new Error(`Chain ${chainId} is not enabled in the wallet config.`);
     return writeContractAsync({
       address: usdcAddress,
@@ -312,7 +312,7 @@ export function useDepositToSide(chainId: number) {
     outcomeIndex: number,
     amount: bigint,
   ) {
-    if (!address) throw new Error("Connect wallet to deposit.");
+    if (!address) throw new Error("Sign in to deposit.");
     if (!chain) throw new Error(`Chain ${chainId} is not enabled in the wallet config.`);
 
     const yieldToUi = () => new Promise<void>((resolve) => queueMicrotask(resolve));
@@ -364,7 +364,7 @@ export function useSwitchSide(chainId: number) {
     toOutcomeIndex: number,
     amount: bigint,
   ) {
-    if (!address) throw new Error("Connect wallet to switch sides.");
+    if (!address) throw new Error("Sign in to switch sides.");
     if (!chain) throw new Error(`Chain ${chainId} is not enabled in the wallet config.`);
     return writeContractAsync({
       address: engineAddress,
@@ -388,7 +388,7 @@ export function useClaim(chainId: number) {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   async function claim(templateId: `0x${string}`, epochId: bigint) {
-    if (!address) throw new Error("Connect wallet to claim.");
+    if (!address) throw new Error("Sign in to claim.");
     if (!chain) throw new Error(`Chain ${chainId} is not enabled in the wallet config.`);
     return writeContractAsync({
       address: engineAddress,
@@ -413,7 +413,7 @@ export function useClaimMany(chainId: number) {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
 
   async function claimMany(templateId: `0x${string}`, epochIds: bigint[]) {
-    if (!address) throw new Error("Connect wallet to claim.");
+    if (!address) throw new Error("Sign in to claim.");
     if (!chain) throw new Error(`Chain ${chainId} is not enabled in the wallet config.`);
     return writeContractAsync({
       address: engineAddress,

@@ -187,10 +187,6 @@ export function ManualMarketPage({
               ) : null}
 
               <section className="px-0 pb-1 pt-0 sm:px-0">
-                <div className="mb-2">
-                  <h2 className="text-base font-semibold tracking-tight">Chance</h2>
-                  <p className="mt-0.5 text-xs text-muted-foreground">Market-implied probability over time</p>
-                </div>
                 <div className="min-h-[300px]">
                   <ProbabilityChart
                     outcomes={model.outcomes}

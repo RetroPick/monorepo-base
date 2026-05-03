@@ -96,7 +96,7 @@ export function getReownProjectId(): string {
   return (
     envValue("NEXT_PUBLIC_REOWN_PROJECT_ID") ??
     envValue("VITE_REOWN_PROJECT_ID") ??
-    "f39121ec755731ed58c1605658872bce"
+    "d2f5d76bb1b000f9443e2172d3a560ba"
   );
 }
 

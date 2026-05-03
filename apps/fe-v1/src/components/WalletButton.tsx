@@ -33,7 +33,6 @@ import WorldIDVerifier from "./auth/WorldIDVerifier";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { Language } from "@/data/translations";
-import { openAppKitModal } from "@/lib/openAppKitModal";
 import LazyFundWalletDialog from "@/components/wallet/LazyFundWalletDialog";
 import { formatUnits } from "viem";
 import { siteLinks } from "@/config/siteLinks";
@@ -80,14 +79,7 @@ const WalletButton = () => {
     }, [address, balance?.value, isConnected, walletInfo]);
 
     if (!isConnected) {
-        return (
-            <Button
-                onClick={() => void openAppKitModal()}
-                className="h-9 rounded-lg border border-border/50 bg-secondary px-4 text-xs font-semibold text-foreground transition-colors hover:bg-muted sm:px-5 sm:text-sm dark:border-transparent dark:ring-1 dark:ring-white/[0.06]"
-            >
-                Connect Wallet
-            </Button>
-        );
+        return null;
     }
 
     return (

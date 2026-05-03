@@ -550,7 +550,7 @@ export type PortfolioSummaryResponse = {
     pendingClaimTotalWei: string;
     totalStakeWei: string;
     referenceNetStakeWei: string;
-    pnlModelNote: string;
+    pnlModelNote?: string;
   };
   positions: PortfolioSummaryPositionRow[];
   dataFreshness: DataFreshness;
@@ -580,16 +580,17 @@ export type WatchlistMutateRequest = {
   action: "add" | "remove" | "import";
   templateId?: string;
   templateIds?: string[];
-  deadline: number;
-  nonce: number;
-  signature: `0x${string}`;
+  /** Required when the API runs with `RETROPICK_WATCHLIST_REQUIRE_SIGNATURE` enabled (default in production). */
+  deadline?: number;
+  nonce?: number;
+  signature?: `0x${string}`;
 };
 
 export async function postWatchlistMutate(body: WatchlistMutateRequest): Promise<{
   ok: boolean;
   wallet: string;
   action: string;
-  nextNonce: number;
+  nextNonce?: number;
   templateId?: string;
   templateIds?: string[];
 }> {
