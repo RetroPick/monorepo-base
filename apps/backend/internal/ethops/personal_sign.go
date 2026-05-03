@@ -17,7 +17,7 @@ func VerifyPersonalSign(signer common.Address, message []byte, sig []byte) bool 
 	if sigCopy[64] == 27 || sigCopy[64] == 28 {
 		sigCopy[64] -= 27
 	}
-	pub, err := crypto.Ecrecover(digest.Bytes(), sigCopy)
+	pub, err := crypto.Ecrecover(digest, sigCopy)
 	if err != nil || len(pub) == 0 {
 		return false
 	}

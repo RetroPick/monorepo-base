@@ -359,7 +359,7 @@ export function PortfolioPage() {
           })
           .sort();
         const message = buildWatchlistImportSignMessage(defaultWatchlistChainId(), address, sorted, deadline, nonce);
-        const signature = await signMessageAsync({ message });
+        const signature = await signMessageAsync({ message, account: address });
         await postWatchlistMutate({
           wallet: address,
           action: "import",

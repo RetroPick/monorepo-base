@@ -60,7 +60,7 @@ export function ManualMarketWatchlistButton({ templateId, className }: Props) {
       const { nonce } = await fetchWatchlistNonce(address);
       const deadline = Math.floor(Date.now() / 1000) + 14 * 60;
       const message = buildWatchlistAddSignMessage(defaultWatchlistChainId(), address, tid, deadline, nonce);
-      const signature = await signMessageAsync({ message });
+      const signature = await signMessageAsync({ message, account: address });
       await postWatchlistMutate({
         wallet: address,
         action: "add",

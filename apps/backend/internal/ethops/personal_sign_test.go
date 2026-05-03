@@ -15,7 +15,7 @@ func TestVerifyPersonalSign(t *testing.T) {
 	addr := crypto.PubkeyToAddress(key.PublicKey)
 	msg := []byte("RetroPick watchlist v1\nchainId=1\n")
 	digest := accounts.TextHash(msg)
-	sig, err := crypto.Sign(digest.Bytes(), key)
+	sig, err := crypto.Sign(digest, key)
 	if err != nil {
 		t.Fatal(err)
 	}
