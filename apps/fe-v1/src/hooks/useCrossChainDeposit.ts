@@ -140,7 +140,7 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
 
       const txRequest = firstStep?.transactionRequest
       if (!txRequest?.to || !txRequest.data) {
-        throw new Error('Invalid route — no transaction request from LiFi')
+        throw new Error('Invalid route: no transaction request from LiFi')
       }
 
       const bridgeTx = await sendTransactionAsync({
@@ -151,7 +151,7 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
 
       setState(s => ({ ...s, status: 'pending_bridge', bridgeTxHash: bridgeTx }))
 
-      // ── Step 4: Mark as done — UI should poll for USDC arrival ────────────
+      // ── Step 4: Mark as done; UI should poll for USDC arrival ────────────
       // In production, use LiFi status API: GET /status?txHash=...
       // Here we set status to 'done' optimistically; the deposit step
       // (useMarketEngine.depositToSide) will validate the balance before depositing.

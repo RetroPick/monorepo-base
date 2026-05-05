@@ -1,14 +1,17 @@
 package api
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"math/big"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/dbqueries"
@@ -48,12 +51,16 @@ func pairKey(templateID []byte, epochID int64) string {
 	return hex.EncodeToString(templateID) + ":" + strconv.FormatInt(epochID, 10)
 }
 
-// UserPositionsHandler returns live position views for (template, epoch) pairs the user touched (indexed).
+// UserPositionsHandler returns indexed position projections by default; source=live keeps the RPC fallback for debug.
 func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
 		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
 			http.Error(w, `{"error":"invalid wallet (use ?wallet=0x...)"}`, http.StatusBadRequest)
+			return
+		}
+		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		requestedPair, ok := requestedTemplateEpochPair(r)
@@ -102,8 +109,15 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 			}
 		}
 
-		positions := make([]map[string]any, 0, len(pairs))
-		if eth != nil {
+		var positions []map[string]any
+		if r.URL.Query().Get("source") != "live" {
+			positions, err = indexedUserPositions(r.Context(), pool, wallet, requestedPair)
+			if err != nil {
+				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				return
+			}
+		} else if eth != nil {
+			positions = make([]map[string]any, 0, len(pairs))
 			proxy := common.HexToAddress(reg.Contracts.MarketEngineProxy)
 			user := common.HexToAddress(wallet)
 			for _, pair := range pairs {
@@ -130,6 +144,8 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 				m["source"] = pair.source
 				positions = append(positions, m)
 			}
+		} else {
+			positions = []map[string]any{}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -144,12 +160,142 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 	}
 }
 
+func indexedUserPositions(ctx context.Context, pool *pgxpool.Pool, wallet string, requestedPair *userTemplateEpochPair) ([]map[string]any, error) {
+	type pos struct {
+		templateID    []byte
+		epochID       int64
+		stakes        []string
+		totalStake    *big.Int
+		claimed       bool
+		claimedAmount *big.Int
+		updatedBlock  int64
+	}
+	positions := map[string]*pos{}
+	rows, err := pool.Query(ctx, `
+SELECT user_address, template_id, epoch_id, outcome_index, stake_amount::text, claimed_amount::text, claimed, updated_block
+FROM user_position_outcomes
+WHERE LOWER(user_address) = LOWER($1)
+ORDER BY updated_at DESC
+LIMIT 512
+`, wallet)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var user string
+		var templateID []byte
+		var epochID int64
+		var outcome int16
+		var stakeText, claimedText string
+		var claimed bool
+		var updatedBlock int64
+		if err := rows.Scan(&user, &templateID, &epochID, &outcome, &stakeText, &claimedText, &claimed, &updatedBlock); err != nil {
+			return nil, err
+		}
+		if len(templateID) != 32 {
+			continue
+		}
+		key := pairKey(templateID, epochID)
+		p := positions[key]
+		if p == nil {
+			p = &pos{
+				templateID:    templateID,
+				epochID:       epochID,
+				totalStake:    new(big.Int),
+				claimedAmount: new(big.Int),
+			}
+			positions[key] = p
+		}
+		for len(p.stakes) <= int(outcome) {
+			p.stakes = append(p.stakes, "0")
+		}
+		p.stakes[outcome] = stakeText
+		if n, ok := new(big.Int).SetString(stakeText, 10); ok {
+			p.totalStake.Add(p.totalStake, n)
+		}
+		if n, ok := new(big.Int).SetString(claimedText, 10); ok {
+			p.claimedAmount.Add(p.claimedAmount, n)
+		}
+		p.claimed = p.claimed || claimed
+		if updatedBlock > p.updatedBlock {
+			p.updatedBlock = updatedBlock
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if requestedPair != nil {
+		key := pairKey(requestedPair.templateID, requestedPair.epochID)
+		if _, ok := positions[key]; !ok {
+			positions[key] = &pos{
+				templateID:    requestedPair.templateID,
+				epochID:       requestedPair.epochID,
+				totalStake:    new(big.Int),
+				claimedAmount: new(big.Int),
+			}
+		}
+	}
+	out := make([]map[string]any, 0, len(positions))
+	for _, p := range positions {
+		claimableNow := false
+		pendingClaim := "0"
+		var epochStatus string
+		var claimable bool
+		var refMode bool
+		var winningMask pgtype.Int4
+		err := pool.QueryRow(ctx, `
+SELECT status, claimable, ref_mode, winning_outcome_mask
+FROM epochs
+WHERE template_id = $1 AND epoch_id = $2
+`, p.templateID, p.epochID).Scan(&epochStatus, &claimable, &refMode, &winningMask)
+		if err == nil {
+			if claimable && !p.claimed {
+				claimableNow = true
+				if refMode {
+					pendingClaim = p.totalStake.String()
+				} else if winningMask.Valid {
+					winTotal := new(big.Int)
+					for idx, stake := range p.stakes {
+						if (uint64(winningMask.Int32) & (uint64(1) << uint(idx))) == 0 {
+							continue
+						}
+						if n, ok := new(big.Int).SetString(stake, 10); ok {
+							winTotal.Add(winTotal, n)
+						}
+					}
+					pendingClaim = winTotal.String()
+				}
+			}
+		}
+		out = append(out, map[string]any{
+			"templateId":          "0x" + hex.EncodeToString(p.templateID),
+			"epochId":             p.epochID,
+			"wallet":              strings.ToLower(wallet),
+			"source":              "indexed_projection",
+			"stakes":              p.stakes,
+			"totalStake":          p.totalStake.String(),
+			"claimed":             p.claimed,
+			"claimedAmount":       p.claimedAmount.String(),
+			"claimableNow":        claimableNow,
+			"pendingClaimAmount":  pendingClaim,
+			"pendingRefundAmount": "0",
+			"positionViewBlock":   p.updatedBlock,
+		})
+	}
+	return out, nil
+}
+
 // UserClaimsHandler lists Claimed events with indexer payload and epoch claim flags.
 func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
 		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
 			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
+			return
+		}
+		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		limit := int32(100)
@@ -223,6 +369,10 @@ func UserFaucetStateHandler(eth *ethops.Caller, reg *registry.Registry) http.Han
 		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
 		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
 			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
+			return
+		}
+		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		if reg.ChainID != 84532 {

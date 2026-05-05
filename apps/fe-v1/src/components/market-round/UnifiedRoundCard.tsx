@@ -283,7 +283,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                 <div>
                   <div className="text-[10px] font-medium text-muted-foreground">{isThreshold ? "Price" : "Price"}</div>
                   <div className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                    {spotPrice !== undefined ? (isThreshold ? formatPriceThreshold(spotPrice) : formatPrice(spotPrice)) : "—"}
+                    {spotPrice !== undefined ? (isThreshold ? formatPriceThreshold(spotPrice) : formatPrice(spotPrice)) : "-"}
                   </div>
                 </div>
                 <div className="text-right">
@@ -394,7 +394,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-[10px] text-muted-foreground">To win</span>
                     <span className="text-base font-semibold tabular-nums text-foreground">
-                      {potentialWin ? formatUsd(potentialWin) : "—"}
+                      {potentialWin ? formatUsd(potentialWin) : "-"}
                     </span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">{selectedPayout.toFixed(2)}× payout</p>
@@ -493,7 +493,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    {outcomePayout != null ? `${outcomePayout.toFixed(2)}x` : "—"}
+                    {outcomePayout != null ? `${outcomePayout.toFixed(2)}x` : "-"}
                   </div>
                   <div className="mt-1 text-[11px] font-semibold text-foreground">Payout</div>
                 </div>

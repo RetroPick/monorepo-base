@@ -30,8 +30,8 @@ export function outcomeLabelForIndex(row: MarketRow | undefined, idx: number, ou
 }
 
 export function formatImpliedPercent(impliedProbabilityE6: string | undefined): string {
-  if (!impliedProbabilityE6 || !/^\d+$/.test(impliedProbabilityE6)) return "—";
+  if (!impliedProbabilityE6 || !/^\d+$/.test(impliedProbabilityE6)) return "-";
   const n = Number(impliedProbabilityE6) / 10_000;
-  if (!Number.isFinite(n)) return "—";
+  if (!Number.isFinite(n)) return "-";
   return `${n.toFixed(1)}%`;
 }

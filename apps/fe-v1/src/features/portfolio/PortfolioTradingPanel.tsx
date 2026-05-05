@@ -1,9 +1,12 @@
-import { Bookmark, ChevronRight, LayoutList, Loader2, Settings } from "lucide-react";
+import { Bookmark, LayoutList, Loader2, Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import type { ClaimRow, UserChainEventRow } from "@/lib/api/retropickApi";
 import { STAKE_TOKEN_DECIMALS } from "@/config/tokens";
 import { formatStakeUsd, parseStakeRaw } from "@/features/portfolio/formatStakeUsd";
+import { WatchlistResolutionCell } from "@/features/portfolio/WatchlistResolutionCell";
+import { normalizeTemplateId } from "@/features/portfolio/watchlistStorage";
+import { parseWatchlistSlug } from "@/features/portfolio/watchlistSlugParts";
 import { cn } from "@/lib/utils";
 import { discoverChipActive, discoverChipIdle, discoverChipPill } from "@/lib/ui/discover-chip-styles";
 import { explorerTxUrl, PortfolioTransactionsTable } from "@/features/portfolio/PortfolioTransactionsTable";
@@ -24,6 +27,12 @@ export type EnrichedPositionRow = {
   unrealizedPnl: string;
   templateId: string;
   dominantRaw: bigint;
+};
+
+export type WatchlistRowExtra = {
+  resolveAtMs: number | null;
+  totalPoolLabel: string;
+  detailLoading: boolean;
 };
 
 const mainTabActive = "border-primary text-foreground";
@@ -47,6 +56,8 @@ export type PortfolioTradingPanelProps = {
   explorerTxBase: string;
   watchlistTemplateIds: string[];
   watchlistLabels: Map<string, string>;
+  /** Per-template market detail (resolution, pool) for watchlist + positions tables */
+  templateMarketExtras: Map<string, WatchlistRowExtra>;
   /** `plain` merges into a unified dashboard shell (no outer card frame) */
   surface?: "card" | "plain";
   className?: string;
@@ -83,6 +94,7 @@ export function PortfolioTradingPanel({
   explorerTxBase,
   watchlistTemplateIds,
   watchlistLabels,
+  templateMarketExtras,
   surface = "card",
   className,
 }: PortfolioTradingPanelProps) {
@@ -177,10 +189,11 @@ export function PortfolioTradingPanel({
 
           <div className="mt-4 min-h-0 flex-1 overflow-y-auto overflow-x-auto">
             {subTab === "position" ? (
-              <table className="w-full min-w-[720px] text-left text-sm">
+              <table className="w-full min-w-[960px] text-left text-sm">
                 <thead>
                   <tr className="border-b border-border/50 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-white/[0.08]">
                     <th className="px-3 py-2">Outcome</th>
+                    <th className="px-3 py-2">Resolution</th>
                     <th className="px-3 py-2">Shares</th>
                     <th className="px-3 py-2">Market Value</th>
                     <th className="px-3 py-2">Avg. Cost</th>
@@ -192,23 +205,36 @@ export function PortfolioTradingPanel({
                 <tbody className="divide-y divide-border/40 dark:divide-white/[0.06]">
                   {positionsLoading ? (
                     <tr>
-                      <td colSpan={7} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={8} className="px-3 py-8 text-center text-muted-foreground">
                         <Loader2 className="mx-auto size-5 animate-spin opacity-70" aria-hidden />
                       </td>
                     </tr>
                   ) : null}
                   {!positionsLoading && filteredPositions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-3 py-10 text-center text-muted-foreground">
+                      <td colSpan={8} className="px-3 py-10 text-center text-muted-foreground">
                         No data yet.
                       </td>
                     </tr>
                   ) : null}
-                  {filteredPositions.map((row) => (
+                  {filteredPositions.map((row) => {
+                    const tidKey = normalizeTemplateId(row.templateId) ?? row.templateId.trim().toLowerCase();
+                    const extra = templateMarketExtras.get(tidKey);
+                    const slugLine = row.marketLine;
+                    const isBareHexLine = /^0x[a-fA-F0-9]{64}$/.test(slugLine.trim());
+                    const resolutionFallback = isBareHexLine ? "-" : parseWatchlistSlug(slugLine).resolutionLabel;
+                    return (
                     <tr key={row.key} className="hover:bg-muted/25">
                       <td className="px-3 py-3">
                         <p className="font-semibold text-foreground">{row.outcome}</p>
                         <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{row.marketLine}</p>
+                      </td>
+                      <td className="px-3 py-3 align-top">
+                        <WatchlistResolutionCell
+                          resolveAtMs={extra?.resolveAtMs ?? null}
+                          fallbackResolutionLabel={resolutionFallback}
+                          loading={extra?.detailLoading ?? false}
+                        />
                       </td>
                       <td className="px-3 py-3 tabular-nums text-foreground">{row.shares}</td>
                       <td className="px-3 py-3 tabular-nums text-foreground">{row.marketValue}</td>
@@ -218,7 +244,7 @@ export function PortfolioTradingPanel({
                         <span
                           className={cn(
                             row.unrealizedPnl.startsWith("+") ? "text-emerald-600 dark:text-emerald-400" : "",
-                            row.unrealizedPnl === "—" ? "text-muted-foreground" : "",
+                            row.unrealizedPnl === "-" ? "text-muted-foreground" : "",
                           )}
                         >
                           {row.unrealizedPnl}
@@ -233,7 +259,8 @@ export function PortfolioTradingPanel({
                         </Link>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             ) : null}
@@ -292,7 +319,7 @@ export function PortfolioTradingPanel({
                       <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
                         {(() => {
                           const n = parseStakeRaw(c.eventPayload?.amount);
-                          return n !== undefined ? formatStakeUsd(n) : "—";
+                          return n !== undefined ? formatStakeUsd(n) : "-";
                         })()}
                       </td>
                       <td className="px-3 py-3 font-mono text-[11px]">
@@ -347,34 +374,83 @@ export function PortfolioTradingPanel({
                 eventsLoading={eventsLoading}
                 explorerTxBase={explorerTxBase}
               />
-            ) : (
+            ) : watchlistTemplateIds.length === 0 ? (
               <div className="rounded-xl border border-border/50 bg-muted/10 px-4 py-8 text-center dark:border-white/[0.08]">
-                {watchlistTemplateIds.length === 0 ? (
-                  <>
-                    <p className="text-sm font-medium text-foreground">Your watchlist is empty</p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      On a chain market, use <strong className="text-foreground">Watchlist</strong> in the header, or browse{" "}
-                      <Link to="/app/markets/all" className="font-semibold text-primary hover:underline">
-                        markets
-                      </Link>
-                      .
-                    </p>
-                  </>
-                ) : (
-                  <ul className="mx-auto max-w-md space-y-2 text-left">
-                    {watchlistTemplateIds.map((id) => (
-                      <li key={id}>
-                        <Link
-                          to={`/app/chain-markets/${encodeURIComponent(id)}`}
-                          className="flex items-center justify-between rounded-lg border border-border/50 px-3 py-2 text-sm font-medium transition-colors hover:bg-muted/30 dark:border-white/[0.08]"
-                        >
-                          <span className="truncate">{watchlistLabels.get(id) ?? id}</span>
-                          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <p className="text-sm font-medium text-foreground">Your watchlist is empty</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  On a chain market, use <strong className="text-foreground">Watchlist</strong> in the header, or browse{" "}
+                  <Link to="/app/markets/all" className="font-semibold text-primary hover:underline">
+                    markets
+                  </Link>
+                  .
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border/50 bg-card/30 dark:border-white/[0.08]">
+                <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+                  <caption className="sr-only">Saved markets on your watchlist</caption>
+                  <thead className="sticky top-0 z-[1] border-b border-border/50 bg-muted/30 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground backdrop-blur-sm dark:border-white/[0.08] dark:bg-muted/20">
+                    <tr>
+                      <th scope="col" className="px-3 py-2.5">
+                        Market
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Resolution
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Total pool
+                      </th>
+                      <th scope="col" className="px-3 py-2.5">
+                        Type
+                      </th>
+                      <th scope="col" className="px-3 py-2.5 text-right">
+                        <span className="sr-only">Open market</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40 dark:divide-white/[0.06]">
+                    {watchlistTemplateIds.map((templateId) => {
+                      const slug = watchlistLabels.get(templateId) ?? templateId;
+                      const isBareHex = /^0x[a-fA-F0-9]{64}$/.test(slug.trim());
+                      const parsed = isBareHex
+                        ? {
+                            typeLabel: "-",
+                            marketLabel: `${slug.slice(0, 10)}…${slug.slice(-6)}`,
+                            resolutionLabel: "-",
+                            poolLabel: "-",
+                          }
+                        : parseWatchlistSlug(slug);
+                      const extra = templateMarketExtras.get(templateId);
+                      return (
+                        <tr key={templateId} className="hover:bg-muted/25">
+                          <td className="px-3 py-3 align-top">
+                            <p className="font-semibold text-foreground">{parsed.marketLabel}</p>
+                            <p className="mt-0.5 line-clamp-1 font-mono text-xs text-muted-foreground">{slug}</p>
+                          </td>
+                          <td className="px-3 py-3 align-top">
+                            <WatchlistResolutionCell
+                              resolveAtMs={extra?.resolveAtMs ?? null}
+                              fallbackResolutionLabel={parsed.resolutionLabel}
+                              loading={extra?.detailLoading ?? false}
+                            />
+                          </td>
+                          <td className="px-3 py-3 align-top tabular-nums text-foreground">
+                            {extra?.totalPoolLabel ?? "$0.00"}
+                          </td>
+                          <td className="px-3 py-3 align-top text-foreground">{parsed.typeLabel}</td>
+                          <td className="px-3 py-3 align-top text-right">
+                            <Link
+                              to={`/app/chain-markets/${encodeURIComponent(templateId)}`}
+                              className="text-xs font-semibold text-primary hover:underline"
+                            >
+                              Market
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

@@ -393,7 +393,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
       };
 
       // Manual chain-markets UX: always sequential ERC20 approve then depositToSide (two wallet prompts).
-      // EIP-5792 batching is intentionally not used here — bundled calls produce a single confirmation.
+      // EIP-5792 batching is intentionally not used here; bundled calls produce a single confirmation.
       if (needsApprovalNow && !approvedMatchesNow) {
         const approveHash = await engine.approveDepositSpending(parsedAmount);
         if (approveHash) {
@@ -407,7 +407,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
         }
 
         // Allowance already covers this amount (no new approve tx). Do not call deposit in the same
-        // click — embedded / extension wallets often drop the second eth_sendTransaction in one gesture.
+        // click: embedded / extension wallets often drop the second eth_sendTransaction in one gesture.
         void engine.refetchUsdcAllowance?.();
         toast({
           title: "Ready to deposit",
@@ -696,7 +696,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
                   {tab === "Move stake" ? (
                     <div className="text-right">
                       <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                        From {outcomes[switchFromIndex]?.label ?? "—"}
+                        From {outcomes[switchFromIndex]?.label ?? "-"}
                       </div>
                       <div className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground">
                         ${formatShortToken(switchStakeOnFrom)}

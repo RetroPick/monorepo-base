@@ -114,7 +114,7 @@ export function MarketPageTitleBar({
     <div
       ref={barRef}
       className={cn(
-        // Flat on canvas: solid page bg — no stripes (no borders / shadows vs page or header seam).
+        // Flat on canvas: solid page bg, no stripes (no borders / shadows vs page or header seam).
         "sticky z-40 isolate border-0 border-none bg-background shadow-none outline-none ring-0 ring-offset-0 [box-shadow:none]",
         marketTitleBarStickyTopClassName(),
         className,

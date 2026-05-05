@@ -1,5 +1,5 @@
 /**
- * RetroPick — contract registry & ABIs
+ * RetroPick contract registry & ABIs
  *
  * Canonical Base Sepolia deployment: `@retropick/contracts/registry.base-sepolia.json`.
  * MarketEngine calls use `IMarketEngine` ABI against the **proxy** (.dev/abi-map.md).
@@ -31,9 +31,9 @@ export const ABIS = {
   ERC20: erc20Abi,
   /** Testnet stake token ABI. Includes public `mint(address,uint256)`. */
   MockERC20: MockERC20JSON as Abi,
-  /** On-chain `TokenFaucet` (Base Sepolia testnet) — `request(uint256)`. */
+  /** On-chain `TokenFaucet` (Base Sepolia testnet), `request(uint256)`. */
   TokenFaucet: TokenFaucetJSON as Abi,
-  /** Legacy multi-token faucet shape — `claim(address token)`. */
+  /** Legacy multi-token faucet shape, `claim(address token)`. */
   Faucet: LegacyFaucetABI as Abi,
   ExecutionLedger: ExecutionLedgerABI as Abi,
   MarketRegistry: MarketRegistryABI as Abi,

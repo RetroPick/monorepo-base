@@ -192,8 +192,8 @@ export function PortfolioPnLSplitSection({
             {!hasClaimsInWindow ? (
               <p className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center bg-background/80 px-8 text-center text-[10px] leading-snug text-muted-foreground dark:bg-background/60 sm:px-10 sm:text-[11px]">
                 {claims.length === 0
-                  ? "No claim payouts indexed yet — flat until claims appear."
-                  : "No claims in this window — try All or 30d."}
+                  ? "No claim payouts indexed yet. Flat until claims appear."
+                  : "No claims in this window. Try All or 30d."}
               </p>
             ) : null}
           </div>
@@ -211,7 +211,7 @@ export function PortfolioPnLSplitSection({
             <div className="relative z-[1] mt-1.5 min-h-0 space-y-1">
             {bars.length === 0 ? (
               <p className="text-[11px] leading-snug text-muted-foreground">
-                Nothing to show yet — open PnL appears when live stake differs from what you put in (after deposits and
+                Nothing to show yet. Open PnL appears when live stake differs from what you put in (after deposits and
                 side switches).
               </p>
             ) : (

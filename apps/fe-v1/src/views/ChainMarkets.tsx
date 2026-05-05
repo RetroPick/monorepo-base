@@ -90,7 +90,9 @@ export default function ChainMarkets() {
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight">RetroPick chain</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            API: <span className="font-mono text-xs">{apiBase}</span> — Go indexer REST (
+            API: <span className="font-mono text-xs">{apiBase}</span>
+            {" "}
+            (Go indexer REST:{" "}
             <code className="text-xs">/api/v1/markets</code>, etc.).
           </p>
         </header>

@@ -55,7 +55,7 @@ function normalizeTemplateId(raw: string): `0x${string}` {
 
 /** Prefix headline / stat volume with $ when it is a dollar amount (not em dash, not already prefixed). */
 function usdVolumeLabel(label: string): string {
-  if (label === "—" || label === "") return label;
+  if (label === "-" || label === "") return label;
   if (label.startsWith("$")) return label;
   return `$${label}`;
 }
@@ -88,15 +88,15 @@ export function manualMarketFromDiscovery(
     iconColor: market.iconColor,
     image: market.image,
     outcomes,
-    volumeLabel: usdVolumeLabel(market.volume || "—"),
+    volumeLabel: usdVolumeLabel(market.volume || "-"),
     headerStats: [
       {
         label: "Price to beat",
-        value: yes ? `Up ${yesProb}¢` : "—",
+        value: yes ? `Up ${yesProb}¢` : "-",
         valueClassName: "text-emerald-600 dark:text-emerald-400",
       },
       { label: "Final price", value: market.expiry ? `Ends ${market.expiry}` : "Waiting …" },
-      { label: "Vol", value: usdVolumeLabel(market.volume || "—") },
+      { label: "Vol", value: usdVolumeLabel(market.volume || "-") },
     ],
     recentEpochs: [],
     relatedMarkets,
@@ -112,7 +112,7 @@ export function manualMarketFromChainDetail(
   const oc = api.outcomeCount > 0 ? api.outcomeCount : 2;
   const outcomeViews = api.outcomes ?? [];
   const outcomes = buildChainOutcomes(api.marketType, oc, outcomeViews);
-  const volumeLabel = usdVolumeLabel(formatOutcomePoolVolume(outcomeViews) ?? "—");
+  const volumeLabel = usdVolumeLabel(formatOutcomePoolVolume(outcomeViews) ?? "-");
 
   const activeEpochId =
     api.activeEpochId != null && api.activeEpochId >= 0
@@ -138,7 +138,7 @@ export function manualMarketFromChainDetail(
       },
       {
         label: "Active epoch",
-        value: activeEpochId != null ? `#${activeEpochId}` : "—",
+        value: activeEpochId != null ? `#${activeEpochId}` : "-",
       },
     ],
     dataFreshness: api.dataFreshness ?? {

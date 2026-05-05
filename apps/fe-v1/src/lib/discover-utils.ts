@@ -13,7 +13,7 @@ export function yesPercentFromPools(market: Market) {
   return firstOutcomeYesPercent(market);
 }
 
-/** One line under title for discover rail — type, Manual/Rolling, slug when indexer fields are present. */
+/** One line under title for discover rail: type, Manual/Rolling, slug when indexer fields are present. */
 export function discoverListSubtitle(market: Market) {
   return buildDiscoverSubtitle(market);
 }

@@ -1,0 +1,22 @@
+diff --git a/dist/esm/src/client.js b/dist/esm/src/client.js
+index 79697e342068039131b11f6f47d97702e28c9ff2..581ad75665fcd9e9409c736c5836b0d1719b2aa3 100644
+--- a/dist/esm/src/client.js
++++ b/dist/esm/src/client.js
+@@ -121,7 +121,7 @@ export class WagmiAdapter extends AdapterBlueprint {
+         watchConnections(this.wagmiConfig, {
+             onChange: connections => {
+                 this.clearConnections();
+-                this.addConnection(...connections.map(connection => {
++                this.addConnection(...connections.filter(connection => connection.connector).map(connection => {
+                     const caipNetwork = this.getCaipNetworks().find(network => network.id === connection.chainId);
+                     const isAuth = connection.connector.id === CommonConstantsUtil.CONNECTOR_ID.AUTH;
+                     return {
+@@ -150,7 +150,7 @@ export class WagmiAdapter extends AdapterBlueprint {
+                         chainId: accountData.chainId
+                     });
+                 }
+-                if (accountData.status === 'connected') {
++                if (accountData.status === 'connected' && accountData.connector) {
+                     const hasAccountChanged = accountData.address !== prevAccountData?.address;
+                     const hasConnectorChanged = accountData.connector.id !== prevAccountData.connector?.id;
+                     const hasConnectionStatusChanged = prevAccountData.status !== 'connected';

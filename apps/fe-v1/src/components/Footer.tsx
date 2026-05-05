@@ -24,7 +24,7 @@ function FooterThemeButton() {
   return (
     <button
       type="button"
-      className="group relative inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+      className="group relative inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:hover:bg-white/5"
       onClick={() => setTheme(nextTheme)}
       aria-label={`Switch to ${nextTheme} mode`}
       title={`Switch to ${nextTheme} mode`}
@@ -51,7 +51,7 @@ const Footer = () => {
       />
       <footer
         className={cn(
-          "fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.06] bg-[#0b0e11] pb-[env(safe-area-inset-bottom,0px)] text-[12px] leading-none text-muted-foreground",
+          "fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background pb-[env(safe-area-inset-bottom,0px)] text-[12px] leading-none text-muted-foreground",
           "dark:border-white/[0.06]",
         )}
       >
@@ -75,10 +75,10 @@ const Footer = () => {
             <Link to={siteLinks.privacyUrl} className={textLinkClass}>
               {t("footer.privacy")}
             </Link>
-            <span className="hidden h-3 w-px shrink-0 bg-white/20 sm:block" aria-hidden />
+            <span className="hidden h-3 w-px shrink-0 bg-border dark:bg-white/20 sm:block" aria-hidden />
             <a
               href={socialLinks.discord}
-              className="group inline-flex size-8 items-center justify-center rounded-md hover:bg-white/5"
+              className="group inline-flex size-8 items-center justify-center rounded-md hover:bg-muted dark:hover:bg-white/5"
               aria-label="Discord"
               title="Discord"
               {...externalLinkProps}
@@ -87,7 +87,7 @@ const Footer = () => {
             </a>
             <a
               href={socialLinks.telegram}
-              className="group inline-flex size-8 items-center justify-center rounded-md hover:bg-white/5"
+              className="group inline-flex size-8 items-center justify-center rounded-md hover:bg-muted dark:hover:bg-white/5"
               aria-label="Telegram"
               title="Telegram"
               {...externalLinkProps}
@@ -96,7 +96,7 @@ const Footer = () => {
             </a>
             <a
               href={socialLinks.x}
-              className="group inline-flex size-8 items-center justify-center rounded-md hover:bg-white/5"
+              className="group inline-flex size-8 items-center justify-center rounded-md hover:bg-muted dark:hover:bg-white/5"
               aria-label="X (Twitter)"
               title="X"
               {...externalLinkProps}

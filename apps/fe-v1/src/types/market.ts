@@ -13,7 +13,7 @@ export interface Market {
   icon: string;
   /**
    * Product family for routing and card UI (see `resolveMarketCardLayout` in `@/lib/market-card-layout`).
-   * **`Range`** — one pool, mutually exclusive bins. **Multi Yes/No** — omit `isBinary` or use 3+ outcomes: each row is its own Yes/No (not range rules).
+   * **`Range`**: one pool, mutually exclusive bins. **Multi Yes/No**: omit `isBinary` or use 3+ outcomes: each row is its own Yes/No (not range rules).
    * Also: `Threshold`, `Directional`, `Relative`, etc.
    */
   primitive?: string;

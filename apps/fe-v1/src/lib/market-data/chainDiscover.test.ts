@@ -77,8 +77,8 @@ describe("marketRowToCardMarket", () => {
       totalPool: "0",
       volume: "0",
     });
-    expect(m.totalPool).toBe("—");
-    expect(m.volume).toBe("—");
+    expect(m.totalPool).toBe("-");
+    expect(m.volume).toBe("-");
   });
 
   it("shows em dash when summed outcome pools are zero", () => {
@@ -90,7 +90,7 @@ describe("marketRowToCardMarket", () => {
         { outcomeIndex: 1, poolSize: "0", impliedProbabilityE6: "500000" },
       ],
     });
-    expect(m.totalPool).toBe("—");
-    expect(m.volume).toBe("—");
+    expect(m.totalPool).toBe("-");
+    expect(m.volume).toBe("-");
   });
 });

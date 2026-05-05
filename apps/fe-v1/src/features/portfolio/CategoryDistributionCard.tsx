@@ -13,7 +13,7 @@ export type CategoryDistributionCardProps = {
   aboveFold?: boolean;
   /** Show link to Transactions tab below the legend. */
   showHistoryLink?: boolean;
-  /** e.g. Discover strip label — stake is filtered to this bucket before slicing. */
+  /** e.g. Discover strip label; stake is filtered to this bucket before slicing. */
   discoverFilterTitle?: string | null;
   /** Preserve `?vertical=` (and other params) when opening Activity from this card. */
   activityHistoryTo?: string;
@@ -94,7 +94,7 @@ export function CategoryDistributionCard({
         {discoverFilterTitle ? (
           <p className="mt-0.5 text-[10px] font-medium text-primary sm:text-[11px]">
             Strip: {discoverFilterTitle}
-            <span className="font-normal text-muted-foreground"> — stake in this bucket only</span>
+            <span className="font-normal text-muted-foreground">, stake in this bucket only</span>
           </p>
         ) : null}
         {aboveFold ? null : (
@@ -133,7 +133,7 @@ export function CategoryDistributionCard({
               {total > 0 && s.value > 0 ? (
                 <span className="shrink-0 tabular-nums text-muted-foreground">{Math.round((s.value / total) * 100)}%</span>
               ) : (
-                <span className="shrink-0 text-muted-foreground/70">—</span>
+                <span className="shrink-0 text-muted-foreground/70">-</span>
               )}
             </li>
           ))}

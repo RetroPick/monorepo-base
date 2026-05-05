@@ -35,7 +35,7 @@ function HowItWorksVisual({ stepIndex, reducedMotion }: { stepIndex: number; red
         <DemoShell caption="One question, a known end time, and clear resolution rules">
           <div className="max-w-[260px] rounded-xl border-2 border-border/70 bg-card/80 px-4 py-5 text-center shadow-sm dark:border-white/10">
             <p className="text-xs font-semibold leading-snug text-foreground">Will this resolve Yes or No?</p>
-            <p className="mt-2 text-[10px] text-muted-foreground">Example—each real market shows its exact wording.</p>
+            <p className="mt-2 text-[10px] text-muted-foreground">Example: each real market shows its exact wording.</p>
           </div>
         </DemoShell>
       );

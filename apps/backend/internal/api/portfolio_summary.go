@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"math/big"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/dbqueries"
@@ -22,6 +22,8 @@ const portfolioSummaryMaxPairs = 48
 // UserPortfolioSummaryHandler returns aggregate PnL and per-position metrics derived from indexer events + live RPC views.
 func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		_ = eth
+		_ = reg
 		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
 		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
 			http.Error(w, `{"error":"invalid wallet (use ?wallet=0x...)"}`, http.StatusBadRequest)
@@ -78,61 +80,56 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 		pendingClaimAgg := new(big.Int)
 		totalStakeAgg := new(big.Int)
 
-		if eth != nil {
-			proxy := common.HexToAddress(reg.Contracts.MarketEngineProxy)
-			user := common.HexToAddress(wallet)
-			for _, pair := range pairs {
-				if len(pair.TemplateID) != 32 {
-					continue
+		projected, err := indexedUserPositions(ctx, pool, wallet, nil)
+		if err != nil {
+			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			return
+		}
+		projectedByPair := make(map[string]map[string]any, len(projected))
+		for _, p := range projected {
+			tid, _ := p["templateId"].(string)
+			eid, _ := p["epochId"].(int64)
+			if eid == 0 {
+				if f, ok := p["epochId"].(float64); ok {
+					eid = int64(f)
 				}
-				evRows, err := q.ListUserChainEventsForTemplateEpoch(ctx, dbqueries.ListUserChainEventsForTemplateEpochParams{
-					UserAddress: wallet,
-					TemplateID:  pair.TemplateID,
-					EpochID:     pair.EpochID,
-				})
-				if err != nil {
-					http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-					return
-				}
-				costBasis := portfoliopnl.CostBasisWeiFromEvents(evRows)
-
-				tid := common.BytesToHash(pair.TemplateID)
-				rpcCtx, cancel := liveRPCContext(r)
-				pv, blockNum, err := eth.GetPositionView(rpcCtx, proxy, tid, uint64(pair.EpochID), user)
-				cancel()
-				if err != nil {
-					positionsOut = append(positionsOut, map[string]any{
-						"templateId": "0x" + hex.EncodeToString(pair.TemplateID),
-						"epochId":    pair.EpochID,
-						"error":      err.Error(),
-					})
-					continue
-				}
-				mark := new(big.Int)
-				if pv.TotalStake != nil {
-					mark.Set(pv.TotalStake)
-				}
-				un := portfoliopnl.UnrealizedWei(pv.Claimed, mark, costBasis)
-				unrealizedAgg.Add(unrealizedAgg, un)
-				if pv.PendingClaimAmount != nil {
-					pendingClaimAgg.Add(pendingClaimAgg, pv.PendingClaimAmount)
-				}
-				if pv.TotalStake != nil {
-					totalStakeAgg.Add(totalStakeAgg, pv.TotalStake)
-				}
-
-				positionsOut = append(positionsOut, map[string]any{
-					"templateId":          "0x" + hex.EncodeToString(pair.TemplateID),
-					"epochId":             pair.EpochID,
-					"claimed":             pv.Claimed,
-					"costBasisWei":        costBasis.String(),
-					"markValueWei":        mark.String(),
-					"unrealizedPnlWei":    un.String(),
-					"pendingClaimWei":     nullBigStr(pv.PendingClaimAmount),
-					"totalStakeWei":       nullBigStr(pv.TotalStake),
-					"positionViewBlock":   blockNum,
-				})
 			}
+			projectedByPair[strings.TrimPrefix(strings.ToLower(tid), "0x")+":"+strconv.FormatInt(eid, 10)] = p
+		}
+		for _, pair := range pairs {
+			if len(pair.TemplateID) != 32 {
+				continue
+			}
+			evRows, err := q.ListUserChainEventsForTemplateEpoch(ctx, dbqueries.ListUserChainEventsForTemplateEpochParams{
+				UserAddress: wallet,
+				TemplateID:  pair.TemplateID,
+				EpochID:     pair.EpochID,
+			})
+			if err != nil {
+				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				return
+			}
+			costBasis := portfoliopnl.CostBasisWeiFromEvents(evRows)
+			p := projectedByPair[hex.EncodeToString(pair.TemplateID)+":"+strconv.FormatInt(pair.EpochID, 10)]
+			totalStake := bigFromAny(p["totalStake"])
+			pendingClaim := bigFromAny(p["pendingClaimAmount"])
+			claimed, _ := p["claimed"].(bool)
+			un := portfoliopnl.UnrealizedWei(claimed, totalStake, costBasis)
+			unrealizedAgg.Add(unrealizedAgg, un)
+			pendingClaimAgg.Add(pendingClaimAgg, pendingClaim)
+			totalStakeAgg.Add(totalStakeAgg, totalStake)
+			positionsOut = append(positionsOut, map[string]any{
+				"templateId":        "0x" + hex.EncodeToString(pair.TemplateID),
+				"epochId":           pair.EpochID,
+				"claimed":           claimed,
+				"costBasisWei":      costBasis.String(),
+				"markValueWei":      totalStake.String(),
+				"unrealizedPnlWei":  un.String(),
+				"pendingClaimWei":   pendingClaim.String(),
+				"totalStakeWei":     totalStake.String(),
+				"positionViewBlock": p["positionViewBlock"],
+				"source":            "indexed_projection",
+			})
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -159,4 +156,18 @@ func nullBigStr(v *big.Int) string {
 		return "0"
 	}
 	return v.String()
+}
+
+func bigFromAny(v any) *big.Int {
+	switch x := v.(type) {
+	case string:
+		if n, ok := new(big.Int).SetString(x, 10); ok {
+			return n
+		}
+	case *big.Int:
+		if x != nil {
+			return new(big.Int).Set(x)
+		}
+	}
+	return new(big.Int)
 }

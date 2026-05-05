@@ -23,6 +23,19 @@ export function buildWatchlistAddSignMessage(
   return `RetroPick watchlist v1\nchainId=${chainId}\nwallet=${w}\ntemplateId=${tid}\naction=add\ndeadline=${deadline}\nnonce=${nonce}\n`;
 }
 
+/** Matches backend `WatchlistSignMessage` with `action=remove`. */
+export function buildWatchlistRemoveSignMessage(
+  chainId: number,
+  wallet: string,
+  templateId: string,
+  deadline: number,
+  nonce: number,
+): string {
+  const w = normWallet(wallet);
+  const tid = normTemplateIdHex(templateId);
+  return `RetroPick watchlist v1\nchainId=${chainId}\nwallet=${w}\ntemplateId=${tid}\naction=remove\ndeadline=${deadline}\nnonce=${nonce}\n`;
+}
+
 /** Matches backend `WatchlistImportSignMessage`; `templateIds` must be sorted lexicographically. */
 export function buildWatchlistImportSignMessage(
   chainId: number,

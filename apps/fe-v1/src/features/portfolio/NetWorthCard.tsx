@@ -101,14 +101,14 @@ export function NetWorthCard({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center rounded-full border border-border/60 px-3 py-1 text-[11px] font-semibold tabular-nums text-muted-foreground dark:border-white/[0.12]">
             {volumeMetricTitle} {volumeLabel}
-            <span className="ml-2 text-foreground/70">Rank —</span>
+            <span className="ml-2 text-foreground/70">Rank -</span>
           </span>
           <span className="inline-flex items-center rounded-full border border-border/60 px-3 py-1 text-[11px] font-semibold tabular-nums dark:border-white/[0.12]">
             {profitMetricTitle}{" "}
             <span className={cn("ml-1 tabular-nums", profitPositive ? "text-emerald-500 dark:text-emerald-400" : "")}>
               {profitLabel}
             </span>
-            <span className="ml-2 text-muted-foreground">Rank —</span>
+            <span className="ml-2 text-muted-foreground">Rank -</span>
           </span>
           {unrealizedLabel !== undefined && unrealizedLabel !== "" ? (
             <span className="inline-flex items-center rounded-full border border-border/60 px-3 py-1 text-[11px] font-semibold tabular-nums text-muted-foreground dark:border-white/[0.12]">

@@ -65,7 +65,7 @@ function initAppKit() {
 
     window.__retropickReownAppKitInit = true
   } catch (err) {
-    console.error('[RetroPick] Reown AppKit failed to initialize — UI may load without wallet modal.', err)
+    console.error('[RetroPick] Reown AppKit failed to initialize. UI may load without wallet modal.', err)
   }
 }
 
@@ -74,7 +74,7 @@ export function Web3ModalProvider({ children, cookies }: { children: ReactNode; 
     initAppKit()
   }, [])
 
-  /** Pre-warm AppKit before auth actions — Google sign-in needs a synchronous popup. */
+  /** Pre-warm AppKit before auth actions; Google sign-in needs a synchronous popup. */
   useEffect(() => {
     void modal?.ready().catch(() => undefined)
   }, [])

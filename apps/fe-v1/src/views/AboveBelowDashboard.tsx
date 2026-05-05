@@ -435,7 +435,7 @@ export default function AboveBelowDashboard() {
         <main className="relative mx-auto max-w-[1440px] px-5 pb-16 pt-6 lg:px-10">
           {assetClass !== "crypto" ? (
             <p className="mb-2 text-center text-[11px] text-muted-foreground">
-              Illustrative threshold rounds — reference data only; not on-chain settlement.
+              Illustrative threshold rounds (reference only; not on-chain settlement).
             </p>
           ) : null}
           <section className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
@@ -509,7 +509,7 @@ export default function AboveBelowDashboard() {
                       Data: {referenceResult.meta.sourceName} · {referenceResult.meta.subtitle}
                       {activeRound ? ` · Ref ${activeRound.thresholdReferenceAt}` : ""}
                     </span>
-                    <span className="font-mono text-accent-cyan">{pseudoAsset?.displayPair ?? "—"}</span>
+                    <span className="font-mono text-accent-cyan">{pseudoAsset?.displayPair ?? "-"}</span>
                   </>
                 ) : (
                   <span>Reference chart</span>

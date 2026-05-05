@@ -25,7 +25,7 @@ export default function DiscoverFeaturedHero({
   const fullPageHref = detailHref ?? `/app/chain-markets/${encodeURIComponent(market.id)}`;
   const { yes, no } = pickBinaryOutcomes(market);
   const yesPct = yes ? Math.round(yes.probability) : 50;
-  const vol = market.totalPool || market.volume || "—";
+  const vol = market.totalPool || market.volume || "-";
 
   return (
     <section

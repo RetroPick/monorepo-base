@@ -52,7 +52,7 @@ function chainMarket(overrides: Partial<Market>): Market {
       { id: "0", label: "Yes", probability: 50 },
       { id: "1", label: "No", probability: 50 },
     ],
-    volume: "—",
+    volume: "-",
     ...overrides,
   };
 }

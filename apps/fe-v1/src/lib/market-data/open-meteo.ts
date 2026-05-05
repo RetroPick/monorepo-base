@@ -38,7 +38,7 @@ function startDateStr(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Daily max temperature (°C) — archive API. */
+/** Daily max temperature (°C), archive API. */
 export async function fetchOpenMeteoTemperatureHistory(days = 365): Promise<LinePoint[]> {
   const end = new Date();
   const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);

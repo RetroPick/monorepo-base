@@ -54,7 +54,7 @@ export const FUNDING_PROFILES: Record<FundingProfileKey, FundingProfile> = {
     directFundingLabel: 'Direct Arbitrum funding',
     cardRailLabel:      'Buy with Card / Bank',
     directFundingDescription:
-      'Fund your wallet with USDC on Arbitrum One — the settlement chain for all RetroPick markets. ' +
+      'Fund your wallet with USDC on Arbitrum One, the settlement chain for all RetroPick markets. ' +
       'Use the bridge flow to deposit from any other chain.',
     exchangeDescription:
       'Withdraw USDC from a supported exchange directly to your Arbitrum One wallet address.',
@@ -74,7 +74,7 @@ export const FUNDING_PROFILES: Record<FundingProfileKey, FundingProfile> = {
     chainLabel: 'Arbitrum Sepolia',
     receiveLabel:       'Receive testnet USDC',
     directFundingLabel: 'Testnet funding',
-    cardRailLabel:      'Testnet — no card rail',
+    cardRailLabel:      'Testnet: no card rail',
     directFundingDescription:
       'For Arbitrum Sepolia testnet use only. Obtain test USDC from the Circle faucet or a testnet bridge.',
     exchangeDescription:

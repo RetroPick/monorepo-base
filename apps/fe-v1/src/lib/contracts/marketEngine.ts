@@ -197,7 +197,7 @@ export function buildYieldAmountHintLines(
   }
   if (view.recoveryPending) {
     lines.push(
-      "Operator recovery is in progress for routed funds—check market status before sizing a new deposit.",
+      "Operator recovery is in progress for routed funds. Check market status before sizing a new deposit.",
     );
     return lines;
   }
@@ -206,7 +206,7 @@ export function buildYieldAmountHintLines(
   if (view.currentPrincipal > 0n) {
     if (pct) {
       lines.push(
-        `Routed pool principal shows ~${pct}% unrealized yield (vs. principal) in the engine view—settlement splits gross yield after fees.`,
+        `Routed pool principal shows ~${pct}% unrealized yield (vs. principal) in the engine view. Settlement splits gross yield after fees.`,
       );
     } else {
       lines.push("Routed principal is on deposit; unrealized yield is negligible in this snapshot.");
@@ -214,7 +214,7 @@ export function buildYieldAmountHintLines(
   } else {
     lines.push(
       buyMode === "add"
-        ? "No routed principal yet for this template—yield appears as the pool routes to DeFi. Adding stake scales the epoch and your position."
+        ? "No routed principal yet for this template. Yield appears as the pool routes to DeFi. Adding stake scales the epoch and your position."
         : "No routed principal in this snapshot yet.",
     );
   }
@@ -222,7 +222,7 @@ export function buildYieldAmountHintLines(
   if (feeLine) lines.push(feeLine);
   if (buyMode === "add") {
     lines.push(
-      "Bigger stakes increase how much of the epoch pool is yours if your outcome wins—any accrued pool yield lifts payouts for participants after fees.",
+      "Bigger stakes increase how much of the epoch pool is yours if your outcome wins. Any accrued pool yield lifts payouts for participants after fees.",
     );
   }
 
@@ -403,7 +403,7 @@ export function useClaim(chainId: number) {
   return { claim, isPending, isConfirming, isSuccess, txHash, error };
 }
 
-/** `claimMany(templateId, epochIds[])` — single template per call. */
+/** `claimMany(templateId, epochIds[])`: single template per call. */
 export function useClaimMany(chainId: number) {
   const { address } = useAccount();
   const { chains } = useConfig();

@@ -1,5 +1,5 @@
 /**
- * LiFi Bridge Abstraction — Cross-chain → Arbitrum USDC
+ * LiFi bridge abstraction: cross-chain to Arbitrum USDC
  *
  * Implements the Tier A (frontend-only) cross-chain deposit pattern from
  * the abstraction docs (02-integration-modes.md):

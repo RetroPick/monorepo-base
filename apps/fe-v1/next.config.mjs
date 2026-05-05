@@ -14,7 +14,7 @@ if (process.env.VERCEL) {
   const lower = raw.toLowerCase();
   if (lower.includes("127.0.0.1") || lower.includes("localhost")) {
     throw new Error(
-      "Vercel build: NEXT_PUBLIC_API_URL must not point at localhost — browsers load the app from the public internet. " +
+      "Vercel build: NEXT_PUBLIC_API_URL must not point at localhost; browsers load the app from the public internet. " +
         "Deploy apps/backend (see repo README) and set this to that API's HTTPS URL.",
     );
   }

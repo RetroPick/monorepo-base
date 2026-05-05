@@ -8,43 +8,13 @@ import (
 	"net/http"
 	"sort"
 	"strings"
-	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/dbqueries"
-	"retropick/apps/backend/internal/ethops"
-	"retropick/apps/backend/internal/registry"
 )
 
-const watchlistDeadlineMax = 15 * time.Minute
-
-// WatchlistSignMessage builds the canonical EIP-191 message body for watchlist mutations.
-func WatchlistSignMessage(chainID int64, wallet, templateID, action string, deadline int64, nonce int64) string {
-	wallet = strings.ToLower(strings.TrimSpace(wallet))
-	templateID = strings.TrimSpace(templateID)
-	if !strings.HasPrefix(templateID, "0x") {
-		templateID = "0x" + templateID
-	}
-	templateID = strings.ToLower(templateID)
-	return fmt.Sprintf(
-		"RetroPick watchlist v1\nchainId=%d\nwallet=%s\ntemplateId=%s\naction=%s\ndeadline=%d\nnonce=%d\n",
-		chainID, wallet, templateID, action, deadline, nonce,
-	)
-}
-
-// WatchlistImportSignMessage signs a batch of template ids (comma-separated, lowercased) for one nonce bump.
-func WatchlistImportSignMessage(chainID int64, wallet, templateIDsCSV string, deadline int64, nonce int64) string {
-	wallet = strings.ToLower(strings.TrimSpace(wallet))
-	templateIDsCSV = strings.TrimSpace(templateIDsCSV)
-	return fmt.Sprintf(
-		"RetroPick watchlist import v1\nchainId=%d\nwallet=%s\ntemplateIds=%s\ndeadline=%d\nnonce=%d\n",
-		chainID, wallet, templateIDsCSV, deadline, nonce,
-	)
-}
-
-// UserWatchlistNonceHandler returns the current replay-protection nonce (creates row at 0 if missing).
+// UserWatchlistNonceHandler returns the current replay-protection nonce (legacy; unused when mutations are unsigned).
 func UserWatchlistNonceHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
@@ -53,6 +23,10 @@ func UserWatchlistNonceHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		wallet = strings.ToLower(wallet)
+		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
 		ctx := r.Context()
 		q := dbqueries.New(pool)
 		if err := q.CreateUserWatchlistNonceIfMissing(ctx, wallet); err != nil {
@@ -78,6 +52,10 @@ func UserWatchlistListHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		wallet = strings.ToLower(wallet)
+		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
 		ctx := r.Context()
 		rows, err := dbqueries.New(pool).ListUserWatchlist(ctx, wallet)
 		if err != nil {
@@ -96,13 +74,10 @@ func UserWatchlistListHandler(pool *pgxpool.Pool) http.HandlerFunc {
 }
 
 type watchlistMutateBody struct {
-	Wallet       string   `json:"wallet"`
-	TemplateID   string   `json:"templateId"`
-	TemplateIDs  []string `json:"templateIds"`
-	Action       string   `json:"action"`
-	Deadline     int64    `json:"deadline"`
-	Nonce        int64    `json:"nonce"`
-	Signature    string   `json:"signature"`
+	Wallet      string   `json:"wallet"`
+	TemplateID  string   `json:"templateId"`
+	TemplateIDs []string `json:"templateIds"`
+	Action      string   `json:"action"`
 }
 
 // resolveWatchlistTemplates parses and validates template id bytes for add/remove/import.
@@ -188,14 +163,11 @@ func applyWatchlistMutation(ctx context.Context, q *dbqueries.Queries, wallet, a
 	}
 }
 
-func writeWatchlistMutateOK(w http.ResponseWriter, wallet, action string, tplBytesList [][]byte, nextNonce *int64) {
+func writeWatchlistMutateOK(w http.ResponseWriter, wallet, action string, tplBytesList [][]byte) {
 	out := map[string]any{
 		"ok":     true,
 		"wallet": wallet,
 		"action": action,
-	}
-	if nextNonce != nil {
-		out["nextNonce"] = *nextNonce
 	}
 	if action == "import" {
 		imported := make([]string, 0, len(tplBytesList))
@@ -210,8 +182,8 @@ func writeWatchlistMutateOK(w http.ResponseWriter, wallet, action string, tplByt
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// UserWatchlistMutateHandler applies add/remove/import. When requireSignature is true, verifies EIP-191 personal_sign and nonce.
-func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry, requireSignature bool) http.HandlerFunc {
+// UserWatchlistMutateHandler applies add/remove/import for the wallet in the JSON body (no signature).
+func UserWatchlistMutateHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, `{"error":"method"}`, http.StatusMethodNotAllowed)
@@ -228,6 +200,10 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry, requ
 			return
 		}
 		wallet = strings.ToLower(wallet)
+		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
+			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
 		action := strings.TrimSpace(strings.ToLower(body.Action))
 		if action != "add" && action != "remove" && action != "import" {
 			http.Error(w, `{"error":"invalid action"}`, http.StatusBadRequest)
@@ -241,89 +217,14 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry, requ
 		}
 
 		ctx := r.Context()
-
-		if !requireSignature {
-			tx, err := pool.Begin(ctx)
-			if err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-				return
-			}
-			defer func() { _ = tx.Rollback(ctx) }()
-			qtx := dbqueries.New(tx)
-			if err := applyWatchlistMutation(ctx, qtx, wallet, action, tplBytesList); err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-				return
-			}
-			if err := tx.Commit(ctx); err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-				return
-			}
-			writeWatchlistMutateOK(w, wallet, action, tplBytesList, nil)
-			return
-		}
-
-		var msg string
-		if action == "import" {
-			parts := make([]string, 0, len(tplBytesList))
-			for _, tb := range tplBytesList {
-				parts = append(parts, "0x"+hex.EncodeToString(tb))
-			}
-			sort.Strings(parts)
-			msg = WatchlistImportSignMessage(reg.ChainID, wallet, strings.Join(parts, ","), body.Deadline, body.Nonce)
-		} else {
-			tid := "0x" + hex.EncodeToString(tplBytesList[0])
-			msg = WatchlistSignMessage(reg.ChainID, wallet, tid, action, body.Deadline, body.Nonce)
-		}
-		sig := strings.TrimSpace(body.Signature)
-		if !strings.HasPrefix(sig, "0x") || len(sig) < 130 {
-			http.Error(w, `{"error":"invalid signature"}`, http.StatusBadRequest)
-			return
-		}
-		sigBytes := common.FromHex(sig)
-		now := time.Now().Unix()
-		if body.Deadline <= now {
-			http.Error(w, `{"error":"deadline expired"}`, http.StatusBadRequest)
-			return
-		}
-		if body.Deadline > now+int64(watchlistDeadlineMax.Seconds()) {
-			http.Error(w, `{"error":"deadline too far"}`, http.StatusBadRequest)
-			return
-		}
-
-		signer := common.HexToAddress(wallet)
-		if !ethops.VerifyPersonalSign(signer, []byte(msg), sigBytes) {
-			http.Error(w, `{"error":"invalid signature"}`, http.StatusUnauthorized)
-			return
-		}
-
 		tx, err := pool.Begin(ctx)
 		if err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 			return
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
-
-		if _, err := tx.Exec(ctx, `INSERT INTO user_watchlist_nonce (user_address, nonce) VALUES ($1, 0) ON CONFLICT (user_address) DO NOTHING`, wallet); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-			return
-		}
-		var dbNonce int64
-		if err := tx.QueryRow(ctx, `SELECT nonce FROM user_watchlist_nonce WHERE LOWER(user_address)=LOWER($1) FOR UPDATE`, wallet).Scan(&dbNonce); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-			return
-		}
-		if dbNonce != body.Nonce {
-			http.Error(w, `{"error":"stale nonce"}`, http.StatusConflict)
-			return
-		}
-
 		qtx := dbqueries.New(tx)
 		if err := applyWatchlistMutation(ctx, qtx, wallet, action, tplBytesList); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-			return
-		}
-
-		if _, err := tx.Exec(ctx, `UPDATE user_watchlist_nonce SET nonce = nonce + 1, updated_at = NOW() WHERE LOWER(user_address)=LOWER($1)`, wallet); err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 			return
 		}
@@ -331,8 +232,6 @@ func UserWatchlistMutateHandler(pool *pgxpool.Pool, reg *registry.Registry, requ
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 			return
 		}
-
-		next := dbNonce + 1
-		writeWatchlistMutateOK(w, wallet, action, tplBytesList, &next)
+		writeWatchlistMutateOK(w, wallet, action, tplBytesList)
 	}
 }

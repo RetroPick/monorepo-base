@@ -1,5 +1,5 @@
 /**
- * useMarketEngine — High-level MarketEngine interaction hook
+ * useMarketEngine: high-level MarketEngine interaction hook
  *
  * Orchestrates the full deposit flow with USDC approval management:
  *   1. Check USDC balance

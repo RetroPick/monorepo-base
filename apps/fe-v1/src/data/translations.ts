@@ -122,7 +122,7 @@ export const translations = {
             buy: "Buy",
             trade: "Trade",
             range_pool_share: "Pool",
-            range_note: "One contest: mutually exclusive brackets — exactly one wins; rows show pool share (not Yes/No pairs).",
+            range_note: "One contest: mutually exclusive brackets. Exactly one wins; rows show pool share (not Yes/No pairs).",
             multi_yes_pct: "Yes %",
             multi_note:
                 "Each row is its own Yes/No on that outcome (stacked binary lines). Range is different: one pool, one winner. Same strip layout as range for display only.",
@@ -254,7 +254,7 @@ export const translations = {
             buy: "Beli",
             trade: "Perdagangan",
             range_pool_share: "Kolam",
-            range_note: "Satu kontes: bracket eksklusif — satu pemenang; baris menunjukkan porsi kolam (bukan pasangan Ya/Tidak).",
+            range_note: "Satu kontes: bracket eksklusif. Satu pemenang; baris menunjukkan porsi kolam (bukan pasangan Ya/Tidak).",
             multi_yes_pct: "% Ya",
             multi_note:
                 "Setiap baris adalah Ya/Tidak sendiri untuk hasil itu (biner bertumpuk). Rentang beda: satu kolam, satu pemenang. Tata letak strip sama dengan rentang hanya untuk tampilan.",
@@ -385,7 +385,7 @@ export const translations = {
             buy: "购买",
             trade: "交易",
             range_pool_share: "池",
-            range_note: "单一赛事：互斥区间——仅一个胜出；行内为池占比（非是/否成对）。",
+            range_note: "单一赛事：互斥区间，仅一个胜出；行内为池占比（非是/否成对）。",
             multi_yes_pct: "是 %",
             multi_note:
                 "每一行对该结果单独是/否（多个二元叠加）。区间不同：单池单胜。与区间相同的横条布局仅为展示。",
@@ -516,7 +516,7 @@ export const translations = {
             buy: "खरीदें",
             trade: "व्यापार",
             range_pool_share: "पूल",
-            range_note: "एक प्रतियोगिता: अपवर्जित ब्रैकेट — एक ही जीतता है; पंक्तियों में पूल हिस्सा (हाँ/नहीं जोड़े नहीं)।",
+            range_note: "एक प्रतियोगिता: अपवर्जित ब्रैकेट. एक ही जीतता है; पंक्तियों में पूल हिस्सा (हाँ/नहीं जोड़े नहीं)।",
             multi_yes_pct: "हाँ %",
             multi_note:
                 "प्रत्येक पंक्ति उस परिणाम पर अलग हाँ/नहीं है (ढेर सारे छोटे बाइनरी)। रेंज अलग: एक पूल, एक विजेता। रेंज जैसी पट्टी केवल दिखावट के लिए।",
@@ -647,7 +647,7 @@ export const translations = {
             buy: "Comprar",
             trade: "Comercio",
             range_pool_share: "Pool",
-            range_note: "Un solo evento: tramos excluyentes — gana uno; filas = participación del pool (no pares Sí/No).",
+            range_note: "Un solo evento: tramos excluyentes. Gana uno; filas = participación del pool (no pares Sí/No).",
             multi_yes_pct: "% Sí",
             multi_note:
                 "Cada fila es un Sí/No propio sobre ese resultado (binarios apilados). El rango es distinto: un pool, un ganador. Misma franja visual que rango solo por diseño.",

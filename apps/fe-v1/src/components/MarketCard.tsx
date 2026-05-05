@@ -1,6 +1,6 @@
 import { useState, memo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bookmark, Gift } from "lucide-react";
+import { Bookmark, Gift, Loader2 } from "lucide-react";
 import type { Market, MarketOutcome } from "@/types/market";
 import Icon from "./Icon";
 import BetModal from "./BetModal";
@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { formatPayoutMultiplier } from "@/lib/market-odds";
 import { pickBinaryOutcomes, resolveMarketCardLayout } from "@/lib/market-card-layout";
+import { useMarketBookmark } from "@/features/portfolio/useMarketBookmark";
 
 interface MarketCardProps {
   market: Market;
@@ -124,7 +125,7 @@ function AllocationRingMulti({ outcomes }: { outcomes: MarketOutcome[] }) {
   );
 }
 
-/** Small row Yes/No — original gradient 3D-style buttons. */
+/** Small row Yes/No: original gradient 3D-style buttons. */
 const outcomeYesClass =
   "min-w-[2.25rem] rounded border border-emerald-700/95 bg-gradient-to-b from-emerald-500 to-emerald-700 px-1.5 py-0.5 text-[9px] font-bold text-white opacity-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_2px_0_0_rgb(6,95,70),0_2px_6px_rgba(0,0,0,0.25)] transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:text-[10px]";
 
@@ -132,14 +133,14 @@ const outcomeNoClass =
   "min-w-[2.25rem] rounded border border-rose-700/95 bg-gradient-to-b from-rose-500 to-rose-700 px-1.5 py-0.5 text-[9px] font-bold text-white opacity-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_2px_0_0_rgb(159,18,57),0_2px_6px_rgba(0,0,0,0.25)] transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 sm:text-[10px]";
 
 /**
- * Range-bin **Pick!** — same gradient chrome as YES; hover only raises opacity (no brightness / press lift).
+ * Range-bin **Pick!**: same gradient chrome as YES; hover only raises opacity (no brightness / press lift).
  */
 const outcomePickClass =
   "min-h-8 min-w-[4.5rem] rounded-md border border-emerald-700/95 bg-gradient-to-b from-emerald-500 to-emerald-700 px-3 py-1.5 text-[11px] font-bold leading-none text-white opacity-80 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_2px_0_0_rgb(6,95,70),0_2px_6px_rgba(0,0,0,0.25)] transition-opacity duration-200 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 sm:min-h-9 sm:min-w-[5rem] sm:px-3.5 sm:py-2 sm:text-xs";
 
 type BetHandler = (e: React.MouseEvent, side: "YES" | "NO", outcomeLabel: string) => void;
 
-/** Up vs Down — same two-column structure as `BinaryYesNoRow` (label · % · mult · full-width CTA). */
+/** Up vs Down: same two-column structure as `BinaryYesNoRow` (label · % · mult · full-width CTA). */
 function UpDownBinaryRow({
   upOutcome,
   downOutcome,
@@ -260,7 +261,7 @@ function BinaryYesNoRow({
 }
 
 /**
- * **Multi Yes/No** — each row is a **separate** Yes/No sub-market on that outcome (not one winner like range).
+ * **Multi Yes/No**: each row is a **separate** Yes/No sub-market on that outcome (not one winner like range).
  * Strip layout matches range **visually** only (label · implied Yes% · mult · YES/NO).
  */
 function MultiOutcomeRow({
@@ -288,7 +289,7 @@ function MultiOutcomeRow({
       <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
-          aria-label={`Pick ${outcome.label} — ${yesMult}`}
+          aria-label={`Pick ${outcome.label}, ${yesMult}`}
           onClick={(e) => onBet(e, "YES", outcome.label)}
           className={outcomePickClass}
         >
@@ -308,8 +309,8 @@ function MultiOutcomeRow({
 }
 
 /**
- * **Range** — one contest, mutually exclusive bins, **one** winner from the pool; rows show pool share (not Yes/No pairs).
- * Strip shape matches multi **only for layout** — settlement rules differ.
+ * **Range**: one contest, mutually exclusive bins, **one** winner from the pool; rows show pool share (not Yes/No pairs).
+ * Strip shape matches multi **only for layout**; settlement rules differ.
  */
 function RangeBinRow({
   outcome,
@@ -336,7 +337,7 @@ function RangeBinRow({
       <button
         type="button"
         className={outcomePickClass}
-        aria-label={`Pick ${outcome.label} — ${mult}`}
+        aria-label={`Pick ${outcome.label}, ${mult}`}
         onClick={(e) => {
           e.stopPropagation();
           onPickBin(e, outcome.label);
@@ -352,7 +353,7 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [betModal, setBetModal] = useState<{ open: boolean; side: "YES" | "NO"; outcome: string } | null>(null);
-  const [bookmarked, setBookmarked] = useState(false);
+  const bookmark = useMarketBookmark(market.id);
 
   const handleBet: BetHandler = (e, side, outcomeLabel) => {
     e.stopPropagation();
@@ -383,7 +384,7 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
     navigate(`/app/market/${market.id}`, navigationState ? { state: navigationState } : {});
   };
 
-  const statusLabel = (market.status ?? "Open").toLowerCase() === "open" ? "LIVE" : (market.status ?? "—").toUpperCase();
+  const statusLabel = (market.status ?? "Open").toLowerCase() === "open" ? "LIVE" : (market.status ?? "-").toUpperCase();
   const isLive = (market.status ?? "Open").toLowerCase() === "open";
 
   const cardLayout = resolveMarketCardLayout(market);
@@ -392,7 +393,7 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
   const rowOutcomes = market.outcomes;
   const rawFooter = (market.totalPool || market.volume || "").trim();
   const footerPoolLabel =
-    rawFooter === "" || /^0(\.0+)?$/.test(rawFooter.replace(/,/g, "")) ? "—" : rawFooter;
+    rawFooter === "" || /^0(\.0+)?$/.test(rawFooter.replace(/,/g, "")) ? "-" : rawFooter;
 
   const isDiscover = variant === "discover";
   const cardShell = cn(
@@ -498,20 +499,30 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
             >
               <Gift className="size-3.5 sm:size-4" strokeWidth={1.75} />
             </button>
-            <button
-              type="button"
-              aria-label={bookmarked ? "Remove bookmark" : "Bookmark market"}
-              onClick={(e) => {
-                e.stopPropagation();
-                setBookmarked((b) => !b);
-              }}
-              className={cn(
-                "rounded p-1.5 text-muted-foreground transition-all hover:bg-muted hover:text-foreground hover:opacity-100",
-                bookmarked ? "opacity-100" : "opacity-50",
-              )}
-            >
-              <Bookmark className={cn("size-3.5 sm:size-4", bookmarked && "fill-primary text-primary")} strokeWidth={1.75} />
-            </button>
+            {bookmark.templateId ? (
+              <button
+                type="button"
+                aria-label={bookmark.isBookmarked ? "Remove bookmark" : "Bookmark market"}
+                disabled={bookmark.busy || bookmark.watchlistLoading}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void bookmark.toggle();
+                }}
+                className={cn(
+                  "rounded p-1.5 text-muted-foreground transition-all hover:bg-muted hover:text-foreground hover:opacity-100 disabled:pointer-events-none disabled:opacity-40",
+                  bookmark.isBookmarked ? "opacity-100" : "opacity-50",
+                )}
+              >
+                {bookmark.busy ? (
+                  <Loader2 className="size-3.5 animate-spin sm:size-4" strokeWidth={1.75} aria-hidden />
+                ) : (
+                  <Bookmark
+                    className={cn("size-3.5 sm:size-4", bookmark.isBookmarked && "fill-primary text-primary")}
+                    strokeWidth={1.75}
+                  />
+                )}
+              </button>
+            ) : null}
           </div>
         </div>
       </div>

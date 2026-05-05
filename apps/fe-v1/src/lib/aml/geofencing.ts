@@ -1,20 +1,20 @@
 /**
- * AML Geofencing — Jurisdiction Access Controls
+ * AML Geofencing: jurisdiction access controls
  *
  * Implements Section 5 of the RetroPick AML/CFT/CPF Policy v1.0
  *
  * Hard-blocked jurisdictions (deny access):
  *   FATF Blacklisted / OFAC comprehensively sanctioned:
  *     Iran (IR), Myanmar (MM), North Korea (KP), Cuba (CU),
- *     Syria (SY), Crimea/Donetsk/Luhansk (UA — region-specific, treated as UA)
+ *     Syria (SY), Crimea/Donetsk/Luhansk (UA, region-specific, treated as UA)
  *   Legally prohibited:
  *     Singapore (SG), Thailand (TH), Taiwan (TW), France (FR), United States (US)
  *
- * Enhanced monitoring (flag but don't hard-block — FATF grey list):
+ * Enhanced monitoring (flag but don't hard-block; FATF grey list):
  *   Reviewed quarterly against fatf-gafi.org; list current as of April 2026.
  *
  * Policy: both IP detection AND wallet screening must pass before a user
- * may interact with the application (§5, §6 — dual-layer enforcement).
+ * may interact with the application (§5, §6; dual-layer enforcement).
  */
 import { getPublicEnv } from "@/lib/runtimeEnv"
 
@@ -30,16 +30,16 @@ export const BLOCKED_COUNTRY_CODES = new Set<string>([
   'SY', // Syria
 
   // Legally prohibited (product not authorised)
-  'US', // United States — pending CFTC DCM registration
-  'SG', // Singapore — Gambling Control Act 2022
-  'TH', // Thailand — gambling law prohibition
-  'TW', // Taiwan — election betting / prediction market prohibition
-  'FR', // France — ANJ gambling prohibition (Nov 2024)
+  'US', // United States, pending CFTC DCM registration
+  'SG', // Singapore, Gambling Control Act 2022
+  'TH', // Thailand, gambling law prohibition
+  'TW', // Taiwan, election betting / prediction market prohibition
+  'FR', // France, ANJ gambling prohibition (Nov 2024)
 ])
 
-/** FATF Grey-list jurisdictions — enhanced monitoring, not hard-blocked. */
+/** FATF Grey-list jurisdictions: enhanced monitoring, not hard-blocked. */
 export const ENHANCED_MONITORING_COUNTRY_CODES = new Set<string>([
-  // FATF Increased Monitoring list — April 2026
+  // FATF Increased Monitoring list, April 2026
   'BF', // Burkina Faso
   'CM', // Cameroon
   'CD', // Democratic Republic of Congo
@@ -81,14 +81,14 @@ const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
 
 /**
  * Detects the user's country via IP geolocation.
- * Returns 'UNKNOWN' on failure (fail-open — blocked only by wallet screening).
+ * Returns 'UNKNOWN' on failure (fail-open; blocked only by wallet screening).
  */
 async function detectCountryCode(): Promise<string> {
   const now = Date.now()
   if (_cachedCountry && now - _cacheTs < CACHE_TTL_MS) return _cachedCountry
 
   try {
-    // ipapi.co — free tier (1000 req/day); production should use a paid provider
+    // ipapi.co, free tier (1000 req/day); production should use a paid provider
     const apiKey = getPublicEnv("IP_GEOLOCATION_API_KEY")
     const url    = apiKey
       ? `https://ipapi.co/json/?key=${apiKey}`
@@ -122,7 +122,7 @@ export async function checkGeofence(): Promise<GeofenceResult> {
   const countryCode = await detectCountryCode()
 
   if (countryCode === 'UNKNOWN') {
-    // Detection failed — allow but log; wallet screening is the fallback
+    // Detection failed: allow but log; wallet screening is the fallback
     return { allowed: true, countryCode: 'UNKNOWN', isEnhancedMonitoring: false }
   }
 

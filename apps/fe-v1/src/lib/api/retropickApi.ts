@@ -5,7 +5,7 @@ import {
 } from "@/lib/runtimeEnv";
 
 /**
- * RetroPick Go API client — health, markets, config, epochs, user events; extends as backend grows.
+ * RetroPick Go API client: health, markets, config, epochs, user events; extends as backend grows.
  * Default base: NEXT_PUBLIC_API_URL, VITE_API_URL, or http://127.0.0.1:8080.
  */
 
@@ -229,9 +229,11 @@ export type OutcomeView = {
   poolSize: string;
   impliedProbabilityE6: string;
   displayPercentE4?: string;
+  multiplierBps?: string;
   isWinner?: boolean;
   isActiveQuote?: boolean;
   grossPayoutXe6?: string;
+  updatedBlock?: number;
 };
 
 export type ProbabilityHistoryOutcome = {
@@ -412,6 +414,8 @@ export async function fetchMarket(templateId: string): Promise<MarketDetail> {
     rollingHaltReason: typeof raw.rollingHaltReason === "number" ? raw.rollingHaltReason : 0,
     lastIndexedBlock: typeof raw.lastIndexedBlock === "number" ? raw.lastIndexedBlock : 0,
     lastIndexedAt: raw.lastIndexedAt ?? null,
+    totalPool: raw.totalPool,
+    volume: raw.volume,
     activeEpochId: raw.activeEpochId,
     lastResolvedEpochId: raw.lastResolvedEpochId,
     activeEpoch: raw.activeEpoch,
@@ -436,7 +440,7 @@ export async function fetchMarketOutcomes(
 export type FetchMarketProbabilityHistoryOpts = {
   /** Server replay cap (default 5000, max 10000). */
   maxEvents?: number;
-  /** RFC3339 — server filters emitted points after full replay (pools stay correct). */
+  /** RFC3339; server filters emitted points after full replay (pools stay correct). */
   minIndexedAt?: string;
   /** @deprecated Prefer maxEvents; mapped to backend limit for older URLs. */
   limit?: number;
@@ -580,10 +584,6 @@ export type WatchlistMutateRequest = {
   action: "add" | "remove" | "import";
   templateId?: string;
   templateIds?: string[];
-  /** Required when the API runs with `RETROPICK_WATCHLIST_REQUIRE_SIGNATURE` enabled (default in production). */
-  deadline?: number;
-  nonce?: number;
-  signature?: `0x${string}`;
 };
 
 export async function postWatchlistMutate(body: WatchlistMutateRequest): Promise<{

@@ -26,6 +26,7 @@ import {
   fetchFaucetRelay,
   fetchFaucetState,
   fetchMarkets,
+  fetchMarket,
   fetchMarketOutcomes,
   fetchPortfolioSummary,
   fetchRegistryContracts,
@@ -48,6 +49,7 @@ import {
   type PortfolioMainTab,
   type PortfolioSubTab,
   type WatchlistPanelSub,
+  type WatchlistRowExtra,
 } from "@/features/portfolio/PortfolioTradingPanel";
 import { formatSignedStakeUsd, formatStakeUsd, parseStakeRaw, sumNumericStringKey } from "@/features/portfolio/formatStakeUsd";
 import {
@@ -62,7 +64,15 @@ import {
   outcomeLabelForIndex,
   parseStakesArray,
 } from "@/features/portfolio/positionMath";
-import { clearLocalWatchlist, readWatchlist } from "@/features/portfolio/watchlistStorage";
+import { useGuestWatchlistSnapshot } from "@/features/portfolio/useGuestWatchlistSnapshot";
+import {
+  clearGuestWatchlist,
+  clearLocalWatchlist,
+  computePendingWatchlistImport,
+  normalizeTemplateId,
+  readGuestWatchlist,
+  readWatchlist,
+} from "@/features/portfolio/watchlistStorage";
 import { buildFaucetMintSignRequest } from "@/lib/faucetTypedData";
 import { openAppKitModal } from "@/lib/openAppKitModal";
 import {
@@ -77,6 +87,15 @@ const BASE_SEPOLIA_ETH_FAUCETS = [
 ] as const;
 
 const OUTCOME_ENRICH_CAP = 12;
+
+function sortedUniqueTemplateIds(ids: string[]): string[] {
+  const s = new Set<string>();
+  for (const id of ids) {
+    const n = normalizeTemplateId(id);
+    if (n) s.add(n);
+  }
+  return [...s].sort();
+}
 
 /** Stable join for matching `portfolio-summary` rows to `user/positions` rows. */
 function templateEpochKey(templateId: string, epochId: unknown): string {
@@ -214,6 +233,8 @@ export function PortfolioPage() {
     staleTime: 15_000,
   });
 
+  const guestSnap = useGuestWatchlistSnapshot();
+
   const faucetQ = useQuery({
     queryKey: ["retropick-api", "faucet-state", address],
     queryFn: () => fetchFaucetState(address!),
@@ -282,11 +303,11 @@ export function PortfolioPage() {
           key: `${tid}-${epochId}-err`,
           outcome: "Sync error",
           marketLine: String(position.error),
-          shares: "—",
-          marketValue: "—",
-          avgCost: "—",
-          lastPrice: "—",
-          unrealizedPnl: "—",
+          shares: "-",
+          marketValue: "-",
+          avgCost: "-",
+          lastPrice: "-",
+          unrealizedPnl: "-",
           templateId: tid,
           dominantRaw: 0n,
         };
@@ -306,7 +327,7 @@ export function PortfolioPage() {
       const ov = outcomes?.find((o) => o.outcomeIndex === idx);
       const lastPrice = formatImpliedPercent(ov?.impliedProbabilityE6);
       const weiStr = summaryUnrealizedByKey.get(oKey);
-      let unrealizedPnl = "—";
+      let unrealizedPnl = "-";
       if (weiStr !== undefined && /^-?\d+$/.test(weiStr)) {
         unrealizedPnl = formatSignedStakeUsd(BigInt(weiStr));
       } else {
@@ -321,7 +342,7 @@ export function PortfolioPage() {
         marketLine: slug,
         shares: formatStakeUsd(dominantRaw),
         marketValue: formatStakeUsd(totalStake),
-        avgCost: "—",
+        avgCost: "-",
         lastPrice,
         unrealizedPnl,
         templateId: tid,
@@ -329,6 +350,15 @@ export function PortfolioPage() {
       };
     });
   }, [posRows, marketsByTemplate, outcomeByKey, summaryUnrealizedByKey]);
+
+  const positionDetailTemplateIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of enrichedPositions) {
+      const n = normalizeTemplateId(r.templateId);
+      if (n) s.add(n);
+    }
+    return [...s].sort();
+  }, [enrichedPositions]);
 
   const pendingClaimTotal = useMemo(() => sumNumericStringKey(validPos, "pendingClaimAmount"), [validPos]);
   const totalStakeAll = useMemo(() => sumNumericStringKey(validPos, "totalStake"), [validPos]);
@@ -372,19 +402,29 @@ export function PortfolioPage() {
     [searchParams, setSearchParams],
   );
 
-  /** Prefer API; while loading or on API error, fall back to device list so the tab is not empty. */
+  /** Prefer API; merge guest + device pending ids so the tab stays accurate before/after sync. */
   const watchlistIds = useMemo(() => {
-    if (!address) return [];
+    let guest: string[] = [];
+    try {
+      const p = JSON.parse(guestSnap) as unknown;
+      if (Array.isArray(p)) guest = p.filter((x): x is string => typeof x === "string");
+    } catch {
+      /* ignore */
+    }
+    if (!address) return sortedUniqueTemplateIds(guest);
+
+    const server = watchlistQ.data?.templateIds ?? [];
+    const local = readWatchlist(address);
     if (watchlistQ.isSuccess && Array.isArray(watchlistQ.data?.templateIds)) {
-      return watchlistQ.data.templateIds;
+      return sortedUniqueTemplateIds([...watchlistQ.data.templateIds, ...guest, ...local]);
     }
     if (watchlistQ.isError || watchlistQ.isPending || watchlistQ.isLoading) {
-      const local = readWatchlist(address);
-      if (local.length > 0) return local;
+      return sortedUniqueTemplateIds([...guest, ...local, ...server]);
     }
-    return watchlistQ.data?.templateIds ?? [];
+    return sortedUniqueTemplateIds([...server, ...guest, ...local]);
   }, [
     address,
+    guestSnap,
     watchlistQ.data?.templateIds,
     watchlistQ.isError,
     watchlistQ.isLoading,
@@ -393,27 +433,28 @@ export function PortfolioPage() {
   ]);
 
   useEffect(() => {
+    watchlistMigrationDoneRef.current = false;
+  }, [address]);
+
+  useEffect(() => {
     if (!address || !watchlistQ.isSuccess || watchlistMigrationDoneRef.current) return;
-    const local = readWatchlist(address);
     const server = watchlistQ.data?.templateIds ?? [];
-    if (local.length === 0 || server.length > 0) {
+    const guest = readGuestWatchlist();
+    const local = readWatchlist(address);
+    const pending = computePendingWatchlistImport(server, guest, local);
+    if (pending.length === 0) {
       watchlistMigrationDoneRef.current = true;
       return;
     }
     watchlistMigrationDoneRef.current = true;
     void (async () => {
       try {
-        const sorted = [...local]
-          .map((x) => {
-            const t = x.trim();
-            return (t.startsWith("0x") ? t : `0x${t}`).toLowerCase();
-          })
-          .sort();
         await postWatchlistMutate({
           wallet: address,
           action: "import",
-          templateIds: sorted,
+          templateIds: pending,
         });
+        clearGuestWatchlist();
         clearLocalWatchlist(address);
         void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist"] });
         void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary"] });
@@ -430,6 +471,43 @@ export function PortfolioPage() {
     }
     return m;
   }, [watchlistIds, marketsByTemplate]);
+
+  const marketDetailTemplateIds = useMemo(
+    () => sortedUniqueTemplateIds([...watchlistIds, ...positionDetailTemplateIds]),
+    [watchlistIds, positionDetailTemplateIds],
+  );
+
+  const marketDetailQueries = useQueries({
+    queries:
+      marketDetailTemplateIds.length === 0
+        ? []
+        : marketDetailTemplateIds.map((templateId) => ({
+            queryKey: ["retropick-api", "market", templateId] as const,
+            queryFn: () => fetchMarket(templateId),
+            staleTime: 5_000,
+          })),
+  });
+
+  const templateMarketExtras: Map<string, WatchlistRowExtra> = (() => {
+    const m = new Map<string, WatchlistRowExtra>();
+    for (let i = 0; i < marketDetailTemplateIds.length; i++) {
+      const tid = marketDetailTemplateIds[i]!;
+      const q = marketDetailQueries[i];
+      const row = marketsByTemplate.get(tid.toLowerCase());
+      const detail = q?.data;
+      const resolveIso = detail?.activeEpoch?.resolveAt ?? null;
+      let resolveAtMs: number | null = null;
+      if (typeof resolveIso === "string" && resolveIso.length > 0) {
+        const t = Date.parse(resolveIso);
+        if (Number.isFinite(t)) resolveAtMs = t;
+      }
+      const poolRaw = detail?.totalPool ?? row?.totalPool;
+      const totalPoolLabel = formatStakeUsd(parseStakeRaw(poolRaw));
+      const detailLoading = Boolean(q?.isLoading);
+      m.set(tid, { resolveAtMs, totalPoolLabel, detailLoading });
+    }
+    return m;
+  })();
 
   const writeSectionParam = useCallback(
     (opts: { main: PortfolioMainTab; sub?: PortfolioSubTab; watch?: WatchlistPanelSub }) => {
@@ -690,7 +768,7 @@ export function PortfolioPage() {
           });
           toast({
             title: "Gasless faucet submitted",
-            description: `Tx ${txHash.slice(0, 10)}… — balances will update shortly.`,
+            description: `Tx ${txHash.slice(0, 10)}… Balances will update shortly.`,
           });
           void faucetReadsQ.refetch();
           void gasBalanceQ.refetch();
@@ -769,7 +847,7 @@ export function PortfolioPage() {
       ? formatSignedStakeUsd(BigInt(aggUn))
       : pendingClaimTotal > 0n
         ? `+${formatStakeUsd(pendingClaimTotal)}`
-        : "—";
+        : "-";
   const realizedWei = portfolioSummaryQ.data?.aggregate.realizedPnlClaimsWei;
   const profitSignedLabel = !isConnected
     ? "$0.00"
@@ -960,6 +1038,7 @@ export function PortfolioPage() {
               explorerTxBase={explorerTxBase}
               watchlistTemplateIds={watchlistIds}
               watchlistLabels={watchlistLabels}
+              templateMarketExtras={templateMarketExtras}
             />
           </div>
         </section>

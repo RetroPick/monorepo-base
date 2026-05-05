@@ -24,19 +24,23 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/api"
 	"retropick/apps/backend/internal/config"
 	"retropick/apps/backend/internal/db"
 	"retropick/apps/backend/internal/dbqueries"
 	"retropick/apps/backend/internal/ethops"
+	"retropick/apps/backend/internal/funding"
+	"retropick/apps/backend/internal/marketdata"
 	"retropick/apps/backend/internal/pglisten"
+	"retropick/apps/backend/internal/realtime"
 	"retropick/apps/backend/internal/registry"
 	"retropick/apps/backend/internal/wshub"
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool { return false },
 }
 
 func main() {
@@ -94,13 +98,41 @@ func main() {
 	defer pool.Close()
 
 	hub := wshub.NewHub()
+	allowlist := funding.Allowlist{
+		Providers: map[string]struct{}{},
+		Chains:    map[int64]struct{}{},
+		Tokens:    map[string]struct{}{},
+	}
+	for _, p := range cfg.FundingAllowedProviders {
+		allowlist.Providers[p] = struct{}{}
+	}
+	for _, c := range cfg.FundingAllowedChains {
+		allowlist.Chains[c] = struct{}{}
+	}
+	for _, t := range cfg.FundingAllowedTokens {
+		allowlist.Tokens[t] = struct{}{}
+	}
+	fundingSvc := funding.NewService(pool, funding.NewLifiProvider(cfg.LifiBaseURL, cfg.LifiTimeout), allowlist, log)
+	creditWorker := funding.NewCreditWorker(pool, log, 2*time.Second)
+	marketDataSvc := marketdata.NewService(pool, log)
+	_ = marketDataSvc
 	go func() {
-		if err := pglisten.Run(ctx, cfg.DatabaseURL, hub, log); err != nil && ctx.Err() == nil {
+		if err := creditWorker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			log.Warn("credit worker stopped", "err", err)
+		}
+	}()
+	go func() {
+		if err := pglisten.Run(ctx, cfg.DatabaseURL, pool, hub, log); err != nil && ctx.Err() == nil {
 			log.Error("pg listen stopped", "err", err)
 		}
 	}()
 
 	r := chi.NewRouter()
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, api.WithAuthSecret(r, cfg.AuthJWTSecret))
+		})
+	})
 	// CORS: see internal/api/cors.go — non-strict mode allows any localhost / 127.0.0.1 http port
 	// (ops may bind 3001–3030). Set CORS_STRICT=1 in production; use CORS_ALLOWED_ORIGINS for extra domains.
 	r.Use(cors.Handler(cors.Options{
@@ -110,6 +142,7 @@ func main() {
 		AllowCredentials: false,
 	}))
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
+	r.Use(api.RateLimitMiddleware)
 
 	api.RegisterHealthRoutes(r, pool, ethCaller, reg, api.BuildInfo{
 		Version: cfg.BuildVersion,
@@ -134,14 +167,17 @@ func main() {
 		_ = json.NewEncoder(w).Encode(contractsPayload)
 	})
 
-	r.Mount("/api/v1/ops", api.OpsRouter(pool, reg, ethCaller))
+	r.Mount("/api/v1/ops", api.RequireOperator(api.OpsRouter(pool, reg, ethCaller), cfg.AuthJWTSecret))
+	r.Mount("/api/v1/tx", api.TxRouter(pool, ethCaller, reg))
+	r.Mount("/api/v1/funding", api.FundingRouter(pool, reg, fundingSvc))
 
+	r.Get("/api/v1/user/balance", api.UserBalanceHandler(pool))
 	r.Get("/api/v1/user/positions", api.UserPositionsHandler(pool, ethCaller, reg))
 	r.Get("/api/v1/user/claims", api.UserClaimsHandler(pool))
 	r.Get("/api/v1/user/portfolio-summary", api.UserPortfolioSummaryHandler(pool, ethCaller, reg))
 	r.Get("/api/v1/user/watchlist/nonce", api.UserWatchlistNonceHandler(pool))
 	r.Get("/api/v1/user/watchlist", api.UserWatchlistListHandler(pool))
-	r.Post("/api/v1/user/watchlist", api.UserWatchlistMutateHandler(pool, reg, cfg.WatchlistRequireSignature))
+	r.Post("/api/v1/user/watchlist", api.UserWatchlistMutateHandler(pool))
 	r.Get("/api/v1/user/faucet-state", api.UserFaucetStateHandler(ethCaller, reg))
 	r.Post("/api/v1/user/faucet-relay", api.UserFaucetRelayHandler(cfg, faucetRelayer, reg))
 
@@ -164,60 +200,16 @@ func main() {
 		}
 		st, _ := q.GetIndexerState(ctx)
 
-		type liveMarketSnapshot struct {
-			outcomes         []map[string]any
-			outcomeViewBlock uint64
-			totalPool        string
-		}
-
-		liveByTemplate := map[string]liveMarketSnapshot{}
-		if ethCaller != nil {
-			sem := make(chan struct{}, 4)
-			var mu sync.Mutex
-			var wg sync.WaitGroup
-			for _, row := range rows {
-				if !row.Initialized || !row.ActiveEpochID.Valid {
-					continue
-				}
-				row := row
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					sem <- struct{}{}
-					defer func() { <-sem }()
-
-					rpcCtx, cancel := apiLiveRPCContext(r)
-					defer cancel()
-
-					outcomes, blockNum, err := ethCaller.GetOutcomeViews(
-						rpcCtx,
-						common.HexToAddress(reg.Contracts.MarketEngineProxy),
-						common.BytesToHash(row.TemplateID),
-						uint64(row.ActiveEpochID.Int64),
-					)
-					if err != nil {
-						return
-					}
-					total := new(big.Int)
-					for _, outcome := range outcomes {
-						total.Add(total, outcomePoolBigInt(outcome))
-					}
-
-					mu.Lock()
-					liveByTemplate[hex.EncodeToString(row.TemplateID)] = liveMarketSnapshot{
-						outcomes:         outcomes,
-						outcomeViewBlock: blockNum,
-						totalPool:        total.String(),
-					}
-					mu.Unlock()
-				}()
-			}
-			wg.Wait()
+		projections, err := loadMarketSnapshots(ctx, pool)
+		if err != nil {
+			http.Error(w, `{"error":"list market projections"}`, http.StatusInternalServerError)
+			return
 		}
 
 		out := make([]map[string]any, 0, len(rows))
 		for _, row := range rows {
-			if _, ok := hidden[hex.EncodeToString(row.TemplateID)]; ok {
+			tidKey := hex.EncodeToString(row.TemplateID)
+			if _, ok := hidden[tidKey]; ok {
 				continue
 			}
 			m := map[string]any{
@@ -245,13 +237,16 @@ func main() {
 			if row.HaltedAtEpochID.Valid {
 				m["haltedAtEpochId"] = row.HaltedAtEpochID.Int64
 			}
-			if snap, ok := liveByTemplate[hex.EncodeToString(row.TemplateID)]; ok {
-				m["outcomes"] = snap.outcomes
-				m["outcomeViewBlock"] = snap.outcomeViewBlock
-				if snap.totalPool != "" {
-					m["totalPool"] = snap.totalPool
-					m["volume"] = snap.totalPool
-				}
+			if snap, ok := projections[tidKey]; ok {
+				m["activeEpochId"] = snap.ActiveEpochID
+				m["status"] = snap.Status
+				m["totalPool"] = snap.TotalPool
+				m["volume"] = snap.Volume
+				m["outcomeCount"] = snap.OutcomeCount
+				m["outcomeViewBlock"] = snap.LastIndexedBlock
+				m["lastIndexedBlock"] = snap.LastIndexedBlock
+				m["lastIndexedAt"] = snap.UpdatedAt.UTC().Format(time.RFC3339)
+				m["outcomes"] = snap.Outcomes
 			}
 			out = append(out, m)
 		}
@@ -330,18 +325,23 @@ func main() {
 				}
 				resp["activeEpoch"] = ae
 			}
-			if ethCaller != nil {
-				tid := common.BytesToHash(row.TemplateID)
-				proxy := common.HexToAddress(reg.Contracts.MarketEngineProxy)
-				rpcCtx, cancel := apiLiveRPCContext(r)
-				outcomes, blockNum, err := ethCaller.GetOutcomeViews(rpcCtx, proxy, tid, uint64(row.ActiveEpochID.Int64))
-				cancel()
-				if err == nil {
-					resp["outcomes"] = outcomes
-					resp["outcomeViewBlock"] = blockNum
-				} else {
-					resp["outcomesError"] = err.Error()
+			if snap, err := loadMarketSnapshot(ctx, pool, row.TemplateID); err == nil {
+				resp["activeEpochId"] = snap.ActiveEpochID
+				resp["status"] = snap.Status
+				resp["totalPool"] = snap.TotalPool
+				resp["volume"] = snap.Volume
+				resp["outcomeCount"] = snap.OutcomeCount
+				resp["outcomes"] = snap.Outcomes
+				resp["outcomeViewBlock"] = snap.LastIndexedBlock
+				resp["lastIndexedBlock"] = snap.LastIndexedBlock
+				resp["lastIndexedAt"] = snap.UpdatedAt.UTC().Format(time.RFC3339)
+				resp["dataFreshness"] = map[string]any{
+					"lastSyncAt":       snap.UpdatedAt.UTC().Format(time.RFC3339),
+					"lastIndexedBlock": snap.LastIndexedBlock,
 				}
+			} else if !errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, `{"error":"market projection"}`, http.StatusInternalServerError)
+				return
 			}
 		}
 		if row.LastResolvedEpochID.Valid {
@@ -350,6 +350,8 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
+
+	r.Get("/api/v1/markets/{templateId}/chart", api.ChartHandler(pool))
 
 	r.Get("/api/v1/markets/{templateId}/epochs", func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
@@ -423,10 +425,6 @@ func main() {
 			http.Error(w, `{"error":"invalid epochId"}`, http.StatusBadRequest)
 			return
 		}
-		if ethCaller == nil {
-			http.Error(w, `{"error":"eth client unavailable"}`, http.StatusServiceUnavailable)
-			return
-		}
 		q := dbqueries.New(pool)
 		isHid, err := q.IsTemplateFrontendHidden(r.Context(), b)
 		if err != nil {
@@ -435,6 +433,26 @@ func main() {
 		}
 		if isHid {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			return
+		}
+		if r.URL.Query().Get("source") != "live" {
+			outcomes, blockNum, err := loadMarketOutcomes(r.Context(), pool, b, int64(eid))
+			if err != nil {
+				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"source":      "projection",
+				"templateId":  "0x" + hex.EncodeToString(b),
+				"epochId":     eid,
+				"blockNumber": blockNum,
+				"outcomes":    outcomes,
+			})
+			return
+		}
+		if ethCaller == nil {
+			http.Error(w, `{"error":"eth client unavailable"}`, http.StatusServiceUnavailable)
 			return
 		}
 		ctx, cancel := apiLiveRPCContext(r)
@@ -593,25 +611,134 @@ func main() {
 	})
 
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+		upgrader.CheckOrigin = buildWSOriginChecker(cfg.WSAllowedOrigins)
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
 		}
 		defer c.Close()
-		ch := hub.Subscribe()
-		defer hub.Unsubscribe(ch)
-		_ = c.WriteJSON(map[string]any{"type": "hello", "ts": time.Now().UTC().Format(time.RFC3339)})
+		c.SetReadLimit(4096)
+		client := hub.Subscribe()
+		defer hub.Unsubscribe(client)
+		var writeMu sync.Mutex
+		principal, principalErr := api.PrincipalFromRequest(r, cfg.AuthJWTSecret)
+		isAuthed := principalErr == nil && principal != nil
+
+		lastSeq := int64(0)
+		if raw := r.URL.Query().Get("lastSeq"); raw != "" {
+			if n, err := strconv.ParseInt(raw, 10, 64); err == nil && n > 0 {
+				lastSeq = n
+			}
+		}
+		writeMu.Lock()
+		_ = c.WriteJSON(map[string]any{"type": "hello", "channel": "system", "ts": time.Now().UTC().Format(time.RFC3339)})
+		writeMu.Unlock()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			subscribeCount := 0
+			subscribeWindowStart := time.Now()
+			for {
+				var msg struct {
+					Type     string   `json:"type"`
+					Channels []string `json:"channels"`
+					LastSeq  int64    `json:"lastSeq"`
+				}
+				if err := c.ReadJSON(&msg); err != nil {
+					return
+				}
+				switch msg.Type {
+				case "subscribe":
+					now := time.Now()
+					if now.Sub(subscribeWindowStart) >= time.Minute {
+						subscribeWindowStart = now
+						subscribeCount = 0
+					}
+					subscribeCount++
+					if subscribeCount > 30 {
+						writeMu.Lock()
+						_ = c.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"code": "RATE_LIMITED", "message": "too many subscribe messages"}})
+						writeMu.Unlock()
+						return
+					}
+					if len(client.Subscriptions())+len(msg.Channels) > 50 {
+						writeMu.Lock()
+						_ = c.WriteJSON(map[string]any{"type": "error", "error": map[string]any{"code": "CHANNEL_LIMIT", "message": "max 50 channels"}})
+						writeMu.Unlock()
+						continue
+					}
+					accepted := make([]string, 0, len(msg.Channels))
+					for _, channel := range msg.Channels {
+						if websocketChannelAllowed(r.Context(), pool, channel, principal, isAuthed) {
+							client.Subscribe(channel)
+							accepted = append(accepted, channel)
+						}
+					}
+					if lastSeq > 0 && len(accepted) > 0 {
+						writeMu.Lock()
+						err := replayRealtimeEvents(r.Context(), pool, c, lastSeq, 500, accepted)
+						writeMu.Unlock()
+						if err != nil {
+							writeMu.Lock()
+							_ = c.WriteJSON(map[string]any{"type": "resync_required", "channel": "system", "lastSeq": lastSeq})
+							writeMu.Unlock()
+						}
+					}
+					writeMu.Lock()
+					_ = c.WriteJSON(map[string]any{"type": "subscribed", "channels": accepted})
+					writeMu.Unlock()
+				case "unsubscribe":
+					for _, channel := range msg.Channels {
+						client.Unsubscribe(channel)
+					}
+					writeMu.Lock()
+					_ = c.WriteJSON(map[string]any{"type": "unsubscribed", "channels": msg.Channels})
+					writeMu.Unlock()
+				case "resume":
+					if msg.LastSeq > 0 {
+						channels := client.Subscriptions()
+						writeMu.Lock()
+						err := replayRealtimeEvents(r.Context(), pool, c, msg.LastSeq, 500, channels)
+						writeMu.Unlock()
+						if err != nil {
+							writeMu.Lock()
+							_ = c.WriteJSON(map[string]any{"type": "resync_required", "channel": "global", "reason": "SEQUENCE_GAP"})
+							writeMu.Unlock()
+						}
+					}
+				case "ping":
+					writeMu.Lock()
+					_ = c.WriteJSON(map[string]any{"type": "pong", "ts": time.Now().UTC().Format(time.RFC3339)})
+					writeMu.Unlock()
+				}
+			}
+		}()
+
+		ticker := time.NewTicker(25 * time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case msg, ok := <-ch:
+			case <-done:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				if err := c.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(5*time.Second)); err != nil {
+					writeMu.Unlock()
+					return
+				}
+				writeMu.Unlock()
+			case msg, ok := <-client.C:
 				if !ok {
 					return
 				}
+				writeMu.Lock()
 				if err := c.WriteMessage(websocket.TextMessage, msg); err != nil {
+					writeMu.Unlock()
 					return
 				}
+				writeMu.Unlock()
 			}
 		}
 	})
@@ -637,18 +764,199 @@ func formatTime(t pgtype.Timestamptz) any {
 	return t.Time.UTC().Format(time.RFC3339)
 }
 
-func apiLiveRPCContext(r *http.Request) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(r.Context(), 12*time.Second)
+type marketProjectionSnapshot struct {
+	TemplateID       []byte
+	ActiveEpochID    int64
+	Status           string
+	TotalPool        string
+	Volume           string
+	OutcomeCount     int16
+	LastIndexedBlock int64
+	UpdatedAt        time.Time
+	Outcomes         []map[string]any
 }
 
-func outcomePoolBigInt(outcome map[string]any) *big.Int {
-	if outcome == nil {
-		return new(big.Int)
+func loadMarketSnapshots(ctx context.Context, pool *pgxpool.Pool) (map[string]marketProjectionSnapshot, error) {
+	rows, err := pool.Query(ctx, `
+SELECT template_id, active_epoch_id, status, total_pool::text, volume::text, outcome_count, last_indexed_block, updated_at
+FROM market_snapshots
+`)
+	if err != nil {
+		return nil, err
 	}
-	if n, ok := jsonBig(outcome["poolSize"]); ok {
-		return n
+	defer rows.Close()
+	out := map[string]marketProjectionSnapshot{}
+	for rows.Next() {
+		var snap marketProjectionSnapshot
+		if err := rows.Scan(&snap.TemplateID, &snap.ActiveEpochID, &snap.Status, &snap.TotalPool, &snap.Volume, &snap.OutcomeCount, &snap.LastIndexedBlock, &snap.UpdatedAt); err != nil {
+			return nil, err
+		}
+		outcomes, _, err := loadMarketOutcomes(ctx, pool, snap.TemplateID, snap.ActiveEpochID)
+		if err != nil {
+			return nil, err
+		}
+		snap.Outcomes = outcomes
+		out[hex.EncodeToString(snap.TemplateID)] = snap
 	}
-	return new(big.Int)
+	return out, rows.Err()
+}
+
+func loadMarketSnapshot(ctx context.Context, pool *pgxpool.Pool, templateID []byte) (marketProjectionSnapshot, error) {
+	var snap marketProjectionSnapshot
+	err := pool.QueryRow(ctx, `
+SELECT template_id, active_epoch_id, status, total_pool::text, volume::text, outcome_count, last_indexed_block, updated_at
+FROM market_snapshots
+WHERE template_id = $1
+`, templateID).Scan(&snap.TemplateID, &snap.ActiveEpochID, &snap.Status, &snap.TotalPool, &snap.Volume, &snap.OutcomeCount, &snap.LastIndexedBlock, &snap.UpdatedAt)
+	if err != nil {
+		return snap, err
+	}
+	outcomes, _, err := loadMarketOutcomes(ctx, pool, snap.TemplateID, snap.ActiveEpochID)
+	if err != nil {
+		return snap, err
+	}
+	snap.Outcomes = outcomes
+	return snap, nil
+}
+
+func loadMarketOutcomes(ctx context.Context, pool *pgxpool.Pool, templateID []byte, epochID int64) ([]map[string]any, int64, error) {
+	rows, err := pool.Query(ctx, `
+SELECT outcome_index, pool_amount::text, probability_bps, multiplier_bps, updated_block
+FROM market_epoch_outcomes
+WHERE template_id = $1 AND epoch_id = $2
+ORDER BY outcome_index
+`, templateID, epochID)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	outcomes := []map[string]any{}
+	var maxBlock int64
+	for rows.Next() {
+		var idx int16
+		var amount string
+		var prob, mult int32
+		var updatedBlock int64
+		if err := rows.Scan(&idx, &amount, &prob, &mult, &updatedBlock); err != nil {
+			return nil, 0, err
+		}
+		if updatedBlock > maxBlock {
+			maxBlock = updatedBlock
+		}
+		outcomes = append(outcomes, map[string]any{
+			"outcomeIndex":         idx,
+			"poolSize":             amount,
+			"impliedProbabilityE6": fmt.Sprintf("%d", prob*100),
+			"displayPercentE4":     fmt.Sprintf("%d", prob),
+			"multiplierBps":        fmt.Sprintf("%d", mult),
+			"grossPayoutXe6":       fmt.Sprintf("%d", mult*100),
+			"updatedBlock":         updatedBlock,
+		})
+	}
+	return outcomes, maxBlock, rows.Err()
+}
+
+func replayRealtimeEvents(ctx context.Context, pool *pgxpool.Pool, c *websocket.Conn, afterSeq int64, limit int32, allowedChannels []string) error {
+	allowedSet := make(map[string]struct{}, len(allowedChannels))
+	for _, ch := range allowedChannels {
+		allowedSet[strings.ToLower(strings.TrimSpace(ch))] = struct{}{}
+	}
+	rows, err := pool.Query(ctx, `
+SELECT seq
+FROM realtime_events
+WHERE seq > $1
+ORDER BY seq ASC
+LIMIT $2
+`, afterSeq, limit)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var seqs []int64
+	for rows.Next() {
+		var seq int64
+		if err := rows.Scan(&seq); err != nil {
+			return err
+		}
+		seqs = append(seqs, seq)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, seq := range seqs {
+		env, err := realtime.LoadEnvelope(ctx, pool, seq)
+		if err != nil {
+			return err
+		}
+		if len(allowedSet) > 0 {
+			if _, ok := allowedSet[strings.ToLower(strings.TrimSpace(env.Channel))]; !ok {
+				continue
+			}
+		}
+		msg, err := json.Marshal(env)
+		if err != nil {
+			return err
+		}
+		if err := c.WriteMessage(websocket.TextMessage, msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func websocketChannelAllowed(ctx context.Context, pool *pgxpool.Pool, channel string, principal *api.Principal, isAuthed bool) bool {
+	channel = strings.ToLower(strings.TrimSpace(channel))
+	switch {
+	case channel == "global:markets":
+		return true
+	case strings.HasPrefix(channel, "market:"):
+		return true
+	case strings.HasPrefix(channel, "epoch:"):
+		return true
+	case strings.HasPrefix(channel, "oracle:"):
+		return true
+	case strings.HasPrefix(channel, "chart:"):
+		return true
+	case strings.HasPrefix(channel, "user:"):
+		if !isAuthed || principal == nil {
+			return false
+		}
+		return channel == "user:"+strings.ToLower(strings.TrimSpace(principal.Wallet))
+	case strings.HasPrefix(channel, "deposit:"):
+		if !isAuthed || principal == nil {
+			return false
+		}
+		intentID := strings.TrimPrefix(channel, "deposit:")
+		var owner string
+		err := pool.QueryRow(ctx, `SELECT user_address FROM funding_intents WHERE id::text = $1`, intentID).Scan(&owner)
+		return err == nil && strings.EqualFold(owner, principal.Wallet)
+	case strings.HasPrefix(channel, "ops:"):
+		return isAuthed && principal != nil && principal.IsOperator
+	default:
+		return false
+	}
+}
+
+func buildWSOriginChecker(allowed []string) func(r *http.Request) bool {
+	allowedSet := map[string]struct{}{}
+	for _, origin := range allowed {
+		o := strings.TrimSpace(strings.ToLower(origin))
+		if o != "" {
+			allowedSet[o] = struct{}{}
+		}
+	}
+	return func(r *http.Request) bool {
+		origin := strings.ToLower(strings.TrimSpace(r.Header.Get("Origin")))
+		if origin == "" {
+			return false
+		}
+		_, ok := allowedSet[origin]
+		return ok
+	}
+}
+
+func apiLiveRPCContext(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(r.Context(), 12*time.Second)
 }
 
 type probabilityHistoryReplayResult struct {

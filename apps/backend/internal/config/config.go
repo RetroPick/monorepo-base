@@ -28,11 +28,15 @@ type Config struct {
 	FaucetRelayEnabled    bool
 	FaucetRelayPrivateKey string // hex, optional; omit 0x prefix ok
 	// FaucetRelayDeadlineMax caps how far in the future users may set EIP-712 deadline (default 15m).
-	FaucetRelayDeadlineMax time.Duration
-
-	// WatchlistRequireSignature: when true (default), POST /api/v1/user/watchlist requires EIP-191 signature + nonce.
-	// Set RETROPICK_WATCHLIST_REQUIRE_SIGNATURE=0 for unsigned mutations (any caller can mutate any wallet — dev/trusted only).
-	WatchlistRequireSignature bool
+	FaucetRelayDeadlineMax  time.Duration
+	LifiBaseURL             string
+	LifiTimeout             time.Duration
+	FundingAllowedChains    []int64
+	FundingAllowedTokens    []string
+	FundingAllowedProviders []string
+	AuthJWTSecret           string
+	WSAllowedOrigins        []string
+	IndexerFinalityDepth    uint64
 }
 
 func Load() (*Config, error) {
@@ -87,30 +91,45 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	lifiTimeout, err := durationFromEnv("LIFI_TIMEOUT", 4*time.Second)
+	if err != nil {
+		return nil, err
+	}
 	faucetRelayKey := strings.TrimSpace(os.Getenv("FAUCET_RELAYER_PRIVATE_KEY"))
 	faucetRelayEnabled := os.Getenv("FAUCET_RELAY_ENABLED") == "1" && faucetRelayKey != ""
-	watchlistRequireSig := true
-	if v := strings.TrimSpace(strings.ToLower(os.Getenv("RETROPICK_WATCHLIST_REQUIRE_SIGNATURE"))); v == "0" || v == "false" {
-		watchlistRequireSig = false
+	indexerFinalityDepth := uint64(3)
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_FINALITY_DEPTH")); raw != "" {
+		n, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("INDEXER_FINALITY_DEPTH: %w", err)
+		}
+		indexerFinalityDepth = n
 	}
 	return &Config{
-		DatabaseURL:           db,
-		RPCURL:                rpc,
-		HTTPPort:              port,
-		DBMaxConns:            maxConns,
-		DBMinConns:            minConns,
-		DBMaxConnLifetime:     maxLifetime,
-		DBHealthCheckInterval: healthInterval,
-		LiveRPCTimeout:        liveTimeout,
-		LiveRPCGlobalCacheTTL: liveCacheTTL,
-		BuildVersion:          envDefault("BUILD_VERSION", "dev"),
-		BuildCommit:           envDefault("BUILD_COMMIT", "unknown"),
-		BuildTime:             envDefault("BUILD_TIME", "unknown"),
-		LogLevel:              level,
-		FaucetRelayEnabled:    faucetRelayEnabled,
-		FaucetRelayPrivateKey: faucetRelayKey,
-		FaucetRelayDeadlineMax: faucetRelayDeadlineMax,
-		WatchlistRequireSignature: watchlistRequireSig,
+		DatabaseURL:             db,
+		RPCURL:                  rpc,
+		HTTPPort:                port,
+		DBMaxConns:              maxConns,
+		DBMinConns:              minConns,
+		DBMaxConnLifetime:       maxLifetime,
+		DBHealthCheckInterval:   healthInterval,
+		LiveRPCTimeout:          liveTimeout,
+		LiveRPCGlobalCacheTTL:   liveCacheTTL,
+		BuildVersion:            envDefault("BUILD_VERSION", "dev"),
+		BuildCommit:             envDefault("BUILD_COMMIT", "unknown"),
+		BuildTime:               envDefault("BUILD_TIME", "unknown"),
+		LogLevel:                level,
+		FaucetRelayEnabled:      faucetRelayEnabled,
+		FaucetRelayPrivateKey:   faucetRelayKey,
+		FaucetRelayDeadlineMax:  faucetRelayDeadlineMax,
+		LifiBaseURL:             strings.TrimSpace(os.Getenv("LIFI_BASE_URL")),
+		LifiTimeout:             lifiTimeout,
+		FundingAllowedChains:    parseInt64CSV(os.Getenv("FUNDING_ALLOWED_CHAIN_IDS")),
+		FundingAllowedTokens:    parseCSVLower(os.Getenv("FUNDING_ALLOWED_TOKENS")),
+		FundingAllowedProviders: parseCSVUpper(os.Getenv("FUNDING_ALLOWED_PROVIDERS")),
+		AuthJWTSecret:           strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")),
+		WSAllowedOrigins:        parseCSVLower(os.Getenv("WS_ALLOWED_ORIGINS")),
+		IndexerFinalityDepth:    indexerFinalityDepth,
 	}, nil
 }
 
@@ -161,4 +180,44 @@ func durationFromEnv(key string, fallback time.Duration) (time.Duration, error) 
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
 	return d, nil
+}
+
+func parseCSVLower(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.ToLower(strings.TrimSpace(part))
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func parseCSVUpper(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.ToUpper(strings.TrimSpace(part))
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func parseInt64CSV(raw string) []int64 {
+	parts := strings.Split(raw, ",")
+	out := make([]int64, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		value, err := strconv.ParseInt(part, 10, 64)
+		if err == nil && value > 0 {
+			out = append(out, value)
+		}
+	}
+	return out
 }

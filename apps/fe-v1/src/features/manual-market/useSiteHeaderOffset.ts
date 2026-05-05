@@ -72,7 +72,7 @@ export function marketStickyClassName(): string {
   return "market-manual-trade-aside";
 }
 
-/** Sticky `top` offset class — see `.market-page-sticky-below-chrome` in `index.css`. */
+/** Sticky `top` offset class; see `.market-page-sticky-below-chrome` in `index.css`. */
 export function marketTitleBarStickyTopClassName(): string {
   return "market-page-sticky-below-chrome";
 }

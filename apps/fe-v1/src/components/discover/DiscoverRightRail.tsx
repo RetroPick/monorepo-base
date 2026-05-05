@@ -18,7 +18,7 @@ export default function DiscoverRightRail({ trendingMarkets, onOpenUpDown, onOpe
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Crypto thresholds</p>
         <h2 className="mt-2 text-lg font-semibold leading-tight tracking-tight text-foreground">Up or Down</h2>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          Short-horizon markets from the indexed engine — trade from the next tab with your wallet.
+          Short-horizon markets from the indexed engine. Trade from the next tab with your wallet.
         </p>
         <button
           type="button"

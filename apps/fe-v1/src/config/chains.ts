@@ -26,7 +26,7 @@ import { REGISTRY_CHAIN_ID } from "@/contracts/config";
 
 // ── Primary MarketEngine chain (registry) ────────────────────────────────────
 
-/** Base Sepolia — current registry chain for the MarketEngine proxy. */
+/** Base Sepolia: current registry chain for the MarketEngine proxy. */
 export const DEPLOYMENT_CHAIN = baseSepolia;
 export const DEPLOYMENT_CHAIN_ID = REGISTRY_CHAIN_ID;
 
@@ -41,7 +41,7 @@ export const DEPLOYMENT_TESTNET_CHAIN_ID = REGISTRY_CHAIN_ID;
  * Base Sepolia first (registry / MarketEngine). Others include L2s and legacy testnets.
  */
 export const SUPPORTED_NETWORKS: [AppKitNetwork, ...AppKitNetwork[]] = [
-  baseSepolia, // 84532 — MarketEngine (registry)
+  baseSepolia, // 84532, MarketEngine (registry)
   arbitrum,
   arbitrumSepolia,
   mainnet,

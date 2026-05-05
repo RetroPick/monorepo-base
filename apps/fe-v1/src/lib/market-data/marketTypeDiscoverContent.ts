@@ -29,7 +29,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Whether the price will finish higher or lower than a reference taken when betting locks for that round. It is a simple directional call—no zones, no pair of assets—just movement between two readings in time.",
+        body: "Whether the price will finish higher or lower than a reference taken when betting locks for that round. It is a simple directional call: no zones, no pair of assets; just movement between two readings in time.",
         devNote: "Lock writes checkpoint A; resolve writes checkpoint B; `Resolvers.resolveDirection`. Chainlink path only for this type.",
       },
       {
@@ -40,7 +40,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "data",
         title: "What data decides it",
-        body: "When the round locks, the market stores a reference price from a public, automated feed (the same family of sources institutions use for on-chain prices). At the end it reads the feed again—no person types in the result.",
+        body: "When the round locks, the market stores a reference price from a public, automated feed (the same family of sources institutions use for on-chain prices). At the end it reads the feed again; no person types in the result.",
       },
       {
         id: "outcome",
@@ -50,7 +50,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "payout",
         title: "What happens to the money",
-        body: "The losing side’s stakes fund payouts for the winning side. After settlement, winners claim their share of the pool through the contract—like a prediction pool where the code, not a judge, splits the pot.",
+        body: "The losing side’s stakes fund payouts for the winning side. After settlement, winners claim their share of the pool through the contract, like a prediction pool where the code, not a judge, splits the pot.",
       },
       {
         id: "fit",
@@ -69,7 +69,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Whether a published number at settlement will be on or above a fixed level—or below it. That number might be a price, a staking yield, a macro statistic, or another supported feed, not only crypto spot.",
+        body: "Whether a published number at settlement will be on or above a fixed level, or below it. That number might be a price, a staking yield, a macro statistic, or another supported feed, not only crypto spot.",
         devNote: "Effective threshold uses `anchorPriceE8` when set else `absoluteThresholdValueE8`. Supports Chainlink and TrustedReporter scalars.",
       },
       {
@@ -80,7 +80,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "data",
         title: "What data decides it",
-        body: "At close, the contract pulls one fresh value from the configured feed—the same kind of automated source used for on-chain price and rate data.",
+        body: "At close, the contract pulls one fresh value from the configured feed: the same kind of automated source used for on-chain price and rate data.",
       },
       {
         id: "outcome",
@@ -95,7 +95,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "fit",
         title: "Who this fits",
-        body: "Level bets: yields versus a target, prices versus a strike, macro prints versus a line—anywhere your thesis is “does this number cross this mark?”",
+        body: "Level bets: yields versus a target, prices versus a strike, macro prints versus a line, anywhere your thesis is “does this number cross this mark?”",
       },
     ],
   },
@@ -109,7 +109,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Which price zone the asset will land in when the window closes. You are not betting on the path—only on where the final print falls among several pre-defined ranges.",
+        body: "Which price zone the asset will land in when the window closes. You are not betting on the path, only on where the final print falls among several pre-defined ranges.",
         devNote: "Settlement buckets use `rangeBoundsE8` ordering and `outcomeCount`; close-only, no lock checkpoint A.",
       },
       {
@@ -149,7 +149,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "How much the price moves from a starting snapshot—not whether it moves up or down. A +3% and a −3% move count the same for sizing the move.",
+        body: "How much the price moves from a starting snapshot, not whether it moves up or down. A +3% and a −3% move count the same for sizing the move.",
         devNote: "Magnitude vs `abs(lock)` in bps bins via `velocityBoundsE4`; needs lock checkpoint A on Chainlink.",
       },
       {
@@ -165,7 +165,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "outcome",
         title: "How the winner is picked",
-        body: "Whichever bucket matches the realized move size wins. Direction does not break the tie—the bucket is about magnitude only.",
+        body: "Whichever bucket matches the realized move size wins. Direction does not break the tie; the bucket is about magnitude only.",
       },
       {
         id: "payout",
@@ -175,21 +175,21 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "fit",
         title: "Who this fits",
-        body: "Events where you expect volatility but are unsure of direction—data releases, shocks, or windows where size matters more than sign.",
+        body: "Events where you expect volatility but are unsure of direction: data releases, shocks, or windows where size matters more than sign.",
       },
     ],
   },
   {
     marketType: MarketType.Ladder,
     title: "Ladder",
-    tag: "Which tier—and bigger payoff for bolder tiers?",
+    tag: "Which tier, and bigger payoff for bolder tiers?",
     cardGradientClass: "from-rose-600/80 via-fuchsia-900/75 to-slate-950",
     imageSrc: "/discover/market-types/ladder.svg",
     steps: [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Which price tier contains the close—similar to range buckets—but tiers can carry different payout weights so rarer or bolder picks can earn more when right.",
+        body: "Which price tier contains the close (similar to range buckets), but tiers can carry different payout weights so rarer or bolder picks can earn more when right.",
         devNote: "Winner tier uses `ladderBoundsE8`; `ladderPayoutWeightsBps` feeds `computeLadderLiabilityComponents`.",
       },
       {
@@ -215,7 +215,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "fit",
         title: "Who this fits",
-        body: "You want payouts to reflect how hard or unlikely your tier is—not every bucket is treated the same when the pool settles.",
+        body: "You want payouts to reflect how hard or unlikely your tier is. Not every bucket is treated the same when the pool settles.",
       },
     ],
   },
@@ -229,7 +229,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Whether the relationship between two tracked prices tightens or widens by settlement—relative value, not a single asset in isolation.",
+        body: "Whether the relationship between two tracked prices tightens or widens by settlement: relative value, not a single asset in isolation.",
         devNote: "Two feeds at lock and resolve; `Resolvers.resolveConvergence`; narrow spread change can void; manual Chainlink only in current engine.",
       },
       {
@@ -250,12 +250,12 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "payout",
         title: "What happens to the money",
-        body: "Binary pool: the winning side claims value built from the losing side’s stakes, or everyone is refunded on a void—same broad idea as other two-outcome pools.",
+        body: "Binary pool: the winning side claims value built from the losing side’s stakes, or everyone is refunded on a void. Same broad idea as other two-outcome pools.",
       },
       {
         id: "fit",
         title: "Who this fits",
-        body: "Pair views—who leads, who lags—without managing two separate one-asset bets.",
+        body: "Pair views (who leads, who lags) without managing two separate one-asset bets.",
       },
     ],
   },
@@ -269,7 +269,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Whether a bundle of conditions, each checked with its own data source at settlement, ends up true or false under a single rule—like asking “did everything line up?” or “did anything line up?”",
+        body: "Whether a bundle of conditions, each checked with its own data source at settlement, ends up true or false under a single rule, like asking “did everything line up?” or “did anything line up?”",
         devNote: "Up to 4 feeds; `compositeLogic` And | Or | Majority; rolling not supported.",
       },
       {
@@ -295,7 +295,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "fit",
         title: "Who this fits",
-        body: "Macro or cross-asset theses where several things need to happen together—or where a single spark is enough, depending on the rule.",
+        body: "Macro or cross-asset theses where several things need to happen together, or where a single spark is enough, depending on the rule.",
       },
     ],
   },
@@ -309,7 +309,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "Whether price stays between an upper and lower rail for the entire window—not just where it closes, but whether it ever punches through either rail.",
+        body: "Whether price stays between an upper and lower rail for the entire window: not just where it closes, but whether it ever punches through either rail.",
         devNote: "Uses epoch OHLC from TrustedReporter path; `rangeBoundsE8[0]` lower, `[1]` upper; not intended for pure Chainlink-only OHLC.",
       },
       {
@@ -349,7 +349,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "predict",
         title: "What you are predicting",
-        body: "How many stacked price levels get broken through in one direction during the period—like counting rungs on a ladder as price pushes through resistance or support lines.",
+        body: "How many stacked price levels get broken through in one direction during the period, like counting rungs on a ladder as price pushes through resistance or support lines.",
         devNote: "`cascadeDownward` flips high-water vs low-water break logic; uses OHLC from TrustedReporter; manual-only with rolling disallowed.",
       },
       {
@@ -360,7 +360,7 @@ const ENTRIES: readonly DiscoverMarketTypeEntry[] = [
       {
         id: "data",
         title: "What data decides it",
-        body: "The engine tracks the extreme price through the epoch—highs for upward-style ladders, lows for downward-style—and compares that path to an ordered list of levels.",
+        body: "The engine tracks the extreme price through the epoch (highs for upward-style ladders, lows for downward-style) and compares that path to an ordered list of levels.",
       },
       {
         id: "outcome",

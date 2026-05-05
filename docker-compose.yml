@@ -42,8 +42,6 @@ services:
         condition: service_completed_successfully
     environment:
       PORT: "8080"
-      # Unsigned watchlist (no wallet signature). Use 1 for public APIs — see RETROPICK_WATCHLIST_REQUIRE_SIGNATURE in .env.example.
-      RETROPICK_WATCHLIST_REQUIRE_SIGNATURE: "0"
       DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
       LIVE_RPC_TIMEOUT: 15s

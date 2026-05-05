@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => ({
       overlay: true,
     },
     proxy: {
-      // FRED API — avoids browser CORS; client passes api_key via VITE_FRED_API_KEY
+      // FRED API proxy avoids browser CORS; client passes api_key via VITE_FRED_API_KEY
       '/api/fred': {
         target: 'https://api.stlouisfed.org/fred',
         changeOrigin: true,

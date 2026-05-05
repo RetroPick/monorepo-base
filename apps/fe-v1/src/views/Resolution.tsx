@@ -55,7 +55,7 @@ export default function Resolution() {
     const resolvedCount = marketsWithStatus.filter((m) => m.status === "resolved").length;
 
     const formatDate = (d: string | undefined) => {
-        if (!d) return "—";
+        if (!d) return "-";
         return new Date(d).toLocaleDateString("en-US", {
             month: "short", day: "numeric", year: "numeric",
         });

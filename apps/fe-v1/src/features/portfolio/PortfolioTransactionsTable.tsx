@@ -55,8 +55,8 @@ export function PortfolioTransactionsTable({
           {events.map((row) => (
             <tr key={`${row.txHash}-${row.logIndex}`} className="hover:bg-muted/25">
               <td className={`${cell} font-mono text-xs text-foreground`}>{row.eventName}</td>
-              <td className={`${cell} font-mono text-xs text-muted-foreground`}>{row.templateId ?? "—"}</td>
-              <td className={`${cell} font-mono text-xs text-muted-foreground`}>{row.epochId ?? "—"}</td>
+              <td className={`${cell} font-mono text-xs text-muted-foreground`}>{row.templateId ?? "-"}</td>
+              <td className={`${cell} font-mono text-xs text-muted-foreground`}>{row.epochId ?? "-"}</td>
               <td className={`${cell} font-mono text-xs text-muted-foreground`}>{row.blockNumber}</td>
               <td className={`${cell} font-mono text-[11px]`}>
                 <a
@@ -68,7 +68,7 @@ export function PortfolioTransactionsTable({
                   {row.txHash.slice(0, 10)}…
                 </a>
               </td>
-              <td className={`${cell} text-xs text-muted-foreground`}>{row.indexedAt ?? "—"}</td>
+              <td className={`${cell} text-xs text-muted-foreground`}>{row.indexedAt ?? "-"}</td>
             </tr>
           ))}
         </tbody>

@@ -3,15 +3,15 @@ import type { Market } from "@/types/market";
 /**
  * Card layout (UI), not on-chain `marketType`.
  *
- * - **`multi`** — **Stacked Yes/No**: each outcome row is its **own** binary question (like N separate Yes/No markets).
- *   **Not** the same rules as range — only the **strip row layout** (label · stats · actions) matches range for consistency.
- * - **`range`** — **One** mutually exclusive contest: liquidity split across bins, **exactly one** bracket wins; rows show pool share, not Yes/No pairs.
- * - **`binary-yesno`** — A **single** two-outcome Yes/No question (compact card).
- * - **`updown`** — Directional Up vs Down.
+ * - **`multi`**: **Stacked Yes/No**: each outcome row is its **own** binary question (like N separate Yes/No markets).
+ *   **Not** the same rules as range; only the **strip row layout** (label · stats · actions) matches range for consistency.
+ * - **`range`**: **One** mutually exclusive contest: liquidity split across bins, **exactly one** bracket wins; rows show pool share, not Yes/No pairs.
+ * - **`binary-yesno`**: A **single** two-outcome Yes/No question (compact card).
+ * - **`updown`**: Directional Up vs Down.
  */
 export type MarketCardLayoutKind = "multi" | "range" | "binary-yesno" | "updown";
 
-/** Price bins / one winner — tag with `primitive` or `category` `Range`. */
+/** Price bins / one winner; tag with `primitive` or `category` `Range`. */
 export function isRangeMarket(market: Market): boolean {
   const p = (market.primitive ?? "").trim().toLowerCase();
   const c = (market.category ?? "").trim().toLowerCase();

@@ -30,7 +30,7 @@
    * Manual / chain market detail: right column trade card.
    * Sticks below the site header; the market title strip lives in the left column.
    * max-height + overflow-y keep the panel inside the viewport; tall content scrolls inside the column.
-   * Do not place overflow-x-clip on an ancestor of this block — that breaks position: sticky.
+   * Do not place overflow-x-clip on an ancestor of this block; that breaks position: sticky.
    */
   @media (min-width: 1024px) {
     .market-manual-trade-aside {
@@ -50,7 +50,7 @@
 
 @layer base {
    :root {
-    /* Light: cool gray surfaces — avoid pure white; matches dark theme hue family */
+    /* Light: cool gray surfaces; avoid pure white; matches dark theme hue family */
     --background: 220 16% 93%;
     --foreground: 222 24% 11%;
 
@@ -99,7 +99,7 @@
     --accent-green: 160 84% 39%;
     --accent-cyan: 187 92% 40%;
 
-    /* Directional (YES/NO, Up/Down, skew) — light */
+    /* Directional (YES/NO, Up/Down, skew), light */
     --up: 152 55% 36%;
     --down: 350 60% 46%;
 
@@ -158,13 +158,13 @@
     --up: 145 50% 44%;
     --down: 350 52% 52%;
 
-    /* Portfolio dashboard accent (mock CTA orange) — use via `hsl(var(--dashboard-accent))`. */
+    /* Portfolio dashboard accent (mock CTA orange); use via `hsl(var(--dashboard-accent))`. */
     --dashboard-accent: 16 78% 56%;
     --dashboard-accent-foreground: 0 0% 100%;
   }
 }
 
-/* Reown AppKit / WalletConnect root host — stack above Radix dialogs (z-50) */
+/* Reown AppKit / WalletConnect root host: stack above Radix dialogs (z-50) */
 w3m-modal {
   z-index: 100150;
 }

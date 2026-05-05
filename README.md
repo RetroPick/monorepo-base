@@ -174,7 +174,7 @@ Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 
 Do not commit real `.env` files (see root [`.gitignore`](.gitignore)).
 
-**Watchlist mutations:** the Go API defaults to requiring an EIP-191 signature (`RETROPICK_WATCHLIST_REQUIRE_SIGNATURE` unset or `1`). Docker Compose sets `RETROPICK_WATCHLIST_REQUIRE_SIGNATURE=0` so the user app can add markets without signing; use signed mode on any internet-exposed API (see [`.env.example`](.env.example)).
+**Watchlist mutations:** `POST /api/v1/user/watchlist` accepts JSON with `wallet`, `action`, and `templateId` / `templateIds` only (no signature). **Note:** any client can send any `wallet` address; protect the API with network policy or add your own auth if you expose it publicly.
 
 ---
 
@@ -232,8 +232,6 @@ Set these variables on the backend API service:
 PORT=8080
 DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/DB?sslmode=require
 RPC_URL=https://sepolia.base.org
-# Require wallet-signed watchlist POSTs (recommended for production):
-RETROPICK_WATCHLIST_REQUIRE_SIGNATURE=1
 CORS_STRICT=1
 CORS_ALLOWED_ORIGINS=https://app.example.com,https://docs.example.com
 # Optional for Vercel preview deployments:

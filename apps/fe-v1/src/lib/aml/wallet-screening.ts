@@ -1,5 +1,5 @@
 /**
- * AML Wallet Screening — TRM Labs Integration
+ * AML Wallet Screening: TRM Labs Integration
  *
  * Implements Section 6 of the RetroPick AML/CFT/CPF Policy v1.0
  *
@@ -152,8 +152,8 @@ export async function screenWallet(
   let result: WalletScreeningResult
 
   if (!assessment) {
-    // TRM unavailable — fail-open with low risk; backend worker will re-screen
-    result = makeResult(address, chainId, 0, [], false, 'TRM screening unavailable — allow pending re-screen')
+    // TRM unavailable: fail-open with low risk; backend worker will re-screen
+    result = makeResult(address, chainId, 0, [], false, 'TRM screening unavailable; allow pending re-screen')
   } else {
     const score       = Math.round(assessment.addressRiskScore * 100) // TRM returns 0–1
     const matchedLists = extractMatchedLists(assessment.riskIndicators)

@@ -55,19 +55,19 @@ function FreshnessBar({ model }: { model: ManualMarketViewModel }) {
       <div className="flex items-center gap-2 px-3 text-muted-foreground">
         <Database className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate">
-          Indexed block <span className="font-mono text-foreground">{lastBlock ?? "—"}</span>
+          Indexed block <span className="font-mono text-foreground">{lastBlock ?? "-"}</span>
         </span>
       </div>
       <div className="flex items-center gap-2 px-3 text-muted-foreground">
         <RadioTower className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate">
-          Sync <span className="font-mono text-foreground">{lastSync ?? "—"}</span>
+          Sync <span className="font-mono text-foreground">{lastSync ?? "-"}</span>
         </span>
       </div>
       <div className="flex items-center gap-2 px-3 text-muted-foreground">
         <Clock3 className="size-3.5 shrink-0" aria-hidden />
         <span className="truncate">
-          Epoch <span className="font-mono text-foreground">{active?.epochId ?? "—"}</span>
+          Epoch <span className="font-mono text-foreground">{active?.epochId ?? "-"}</span>
           {active?.status ? <span> · {active.status}</span> : null}
         </span>
       </div>
@@ -97,7 +97,7 @@ function RecentEpochsContent({ model }: { model: ManualMarketViewModel }) {
             <div key={epoch.epochId} className="grid grid-cols-[0.8fr_1fr_1fr_1fr] px-3 py-2 text-xs">
               <span className="font-mono text-foreground">#{epoch.epochId}</span>
               <span className="truncate text-muted-foreground">{epoch.status}</span>
-              <span className="truncate font-mono text-muted-foreground">{epoch.lockAt ?? "—"}</span>
+              <span className="truncate font-mono text-muted-foreground">{epoch.lockAt ?? "-"}</span>
               <span
                 className={cn(
                   "font-mono",

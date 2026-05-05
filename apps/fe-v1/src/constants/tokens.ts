@@ -7,7 +7,7 @@ import type { Address } from 'viem'
 
 export { USDC_ADDRESSES as TOKENS_USDC } from '@/config/tokens'
 
-// Standard ERC-20 ABI — balanceOf, decimals, approve, allowance, transfer
+// Standard ERC-20 ABI: balanceOf, decimals, approve, allowance, transfer
 export const ERC20_ABI = [
   {
     inputs: [{ name: '_owner', type: 'address' }],
@@ -45,7 +45,7 @@ export const ERC20_ABI = [
   },
 ] as const
 
-// Legacy TOKENS record — kept for backward compatibility
+// Legacy TOKENS record, kept for backward compatibility
 export const TOKENS: Record<number, Record<string, Address>> = {
   // Ethereum mainnet
   1: {

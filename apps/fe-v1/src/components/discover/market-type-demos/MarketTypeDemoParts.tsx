@@ -142,7 +142,7 @@ export function ThresholdDemo({ reducedMotion, stepIndex }: DemoProps) {
     <DemoShell
       caption={
         s === 0
-          ? "Will the reading finish above—or below—a fixed line?"
+          ? "Will the reading finish above or below a fixed line?"
           : s === 1
             ? "Pick which side of the line you believe"
             : s === 2
@@ -198,7 +198,7 @@ export function RangeCloseDemo({ reducedMotion, stepIndex }: DemoProps) {
           : s === 1
             ? "Stake in one price bucket"
             : s === 2
-              ? "Only the final price matters—not the path"
+              ? "Only the final price matters, not the path"
               : "The bucket that contains the close wins"
       }
     >
@@ -250,7 +250,7 @@ export function VelocityDemo({ reducedMotion, stepIndex }: DemoProps) {
     <DemoShell
       caption={
         s === 0
-          ? "How much will it move—up or down counts the same"
+          ? "How much will it move? Up or down counts the same."
           : s === 1
             ? "Pick a move-size bucket"
             : s === 2
@@ -299,7 +299,7 @@ export function LadderDemo({ reducedMotion, stepIndex }: DemoProps) {
     <DemoShell
       caption={
         s === 0
-          ? "Which tier hits—and tiers can pay differently"
+          ? "Which tier hits, and tiers can pay differently"
           : s === 1
             ? "Choose the tier you think contains the close"
             : s === 2
@@ -470,7 +470,7 @@ export function CorridorDemo({ reducedMotion, stepIndex }: DemoProps) {
     );
   }
   if (s === 5) {
-    return <UseCaseHintVisual caption="Range-bound windows—not just where it closes" />;
+    return <UseCaseHintVisual caption="Range-bound windows, not just where it closes" />;
   }
   return (
     <DemoShell
@@ -542,7 +542,7 @@ export function CascadeDemo({ reducedMotion, stepIndex }: DemoProps) {
     );
   }
   if (s === 5) {
-    return <UseCaseHintVisual caption="Trend strength—how many stacked levels break" />;
+    return <UseCaseHintVisual caption="Trend strength: how many stacked levels break" />;
   }
   return (
     <DemoShell
@@ -553,7 +553,7 @@ export function CascadeDemo({ reducedMotion, stepIndex }: DemoProps) {
             ? "Pick the tier matching how many breaks you expect"
             : s === 2
               ? "Track the extreme price through the window"
-              : "Count levels crossed—matching tier wins"
+              : "Count levels crossed; matching tier wins"
       }
     >
       <svg viewBox="0 0 220 100" className="h-28 w-full max-w-[220px]" aria-hidden>

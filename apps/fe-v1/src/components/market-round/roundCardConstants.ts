@@ -1,4 +1,4 @@
-/** Shared square carousel tile — slightly larger for readability. */
+/** Shared square carousel tile, slightly larger for readability. */
 export const ROUND_CARD_SHELL =
   "aspect-square w-[min(100%,272px)] min-w-[220px] max-w-[272px] shrink-0 sm:w-[min(100%,292px)] sm:max-w-[292px]";
 

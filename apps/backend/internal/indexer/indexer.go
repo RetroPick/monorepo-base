@@ -18,14 +18,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/abiembed"
 	"retropick/apps/backend/internal/dbqueries"
+	"retropick/apps/backend/internal/realtime"
 )
-
-const notifyChannel = "market_update"
 
 type Service struct {
 	pool   *pgxpool.Pool
@@ -63,6 +63,51 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 	if err != nil {
 		return fmt.Errorf("block number: %w", err)
 	}
+	finalityDepth := uint64(3)
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_FINALITY_DEPTH")); raw != "" {
+		if n, parseErr := strconv.ParseUint(raw, 10, 64); parseErr == nil {
+			finalityDepth = n
+		}
+	}
+	if head <= finalityDepth {
+		return nil
+	}
+	stableHead := head - finalityDepth
+	if state.LastBlock > 0 && state.LastBlockHash.Valid {
+		prevHdr, err := s.client.HeaderByNumber(ctx, big.NewInt(state.LastBlock))
+		if err != nil {
+			return fmt.Errorf("header continuity check: %w", err)
+		}
+		if !strings.EqualFold(prevHdr.Hash().Hex(), state.LastBlockHash.String) {
+			rewindDepth := int64(64)
+			rewindTo := state.LastBlock - rewindDepth
+			if rewindTo < 0 {
+				rewindTo = 0
+			}
+			tx, err := s.pool.Begin(ctx)
+			if err != nil {
+				return err
+			}
+			defer tx.Rollback(ctx)
+			if _, err := tx.Exec(ctx, `DELETE FROM chain_events WHERE block_number > $1`, rewindTo); err != nil {
+				return fmt.Errorf("reorg delete chain_events: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `TRUNCATE market_epoch_outcomes, market_snapshots, user_position_outcomes`); err != nil {
+				return fmt.Errorf("reorg truncate projections: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `
+UPDATE indexer_state
+SET last_block = $1, last_block_hash = NULL, reorg_depth = $2, last_indexed_at = NOW()
+WHERE id = 1
+`, rewindTo, state.LastBlock-rewindTo); err != nil {
+				return fmt.Errorf("reorg rewind indexer_state: %w", err)
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return err
+			}
+			return fmt.Errorf("reorg detected; rewound to block %d", rewindTo)
+		}
+	}
 	from := uint64(state.LastBlock) + 1
 	if state.LastBlock == 0 {
 		lookback := uint64(50_000)
@@ -77,12 +122,12 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 			from = 1
 		}
 	}
-	if from > head {
+	if from > stableHead {
 		return nil
 	}
 	to := from + maxBlocks - 1
-	if to > head {
-		to = head
+	if to > stableHead {
+		to = stableHead
 	}
 
 	query := ethereum.FilterQuery{
@@ -101,9 +146,10 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 	}
 	defer tx.Rollback(ctx)
 	q := dbqueries.New(tx)
+	realtimeSeqs := make([]int64, 0, len(logs)+1)
 
 	for _, lg := range logs {
-		if err := s.handleLog(ctx, q, lg); err != nil {
+		if err := s.handleLog(ctx, tx, q, &realtimeSeqs, lg); err != nil {
 			return fmt.Errorf("log %s:%d: %w", lg.TxHash.Hex(), lg.Index, err)
 		}
 	}
@@ -135,21 +181,28 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 		return err
 	}
 
-	summaryObj := map[string]any{
-		"type":        "indexer_tick",
-		"fromBlock":   from,
-		"toBlock":     to,
-		"logsIndexed": len(logs),
-	}
-	if len(templateIDs) == 1 {
-		summaryObj["templateId"] = templateIDs[0]
-	}
-	if len(templateIDs) > 0 {
-		summaryObj["templateIds"] = templateIDs
-	}
-	summary, _ := json.Marshal(summaryObj)
-	if _, err := tx.Exec(ctx, `SELECT pg_notify($1, $2)`, notifyChannel, string(summary)); err != nil {
-		return fmt.Errorf("notify: %w", err)
+	if len(logs) > 0 {
+		summaryObj := map[string]any{
+			"type":        "indexer_tick",
+			"fromBlock":   from,
+			"toBlock":     to,
+			"logsIndexed": len(logs),
+		}
+		if len(templateIDs) == 1 {
+			summaryObj["templateId"] = templateIDs[0]
+		}
+		if len(templateIDs) > 0 {
+			summaryObj["templateIds"] = templateIDs
+		}
+		if err := s.insertRealtimeEvent(ctx, tx, &realtimeSeqs, realtime.InsertEvent{
+			Channel:   "global:markets",
+			Type:      "indexer_tick",
+			Scope:     "public",
+			Payload:   summaryObj,
+			DedupeKey: fmt.Sprintf("tick:%d:%d", from, to),
+		}); err != nil {
+			return err
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -158,13 +211,19 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 	if s.log != nil {
 		s.log.Info("indexer tick", "from", from, "to", to, "logs", len(logs))
 	}
+	for _, seq := range realtimeSeqs {
+		if err := realtime.Notify(ctx, s.pool, seq); err != nil && s.log != nil {
+			s.log.Warn("notify realtime event", "seq", seq, "err", err)
+		}
+	}
 	return nil
 }
 
-func (s *Service) handleLog(ctx context.Context, q *dbqueries.Queries, lg types.Log) error {
+func (s *Service) handleLog(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log) error {
 	ev, err := s.abi.EventByID(lg.Topics[0])
 	if err != nil {
-		return s.recordChainEvent(ctx, q, lg, "Unknown", nil, nil, nil, map[string]any{"raw": lg.Topics[0].Hex()})
+		_, err := s.recordChainEvent(ctx, tx, lg, "Unknown", nil, nil, nil, map[string]any{"raw": lg.Topics[0].Hex()})
+		return err
 	}
 
 	payload := map[string]any{"event": ev.Name}
@@ -174,8 +233,12 @@ func (s *Service) handleLog(ctx context.Context, q *dbqueries.Queries, lg types.
 	tpl, epoch := templateEpochFromTopics(lg)
 	userAddr := indexedUserAddress(ev.Name, lg)
 
-	if err := s.recordChainEvent(ctx, q, lg, ev.Name, tpl, epoch, userAddr, payload); err != nil {
+	inserted, err := s.recordChainEvent(ctx, tx, lg, ev.Name, tpl, epoch, userAddr, payload)
+	if err != nil {
 		return err
+	}
+	if !inserted {
+		return nil
 	}
 
 	switch ev.Name {
@@ -184,13 +247,19 @@ func (s *Service) handleLog(ctx context.Context, q *dbqueries.Queries, lg types.
 	case "MarketInitialized":
 		return s.onMarketInitialized(ctx, q, lg)
 	case "EpochOpened":
-		return s.onEpochOpened(ctx, q, lg, ev)
+		return s.onEpochOpened(ctx, tx, q, realtimeSeqs, lg, ev)
 	case "EpochLocked", "EpochLockedV2":
-		return s.onEpochLocked(ctx, q, lg)
+		return s.onEpochLocked(ctx, tx, q, realtimeSeqs, lg)
 	case "EpochResolved":
-		return s.onEpochResolved(ctx, q, lg, ev)
+		return s.onEpochResolved(ctx, tx, q, realtimeSeqs, lg, ev)
 	case "EpochResolvedV2":
-		return s.onEpochResolvedV2(ctx, q, lg)
+		return s.onEpochResolvedV2(ctx, tx, q, realtimeSeqs, lg)
+	case "PositionDeposited":
+		return s.onPositionDeposited(ctx, tx, realtimeSeqs, lg, payload)
+	case "SideSwitched":
+		return s.onSideSwitched(ctx, tx, realtimeSeqs, lg, payload)
+	case "Claimed":
+		return s.onClaimed(ctx, tx, realtimeSeqs, lg, payload)
 	case "RollingHalted":
 		return s.onRollingHalted(ctx, q, lg, ev)
 	default:
@@ -293,34 +362,34 @@ func indexedUserAddress(evName string, lg types.Log) *string {
 	}
 }
 
-func (s *Service) recordChainEvent(ctx context.Context, q *dbqueries.Queries, lg types.Log, name string, templateID *[]byte, epochID *int64, user *string, payload map[string]any) error {
+func (s *Service) recordChainEvent(ctx context.Context, tx pgx.Tx, lg types.Log, name string, templateID *[]byte, epochID *int64, user *string, payload map[string]any) (bool, error) {
 	b, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return false, err
 	}
 	var tid []byte
 	if templateID != nil {
 		tid = *templateID
 	}
-	var eid pgtype.Int8
+	var eid any
 	if epochID != nil {
-		eid = pgtype.Int8{Int64: *epochID, Valid: true}
+		eid = *epochID
 	}
-	var ua pgtype.Text
+	var ua any
 	if user != nil {
-		ua = pgtype.Text{String: *user, Valid: true}
+		ua = *user
 	}
-	return q.InsertChainEvent(ctx, dbqueries.InsertChainEventParams{
-		BlockNumber:  int64(lg.BlockNumber),
-		TxHash:       lg.TxHash.Hex(),
-		LogIndex:     int32(lg.Index),
-		ContractAddr: lg.Address.Hex(),
-		EventName:    name,
-		TemplateID:   tid,
-		EpochID:      eid,
-		UserAddress:  ua,
-		Payload:      string(b),
-	})
+	tag, err := tx.Exec(ctx, `
+INSERT INTO chain_events (
+    block_number, tx_hash, log_index, contract_addr, event_name,
+    template_id, epoch_id, user_address, payload
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (tx_hash, log_index) DO NOTHING
+`, int64(lg.BlockNumber), lg.TxHash.Hex(), int32(lg.Index), lg.Address.Hex(), name, tid, eid, ua, string(b))
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
 }
 
 func (s *Service) onTemplateUpserted(ctx context.Context, q *dbqueries.Queries, lg types.Log, ev *abi.Event) error {
@@ -352,7 +421,7 @@ func (s *Service) onMarketInitialized(ctx context.Context, q *dbqueries.Queries,
 	return q.SetTemplateInitialized(ctx, tid)
 }
 
-func (s *Service) onEpochOpened(ctx context.Context, q *dbqueries.Queries, lg types.Log, ev *abi.Event) error {
+func (s *Service) onEpochOpened(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log, ev *abi.Event) error {
 	vars, err := ev.Inputs.Unpack(lg.Data)
 	if err != nil {
 		return err
@@ -372,23 +441,35 @@ func (s *Service) onEpochOpened(ctx context.Context, q *dbqueries.Queries, lg ty
 	}); err != nil {
 		return err
 	}
-	return q.UpdateLedgerActiveEpoch(ctx, dbqueries.UpdateLedgerActiveEpochParams{
+	if err := q.UpdateLedgerActiveEpoch(ctx, dbqueries.UpdateLedgerActiveEpochParams{
 		TemplateID:    tid,
 		ActiveEpochID: eid,
-	})
+	}); err != nil {
+		return err
+	}
+	if err := s.initializeProjection(ctx, tx, tid, eid, int64(lg.BlockNumber), "open"); err != nil {
+		return err
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_opened", tid, eid, lg)
 }
 
-func (s *Service) onEpochLocked(ctx context.Context, q *dbqueries.Queries, lg types.Log) error {
+func (s *Service) onEpochLocked(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log) error {
 	tid := lg.Topics[1].Bytes()
 	eid := new(big.Int).SetBytes(lg.Topics[2].Bytes()).Int64()
-	return q.UpdateEpochLocked(ctx, dbqueries.UpdateEpochLockedParams{
+	if err := q.UpdateEpochLocked(ctx, dbqueries.UpdateEpochLockedParams{
 		TemplateID: tid,
 		EpochID:    eid,
 		LockTxHash: pgtype.Text{String: lg.TxHash.Hex(), Valid: true},
-	})
+	}); err != nil {
+		return err
+	}
+	if err := s.updateSnapshotStatus(ctx, tx, tid, eid, "locked", int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_locked", tid, eid, lg)
 }
 
-func (s *Service) onEpochResolved(ctx context.Context, q *dbqueries.Queries, lg types.Log, ev *abi.Event) error {
+func (s *Service) onEpochResolved(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log, ev *abi.Event) error {
 	vars, err := ev.Inputs.Unpack(lg.Data)
 	if err != nil {
 		return err
@@ -407,13 +488,19 @@ func (s *Service) onEpochResolved(ctx context.Context, q *dbqueries.Queries, lg 
 	}); err != nil {
 		return err
 	}
-	return q.UpdateLedgerAfterResolve(ctx, dbqueries.UpdateLedgerAfterResolveParams{
+	if err := q.UpdateLedgerAfterResolve(ctx, dbqueries.UpdateLedgerAfterResolveParams{
 		TemplateID:          tid,
 		LastResolvedEpochID: eid,
-	})
+	}); err != nil {
+		return err
+	}
+	if err := s.updateSnapshotStatus(ctx, tx, tid, eid, "resolved", int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_resolved", tid, eid, lg)
 }
 
-func (s *Service) onEpochResolvedV2(ctx context.Context, q *dbqueries.Queries, lg types.Log) error {
+func (s *Service) onEpochResolvedV2(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log) error {
 	tid := lg.Topics[1].Bytes()
 	eid := new(big.Int).SetBytes(lg.Topics[2].Bytes()).Int64()
 	if err := q.UpdateEpochResolvedCheckpointOnly(ctx, dbqueries.UpdateEpochResolvedCheckpointOnlyParams{
@@ -423,10 +510,456 @@ func (s *Service) onEpochResolvedV2(ctx context.Context, q *dbqueries.Queries, l
 	}); err != nil {
 		return err
 	}
-	return q.UpdateLedgerAfterResolve(ctx, dbqueries.UpdateLedgerAfterResolveParams{
+	if err := q.UpdateLedgerAfterResolve(ctx, dbqueries.UpdateLedgerAfterResolveParams{
 		TemplateID:          tid,
 		LastResolvedEpochID: eid,
+	}); err != nil {
+		return err
+	}
+	if err := s.updateSnapshotStatus(ctx, tx, tid, eid, "resolved", int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_resolved", tid, eid, lg)
+}
+
+func (s *Service) onPositionDeposited(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, lg types.Log, payload map[string]any) error {
+	tid := lg.Topics[1].Bytes()
+	eid := new(big.Int).SetBytes(lg.Topics[2].Bytes()).Int64()
+	user := indexedUserAddress("PositionDeposited", lg)
+	outcome, ok0 := payloadUint(payload["outcomeIndex"])
+	amount, ok1 := payloadBig(payload["amount"])
+	if !ok0 || !ok1 {
+		return nil
+	}
+	if err := s.addOutcomePool(ctx, tx, tid, eid, int16(outcome), amount, int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if user != nil {
+		if err := s.addUserPosition(ctx, tx, strings.ToLower(*user), tid, eid, int16(outcome), amount, int64(lg.BlockNumber)); err != nil {
+			return err
+		}
+		if err := s.emitUserPositionEvent(ctx, tx, realtimeSeqs, "position_update", strings.ToLower(*user), tid, eid, lg); err != nil {
+			return err
+		}
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "pool_update", tid, eid, lg)
+}
+
+func (s *Service) onSideSwitched(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, lg types.Log, payload map[string]any) error {
+	tid := lg.Topics[1].Bytes()
+	eid := new(big.Int).SetBytes(lg.Topics[2].Bytes()).Int64()
+	user := indexedUserAddress("SideSwitched", lg)
+	from, ok0 := payloadUint(payload["fromOutcome"])
+	to, ok1 := payloadUint(payload["toOutcome"])
+	gross, ok2 := payloadBig(payload["grossAmount"])
+	net, ok3 := payloadBig(payload["netAmount"])
+	if !ok0 || !ok1 || !ok2 || !ok3 {
+		return nil
+	}
+	if err := s.addOutcomePool(ctx, tx, tid, eid, int16(from), new(big.Int).Neg(gross), int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if err := s.addOutcomePool(ctx, tx, tid, eid, int16(to), net, int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if user != nil {
+		u := strings.ToLower(*user)
+		if err := s.addUserPosition(ctx, tx, u, tid, eid, int16(from), new(big.Int).Neg(gross), int64(lg.BlockNumber)); err != nil {
+			return err
+		}
+		if err := s.addUserPosition(ctx, tx, u, tid, eid, int16(to), net, int64(lg.BlockNumber)); err != nil {
+			return err
+		}
+		if err := s.emitUserPositionEvent(ctx, tx, realtimeSeqs, "position_update", u, tid, eid, lg); err != nil {
+			return err
+		}
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "pool_update", tid, eid, lg)
+}
+
+func (s *Service) onClaimed(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, lg types.Log, payload map[string]any) error {
+	tid := lg.Topics[1].Bytes()
+	eid := new(big.Int).SetBytes(lg.Topics[2].Bytes()).Int64()
+	user := indexedUserAddress("Claimed", lg)
+	if user != nil {
+		amount, _ := payloadBig(payload["amount"])
+		if err := s.markUserClaimed(ctx, tx, strings.ToLower(*user), tid, eid, amount, int64(lg.BlockNumber)); err != nil {
+			return err
+		}
+		if err := s.emitUserPositionEvent(ctx, tx, realtimeSeqs, "claim_confirmed", strings.ToLower(*user), tid, eid, lg); err != nil {
+			return err
+		}
+	}
+	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "claim_update", tid, eid, lg)
+}
+
+func (s *Service) initializeProjection(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, block int64, status string) error {
+	var outcomeCount int16
+	if err := tx.QueryRow(ctx, `SELECT outcome_count FROM templates WHERE template_id = $1`, tid).Scan(&outcomeCount); err != nil {
+		return err
+	}
+	if outcomeCount < 2 {
+		outcomeCount = 2
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO market_snapshots (template_id, active_epoch_id, status, outcome_count, last_indexed_block)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (template_id) DO UPDATE SET
+    active_epoch_id = EXCLUDED.active_epoch_id,
+    status = EXCLUDED.status,
+    outcome_count = EXCLUDED.outcome_count,
+    total_pool = 0,
+    volume = 0,
+    last_indexed_block = EXCLUDED.last_indexed_block,
+    updated_at = NOW()
+`, tid, eid, status, outcomeCount, block); err != nil {
+		return err
+	}
+	for i := int16(0); i < outcomeCount; i++ {
+		if _, err := tx.Exec(ctx, `
+INSERT INTO market_epoch_outcomes (template_id, epoch_id, outcome_index, pool_amount, updated_block)
+VALUES ($1, $2, $3, 0, $4)
+ON CONFLICT (template_id, epoch_id, outcome_index) DO UPDATE SET
+    pool_amount = 0,
+    probability_bps = 0,
+    multiplier_bps = 0,
+    updated_block = EXCLUDED.updated_block,
+    updated_at = NOW()
+`, tid, eid, i, block); err != nil {
+			return err
+		}
+	}
+	return s.recomputeProjection(ctx, tx, tid, eid, block)
+}
+
+func (s *Service) updateSnapshotStatus(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, status string, block int64) error {
+	_, err := tx.Exec(ctx, `
+UPDATE market_snapshots
+SET status = $3, last_indexed_block = $4, updated_at = NOW()
+WHERE template_id = $1 AND active_epoch_id = $2
+`, tid, eid, status, block)
+	return err
+}
+
+func (s *Service) addOutcomePool(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, outcome int16, delta *big.Int, block int64) error {
+	if delta == nil {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `
+INSERT INTO market_epoch_outcomes (template_id, epoch_id, outcome_index, pool_amount, updated_block)
+VALUES ($1, $2, $3, GREATEST(0::numeric, $4::numeric), $5)
+ON CONFLICT (template_id, epoch_id, outcome_index) DO UPDATE SET
+    pool_amount = GREATEST(0::numeric, market_epoch_outcomes.pool_amount + $4::numeric),
+    updated_block = EXCLUDED.updated_block,
+    updated_at = NOW()
+`, tid, eid, outcome, delta.String(), block); err != nil {
+		return err
+	}
+	return s.recomputeProjection(ctx, tx, tid, eid, block)
+}
+
+func (s *Service) addUserPosition(ctx context.Context, tx pgx.Tx, user string, tid []byte, eid int64, outcome int16, delta *big.Int, block int64) error {
+	if delta == nil || user == "" {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `
+INSERT INTO user_position_outcomes (user_address, template_id, epoch_id, outcome_index, stake_amount, updated_block)
+VALUES ($1, $2, $3, $4, GREATEST(0::numeric, $5::numeric), $6)
+ON CONFLICT (user_address, template_id, epoch_id, outcome_index) DO UPDATE SET
+    stake_amount = GREATEST(0::numeric, user_position_outcomes.stake_amount + $5::numeric),
+    updated_block = EXCLUDED.updated_block,
+    updated_at = NOW()
+`, user, tid, eid, outcome, delta.String(), block)
+	return err
+}
+
+func (s *Service) markUserClaimed(ctx context.Context, tx pgx.Tx, user string, tid []byte, eid int64, amount *big.Int, block int64) error {
+	if user == "" {
+		return nil
+	}
+	claimed := "0"
+	if amount != nil {
+		claimed = amount.String()
+	}
+	_, err := tx.Exec(ctx, `
+UPDATE user_position_outcomes
+SET claimed = TRUE,
+    claimed_amount = CASE WHEN $4::numeric > 0 THEN $4::numeric ELSE claimed_amount END,
+    updated_block = $5,
+    updated_at = NOW()
+WHERE user_address = $1 AND template_id = $2 AND epoch_id = $3
+`, user, tid, eid, claimed, block)
+	return err
+}
+
+func (s *Service) recomputeProjection(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, block int64) error {
+	rows, err := tx.Query(ctx, `
+SELECT outcome_index, pool_amount::text
+FROM market_epoch_outcomes
+WHERE template_id = $1 AND epoch_id = $2
+ORDER BY outcome_index
+`, tid, eid)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type outcomeRow struct {
+		index  int16
+		amount *big.Int
+	}
+	var outcomes []outcomeRow
+	total := new(big.Int)
+	for rows.Next() {
+		var idx int16
+		var amountText string
+		if err := rows.Scan(&idx, &amountText); err != nil {
+			return err
+		}
+		amount, ok := new(big.Int).SetString(amountText, 10)
+		if !ok {
+			amount = new(big.Int)
+		}
+		outcomes = append(outcomes, outcomeRow{index: idx, amount: amount})
+		total.Add(total, amount)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	count := int64(len(outcomes))
+	if count == 0 {
+		return nil
+	}
+	for _, outcome := range outcomes {
+		prob := int64(0)
+		mult := int64(0)
+		if total.Sign() > 0 {
+			prob = new(big.Int).Div(new(big.Int).Mul(outcome.amount, big.NewInt(10_000)), total).Int64()
+			if outcome.amount.Sign() > 0 {
+				mult = new(big.Int).Div(new(big.Int).Mul(total, big.NewInt(10_000)), outcome.amount).Int64()
+			}
+		} else {
+			prob = 10_000 / count
+		}
+		if _, err := tx.Exec(ctx, `
+UPDATE market_epoch_outcomes
+SET probability_bps = $4, multiplier_bps = $5, updated_block = $6, updated_at = NOW()
+WHERE template_id = $1 AND epoch_id = $2 AND outcome_index = $3
+`, tid, eid, outcome.index, int32(prob), int32(mult), block); err != nil {
+			return err
+		}
+	}
+	_, err = tx.Exec(ctx, `
+INSERT INTO market_snapshots (template_id, active_epoch_id, status, total_pool, volume, outcome_count, last_indexed_block)
+VALUES ($1, $2, 'open', $3::numeric, $3::numeric, $4, $5)
+ON CONFLICT (template_id) DO UPDATE SET
+    total_pool = EXCLUDED.total_pool,
+    volume = EXCLUDED.volume,
+    outcome_count = EXCLUDED.outcome_count,
+    last_indexed_block = EXCLUDED.last_indexed_block,
+    updated_at = NOW()
+`, tid, eid, total.String(), int16(count), block)
+	return err
+}
+
+func (s *Service) emitProjectionEvent(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, eventType string, tid []byte, eid int64, lg types.Log) error {
+	snap, err := s.projectionPayload(ctx, tx, tid, eid)
+	if err != nil {
+		return err
+	}
+	snap["blockNumber"] = lg.BlockNumber
+	snap["txHash"] = lg.TxHash.Hex()
+	snap["logIndex"] = lg.Index
+	block := int64(lg.BlockNumber)
+	logIndex := int32(lg.Index)
+	return s.insertRealtimeEvent(ctx, tx, realtimeSeqs, realtime.InsertEvent{
+		Channel:     "global:markets",
+		Type:        eventType,
+		Scope:       "public",
+		TemplateID:  tid,
+		EpochID:     &eid,
+		BlockNumber: &block,
+		TxHash:      lg.TxHash.Hex(),
+		LogIndex:    &logIndex,
+		Payload:     snap,
+		DedupeKey:   fmt.Sprintf("%s:%s:%d", eventType, lg.TxHash.Hex(), lg.Index),
 	})
+}
+
+func (s *Service) emitUserPositionEvent(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, eventType string, user string, tid []byte, eid int64, lg types.Log) error {
+	payload, err := s.userPositionPayload(ctx, tx, user, tid, eid)
+	if err != nil {
+		return err
+	}
+	block := int64(lg.BlockNumber)
+	logIndex := int32(lg.Index)
+	return s.insertRealtimeEvent(ctx, tx, realtimeSeqs, realtime.InsertEvent{
+		Channel:     "user:" + strings.ToLower(user),
+		Type:        eventType,
+		Scope:       "user",
+		UserAddress: strings.ToLower(user),
+		TemplateID:  tid,
+		EpochID:     &eid,
+		BlockNumber: &block,
+		TxHash:      lg.TxHash.Hex(),
+		LogIndex:    &logIndex,
+		Payload:     payload,
+		DedupeKey:   fmt.Sprintf("%s:%s:%d", eventType, lg.TxHash.Hex(), lg.Index),
+	})
+}
+
+func (s *Service) projectionPayload(ctx context.Context, tx pgx.Tx, tid []byte, eid int64) (map[string]any, error) {
+	var status, totalPool, volume string
+	var outcomeCount int16
+	var block int64
+	err := tx.QueryRow(ctx, `
+SELECT status, total_pool::text, volume::text, outcome_count, last_indexed_block
+FROM market_snapshots
+WHERE template_id = $1
+`, tid).Scan(&status, &totalPool, &volume, &outcomeCount, &block)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := tx.Query(ctx, `
+SELECT outcome_index, pool_amount::text, probability_bps, multiplier_bps, updated_block
+FROM market_epoch_outcomes
+WHERE template_id = $1 AND epoch_id = $2
+ORDER BY outcome_index
+`, tid, eid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	outcomes := []map[string]any{}
+	for rows.Next() {
+		var idx int16
+		var amount string
+		var prob, mult int32
+		var updatedBlock int64
+		if err := rows.Scan(&idx, &amount, &prob, &mult, &updatedBlock); err != nil {
+			return nil, err
+		}
+		outcomes = append(outcomes, map[string]any{
+			"outcomeIndex":         idx,
+			"poolSize":             amount,
+			"impliedProbabilityE6": fmt.Sprintf("%d", prob*100),
+			"displayPercentE4":     fmt.Sprintf("%d", prob),
+			"multiplierBps":        fmt.Sprintf("%d", mult),
+			"grossPayoutXe6":       fmt.Sprintf("%d", mult*100),
+			"updatedBlock":         updatedBlock,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	tidHex := strings.ToLower(common.BytesToHash(tid).Hex())
+	return map[string]any{
+		"templateId":       tidHex,
+		"epochId":          eid,
+		"activeEpochId":    eid,
+		"status":           status,
+		"totalPool":        totalPool,
+		"volume":           volume,
+		"outcomeCount":     outcomeCount,
+		"lastIndexedBlock": block,
+		"outcomes":         outcomes,
+	}, nil
+}
+
+func (s *Service) userPositionPayload(ctx context.Context, tx pgx.Tx, user string, tid []byte, eid int64) (map[string]any, error) {
+	rows, err := tx.Query(ctx, `
+SELECT outcome_index, stake_amount::text, claimed_amount::text, claimed, updated_block
+FROM user_position_outcomes
+WHERE user_address = $1 AND template_id = $2 AND epoch_id = $3
+ORDER BY outcome_index
+`, strings.ToLower(user), tid, eid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	stakes := []string{}
+	total := new(big.Int)
+	claimed := false
+	claimedAmount := new(big.Int)
+	var maxBlock int64
+	for rows.Next() {
+		var idx int16
+		var stakeText, claimedText string
+		var rowClaimed bool
+		var updatedBlock int64
+		if err := rows.Scan(&idx, &stakeText, &claimedText, &rowClaimed, &updatedBlock); err != nil {
+			return nil, err
+		}
+		for len(stakes) <= int(idx) {
+			stakes = append(stakes, "0")
+		}
+		stakes[idx] = stakeText
+		if n, ok := new(big.Int).SetString(stakeText, 10); ok {
+			total.Add(total, n)
+		}
+		if n, ok := new(big.Int).SetString(claimedText, 10); ok {
+			claimedAmount.Add(claimedAmount, n)
+		}
+		claimed = claimed || rowClaimed
+		if updatedBlock > maxBlock {
+			maxBlock = updatedBlock
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"wallet":            strings.ToLower(user),
+		"templateId":        strings.ToLower(common.BytesToHash(tid).Hex()),
+		"epochId":           eid,
+		"stakes":            stakes,
+		"totalStake":        total.String(),
+		"claimed":           claimed,
+		"claimedAmount":     claimedAmount.String(),
+		"positionViewBlock": maxBlock,
+		"source":            "indexed_projection",
+	}, nil
+}
+
+func (s *Service) insertRealtimeEvent(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, event realtime.InsertEvent) error {
+	seq, inserted, err := realtime.Insert(ctx, tx, event)
+	if err != nil {
+		return err
+	}
+	if inserted && realtimeSeqs != nil {
+		*realtimeSeqs = append(*realtimeSeqs, seq)
+	}
+	return nil
+}
+
+func payloadUint(v any) (uint64, bool) {
+	switch x := v.(type) {
+	case uint8:
+		return uint64(x), true
+	case uint64:
+		return x, true
+	case int:
+		return uint64(x), x >= 0
+	case float64:
+		return uint64(x), x >= 0
+	default:
+		return 0, false
+	}
+}
+
+func payloadBig(v any) (*big.Int, bool) {
+	switch x := v.(type) {
+	case string:
+		n, ok := new(big.Int).SetString(x, 10)
+		return n, ok
+	case *big.Int:
+		if x == nil {
+			return nil, false
+		}
+		return new(big.Int).Set(x), true
+	default:
+		return nil, false
+	}
 }
 
 func (s *Service) onRollingHalted(ctx context.Context, q *dbqueries.Queries, lg types.Log, ev *abi.Event) error {

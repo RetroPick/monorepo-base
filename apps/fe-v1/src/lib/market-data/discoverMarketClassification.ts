@@ -3,7 +3,7 @@ import type { Market } from "@/types/market";
 const MARKET_TYPE_COUNT = 9;
 
 /**
- * `MarketTypes.MarketType` uint — matches `package/contract/src/types/MarketTypes.sol` order.
+ * `MarketTypes.MarketType` uint; matches `package/contract/src/types/MarketTypes.sol` order.
  * Direction=0: Up/Down. Threshold=1 and other binary: Yes/No (unless multi-outcome range).
  */
 export function binaryPresentationForMarketType(

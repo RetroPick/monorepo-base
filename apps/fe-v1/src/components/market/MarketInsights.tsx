@@ -9,7 +9,7 @@ interface MarketInsightsProps {
 const MarketInsights = ({ marketTitle }: MarketInsightsProps) => {
   const [isOpen, setIsOpen] = useState(true);
 
-  const insightText = `No major announcements in the past week alter expectations for the nomination timeline, but sustained chatter around the leading candidate's recent media appearances—highlighting economic alignment with the administration—bolsters the current probability range. Historical patterns suggest a narrowing of the field by early next month. Secondary contenders remain strong if there's a pivot towards a more traditional stance, while other candidates' odds have dipped slightly due to recent commentary.`;
+  const insightText = `No major announcements in the past week alter expectations for the nomination timeline, but sustained chatter around the leading candidate's recent media appearances (economic alignment with the administration) still supports the current probability band. The field often tightens by early next month. Other names stay live if the race shifts toward a more traditional profile; a few underdog lines edged lower after last week's commentary.`;
 
   return (
     <div className="bg-card border border-border/50 rounded-2xl overflow-hidden">
@@ -21,7 +21,7 @@ const MarketInsights = ({ marketTitle }: MarketInsightsProps) => {
           <div className="size-8 rounded-lg bg-gradient-to-br from-primary to-accent-cyan flex items-center justify-center">
             <Icon name="auto_awesome" className="text-white text-sm" />
           </div>
-          <span className="font-bold text-foreground">AI-Powered Market Insights</span>
+          <span className="font-bold text-foreground">Market snapshot</span>
         </div>
         <Icon 
           name={isOpen ? "expand_less" : "expand_more"} 

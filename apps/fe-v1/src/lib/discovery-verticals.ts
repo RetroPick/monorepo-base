@@ -1,4 +1,4 @@
-/** Stored on each market — which content bucket it belongs to. */
+/** Stored on each market: which content bucket it belongs to. */
 export type MarketDiscoveryVerticalId = "crypto" | "economics" | "financials" | "tech_science" | "climate";
 
 /** Tabs in the discover strip (includes view modes like Trending). */

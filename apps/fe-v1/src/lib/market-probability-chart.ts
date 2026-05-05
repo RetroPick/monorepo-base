@@ -245,7 +245,7 @@ function outcomePercentsForPoint(point: ProbabilityHistoryPoint, sortedOutcomeId
 
 /**
  * Maps each event to `t` in epoch ms. Duplicate `indexedAt` values are nudged by +1ms so rows stay strictly ordered;
- * on long spans that still yields ~vertical segments — use `downsampleProbabilityRowsForDisplay` before drawing.
+ * on long spans that still yields ~vertical segments; use `downsampleProbabilityRowsForDisplay` before drawing.
  */
 export function historyToChartRows(
   history: ProbabilityHistoryPoint[],
@@ -325,7 +325,7 @@ export function bucketMergeProbabilityRows(
   return out;
 }
 
-/** Below this count (after redundant collapse), keep every point — matches V1 “raw is fine, limit 500”. */
+/** Below this count (after redundant collapse), keep every point (matches V1 “raw is fine, limit 500”). */
 export const PROBABILITY_CHART_RAW_POINT_CAP = 500;
 
 export type DownsampleProbabilityRowsOptions = {
@@ -408,7 +408,7 @@ export function lastOutcomePercents(
 export type AppendSyntheticNowRowOptions = {
   /**
    * When set, the synthetic “now” tip uses these implied percents (e.g. latest chain state),
-   * not the last row of `rows` — so EMA-smoothed history can still end at the true live %.
+   * not the last row of `rows`, so EMA-smoothed history can still end at the true live %.
    */
   liveImpliedPercents?: Record<string, number>;
 };

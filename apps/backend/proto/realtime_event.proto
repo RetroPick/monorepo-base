@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package retropick.realtime.v1;
+
+option go_package = "retropick/apps/backend/proto/realtimev1";
+
+message EventEnvelope {
+  uint64 seq = 1;
+  string type = 2;
+  string channel = 3;
+  string scope = 4;
+  string template_id = 5;
+  uint64 epoch_id = 6;
+  string user_address = 7;
+  uint64 block_number = 8;
+  string tx_hash = 9;
+  string created_at = 10;
+  bytes payload_json = 11;
+}
+
+service RealtimeEventService {
+  rpc WatchEvents(WatchEventsRequest) returns (stream EventEnvelope);
+}
+
+message WatchEventsRequest {
+  repeated string channels = 1;
+  uint64 last_seq = 2;
+}

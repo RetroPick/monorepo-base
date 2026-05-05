@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { getApiWebSocketUrl } from "@/lib/api/retropickApi";
+import { getApiWebSocketUrl, type MarketDetail, type MarketRow, type ProbabilityHistoryResponse } from "@/lib/api/retropickApi";
 
 const WS_STALE_MS = 12_000;
 
@@ -36,6 +36,93 @@ function parseNotifyTemplateIds(raw: string): string[] {
   }
 }
 
+type RealtimeEvent = {
+  seq?: number;
+  type?: string;
+  channel?: string;
+  templateId?: string;
+  epochId?: number;
+  payload?: Partial<MarketRow & MarketDetail> & {
+    templateId?: string;
+    epochId?: number;
+    blockNumber?: number;
+    txHash?: string;
+    logIndex?: number;
+  };
+};
+
+function parseRealtimeEvent(raw: string): RealtimeEvent | null {
+  try {
+    const parsed = JSON.parse(raw) as RealtimeEvent;
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function patchMarketCaches(qc: QueryClient, event: RealtimeEvent): boolean {
+  const payload = event.payload;
+  const templateId = normalizeWsTemplateId(event.templateId ?? payload?.templateId);
+  if (!templateId || !payload) return false;
+
+  const patch: Partial<MarketRow & MarketDetail> = {
+    activeEpochId: payload.activeEpochId ?? payload.epochId ?? event.epochId,
+    totalPool: payload.totalPool,
+    volume: payload.volume,
+    outcomeCount: payload.outcomeCount,
+    outcomes: payload.outcomes,
+    outcomeViewBlock: payload.lastIndexedBlock ?? payload.blockNumber,
+    lastIndexedBlock: payload.lastIndexedBlock ?? payload.blockNumber,
+  };
+
+  qc.setQueriesData<MarketRow[]>({ queryKey: ["retropick-api", "markets"] }, (old) => {
+    if (!Array.isArray(old)) return old;
+    return old.map((row) => (normalizeWsTemplateId(row.templateId) === templateId ? { ...row, ...patch } : row));
+  });
+
+  qc.setQueriesData<MarketDetail>({ queryKey: ["retropick-api", "market", templateId] }, (old) => {
+    if (!old) return old;
+    return { ...old, ...patch };
+  });
+
+  if (payload.outcomes && payload.blockNumber != null && payload.txHash && payload.logIndex != null) {
+    qc.setQueriesData<ProbabilityHistoryResponse>(
+      { queryKey: ["retropick-api", "probability-history", templateId] },
+      (old) => {
+        if (!old) return old;
+        const epochId = payload.epochId ?? event.epochId ?? old.epochId;
+        if (epochId !== old.epochId) return old;
+        const exists = old.points.some(
+          (point) => point.txHash === payload.txHash && point.logIndex === payload.logIndex,
+        );
+        if (exists) return old;
+        const totalPool = payload.totalPool ?? old.points.at(-1)?.totalPool ?? "0";
+        return {
+          ...old,
+          points: [
+            ...old.points,
+            {
+              blockNumber: payload.blockNumber,
+              txHash: payload.txHash,
+              logIndex: payload.logIndex,
+              eventName: event.type ?? "pool_update",
+              totalPool,
+              outcomes: payload.outcomes.map((outcome) => ({
+                outcomeIndex: outcome.outcomeIndex,
+                poolSize: outcome.poolSize,
+                impliedProbabilityE6: outcome.impliedProbabilityE6,
+              })),
+            },
+          ],
+        };
+      },
+    );
+  }
+
+  return true;
+}
+
 /** Refetch probability history immediately so the chart updates without waiting for the debounced batch. */
 function invalidateProbabilityHistoryNow(qc: QueryClient, templateId?: string) {
   const t = normalizeWsTemplateId(templateId);
@@ -63,6 +150,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
     let closed = false;
     let retryAttempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastSeq = Number(window.localStorage.getItem("retropick:last-ws-seq") ?? "0") || 0;
 
     const scheduleInvalidate = (templateId?: string) => {
       invalidateProbabilityHistoryNow(qc, templateId);
@@ -88,7 +176,9 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
     const connect = () => {
       if (closed) return;
       try {
-        ws = new WebSocket(getApiWebSocketUrl());
+        const url = new URL(getApiWebSocketUrl());
+        if (lastSeq > 0) url.searchParams.set("lastSeq", String(lastSeq));
+        ws = new WebSocket(url.toString());
       } catch {
         scheduleReconnect();
         return;
@@ -96,11 +186,29 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
 
       ws.onopen = () => {
         retryAttempt = 0;
+        const channels = scope ? ["global:markets", `market:${scope}`] : ["global:markets"];
+        ws?.send(JSON.stringify({ type: "subscribe", channels, lastSeq }));
       };
 
       ws.onmessage = (ev) => {
         retryAttempt = 0;
         const raw = String(ev.data);
+        const realtimeEvent = parseRealtimeEvent(raw);
+        if (realtimeEvent?.seq != null) {
+          if (lastSeq > 0 && realtimeEvent.seq > lastSeq + 1) {
+            scheduleInvalidate(scope);
+          }
+          lastSeq = Math.max(lastSeq, realtimeEvent.seq);
+          window.localStorage.setItem("retropick:last-ws-seq", String(lastSeq));
+        }
+        if (realtimeEvent?.type === "resync_required") {
+          scheduleInvalidate(scope);
+          return;
+        }
+        if (realtimeEvent && patchMarketCaches(qc, realtimeEvent)) {
+          return;
+        }
+
         const ids = parseNotifyTemplateIds(raw);
 
         if (scope) {

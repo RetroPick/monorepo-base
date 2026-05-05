@@ -61,7 +61,7 @@ function formatStakeAmount(raw: bigint): string {
   return formatUsdc(raw, decimals);
 }
 
-/** Non-zero parsed amounts only; zero pool / volume → undefined so cards show "—". */
+/** Non-zero parsed amounts only; zero pool / volume → undefined so cards show "-". */
 function volumeFieldToDisplay(raw: string | null | undefined): string | undefined {
   if (raw == null || raw === "") return undefined;
   const parsed = parseRawAmount(raw);
@@ -106,7 +106,7 @@ export function chainMarketIsLive(row: MarketRow): boolean {
   return row.initialized && row.activeEpochId != null;
 }
 
-/** False for template-only rows (`!initialized`) — still in setup, not on Discover. */
+/** False for template-only rows (`!initialized`); still in setup, not on Discover. */
 export function isMarketPastSetup(row: MarketRow): boolean {
   return row.initialized;
 }
@@ -252,8 +252,8 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     icon: pickIconForSlug(row.slug),
     iconColor: "text-foreground",
     outcomes,
-    volume: totalPool ?? "—",
-    totalPool: totalPool ?? "—",
+    volume: totalPool ?? "-",
+    totalPool: totalPool ?? "-",
     isBinary,
     binaryPresentation,
     status: deriveStatus(row),

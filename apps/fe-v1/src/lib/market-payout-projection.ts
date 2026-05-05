@@ -149,7 +149,7 @@ export function projectedImpliedAvgPriceCents(args: {
 
 /** Return multiple capped payout / marginal stake for UX (floor at 0.01×). */
 export function formatPayoutMultiple(cappedPayout: bigint, marginalStake: bigint): string {
-  if (marginalStake <= 0n || cappedPayout <= 0n) return "—";
+  if (marginalStake <= 0n || cappedPayout <= 0n) return "-";
   const mult100 = (cappedPayout * 100n) / marginalStake;
   const n = Number(mult100) / 100;
   if (!Number.isFinite(n) || n < 0.01) return "<0.01";

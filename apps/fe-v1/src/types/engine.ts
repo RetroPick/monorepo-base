@@ -1,5 +1,5 @@
 /**
- * RetroPick MarketEngine — TypeScript types
+ * RetroPick MarketEngine TypeScript types
  *
  * Mirrors `MarketTypes` in package/contract (`EpochStatus`, `MarketType`, `RollingPhase`, etc.).
  */

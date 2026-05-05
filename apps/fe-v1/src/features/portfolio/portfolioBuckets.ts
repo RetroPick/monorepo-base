@@ -4,7 +4,7 @@ import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
 import { inferCryptoFromSlug, isDiscoverCryptoRow } from "@/lib/market-data/chainDiscover";
 import { parseStakeRaw, sumNumericStringKey } from "@/features/portfolio/formatStakeUsd";
 
-/** Portfolio donut / legend buckets — aligned with Discover verticals (no legacy Sports/Politics strip). */
+/** Portfolio donut / legend buckets, aligned with Discover verticals (no legacy Sports/Politics strip). */
 export type PortfolioCategoryId = "crypto" | "economics" | "financials" | "tech_science" | "climate" | "other";
 
 const CATEGORY_ORDER: PortfolioCategoryId[] = [

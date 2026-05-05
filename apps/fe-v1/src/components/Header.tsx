@@ -39,7 +39,7 @@ interface HeaderProps {
     marketType: number;
   };
   /**
-   * Portfolio: same strip as Discover — drives `?vertical=` via parent `setSearchParams` so category
+   * Portfolio: same strip as Discover; drives `?vertical=` via parent `setSearchParams` so category
    * distribution stays in sync (buttons, not inert links).
    */
   portfolioDiscoverNav?: {

@@ -4,7 +4,7 @@ interface RetroErrorStateProps {
   onRefresh: () => void;
 }
 
-/** CSS penguin (Pudgy-style silhouette) — decorative only; keeps a light bob animation. */
+/** CSS penguin (Pudgy-style silhouette): decorative only; keeps a light bob animation. */
 function PenguinMascot({ className }: { className?: string }) {
   return (
     <div className={className}>
@@ -54,7 +54,7 @@ export default function RetroErrorState({ onRefresh }: RetroErrorStateProps) {
           </h1>
 
           <p className="mt-4 text-base leading-relaxed text-slate-600 sm:text-[17px] dark:text-muted-foreground">
-            The app stopped rendering. Reloading usually fixes it—your wallet and session are not affected by this screen.
+            The app stopped rendering. Reloading usually fixes it. Your wallet and session are not affected by this screen.
           </p>
 
           <div className="mt-8">

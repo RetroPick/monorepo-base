@@ -7,6 +7,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable && corepack prepare pnpm@10.0.0 --activate
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches patches
 COPY apps/fe-v1/package.json apps/fe-v1/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/types/package.json packages/types/package.json

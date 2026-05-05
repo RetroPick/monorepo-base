@@ -1,5 +1,5 @@
 /**
- * EIP-712 typed data for {@link TokenFaucet.requestWithSig} — must match
+ * EIP-712 typed data for {@link TokenFaucet.requestWithSig}; must match
  * OpenZeppelin EIP712("TokenFaucet","1") and MintRequest typehash in Solidity.
  */
 
