@@ -4,10 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Icon from "./Icon";
 import ConfirmationModal from "./ConfirmationModal";
 import { cn } from "@/lib/utils";
-import { useYellowSession } from "@/hooks/useYellowSession";
 import { useAccount } from "wagmi";
-import { relayerApi } from "@/lib/relayerApi";
-import { RELAYER_SESSION_VAULT_PLACEHOLDER } from "@/lib/relayerConstants";
 
 // --- Authentic Crypto Icons (SVGs) ---
 const SolanaLogo = ({ className }: { className?: string }) => (
@@ -78,7 +75,7 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
   // Theme colors
   const isYes = side === 'YES';
 
-  const { signOrder, isPending } = useYellowSession();
+  const [isPending, setIsPending] = useState(false);
 
   const handleBuy = async () => {
     try {
@@ -86,52 +83,13 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
         alert("Please sign in first!");
         return;
       }
-
-      // Convert market title      // We will hardcode a test session for this implementation phase based on title Hash
-      const sessionId = relayerApi.getMarketSessionId(marketTitle);
-      const outcomeIndex = side === 'YES' ? 0 : 1;
-
-      // Auto-create session on the fly if it doesn't exist (hackathon UX flow)
-      try {
-        await relayerApi.getSession(sessionId);
-      } catch (err) {
-        await relayerApi.createSession({
-          sessionId,
-          marketId: "1",
-          vaultId: RELAYER_SESSION_VAULT_PLACEHOLDER,
-          numOutcomes: 2,
-          b: 100 // LMSR liquidity param
-        });
-      }
-
-      // Ensure user has some test USDC
-      try {
-        await relayerApi.creditUser(sessionId, address, 10000);
-      } catch (e) { }
-
-      // Sign the order for realistic UX
-      const deltaShares = amount / price;
-      const signature = await signOrder(sessionId, 'buy', outcomeIndex, deltaShares);
-
-      if (signature) {
-        // Execute the trade against the backend relayer
-        const res = await relayerApi.buyShares({
-          sessionId,
-          outcomeIndex,
-          delta: deltaShares, // amount is in USDC, LMSR expects share delta
-          userAddress: address,
-          signature
-        });
-
-        if (!res?.ok) {
-          throw new Error('Trade failed');
-        }
-
-        setShowConfirmation(true);
-      }
+      setIsPending(true);
+      alert("Legacy relayer modal is disabled. Use the market Trade panel for backend-orchestrated orders.");
     } catch (err: any) {
       console.error("Trade failed:", err);
       alert(`Trade Error: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsPending(false);
     }
   };
 

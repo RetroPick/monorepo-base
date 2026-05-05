@@ -4,28 +4,35 @@ import "fmt"
 
 const (
 	StatusCreated             = "CREATED"
-	StatusBalanceScanning     = "BALANCE_SCANNING"
+	StatusBalanceScanning     = "SCANNING_BALANCES"
 	StatusOptionsReady        = "OPTIONS_READY"
 	StatusRouteSelected       = "ROUTE_SELECTED"
 	StatusAwaitingWallet      = "AWAITING_WALLET_SIGNATURE"
 	StatusExecutionStarted    = "EXECUTION_STARTED"
 	StatusSourceTxSubmitted   = "SOURCE_TX_SUBMITTED"
 	StatusBridging            = "BRIDGING"
-	StatusDestinationDetected = "DESTINATION_USDC_DETECTED"
+	StatusDestinationDetected = "DESTINATION_USDC_VERIFIED"
 	StatusCrediting           = "CREDITING"
 	StatusCredited            = "CREDITED"
 	StatusFailed              = "FAILED"
 	StatusExpired             = "EXPIRED"
 	StatusManualReview        = "MANUAL_REVIEW"
 	StatusRefunded            = "REFUNDED"
+	StatusNoFundingOptions    = "NO_FUNDING_OPTIONS"
 )
 
 var allowedTransitions = map[string]map[string]struct{}{
 	StatusCreated: {
 		StatusBalanceScanning: {},
 		StatusOptionsReady:    {},
+		StatusNoFundingOptions: {},
 		StatusFailed:          {},
 		StatusExpired:         {},
+	},
+	StatusBalanceScanning: {
+		StatusOptionsReady:     {},
+		StatusNoFundingOptions: {},
+		StatusFailed:           {},
 	},
 	StatusOptionsReady: {
 		StatusRouteSelected: {},

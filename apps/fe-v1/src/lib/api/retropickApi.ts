@@ -3,6 +3,7 @@ import {
   getApiRetries,
   getApiTimeoutMs,
 } from "@/lib/runtimeEnv";
+import { getBackendAuthToken } from "@/lib/api/authToken";
 
 /**
  * RetroPick Go API client: health, markets, config, epochs, user events; extends as backend grows.
@@ -64,6 +65,13 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function buildHeaders() {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  const token = getBackendAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  return headers;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const attempts = Math.max(0, API_RETRIES) + 1;
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -72,7 +80,7 @@ async function getJson<T>(path: string): Promise<T> {
     try {
       const res = await fetch(`${base}${path}`, {
         cache: "no-store",
-        headers: { Accept: "application/json" },
+        headers: buildHeaders(),
         signal: ctrl.signal,
       });
       if (!res.ok) {
@@ -112,10 +120,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     const ctrl = new AbortController();
     const timeout = window.setTimeout(() => ctrl.abort(), API_TIMEOUT_MS);
     try {
+      const headers = buildHeaders();
+      headers["Content-Type"] = "application/json";
       const res = await fetch(`${base}${path}`, {
         method: "POST",
         cache: "no-store",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body),
         signal: ctrl.signal,
       });
@@ -307,6 +317,18 @@ export type UserPositionsResponse = {
   positions: PositionViewRow[];
   dataFreshness: DataFreshness;
 };
+
+export type UserBalanceResponse = {
+  wallet: string;
+  usdcAvailable: string;
+  usdcLocked: string;
+  updatedAt: string;
+};
+
+export async function fetchUserBalance(walletAddress: string): Promise<UserBalanceResponse> {
+  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
+  return getJson<UserBalanceResponse>(`/api/v1/user/balance?wallet=${encodeURIComponent(addr)}`);
+}
 
 export async function fetchUserPositions(
   walletAddress: string,
@@ -531,6 +553,257 @@ export async function fetchUserEvents(
     `/api/v1/user/${encodeURIComponent(addr)}/events${q}`,
   );
   return data.events;
+}
+
+export type ChartCandle = {
+  feedId: string;
+  intervalSec: number;
+  bucketStart: string;
+  openE8: string;
+  highE8: string;
+  lowE8: string;
+  closeE8: string;
+  source: string;
+  sampleCount: number;
+  updatedAt: string;
+};
+
+export async function fetchMarketChart(
+  templateId: string,
+  opts?: { feedId?: string; interval?: number; limit?: number },
+): Promise<{ feedId: string; intervalSec: number; candles: ChartCandle[] }> {
+  const id = templateId.startsWith("0x") ? templateId : `0x${templateId}`;
+  const params = new URLSearchParams();
+  if (opts?.feedId) params.set("feedId", opts.feedId);
+  if (opts?.interval != null) params.set("interval", String(opts.interval));
+  if (opts?.limit != null) params.set("limit", String(opts.limit));
+  const q = params.toString();
+  return getJson(`/api/v1/markets/${encodeURIComponent(id)}/chart${q ? `?${q}` : ""}`);
+}
+
+export type TxPrepareRequest =
+  | {
+      wallet?: string;
+      templateId: string;
+      epochId: number | string | bigint;
+      amount: string;
+      outcomeIndex: number;
+      idempotencyKey?: string;
+    }
+  | {
+      wallet?: string;
+      templateId: string;
+      epochId: number | string | bigint;
+      amount: string;
+      fromOutcomeIndex: number;
+      toOutcomeIndex: number;
+      idempotencyKey?: string;
+    }
+  | {
+      wallet?: string;
+      templateId: string;
+      epochId?: number | string | bigint;
+      epochIds?: Array<number | string | bigint>;
+      idempotencyKey?: string;
+    };
+
+export type TxPreparedResponse = {
+  action: string;
+  chainId: number;
+  to: string;
+  value: string;
+  data: string;
+  method: string;
+  expiresAt: string;
+  idempotencyKey: string;
+};
+
+export async function prepareEnterTx(body: TxPrepareRequest): Promise<TxPreparedResponse> {
+  return postJson("/api/v1/tx/prepare/enter", body);
+}
+
+export async function prepareSwitchTx(body: TxPrepareRequest): Promise<TxPreparedResponse> {
+  return postJson("/api/v1/tx/prepare/switch", body);
+}
+
+export async function prepareClaimTx(body: TxPrepareRequest): Promise<TxPreparedResponse> {
+  return postJson("/api/v1/tx/prepare/claim", body);
+}
+
+export async function submitPreparedTx(body: {
+  wallet: string;
+  txHash: string;
+  action: string;
+  templateId?: string;
+  epochId?: number | string | bigint;
+  idempotencyKey?: string;
+}): Promise<{ ok: boolean; txHash: string }> {
+  return postJson("/api/v1/tx/submit", body);
+}
+
+export type FundingIntent = {
+  id: string;
+  wallet: string;
+  status: string;
+  targetCurrency: string;
+  targetAmountDecimal: string;
+  targetUsdcAmount: string;
+  settlementChainId: number;
+  settlementToken: string;
+  recommendedRouteId?: string | null;
+  selectedRouteId?: string | null;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+};
+
+export type FundingConfigResponse = {
+  settlement: {
+    chainId: number;
+    token: { symbol: string; address: string; decimals: number };
+    receiver: string;
+  };
+  limits: {
+    minDepositUsdc: string;
+    softMaxDepositUsdc: string;
+    hardMaxDepositUsdc: string;
+  };
+  supportedSourceChains: number[];
+  supportedSourceTokens: Record<string, string[]>;
+  providers?: string[];
+};
+
+export type FundingRouteOption = {
+  id: string;
+  provider: string;
+  providerRouteId: string;
+  sourceChainId: number;
+  sourceTokenAddress: string;
+  sourceTokenSymbol?: string | null;
+  sourceTokenDecimals?: number | null;
+  sourceAmount: string;
+  estimatedUsdcReceived: string;
+  minUsdcReceived: string;
+  estimatedDurationSeconds?: number | null;
+  routeScore?: string;
+  status: string;
+  createdAt: string;
+};
+
+export async function createFundingIntent(body: {
+  wallet: string;
+  targetAmountDecimal: string;
+  targetUsdcAmount: string;
+}): Promise<FundingIntent> {
+  return postJson("/api/v1/funding/intents", body);
+}
+
+export async function fetchFundingConfig(): Promise<FundingConfigResponse> {
+  return getJson("/api/funding/config");
+}
+
+export async function createFundingIntentV2(body: {
+  userAddress: string;
+  targetCurrency: "USD";
+  targetAmount: string;
+  clientNonce: string;
+  mode?: "AUTO_BEST_SOURCE";
+}): Promise<{
+  intentId: string;
+  status: string;
+  target: { currency: "USDC"; amount: string; displayAmount: string };
+}> {
+  return postJson("/api/funding/intents", body);
+}
+
+export async function scanFundingIntentBalances(intentId: string): Promise<{ status: string }> {
+  return postJson(`/api/funding/intents/${encodeURIComponent(intentId)}/scan-balances`, {});
+}
+
+export async function fetchFundingOptionsV2(intentId: string): Promise<{
+  intentId: string;
+  status: string;
+  recommendedOptionId?: string;
+  options: Array<{
+    optionId: string;
+    provider: string;
+    source: {
+      chainId: number;
+      tokenAddress: string;
+      tokenSymbol?: string;
+      requiredAmount: string;
+    };
+    destination: {
+      estimatedToAmount: string;
+      minToAmount: string;
+    };
+  }>;
+}> {
+  return getJson(`/api/funding/intents/${encodeURIComponent(intentId)}/options`);
+}
+
+export async function selectFundingOption(
+  intentId: string,
+  body: { optionId: string },
+): Promise<{ intentId: string; status: string; execution: { executionId: string; provider: string } }> {
+  return postJson(`/api/funding/intents/${encodeURIComponent(intentId)}/select-option`, body);
+}
+
+export async function markFundingExecutionStartedV2(
+  executionId: string,
+  body: { walletAddress: string; clientRouteExecutionId: string },
+): Promise<{ status: string }> {
+  return postJson(`/api/funding/executions/${encodeURIComponent(executionId)}/start`, body);
+}
+
+export async function markFundingRouteUpdateV2(executionId: string, body: unknown): Promise<{ status: string }> {
+  return postJson(`/api/funding/executions/${encodeURIComponent(executionId)}/route-update`, body);
+}
+
+export async function markFundingSourceTxV2(
+  executionId: string,
+  body: { chainId: number; txHash: string },
+): Promise<{ status: string }> {
+  return postJson(`/api/funding/executions/${encodeURIComponent(executionId)}/source-tx`, body);
+}
+
+export async function fetchFundingIntent(intentId: string): Promise<FundingIntent> {
+  return getJson(`/api/v1/funding/intents/${encodeURIComponent(intentId)}`);
+}
+
+export async function fetchFundingOptions(intentId: string, refresh = false): Promise<{ options: FundingRouteOption[] }> {
+  const q = refresh ? "?refresh=1" : "";
+  return getJson(`/api/v1/funding/intents/${encodeURIComponent(intentId)}/options${q}`);
+}
+
+export async function selectFundingRoute(
+  intentId: string,
+  body: { wallet: string; routeId: string },
+): Promise<FundingIntent> {
+  return postJson(`/api/v1/funding/intents/${encodeURIComponent(intentId)}/select-route`, body);
+}
+
+export async function markFundingExecutionStarted(
+  intentId: string,
+  body: { wallet: string; idempotencyKey: string; txHash?: string },
+): Promise<FundingIntent> {
+  return postJson(`/api/v1/funding/intents/${encodeURIComponent(intentId)}/execution-started`, body);
+}
+
+export async function markFundingSourceTx(
+  intentId: string,
+  body: { wallet: string; idempotencyKey: string; txHash: string },
+): Promise<FundingIntent> {
+  return postJson(`/api/v1/funding/intents/${encodeURIComponent(intentId)}/source-tx`, body);
+}
+
+export async function markFundingRouteUpdate(
+  intentId: string,
+  body: { wallet: string; idempotencyKey: string; txHash?: string },
+): Promise<FundingIntent> {
+  return postJson(`/api/v1/funding/intents/${encodeURIComponent(intentId)}/route-update`, body);
 }
 
 export type PortfolioSummaryPositionRow = {

@@ -116,9 +116,9 @@ func createFundingIntentHandler(pool *pgxpool.Pool, reg *registry.Registry, svc 
 		var createdAt time.Time
 		err := pool.QueryRow(r.Context(), `
 INSERT INTO funding_intents (
-    user_address, status, target_amount_decimal, target_usdc_amount,
+    user_address, status, target_display_amount, target_amount_decimal, target_usdc_amount,
     settlement_chain_id, settlement_token_address, expires_at
-) VALUES (LOWER($1), 'CREATED', $2, $3::numeric, $4, $5, NOW() + INTERVAL '15 minutes')
+) VALUES (LOWER($1), 'CREATED', $2, $2, $3::numeric, $4, $5, NOW() + INTERVAL '15 minutes')
 RETURNING id::text, created_at
 `, body.Wallet, body.TargetAmountDecimal, body.TargetUsdcAmount, reg.ChainID, strings.ToLower(reg.Contracts.StakeToken)).Scan(&id, &createdAt)
 		if err != nil {

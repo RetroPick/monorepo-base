@@ -170,8 +170,21 @@ func main() {
 	r.Mount("/api/v1/ops", api.RequireOperator(api.OpsRouter(pool, reg, ethCaller), cfg.AuthJWTSecret))
 	r.Mount("/api/v1/tx", api.TxRouter(pool, ethCaller, reg))
 	r.Mount("/api/v1/funding", api.FundingRouter(pool, reg, fundingSvc))
+	r.Mount("/api/funding", api.FundingAbstractionRouter(pool, fundingSvc, api.FundingAPIConfig{
+		SettlementChainID:      cfg.SettlementChainID,
+		SettlementUSDCAddress:  cfg.SettlementUSDCAddress,
+		SettlementReceiver:     cfg.SettlementReceiver,
+		MinDepositUSDC:         cfg.MinDepositUSDC,
+		SoftMaxDepositUSDC:     cfg.SoftMaxDepositUSDC,
+		HardMaxDepositUSDC:     cfg.HardMaxDepositUSDC,
+		SupportedSourceChains:  cfg.FundingAllowedChains,
+		SupportedSourceTokens:  cfg.FundingAllowedTokens,
+		SupportedProviderNames: cfg.FundingAllowedProviders,
+	}))
 
 	r.Get("/api/v1/user/balance", api.UserBalanceHandler(pool))
+	r.Get("/api/users/{address}/balance", api.UserBalanceV2Handler(pool))
+	r.Post("/api/markets/{marketId}/enter", api.EnterMarketFromBalanceHandler(pool, cfg.MarketEntrySafetyBuffer))
 	r.Get("/api/v1/user/positions", api.UserPositionsHandler(pool, ethCaller, reg))
 	r.Get("/api/v1/user/claims", api.UserClaimsHandler(pool))
 	r.Get("/api/v1/user/portfolio-summary", api.UserPortfolioSummaryHandler(pool, ethCaller, reg))

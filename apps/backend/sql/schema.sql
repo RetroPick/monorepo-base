@@ -216,15 +216,23 @@ CREATE TABLE funding_transition_guards (
 CREATE TABLE funding_intents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_address VARCHAR(42) NOT NULL,
+    client_nonce TEXT,
     status TEXT NOT NULL,
     target_currency TEXT NOT NULL DEFAULT 'USD',
+    target_display_amount TEXT NOT NULL,
     target_amount_decimal TEXT NOT NULL,
     target_usdc_amount NUMERIC(78,0) NOT NULL,
     settlement_chain_id BIGINT NOT NULL,
     settlement_token_address VARCHAR(42) NOT NULL,
+    settlement_receiver_address VARCHAR(42),
+    settlement_token_symbol TEXT NOT NULL DEFAULT 'USDC',
+    settlement_token_decimals INT NOT NULL DEFAULT 6,
+    mode TEXT NOT NULL DEFAULT 'AUTO_BEST_SOURCE',
     recommended_route_id UUID,
     selected_route_id UUID,
     expires_at TIMESTAMPTZ NOT NULL,
+    credited_amount NUMERIC(78,0) NOT NULL DEFAULT 0,
+    credited_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     failure_code TEXT,
@@ -263,10 +271,68 @@ CREATE TABLE destination_usdc_transfers (
     block_number BIGINT NOT NULL,
     block_timestamp TIMESTAMPTZ,
     matched_funding_intent_id UUID REFERENCES funding_intents(id),
+    matched_execution_id UUID,
     credit_status TEXT NOT NULL DEFAULT 'UNMATCHED',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(chain_id, tx_hash, log_index)
 );
+
+CREATE TABLE wallet_balance_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    funding_intent_id UUID NOT NULL REFERENCES funding_intents(id) ON DELETE CASCADE,
+    user_address TEXT NOT NULL,
+    chain_id BIGINT NOT NULL,
+    token_address TEXT NOT NULL,
+    token_symbol TEXT,
+    token_decimals INT,
+    balance_amount NUMERIC(78,0) NOT NULL,
+    estimated_usd_value NUMERIC(38,12),
+    source TEXT NOT NULL,
+    raw_snapshot JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE funding_executions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    funding_intent_id UUID NOT NULL REFERENCES funding_intents(id) ON DELETE CASCADE,
+    funding_route_option_id UUID NOT NULL REFERENCES funding_route_options(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL DEFAULT 'LIFI',
+    status TEXT NOT NULL,
+    wallet_address TEXT NOT NULL,
+    client_route_execution_id TEXT,
+    source_chain_id BIGINT NOT NULL,
+    source_token_address TEXT NOT NULL,
+    source_amount NUMERIC(78,0) NOT NULL,
+    destination_chain_id BIGINT NOT NULL,
+    destination_token_address TEXT NOT NULL,
+    expected_usdc_amount NUMERIC(78,0) NOT NULL,
+    min_usdc_amount NUMERIC(78,0) NOT NULL,
+    source_tx_hash TEXT,
+    destination_tx_hash TEXT,
+    provider_status JSONB,
+    route_snapshot JSONB NOT NULL,
+    failure_code TEXT,
+    failure_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE route_update_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    funding_execution_id UUID NOT NULL REFERENCES funding_executions(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    status TEXT,
+    step_index INT,
+    process_type TEXT,
+    chain_id BIGINT,
+    tx_hash TEXT,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE destination_usdc_transfers
+    ADD CONSTRAINT fk_destination_usdc_transfers_execution
+    FOREIGN KEY (matched_execution_id) REFERENCES funding_executions(id);
 
 CREATE TABLE user_balances (
     user_address VARCHAR(42) PRIMARY KEY,
@@ -289,6 +355,35 @@ CREATE TABLE balance_ledger (
     reference_id TEXT,
     idempotency_key TEXT NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE market_entries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_address TEXT NOT NULL,
+    market_id TEXT NOT NULL,
+    outcome_id INT NOT NULL,
+    amount NUMERIC(78,0) NOT NULL,
+    funding_intent_id UUID REFERENCES funding_intents(id),
+    status TEXT NOT NULL,
+    tx_hash TEXT,
+    chain_id BIGINT,
+    failure_code TEXT,
+    failure_message TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE provider_tools_policy (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL,
+    tool_key TEXT NOT NULL,
+    tool_type TEXT NOT NULL,
+    status TEXT NOT NULL,
+    risk_score INT,
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (provider, tool_key)
 );
 
 CREATE TABLE price_candles (

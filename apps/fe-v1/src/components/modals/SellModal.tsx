@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Icon from "../Icon";
 import { cn } from "@/lib/utils";
 import { useAccount } from "wagmi";
-import { relayerApi } from "@/lib/relayerApi";
-import { useYellowSession } from "@/hooks/useYellowSession";
 
 const UsdcLogo = ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -37,9 +35,6 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
         }
     }, [open, availableShares]);
 
-    // Using useYellowSession hooks (like signOrder) isn't strictly necessary for a backend API sell unless required
-    const { signOrder } = useYellowSession();
-
     const handleSell = async () => {
         if (!address) {
             alert("Please sign in first!");
@@ -52,43 +47,7 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
 
         setIsPending(true);
         try {
-            // Create session id hash for mockup
-            const sessionId = relayerApi.getMarketSessionId(marketTitle);
-            const outcomeIndex = side === 'YES' ? 0 : 1;
-
-            // Ensure session exists
-            try {
-                await relayerApi.getSession(sessionId);
-            } catch (err) {
-                // Just mock the creation if it doesn't exist
-                await relayerApi.createSession({
-                    sessionId,
-                    marketId: "1",
-                    vaultId: "0x1111111111111111111111111111111111111111",
-                    numOutcomes: 2,
-                    b: 100
-                });
-            }
-
-            // We might need to mock credit to have "shares" in the state 
-            // but assuming the backend actually has them
-
-            const signature = await signOrder(sessionId, 'sell', outcomeIndex, sharesToSell);
-            if (!signature) throw new Error("Transaction signature denied.");
-
-            const res = await relayerApi.sellShares({
-                sessionId,
-                outcomeIndex,
-                delta: Number(sharesToSell),
-                userAddress: address,
-                signature
-            });
-
-            if (!res?.ok) {
-                throw new Error('Sell failed');
-            }
-
-            alert(`Successfully sold ${sharesToSell} ${side} shares!`);
+            alert("Legacy sell modal is disabled. Use the backend-driven market Trade panel.");
             onClose();
         } catch (err: unknown) {
             console.error("Trade failed:", err);

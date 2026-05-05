@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/realtime"
@@ -106,6 +107,11 @@ func (s *Service) EnsureRouteOptions(ctx context.Context, intentID uuid.UUID) er
 	if time.Now().UTC().After(intent.ExpiresAt) {
 		return fmt.Errorf("intent expired")
 	}
+	_, _ = s.pool.Exec(ctx, `
+INSERT INTO wallet_balance_snapshots (
+    funding_intent_id, user_address, chain_id, token_address, token_symbol, token_decimals, balance_amount, source, raw_snapshot
+) VALUES ($1, $2, $3, $4, $5, 6, $6::numeric, 'lifi_quote_prefetch', '{}'::jsonb)
+`, intent.ID, intent.UserAddress, intent.SettlementChainID, strings.ToLower(intent.SettlementToken), "USDC", intent.TargetUSDCAmount)
 	opts, err := s.provider.QuoteRoutes(ctx, QuoteRequest{
 		IntentID:               intent.ID,
 		Wallet:                 intent.UserAddress,
@@ -119,6 +125,13 @@ func (s *Service) EnsureRouteOptions(ctx context.Context, intentID uuid.UUID) er
 	valid := make([]ScoredRoute, 0, len(opts))
 	for _, r := range opts {
 		if !s.routeAllowed(r) {
+			continue
+		}
+		denied, denyErr := s.isToolDenied(ctx, r.Provider, r.ProviderPayload)
+		if denyErr != nil {
+			return denyErr
+		}
+		if denied {
 			continue
 		}
 		if !meetsTarget(r, intent.TargetUSDCAmount) {
@@ -193,6 +206,34 @@ WHERE id = $1
 		_ = realtime.Notify(ctx, s.pool, seq)
 	}
 	return nil
+}
+
+func (s *Service) isToolDenied(ctx context.Context, provider string, payload map[string]any) (bool, error) {
+	steps, _ := payload["steps"].([]any)
+	for _, step := range steps {
+		sm, ok := step.(map[string]any)
+		if !ok {
+			continue
+		}
+		tool := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", sm["tool"])))
+		if tool == "" {
+			continue
+		}
+		var status string
+		err := s.pool.QueryRow(ctx, `
+SELECT status
+FROM provider_tools_policy
+WHERE LOWER(provider) = LOWER($1) AND LOWER(tool_key) = LOWER($2)
+LIMIT 1
+`, provider, tool).Scan(&status)
+		if err != nil && err != pgx.ErrNoRows {
+			return false, err
+		}
+		if strings.EqualFold(status, "DENIED") {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *Service) routeAllowed(route RouteOption) bool {

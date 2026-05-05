@@ -249,17 +249,26 @@ export function PortfolioPage() {
   const validPos = useMemo(() => posRows.filter((p) => !p.error), [posRows]);
   const enrichSource = useMemo(() => validPos.slice(0, OUTCOME_ENRICH_CAP), [validPos]);
 
-  const outcomeQueries = useQueries({
-    queries: enrichSource.map((p) => {
-      const tid = typeof p.templateId === "string" ? p.templateId : "";
-      const eid = p.epochId;
-      return {
-        queryKey: ["retropick-api", "market-outcomes-portfolio", tid, eid],
-        queryFn: () => fetchMarketOutcomes(tid, Number(eid)),
-        enabled: Boolean(address && tid && eid != null && Number.isFinite(Number(eid))),
-        staleTime: 10_000,
-      };
-    }),
+  const outcomesBatchQ = useQuery({
+    queryKey: [
+      "retropick-api",
+      "market-outcomes-portfolio-batch",
+      enrichSource.map((p) => `${String(p.templateId)}:${String(p.epochId ?? "")}`).join("|"),
+    ],
+    queryFn: async () => {
+      const entries = await Promise.all(
+        enrichSource.map(async (p) => {
+          const tid = typeof p.templateId === "string" ? p.templateId : "";
+          const eid = p.epochId;
+          if (!tid || eid == null || !Number.isFinite(Number(eid))) return null;
+          const outcomes = await fetchMarketOutcomes(tid, Number(eid));
+          return [templateEpochKey(tid, eid), outcomes] as const;
+        }),
+      );
+      return new Map<string, OutcomeView[]>(entries.filter((entry): entry is readonly [string, OutcomeView[]] => entry != null));
+    },
+    enabled: Boolean(address && enrichSource.length > 0),
+    staleTime: 10_000,
   });
 
   const marketsByTemplate = useMemo(() => {
@@ -271,16 +280,8 @@ export function PortfolioPage() {
   }, [marketsQ.data]);
 
   const outcomeByKey = useMemo(() => {
-    const m = new Map<string, OutcomeView[]>();
-    enrichSource.forEach((p, i) => {
-      const tid = typeof p.templateId === "string" ? p.templateId : "";
-      const eid = p.epochId;
-      const key = templateEpochKey(tid, eid);
-      const data = outcomeQueries[i]?.data;
-      if (data) m.set(key, data);
-    });
-    return m;
-  }, [enrichSource, outcomeQueries]);
+    return outcomesBatchQ.data ?? new Map<string, OutcomeView[]>();
+  }, [outcomesBatchQ.data]);
 
   const summaryUnrealizedByKey = useMemo(() => {
     const m = new Map<string, string>();

@@ -51,6 +51,18 @@ type RealtimeEvent = {
   };
 };
 
+function isUserChannel(channel: string | undefined): boolean {
+  return typeof channel === "string" && channel.startsWith("user:");
+}
+
+function isDepositChannel(channel: string | undefined): boolean {
+  return typeof channel === "string" && channel.startsWith("deposit:");
+}
+
+function isChartChannel(channel: string | undefined): boolean {
+  return typeof channel === "string" && channel.startsWith("chart:");
+}
+
 function parseRealtimeEvent(raw: string): RealtimeEvent | null {
   try {
     const parsed = JSON.parse(raw) as RealtimeEvent;
@@ -152,7 +164,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let lastSeq = Number(window.localStorage.getItem("retropick:last-ws-seq") ?? "0") || 0;
 
-    const scheduleInvalidate = (templateId?: string) => {
+    const scheduleInvalidate = (templateId?: string, event?: RealtimeEvent) => {
       invalidateProbabilityHistoryNow(qc, templateId);
 
       if (refetchTimer.current) clearTimeout(refetchTimer.current);
@@ -162,11 +174,17 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
           void qc.invalidateQueries({ queryKey: ["retropick-api", "market", t] });
           void qc.invalidateQueries({ queryKey: ["retropick-api", "epochs", t] });
           void qc.invalidateQueries({ queryKey: ["retropick-api", "markets"] });
-          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-positions"] });
-          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-claims"] });
-          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-events"] });
-          void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary"] });
-          void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist"] });
+          if (isChartChannel(event?.channel)) {
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "market-chart", t] });
+          }
+          if (isUserChannel(event?.channel) || isDepositChannel(event?.channel)) {
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "user-positions"] });
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "user-claims"] });
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "user-events"] });
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "portfolio-summary"] });
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "user-watchlist"] });
+            void qc.invalidateQueries({ queryKey: ["retropick-api", "user-balance"] });
+          }
         } else {
           void qc.invalidateQueries({ queryKey: ["retropick-api"] });
         }
@@ -196,13 +214,13 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
         const realtimeEvent = parseRealtimeEvent(raw);
         if (realtimeEvent?.seq != null) {
           if (lastSeq > 0 && realtimeEvent.seq > lastSeq + 1) {
-            scheduleInvalidate(scope);
+            scheduleInvalidate(scope, realtimeEvent);
           }
           lastSeq = Math.max(lastSeq, realtimeEvent.seq);
           window.localStorage.setItem("retropick:last-ws-seq", String(lastSeq));
         }
         if (realtimeEvent?.type === "resync_required") {
-          scheduleInvalidate(scope);
+          scheduleInvalidate(scope, realtimeEvent);
           return;
         }
         if (realtimeEvent && patchMarketCaches(qc, realtimeEvent)) {
@@ -213,15 +231,15 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
 
         if (scope) {
           if (ids.length === 0) {
-            scheduleInvalidate(scope);
+            scheduleInvalidate(scope, realtimeEvent);
             return;
           }
           if (!ids.some((id) => id === scope)) return;
-          scheduleInvalidate(scope);
+          scheduleInvalidate(scope, realtimeEvent);
           return;
         }
 
-        scheduleInvalidate(undefined);
+        scheduleInvalidate(undefined, realtimeEvent ?? undefined);
       };
 
       ws.onclose = () => {

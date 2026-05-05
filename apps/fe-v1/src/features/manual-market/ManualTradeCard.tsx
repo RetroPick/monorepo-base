@@ -25,6 +25,11 @@ import {
   useTemplateYieldView,
 } from "@/lib/contracts/marketEngine";
 import {
+  fetchUserBalance,
+  prepareClaimTx,
+  prepareEnterTx,
+  prepareSwitchTx,
+  submitPreparedTx,
   fetchUserPositions,
   type PositionViewRow,
 } from "@/lib/api/retropickApi";
@@ -159,6 +164,12 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     queryFn: () => fetchUserPositions(address!, { templateId, epochId: activeEpochId }),
     enabled: Boolean(address && templateId),
     staleTime: 8_000,
+  });
+  const backendBalanceQ = useQuery({
+    queryKey: ["retropick-api", "user-balance", address],
+    queryFn: () => fetchUserBalance(address!),
+    enabled: Boolean(address),
+    staleTime: 10_000,
   });
 
   const marketPositions = useMemo(() => {
@@ -296,10 +307,33 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   }, [approvedBuy, tc?.activeEpochId, toast]);
 
   const balanceLabel = useMemo(() => {
+    const backend = backendBalanceQ.data?.usdcAvailable;
+    if (typeof backend === "string" && /^\d+(\.\d+)?$/.test(backend)) {
+      return `$${backend}`;
+    }
     const raw = engine.usdcBalance;
     if (raw === undefined) return "$0.00";
     return `$${formatUsdc(raw)}`;
-  }, [engine.usdcBalance]);
+  }, [backendBalanceQ.data?.usdcAvailable, engine.usdcBalance]);
+
+  const reportSubmittedTx = useCallback(
+    async (txHash: `0x${string}`, action: "enter" | "switch" | "claim", idempotencyKey?: string) => {
+      if (!address) return;
+      try {
+        await submitPreparedTx({
+          wallet: address,
+          txHash,
+          action,
+          templateId: tc?.templateId,
+          epochId: tc?.activeEpochId ?? undefined,
+          idempotencyKey,
+        });
+      } catch {
+        // Keep UX fast; backend submit confirmation is best-effort.
+      }
+    },
+    [address, tc?.activeEpochId, tc?.templateId],
+  );
 
   const yieldAmountHintLines = useMemo(() => {
     if (!tc) return null;
@@ -391,6 +425,15 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
         outcomeIndex: selectedOutcomeIndex,
         amount: parsedAmount,
       };
+      const idempotencyKey = `enter:${address}:${tc.templateId}:${tc.activeEpochId}:${selectedOutcomeIndex}:${parsedAmount.toString()}`;
+      void prepareEnterTx({
+        wallet: address,
+        templateId: tc.templateId,
+        epochId: tc.activeEpochId,
+        outcomeIndex: selectedOutcomeIndex,
+        amount: parsedAmount.toString(),
+        idempotencyKey,
+      }).catch(() => undefined);
 
       // Manual chain-markets UX: always sequential ERC20 approve then depositToSide (two wallet prompts).
       // EIP-5792 batching is intentionally not used here; bundled calls produce a single confirmation.
@@ -419,6 +462,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
       const hash = await engine.depositApproved(order);
       setLastSubmitted(hash);
       setApprovedBuy(null);
+      void reportSubmittedTx(hash, "enter", idempotencyKey);
       refreshPositionSoon();
       toast({
         title: "Deposit submitted",
@@ -437,6 +481,16 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     if (!address || !tc || tc.activeEpochId == null || !canSwitchOnChain || parsedAmount <= 0n) return;
     if (switchFromIndex === switchToIndex) return;
     try {
+      const idempotencyKey = `switch:${address}:${tc.templateId}:${tc.activeEpochId}:${switchFromIndex}:${switchToIndex}:${parsedAmount.toString()}`;
+      void prepareSwitchTx({
+        wallet: address,
+        templateId: tc.templateId,
+        epochId: tc.activeEpochId,
+        fromOutcomeIndex: switchFromIndex,
+        toOutcomeIndex: switchToIndex,
+        amount: parsedAmount.toString(),
+        idempotencyKey,
+      }).catch(() => undefined);
       const hash = await engine.switchSide({
         templateId: tc.templateId,
         epochId: tc.activeEpochId,
@@ -445,6 +499,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
         amount: parsedAmount,
       });
       setLastSubmitted(hash);
+      void reportSubmittedTx(hash, "switch", idempotencyKey);
       refreshPositionSoon();
       toast({
         title: "Switch submitted",
@@ -462,6 +517,13 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const handleClaim = async () => {
     if (!tc || claimablePositions.length === 0) return;
     try {
+      const idempotencyKey = `claim:${address}:${tc.templateId}:${claimablePositions.map((p) => p.epochId).join(",")}`;
+      void prepareClaimTx({
+        wallet: address,
+        templateId: tc.templateId,
+        epochIds: claimablePositions.map((p) => p.epochId),
+        idempotencyKey,
+      }).catch(() => undefined);
       const hash = await engine.claimMany(
         claimablePositions.map((p) => ({
           templateId: tc.templateId,
@@ -469,6 +531,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
         })),
       );
       setLastSubmitted(hash);
+      if (hash) void reportSubmittedTx(hash, "claim", idempotencyKey);
       toast({
         title: "Claim submitted",
         description: "Waiting for indexed confirmation.",

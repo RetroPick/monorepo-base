@@ -37,6 +37,13 @@ type Config struct {
 	AuthJWTSecret           string
 	WSAllowedOrigins        []string
 	IndexerFinalityDepth    uint64
+	SettlementChainID       int64
+	SettlementUSDCAddress   string
+	SettlementReceiver      string
+	MinDepositUSDC          string
+	SoftMaxDepositUSDC      string
+	HardMaxDepositUSDC      string
+	MarketEntrySafetyBuffer time.Duration
 }
 
 func Load() (*Config, error) {
@@ -95,6 +102,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	marketEntrySafetyBuffer, err := durationFromEnv("MARKET_ENTRY_SAFETY_BUFFER", 90*time.Second)
+	if err != nil {
+		return nil, err
+	}
 	faucetRelayKey := strings.TrimSpace(os.Getenv("FAUCET_RELAYER_PRIVATE_KEY"))
 	faucetRelayEnabled := os.Getenv("FAUCET_RELAY_ENABLED") == "1" && faucetRelayKey != ""
 	indexerFinalityDepth := uint64(3)
@@ -104,6 +115,14 @@ func Load() (*Config, error) {
 			return nil, fmt.Errorf("INDEXER_FINALITY_DEPTH: %w", err)
 		}
 		indexerFinalityDepth = n
+	}
+	settlementChainID := int64(8453)
+	if raw := strings.TrimSpace(os.Getenv("SETTLEMENT_CHAIN_ID")); raw != "" {
+		v, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("SETTLEMENT_CHAIN_ID: %w", err)
+		}
+		settlementChainID = v
 	}
 	return &Config{
 		DatabaseURL:             db,
@@ -130,6 +149,13 @@ func Load() (*Config, error) {
 		AuthJWTSecret:           strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")),
 		WSAllowedOrigins:        parseCSVLower(os.Getenv("WS_ALLOWED_ORIGINS")),
 		IndexerFinalityDepth:    indexerFinalityDepth,
+		SettlementChainID:       settlementChainID,
+		SettlementUSDCAddress:   strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_USDC_ADDRESS"))),
+		SettlementReceiver:      strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_RECEIVER_ADDRESS"))),
+		MinDepositUSDC:          envDefault("MIN_DEPOSIT_USDC", "5000000"),
+		SoftMaxDepositUSDC:      envDefault("SOFT_MAX_DEPOSIT_USDC", "500000000"),
+		HardMaxDepositUSDC:      envDefault("HARD_MAX_DEPOSIT_USDC", "2000000000"),
+		MarketEntrySafetyBuffer: marketEntrySafetyBuffer,
 	}, nil
 }
 

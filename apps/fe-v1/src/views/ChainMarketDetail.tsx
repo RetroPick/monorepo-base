@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { ManualMarketPage } from "@/features/manual-market/ManualMarketPage";
 import { manualMarketFromChainDetail } from "@/features/manual-market/types";
 import {
+  fetchMarketChart,
   fetchEpochsForMarket,
   fetchMarket,
   fetchMarketProbabilityHistory,
@@ -75,6 +76,13 @@ export default function ChainMarketDetail() {
     staleTime: 5_000,
     refetchInterval: 20_000,
   });
+  const chartQ = useQuery({
+    queryKey: ["retropick-api", "market-chart", queryTemplateKey],
+    queryFn: () => fetchMarketChart(id, { interval: 300, limit: 240 }),
+    enabled: !!id,
+    staleTime: 10_000,
+    refetchInterval: 45_000,
+  });
 
   const data = marketQ.data;
   const epochs: EpochRow[] = epochsQ.data ?? [];
@@ -101,7 +109,23 @@ export default function ChainMarketDetail() {
     );
   }
 
-  const model = manualMarketFromChainDetail(data, probabilityQ.data?.points ?? []);
+  const chartAsHistory = (chartQ.data?.candles ?? []).map((candle, idx) => ({
+    blockNumber: idx + 1,
+    txHash: `chart-${candle.bucketStart}`,
+    logIndex: idx,
+    eventName: "candle_updated",
+    indexedAt: candle.updatedAt,
+    totalPool: candle.closeE8,
+    outcomes: (data.outcomes ?? []).map((outcome) => ({
+      outcomeIndex: outcome.outcomeIndex,
+      poolSize: outcome.poolSize,
+      impliedProbabilityE6: outcome.impliedProbabilityE6,
+    })),
+  }));
+  const model = manualMarketFromChainDetail(
+    data,
+    probabilityQ.data?.points?.length ? probabilityQ.data.points : chartAsHistory,
+  );
 
   const resolutionExtras = (
     <div className="flex flex-col gap-6">

@@ -22,6 +22,15 @@ import { getBestBridgeRoute }         from '@/lib/bridge/lifi'
 import { DEPLOYMENT_CHAIN_ID }        from '@/config/chains'
 import { getStakeTokenAddress }       from '@/config/tokens'
 import type { BridgeRoute, BridgeStatus } from '@/lib/bridge/types'
+import {
+  createFundingIntentV2,
+  fetchFundingOptionsV2,
+  markFundingExecutionStartedV2,
+  markFundingRouteUpdateV2,
+  markFundingSourceTxV2,
+  scanFundingIntentBalances,
+  selectFundingOption,
+} from '@/lib/api/retropickApi'
 
 export interface CrossChainDepositState {
   status:            BridgeStatus
@@ -30,6 +39,8 @@ export interface CrossChainDepositState {
   bridgeTxHash:      `0x${string}` | undefined
   receivedUsdc:      bigint | undefined  // USDC received on Arbitrum after bridge
   error:             string | undefined
+  fundingIntentId:   string | undefined
+  executionId:       string | undefined
 }
 
 export interface CrossChainDepositActions {
@@ -53,6 +64,8 @@ const INITIAL_STATE: CrossChainDepositState = {
   bridgeTxHash:   undefined,
   receivedUsdc:   undefined,
   error:          undefined,
+  fundingIntentId: undefined,
+  executionId: undefined,
 }
 
 export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepositActions] {
@@ -72,6 +85,21 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
     setState(s => ({ ...s, status: 'fetching_routes', error: undefined }))
 
     try {
+      const intent = await createFundingIntentV2({
+        userAddress: address,
+        targetCurrency: "USD",
+        targetAmount: (Number(fromAmount) / 1_000_000).toFixed(2),
+        clientNonce: crypto.randomUUID(),
+        mode: "AUTO_BEST_SOURCE",
+      })
+      await scanFundingIntentBalances(intent.intentId)
+      const options = await fetchFundingOptionsV2(intent.intentId)
+      const selected = options.options[0]
+      let executionId: string | undefined
+      if (selected) {
+        const selectedResp = await selectFundingOption(intent.intentId, { optionId: selected.optionId })
+        executionId = selectedResp.execution.executionId
+      }
       const route = await getBestBridgeRoute({
         fromChainId,
         toChainId:        DEPLOYMENT_CHAIN_ID,
@@ -86,7 +114,7 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
         return null
       }
 
-      setState(s => ({ ...s, status: 'awaiting_approval', route }))
+      setState(s => ({ ...s, status: 'awaiting_approval', route, fundingIntentId: intent.intentId, executionId }))
       return route
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to fetch route'
@@ -96,7 +124,7 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
   }, [address])
 
   const executeBridge = useCallback(async () => {
-    const { route } = state
+    const { route, fundingIntentId, executionId } = state
     if (!route || !address) return
 
     try {
@@ -137,6 +165,12 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
 
       // ── Step 3: Execute the LiFi route transaction ────────────────────────
       setState(s => ({ ...s, status: 'executing' }))
+      if (executionId) {
+        await markFundingExecutionStartedV2(executionId, {
+          walletAddress: address,
+          clientRouteExecutionId: crypto.randomUUID(),
+        })
+      }
 
       const txRequest = firstStep?.transactionRequest
       if (!txRequest?.to || !txRequest.data) {
@@ -150,6 +184,16 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
       })
 
       setState(s => ({ ...s, status: 'pending_bridge', bridgeTxHash: bridgeTx }))
+      if (executionId) {
+        await markFundingSourceTxV2(executionId, {
+          chainId,
+          txHash: bridgeTx,
+        })
+        await markFundingRouteUpdateV2(executionId, {
+          status: 'BRIDGING',
+          observedTxHashes: [{ chainId, txHash: bridgeTx, stepIndex: 0, type: 'SOURCE' }],
+        })
+      }
 
       // ── Step 4: Mark as done; UI should poll for USDC arrival ────────────
       // In production, use LiFi status API: GET /status?txHash=...

@@ -66,3 +66,35 @@ func TestFundingDecimalValid(t *testing.T) {
 		}
 	}
 }
+
+func TestUSDCBaseUnits(t *testing.T) {
+	tests := []struct {
+		raw  string
+		want int64
+		ok   bool
+	}{
+		{raw: "25", want: 25000000, ok: true},
+		{raw: "25.12", want: 25120000, ok: true},
+		{raw: "0.000001", want: 1, ok: true},
+		{raw: "0", want: 0, ok: false},
+		{raw: "abc", want: 0, ok: false},
+	}
+	for _, tt := range tests {
+		got, ok := usdcBaseUnits(tt.raw)
+		if ok != tt.ok {
+			t.Fatalf("raw=%q ok=%v want=%v", tt.raw, ok, tt.ok)
+		}
+		if ok && got != tt.want {
+			t.Fatalf("raw=%q got=%d want=%d", tt.raw, got, tt.want)
+		}
+	}
+}
+
+func TestNormalizedMode(t *testing.T) {
+	if got := normalizedMode(""); got != "AUTO_BEST_SOURCE" {
+		t.Fatalf("empty mode got=%s", got)
+	}
+	if got := normalizedMode("auto_best_source"); got != "AUTO_BEST_SOURCE" {
+		t.Fatalf("mode normalization got=%s", got)
+	}
+}

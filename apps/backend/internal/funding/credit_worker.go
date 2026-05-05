@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -62,7 +63,7 @@ SELECT fi.id::text, dut.id::text, fi.user_address, dut.amount::text
 FROM destination_usdc_transfers dut
 JOIN funding_intents fi ON fi.id = dut.matched_funding_intent_id
 WHERE dut.credit_status = 'UNMATCHED'
-  AND fi.status IN ('BRIDGING', 'SOURCE_TX_SUBMITTED', 'EXECUTION_STARTED')
+  AND fi.status IN ('BRIDGING', 'SOURCE_TX_SUBMITTED', 'EXECUTION_STARTED', 'DESTINATION_USDC_VERIFIED')
 ORDER BY dut.created_at ASC
 FOR UPDATE SKIP LOCKED
 LIMIT 1
@@ -70,8 +71,39 @@ LIMIT 1
 	if err != nil {
 		return err
 	}
+	var minExpected string
+	err = tx.QueryRow(ctx, `
+SELECT COALESCE(min_usdc_amount::text, '0')
+FROM funding_executions
+WHERE funding_intent_id::text = $1
+ORDER BY created_at DESC
+LIMIT 1
+`, intentID).Scan(&minExpected)
+	if err != nil && err != pgx.ErrNoRows {
+		return err
+	}
+	if minExpected != "" {
+		got, okA := new(big.Int).SetString(amount, 10)
+		min, okB := new(big.Int).SetString(minExpected, 10)
+		if okA && okB && got.Cmp(min) < 0 {
+			_, err = tx.Exec(ctx, `
+UPDATE destination_usdc_transfers
+SET credit_status = 'AMOUNT_TOO_LOW'
+WHERE id::text = $1
+`, transferID)
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(ctx, `
+UPDATE funding_intents
+SET status = 'MANUAL_REVIEW', failure_code = 'DESTINATION_AMOUNT_TOO_LOW', updated_at = NOW()
+WHERE id::text = $1
+`, intentID)
+			return err
+		}
+	}
 
-	idem := fmt.Sprintf("deposit-credit:%s", intentID)
+	idem := fmt.Sprintf("deposit-credit:%s:%s", intentID, transferID)
 	ledgerTag, err := tx.Exec(ctx, `
 INSERT INTO balance_ledger (
     user_address, delta_available, delta_locked, reason, reference_type, reference_id, idempotency_key
@@ -84,9 +116,11 @@ ON CONFLICT (idempotency_key) DO NOTHING
 	if ledgerTag.RowsAffected() == 0 {
 		_, err = tx.Exec(ctx, `
 UPDATE destination_usdc_transfers
-SET credit_status = 'CREDITED'
+SET credit_status = 'CREDITED', matched_execution_id = COALESCE(matched_execution_id, (
+    SELECT id FROM funding_executions WHERE funding_intent_id::text = $2 ORDER BY created_at DESC LIMIT 1
+))
 WHERE id::text = $1
-`, transferID)
+`, transferID, intentID)
 		return err
 	}
 
@@ -103,9 +137,11 @@ SET usdc_available = user_balances.usdc_available + EXCLUDED.usdc_available,
 
 	_, err = tx.Exec(ctx, `
 UPDATE destination_usdc_transfers
-SET credit_status = 'CREDITED'
+SET credit_status = 'CREDITED', matched_execution_id = COALESCE(matched_execution_id, (
+    SELECT id FROM funding_executions WHERE funding_intent_id::text = $2 ORDER BY created_at DESC LIMIT 1
+))
 WHERE id::text = $1
-`, transferID)
+`, transferID, intentID)
 	if err != nil {
 		return err
 	}
