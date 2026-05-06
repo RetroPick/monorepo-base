@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import DiscoverMarketTypesStrip from "@/components/discover/DiscoverMarketTypesStrip";
 import DiscoverLeftNav from "@/components/discover/DiscoverLeftNav";
@@ -45,14 +45,19 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
     }
   }, [location.state, location.key]);
 
-  useIndexerWebSocket(true);
+  const { connected: wsConnected } = useIndexerWebSocket(true);
 
-  /** Same key as ChainMarkets / useMarketCards / useIndexerWebSocket so list stays one cache (no stale discover-only rows). */
+  /**
+   * Same key as ChainMarkets / useMarketCards / useIndexerWebSocket so list
+   * stays one cache (no stale discover-only rows). Drop the 15s polling fallback
+   * when the WS reports a healthy connection — the WS already invalidates this
+   * key on indexer events.
+   */
   const marketsQ = useQuery({
     queryKey: ["retropick-api", "markets"],
     queryFn: fetchMarkets,
     staleTime: 5_000,
-    refetchInterval: MARKETS_REFETCH_MS,
+    refetchInterval: wsConnected ? false : MARKETS_REFETCH_MS,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
@@ -139,11 +144,19 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
     "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-6 xl:grid-cols-4 xl:gap-5";
   const gridClass = cn(discoverGridGap, "xl:grid-cols-3");
 
-  const marketCardProps = (market: Market) => ({
-    market,
-    variant: "discover" as const,
-    href: chainDetailPath(market.id),
-  });
+  /**
+   * Stable callback so `memo(MarketCard)` short-circuits when the underlying
+   * `market` reference is stable. Returning an object literal still allocates,
+   * but the function identity is now constant across renders.
+   */
+  const marketCardProps = useCallback(
+    (market: Market) => ({
+      market,
+      variant: "discover" as const,
+      href: chainDetailPath(market.id),
+    }),
+    [],
+  );
 
   return (
     <div className="min-h-screen overflow-x-clip bg-background text-foreground">
@@ -155,7 +168,7 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
         }}
       />
 
-      <main className="mx-auto max-w-[1440px] px-5 pb-20 pt-10 lg:px-10 lg:pt-12">
+      <main className="mx-auto max-w-screen-2xl px-5 pb-20 pt-10 lg:px-10 lg:pt-12">
         {marketsQ.isError ? (
           <p
             className="mb-6 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-200"

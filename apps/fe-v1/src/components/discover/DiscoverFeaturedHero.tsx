@@ -43,7 +43,15 @@ export default function DiscoverFeaturedHero({
               )}
             >
               {market.image ? (
-                <img src={market.image} alt="" className="size-full object-cover" />
+                <img
+                  src={market.image}
+                  alt=""
+                  width={56}
+                  height={56}
+                  loading="eager"
+                  decoding="async"
+                  className="size-full object-cover"
+                />
               ) : (
                 <Icon name={market.icon} className={cn("text-2xl", market.iconColor || "text-foreground")} />
               )}

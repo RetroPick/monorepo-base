@@ -1,10 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Navigate, useParams } from "react-router-dom";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import { InfoCard } from "@/components/prediction/InfoCard";
-import { LineChartPanel } from "@/components/markets/LineChartPanel";
 import { RoundCarousel } from "@/components/prediction/RoundCarousel";
+
+const LineChartPanel = lazy(() =>
+  import("@/components/markets/LineChartPanel").then((m) => ({ default: m.LineChartPanel })),
+);
+
+function LineChartFallback({ height = 320 }: { height?: number }) {
+  return (
+    <div
+      aria-hidden
+      className="w-full animate-pulse rounded-lg bg-muted/40"
+      style={{ height }}
+    />
+  );
+}
 import { useAssetContext } from "@/context/AssetContext";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { isValidAssetClassParam, parseAssetClassParam } from "@/lib/market-data/asset-class-params";
@@ -346,7 +359,7 @@ export default function PredictionDashboard() {
       />
 
       <div className="relative flex-1 bg-background">
-        <main className="relative mx-auto max-w-[1440px] px-5 pb-16 pt-6 lg:px-10">
+        <main className="relative mx-auto max-w-screen-2xl px-5 pb-16 pt-6 lg:px-10">
           {assetClass !== "crypto" ? (
             <p className="mb-2 text-center text-[11px] text-muted-foreground">
               Illustrative rounds (reference only; not on-chain settlement).
@@ -355,6 +368,7 @@ export default function PredictionDashboard() {
           <section className="grid gap-2 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
             <div className="min-w-0">
               <div className="h-[280px]">
+                <Suspense fallback={<LineChartFallback height={TRADING_CHART_HEIGHT} />}>
                 {assetClass === "crypto" ? (
                   detailLoading || !detail ? (
                     <ChartLoadingState />
@@ -394,6 +408,7 @@ export default function PredictionDashboard() {
                     No chart data
                   </div>
                 )}
+                </Suspense>
               </div>
 
               <div className="mt-1 flex flex-wrap items-center justify-between gap-1.5 text-[11px] text-muted-foreground">

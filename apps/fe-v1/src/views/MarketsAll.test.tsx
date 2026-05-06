@@ -15,7 +15,7 @@ vi.mock("@/components/Footer", () => ({
 }));
 
 vi.mock("@/hooks/useIndexerWebSocket", () => ({
-  useIndexerWebSocket: vi.fn(),
+  useIndexerWebSocket: vi.fn(() => ({ connected: false })),
 }));
 
 const mockRow = {

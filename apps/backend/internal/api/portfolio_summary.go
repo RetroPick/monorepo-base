@@ -24,17 +24,15 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 	return func(w http.ResponseWriter, r *http.Request) {
 		_ = eth
 		_ = reg
-		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
-		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
-			http.Error(w, `{"error":"invalid wallet (use ?wallet=0x...)"}`, http.StatusBadRequest)
+		wallet, ok := requireAuthorizedWalletQuery(w, r, "wallet")
+		if !ok {
 			return
 		}
-		wallet = strings.ToLower(wallet)
 		ctx := r.Context()
 		q := dbqueries.New(pool)
 		st, err := q.GetIndexerState(ctx)
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load indexer state", nil)
 			return
 		}
 		var lastSync *string
@@ -49,7 +47,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 			Limit:       pairLimit,
 		})
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user positions", nil)
 			return
 		}
 
@@ -58,7 +56,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 			Limit:       500,
 		})
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load claimed events", nil)
 			return
 		}
 		realized := new(big.Int)
@@ -82,7 +80,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 
 		projected, err := indexedUserPositions(ctx, pool, wallet, nil)
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not project indexed user positions", nil)
 			return
 		}
 		projectedByPair := make(map[string]map[string]any, len(projected))
@@ -106,7 +104,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 				EpochID:     pair.EpochID,
 			})
 			if err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user chain events", nil)
 				return
 			}
 			costBasis := portfoliopnl.CostBasisWeiFromEvents(evRows)

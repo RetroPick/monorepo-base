@@ -75,6 +75,7 @@ import {
 } from "@/features/portfolio/watchlistStorage";
 import { buildFaucetMintSignRequest } from "@/lib/faucetTypedData";
 import { openAppKitModal } from "@/lib/openAppKitModal";
+import { useBackendAuthSession } from "@/context/BackendAuthContext";
 import {
   DISCOVERY_VERTICALS,
   discoveryVerticalFromSearchParam,
@@ -159,6 +160,7 @@ function gasBalanceLabel(value: bigint | undefined, decimals: number | undefined
 
 export function PortfolioPage() {
   const { address, isConnected, chainId } = useAccount();
+  const auth = useBackendAuthSession();
   const readWalletAddress = address ?? "0x0000000000000000000000000000000000000000";
   const [searchParams, setSearchParams] = useSearchParams();
   const [nowSeconds, setNowSeconds] = useState(() => Math.floor(Date.now() / 1000));
@@ -203,33 +205,33 @@ export function PortfolioPage() {
   const positionsQ = useQuery({
     queryKey: ["retropick-api", "user-positions", address],
     queryFn: () => fetchUserPositions(address!),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
   });
 
   const claimsQ = useQuery({
     queryKey: ["retropick-api", "user-claims", address],
     queryFn: () => fetchUserClaims(address!),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
   });
 
   const eventsQ = useQuery({
     queryKey: ["retropick-api", "user-events", address],
     queryFn: () => fetchUserEvents(address!, 100),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
     staleTime: 8_000,
   });
 
   const portfolioSummaryQ = useQuery({
     queryKey: ["retropick-api", "portfolio-summary", address],
     queryFn: () => fetchPortfolioSummary(address!),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
     staleTime: 12_000,
   });
 
   const watchlistQ = useQuery({
     queryKey: ["retropick-api", "user-watchlist", address],
     queryFn: () => fetchUserWatchlist(address!),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
     staleTime: 15_000,
   });
 
@@ -438,7 +440,7 @@ export function PortfolioPage() {
   }, [address]);
 
   useEffect(() => {
-    if (!address || !watchlistQ.isSuccess || watchlistMigrationDoneRef.current) return;
+    if (!address || !auth.isAuthenticated || !watchlistQ.isSuccess || watchlistMigrationDoneRef.current) return;
     const server = watchlistQ.data?.templateIds ?? [];
     const guest = readGuestWatchlist();
     const local = readWatchlist(address);
@@ -463,7 +465,7 @@ export function PortfolioPage() {
         watchlistMigrationDoneRef.current = false;
       }
     })();
-  }, [address, qc, watchlistQ.data?.templateIds, watchlistQ.isSuccess]);
+  }, [address, auth.isAuthenticated, qc, watchlistQ.data?.templateIds, watchlistQ.isSuccess]);
   const watchlistLabels = useMemo(() => {
     const m = new Map<string, string>();
     for (const id of watchlistIds) {
@@ -878,7 +880,7 @@ export function PortfolioPage() {
         }}
       />
 
-      <main className="mx-auto flex w-full max-w-[1440px] flex-1 min-h-0 flex-col gap-2 overflow-x-clip overflow-y-auto px-5 pb-20 pt-4 lg:overflow-hidden lg:px-10">
+      <main className="mx-auto flex w-full max-w-screen-2xl flex-1 min-h-0 flex-col gap-2 overflow-x-clip overflow-y-auto px-5 pb-20 pt-4 lg:overflow-hidden lg:px-10">
         {!isConnected ? (
           <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 px-3 py-2.5 dark:border-white/[0.1] dark:bg-white/[0.03]">
             <Wallet className="size-5 shrink-0 text-muted-foreground" aria-hidden />

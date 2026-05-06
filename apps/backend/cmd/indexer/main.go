@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -58,10 +60,26 @@ func main() {
 		os.Exit(1)
 	}
 
-	tick := time.NewTicker(5 * time.Second)
+	maxBlocksPerTick := uint64(2000)
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_MAX_BLOCKS_PER_TICK")); raw != "" {
+		if n, parseErr := strconv.ParseUint(raw, 10, 64); parseErr == nil && n > 0 {
+			maxBlocksPerTick = n
+		}
+	}
+	// Base Sepolia public RPC commonly caps eth_getLogs block span at 10k.
+	if maxBlocksPerTick > 10_000 {
+		maxBlocksPerTick = 10_000
+	}
+	tickInterval := 5 * time.Second
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_TICK_INTERVAL_MS")); raw != "" {
+		if n, parseErr := strconv.ParseInt(raw, 10, 64); parseErr == nil && n > 0 {
+			tickInterval = time.Duration(n) * time.Millisecond
+		}
+	}
+	tick := time.NewTicker(tickInterval)
 	defer tick.Stop()
 	for {
-		if err := svc.SyncOnce(ctx, 2000); err != nil {
+		if err := svc.SyncOnce(ctx, maxBlocksPerTick); err != nil {
 			log.Error("sync", "err", err)
 		}
 		select {

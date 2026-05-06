@@ -1,16 +1,27 @@
-import type { ReactNode } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import { Activity, Clock3, Database, RadioTower } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import ProbabilityChart, { type ProbabilityChartEpochMarkers } from "@/components/market/ProbabilityChart";
+import type { ProbabilityChartEpochMarkers } from "@/components/market/ProbabilityChart";
 import MarketRules from "@/components/market/MarketRules";
+
+const ProbabilityChart = lazy(() => import("@/components/market/ProbabilityChart"));
+
+function ProbabilityChartFallback() {
+  return (
+    <div
+      aria-hidden
+      className="h-[300px] w-full animate-pulse rounded-lg bg-muted/40"
+    />
+  );
+}
 import IdeasActivityPanel from "@/components/market/IdeasActivityPanel";
 import RelatedMarkets from "@/components/market/RelatedMarkets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { MarketPageTitleBar } from "./MarketPageTitleBar";
-import { ManualMarketWatchlistButton } from "./ManualMarketWatchlistButton";
+import { ConnectedManualMarketWatchlistButton } from "./ManualMarketWatchlistButton";
 import { ManualTradeCard } from "./ManualTradeCard";
 import { marketStickyClassName, useSiteHeaderOffset } from "./useSiteHeaderOffset";
 import type { ManualMarketViewModel } from "./types";
@@ -153,7 +164,7 @@ export function ManualMarketPage({
   return (
     <div className="market-page-sticky-offset min-h-screen w-full bg-background text-foreground">
       <Header omitBottomDivider indexedMarketContext={indexedHeaderContext} />
-      <main className="mx-auto max-w-[1440px] pb-12">
+      <main className="mx-auto max-w-screen-2xl pb-12">
         {/* Polymarket-style: title + main column only; trade panel sits in the right column and never shares the title row width */}
         <div className="grid items-start gap-6 px-4 pt-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:px-8 xl:grid-cols-[minmax(0,1fr)_352px]">
           {/* `overflow-x-clip` on this column breaks `position:sticky` on MarketPageTitleBar (see index.css). */}
@@ -170,7 +181,9 @@ export function ManualMarketPage({
               description={isChain ? undefined : model.description}
               showLivePill={isChain}
               className="mb-6 sm:mb-8"
-              watchlistAction={watchlistTemplateId ? <ManualMarketWatchlistButton templateId={watchlistTemplateId} /> : undefined}
+              watchlistAction={
+                watchlistTemplateId ? <ConnectedManualMarketWatchlistButton templateId={watchlistTemplateId} /> : undefined
+              }
             />
 
             <div className="flex flex-col gap-4">
@@ -188,18 +201,20 @@ export function ManualMarketPage({
 
               <section className="px-0 pb-1 pt-0 sm:px-0">
                 <div className="min-h-[300px]">
-                  <ProbabilityChart
-                    outcomes={model.outcomes}
-                    history={model.probabilityHistory}
-                    embedded
-                    epochMarkers={probabilityChartEpochMarkers(model)}
-                  />
+                  <Suspense fallback={<ProbabilityChartFallback />}>
+                    <ProbabilityChart
+                      outcomes={model.outcomes}
+                      history={model.probabilityHistory}
+                      embedded
+                      epochMarkers={probabilityChartEpochMarkers(model)}
+                    />
+                  </Suspense>
                 </div>
               </section>
             </div>
 
             {isChain ? (
-              <section className="border-t border-border/70 py-4 dark:border-white/[0.07]">
+              <section className="mt-4 border-t border-border/70 py-4 dark:border-white/[0.07]">
                 <ChainMarketDetailsAccordion
                   model={model}
                   resolutionExtras={
@@ -210,11 +225,11 @@ export function ManualMarketPage({
             ) : null}
 
             {!isChain && resolutionExtras ? (
-              <section className="border-t border-border/70 py-5 dark:border-white/[0.07]">{resolutionExtras}</section>
+              <section className="mt-4 border-t border-border/70 py-5 dark:border-white/[0.07]">{resolutionExtras}</section>
             ) : null}
 
             {!isChain && (model.recentEpochs?.length ?? 0) > 0 ? (
-              <section className="border-t border-border/70 py-5 dark:border-white/[0.07]">
+              <section className="mt-4 border-t border-border/70 py-5 dark:border-white/[0.07]">
                 <RecentEpochsContent model={model} />
               </section>
             ) : null}

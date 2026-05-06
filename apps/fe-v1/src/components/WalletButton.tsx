@@ -29,13 +29,14 @@ import {
     DropdownMenuSubContent
 } from "./ui/dropdown-menu";
 import { useOnboarding } from "@/context/OnboardingContext";
-import WorldIDVerifier from "./auth/WorldIDVerifier";
+import WorldIDVerifier from "./auth/LazyWorldIDVerifier";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { Language } from "@/data/translations";
 import LazyFundWalletDialog from "@/components/wallet/LazyFundWalletDialog";
 import { formatUnits } from "viem";
 import { siteLinks } from "@/config/siteLinks";
+import { useBackendAuthSession } from "@/context/BackendAuthContext";
 
 const WalletButton = () => {
     const { address, isConnected } = useAccount();
@@ -45,6 +46,7 @@ const WalletButton = () => {
     const { t, language, setLanguage } = useLanguage();
     const { isOnboarded, isWorldIDVerified } = useOnboarding();
     const [isFundWalletOpen, setIsFundWalletOpen] = useState(false);
+    const auth = useBackendAuthSession();
     const balanceValue = balance ? formatUnits(balance.value, balance.decimals) : undefined;
     const nativeBalanceFormatted = balanceValue
         ? `${Number(balanceValue).toFixed(2)} ${balance?.symbol ?? ""}`
@@ -241,7 +243,7 @@ const WalletButton = () => {
                         </DropdownMenuSub>
 
                         <DropdownMenuItem
-                            onClick={() => disconnect()}
+                            onClick={() => void auth.signOut().catch(() => disconnect())}
                             className="cursor-pointer focus:bg-red-500/10 focus:text-red-500 rounded-lg py-2.5 px-3 text-red-500"
                         >
                             <LogOut className="mr-2 size-4" />

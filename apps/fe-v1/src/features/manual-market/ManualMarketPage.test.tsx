@@ -45,7 +45,7 @@ const baseModel: ManualMarketViewModel = {
 };
 
 describe("ManualMarketPage", () => {
-  it("renders title, trade card, rules, and activity", () => {
+  it("renders title, trade card, rules, and activity", async () => {
     render(
       <ManualMarketPage
         model={baseModel}
@@ -61,6 +61,7 @@ describe("ManualMarketPage", () => {
     expect(screen.getByTestId("trade-card")).toBeInTheDocument();
     expect(screen.getByTestId("market-rules")).toBeInTheDocument();
     expect(screen.getByTestId("activity")).toBeInTheDocument();
-    expect(screen.getByTestId("probability-chart")).toHaveTextContent("Chart");
+    /** ProbabilityChart is React.lazy; await its Suspense boundary to resolve. */
+    expect(await screen.findByTestId("probability-chart")).toHaveTextContent("Chart");
   });
 });

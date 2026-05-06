@@ -14,6 +14,12 @@ type Principal struct {
 }
 
 func PrincipalFromRequest(r *http.Request, jwtSecret string) (*Principal, error) {
+	if session, err := parseSessionFromRequest(r); err == nil && session != nil {
+		return &Principal{
+			Wallet:     session.Wallet,
+			IsOperator: false,
+		}, nil
+	}
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
 	if auth == "" || !strings.HasPrefix(strings.ToLower(auth), "bearer ") {
 		return nil, errors.New("missing bearer token")

@@ -3,12 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { Bookmark, Gift, Loader2 } from "lucide-react";
 import type { Market, MarketOutcome } from "@/types/market";
 import Icon from "./Icon";
-import BetModal from "./BetModal";
+import BetModal from "./LazyBetModal";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { formatPayoutMultiplier } from "@/lib/market-odds";
 import { pickBinaryOutcomes, resolveMarketCardLayout } from "@/lib/market-card-layout";
-import { useMarketBookmark } from "@/features/portfolio/useMarketBookmark";
+
+type MarketCardBookmark = {
+  templateId?: string;
+  isBookmarked: boolean;
+  busy: boolean;
+  watchlistLoading: boolean;
+  toggle: () => Promise<void> | void;
+};
 
 interface MarketCardProps {
   market: Market;
@@ -16,6 +23,7 @@ interface MarketCardProps {
   href?: string;
   /** Discover grid: navigate to market detail on bet / card instead of modal / external href. */
   variant?: "default" | "discover";
+  bookmark?: MarketCardBookmark | null;
 }
 
 /**
@@ -23,7 +31,7 @@ interface MarketCardProps {
  * Multi/range lists keep their scroll container classes unchanged; only the outer box is shorter.
  */
 const MARKET_CARD_SHELL_H =
-  "h-[200px] max-h-[200px] shrink-0 sm:h-[212px] sm:max-h-[212px]";
+  "min-h-[200px] shrink-0 sm:h-[212px] sm:max-h-[212px]";
 
 const RING_R = 16;
 const RING_C = 2 * Math.PI * RING_R;
@@ -349,11 +357,10 @@ function RangeBinRow({
   );
 }
 
-const MarketCard = memo(({ market, navigationState, href, variant = "default" }: MarketCardProps) => {
+const MarketCard = memo(({ market, navigationState, href, variant = "default", bookmark = null }: MarketCardProps) => {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const [betModal, setBetModal] = useState<{ open: boolean; side: "YES" | "NO"; outcome: string } | null>(null);
-  const bookmark = useMarketBookmark(market.id);
 
   const handleBet: BetHandler = (e, side, outcomeLabel) => {
     e.stopPropagation();
@@ -425,7 +432,15 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
               )}
             >
               {market.image ? (
-                <img src={market.image} alt="" className="size-full object-cover" />
+                <img
+                  src={market.image}
+                  alt=""
+                  width={40}
+                  height={40}
+                  loading="lazy"
+                  decoding="async"
+                  className="size-full object-cover"
+                />
               ) : (
                 <Icon name={market.icon} className={cn("text-lg", market.iconColor || "text-foreground")} />
               )}
@@ -499,7 +514,7 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
             >
               <Gift className="size-3.5 sm:size-4" strokeWidth={1.75} />
             </button>
-            {bookmark.templateId ? (
+            {bookmark?.templateId ? (
               <button
                 type="button"
                 aria-label={bookmark.isBookmarked ? "Remove bookmark" : "Bookmark market"}

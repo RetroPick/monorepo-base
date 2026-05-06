@@ -14,6 +14,138 @@
 
 ---
 
+## README Guide
+
+- [Project explanation](#project-explanation)
+- [Setup](#setup)
+- [Debug](#debug)
+- [Curl](#curl)
+- [Test script](#test-script)
+- [Architecture and deep reference](#architecture-and-deep-reference)
+
+---
+
+## Project explanation
+
+RetroPick combines:
+
+- **Smart contracts** for market lifecycle, settlement, and claims.
+- **Go backend** for API, indexer, funding flow, and realtime events.
+- **Frontend apps** for users and operators.
+
+At a high level:
+
+1. Operators create and initialize markets.
+2. Users trade during epoch open windows.
+3. Epochs lock and resolve via configured oracle routes.
+4. Winners claim and fees route to treasury.
+5. Optional funding abstraction lets users bridge/swap into settlement USDC balance.
+
+For full protocol internals, see [`package/contract/currentSmartContract.md`](package/contract/currentSmartContract.md).
+
+---
+
+## Setup
+
+### Prerequisites
+
+| Tool | Notes |
+|------|--------|
+| **Node.js** | 20+ |
+| **pnpm** | 10.x (see [`package.json`](package.json) `packageManager`) |
+| **Docker & Docker Compose** | Recommended for Postgres + API + indexer + ops |
+| **Docker Buildx** | Required by Compose v2 Bake builds |
+| **Go** | 1.24+ optional when running backend on host |
+
+### First install
+
+From repo root:
+
+```bash
+pnpm install
+```
+
+### Start full stack (recommended)
+
+```bash
+docker compose up -d --build
+```
+
+If Docker Desktop bridge cannot reach `postgres:5432`, use:
+
+```bash
+docker compose --env-file compose.desktop-hairpin.env up -d --build
+```
+
+If backend need update, use:
+
+```bash
+pnpm docker:down && pnpm docker:up
+```
+
+### Start frontends
+
+```bash
+# User app
+pnpm dev:fe-v1
+
+# Operator app
+pnpm dev:ops
+
+# Docs app
+pnpm dev:docs
+```
+
+---
+
+## Curl
+
+### Basic health
+
+```bash
+curl -sS http://127.0.0.1:8080/api/v1/health
+curl -sS http://127.0.0.1:8080/api/v1/config/contracts
+```
+
+### Funding abstraction (quick checks)
+
+```bash
+curl -sS http://127.0.0.1:8080/api/funding/config
+curl -sS http://127.0.0.1:8080/api/funding/intents/<intentId>
+curl -sS http://127.0.0.1:8080/api/funding/executions/<executionId>
+```
+
+---
+
+## Test script
+
+Use the complete testnet funding smoke script in:
+
+- [Funding abstraction (testnet smoke script)](#funding-abstraction-testnet-smoke-script)
+
+It covers intent creation, option selection, execution tracking, optional webhook hints, and final balance/intent polling.
+
+---
+
+## Debug
+
+### Common checks
+
+1. **API is up:** `/api/v1/health` returns `ok: true`.
+2. **Contracts loaded:** `/api/v1/config/contracts` returns expected chain and addresses.
+3. **Migrations applied:** new funding tables/columns exist before testing abstraction flow.
+4. **Workers running:** credit, matcher, destination poller should be active in API logs.
+
+### Frequent issues
+
+- **Funding endpoints return 404:** backend process is not running latest code or not restarted after changes.
+- **No destination credits:** verify `SETTLEMENT_*` env vars, poller/matcher intervals, and destination transfer ingestion rows.
+- **Docker Buildx warnings:** install buildx plugin (see Troubleshooting section).
+
+---
+
+## Architecture and deep reference
+
 ## Architecture at a glance
 
 High-level protocol flow (deploy → template → epochs → settlement → treasury), aligned with §0.5 of [`currentSmartContract.md`](package/contract/currentSmartContract.md):
@@ -156,6 +288,136 @@ Compose defaults align with **`84532`**: `RPC_URL=https://sepolia.base.org`. In-
 curl -sS http://127.0.0.1:8080/api/v1/health
 curl -sS http://127.0.0.1:8080/api/v1/config/contracts
 ```
+
+### Funding abstraction (testnet smoke script)
+
+Use this script to smoke-test the target-amount funding abstraction flow on testnet once the API is running with latest migrations and env vars (`SETTLEMENT_*`, `LIFI_*`, poll/matcher intervals, etc.).
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="${BASE_URL:-http://127.0.0.1:8080}"
+WALLET="${WALLET:-}"
+TARGET_AMOUNT="${TARGET_AMOUNT:-25.00}"
+WEBHOOK_SECRET="${LIFI_WEBHOOK_SECRET:-}"
+CLIENT_NONCE="${CLIENT_NONCE:-smoke-$(date +%s)}"
+
+if [[ -z "$WALLET" ]]; then
+  echo "Set WALLET=0x... before running."
+  exit 1
+fi
+
+echo "== Health and contracts =="
+curl -fsS "$BASE_URL/api/v1/health" | jq .
+curl -fsS "$BASE_URL/api/v1/config/contracts" | jq .
+
+echo "== Funding config =="
+curl -fsS "$BASE_URL/api/funding/config" | jq .
+
+echo "== Create intent =="
+CREATE_RESP="$(curl -fsS -X POST "$BASE_URL/api/funding/intents" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"userAddress\":\"$WALLET\",
+    \"targetCurrency\":\"USD\",
+    \"targetAmount\":\"$TARGET_AMOUNT\",
+    \"clientNonce\":\"$CLIENT_NONCE\",
+    \"mode\":\"AUTO_BEST_SOURCE\"
+  }")"
+echo "$CREATE_RESP" | jq .
+INTENT_ID="$(echo "$CREATE_RESP" | jq -r '.intentId')"
+
+echo "== Scan balances / build options =="
+curl -fsS -X POST "$BASE_URL/api/funding/intents/$INTENT_ID/scan-balances" \
+  -H "Content-Type: application/json" \
+  -d '{}' | jq .
+
+echo "== Fetch options =="
+OPTIONS_RESP="$(curl -fsS "$BASE_URL/api/funding/intents/$INTENT_ID/options")"
+echo "$OPTIONS_RESP" | jq .
+OPTION_ID="$(echo "$OPTIONS_RESP" | jq -r '.recommendedOptionId // (.options[0].optionId // empty)')"
+if [[ -z "$OPTION_ID" ]]; then
+  echo "No funding option available."
+  exit 1
+fi
+
+echo "== Select option =="
+SELECT_RESP="$(curl -fsS -X POST "$BASE_URL/api/funding/intents/$INTENT_ID/select-option" \
+  -H "Content-Type: application/json" \
+  -d "{\"optionId\":\"$OPTION_ID\"}")"
+echo "$SELECT_RESP" | jq .
+EXECUTION_ID="$(echo "$SELECT_RESP" | jq -r '.execution.executionId')"
+
+echo "== Fetch execution payload (canonical route) =="
+curl -fsS "$BASE_URL/api/funding/executions/$EXECUTION_ID" | jq .
+
+echo
+echo "Manual wallet step required next:"
+echo "1) Execute the serialized route from FE/wallet."
+echo "2) Capture source tx hash as SOURCE_TX_HASH."
+echo
+read -r -p "Enter SOURCE_TX_HASH (0x...) to continue, or Ctrl+C to stop: " SOURCE_TX_HASH
+
+echo "== Mark execution started =="
+curl -fsS -X POST "$BASE_URL/api/funding/executions/$EXECUTION_ID/start" \
+  -H "Content-Type: application/json" \
+  -d "{\"walletAddress\":\"$WALLET\",\"clientRouteExecutionId\":\"$(uuidgen)\"}" | jq .
+
+echo "== Submit source tx =="
+curl -fsS -X POST "$BASE_URL/api/funding/executions/$EXECUTION_ID/source-tx" \
+  -H "Content-Type: application/json" \
+  -d "{\"chainId\":84532,\"txHash\":\"$SOURCE_TX_HASH\"}" | jq .
+
+echo "== Route update hint =="
+curl -fsS -X POST "$BASE_URL/api/funding/executions/$EXECUTION_ID/route-update" \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"status\":\"BRIDGING\",
+    \"observedTxHashes\":[{\"chainId\":84532,\"txHash\":\"$SOURCE_TX_HASH\",\"stepIndex\":0,\"type\":\"SOURCE\"}]
+  }" | jq .
+
+if [[ -n "$WEBHOOK_SECRET" ]]; then
+  echo "== Optional LI.FI webhook hint =="
+  curl -fsS -X POST "$BASE_URL/api/funding/webhooks/lifi" \
+    -H "Content-Type: application/json" \
+    -H "X-Lifi-Webhook-Secret: $WEBHOOK_SECRET" \
+    -d "{
+      \"eventId\":\"smoke-$EXECUTION_ID\",
+      \"eventType\":\"ROUTE_UPDATE\",
+      \"executionId\":\"$EXECUTION_ID\",
+      \"status\":\"BRIDGING\",
+      \"sourceTxHash\":\"$SOURCE_TX_HASH\"
+    }" | jq .
+fi
+
+echo "== Poll intent + balance =="
+for i in $(seq 1 20); do
+  INTENT_RESP="$(curl -fsS "$BASE_URL/api/funding/intents/$INTENT_ID")"
+  STATUS="$(echo "$INTENT_RESP" | jq -r '.status')"
+  echo "intent status: $STATUS"
+  if [[ "$STATUS" == "CREDITED" || "$STATUS" == "MANUAL_REVIEW" || "$STATUS" == "FAILED" ]]; then
+    break
+  fi
+  sleep 3
+done
+
+curl -fsS "$BASE_URL/api/users/$WALLET/balance" | jq .
+
+cat <<'EOF'
+
+Expected DB progression:
+- destination_usdc_transfers: UNMATCHED -> matched_* populated -> CREDITED (or AMOUNT_TOO_LOW)
+- funding_executions: source_tx_hash/destination_tx_hash/provider_status updated
+- funding_intents: BRIDGING -> CREDITED (or MANUAL_REVIEW/FAILED)
+- user_balances + balance_ledger updated on credit
+EOF
+```
+
+Notes:
+- The script uses `jq` and `uuidgen`; install them if missing.
+- Replace `chainId` in `source-tx` payload if your source chain differs from `84532`.
+- Webhook is optional and non-authoritative; credit still requires verified destination transfer ingestion.
 
 Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 

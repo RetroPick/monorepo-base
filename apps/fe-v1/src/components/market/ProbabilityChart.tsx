@@ -248,37 +248,6 @@ const ProbabilityChart = memo(function ProbabilityChart({
             </div>
           )}
         </div>
-        <div className="flex flex-wrap items-start justify-end gap-2 sm:gap-3">
-          {chartLabelVariant !== "none" ? (
-            <ChartLabelWatermark
-              variant={chartLabelVariant}
-              className={cn("shrink-0", embedded && "origin-top-right scale-[0.92]")}
-            />
-          ) : null}
-          <div
-            className="flex flex-wrap gap-1 rounded-lg border border-border/60 bg-muted/30 p-1"
-            role="tablist"
-            aria-label="Probability time range"
-          >
-            {PROBABILITY_CHART_PRESETS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                role="tab"
-                aria-selected={preset === p}
-                className={cn(
-                  "rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition-colors",
-                  preset === p
-                    ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/40"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-                onClick={() => setPreset(p)}
-              >
-                {PROBABILITY_CHART_PRESET_LABEL[p]}
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div className="relative h-[300px] w-full bg-transparent">
@@ -384,6 +353,38 @@ const ProbabilityChart = memo(function ProbabilityChart({
             })}
           </AreaChart>
         </ResponsiveContainer>
+        {chartLabelVariant !== "none" ? (
+          <ChartLabelWatermark
+            variant={chartLabelVariant}
+            className={cn("absolute right-2 top-2 z-20 sm:right-3 sm:top-3", embedded && "origin-top-right scale-[0.92]")}
+          />
+        ) : null}
+      </div>
+
+      <div className={cn("mt-3 flex justify-end", embedded && "mt-2")}>
+        <div
+          className="flex flex-wrap gap-1 rounded-lg border border-border/60 bg-muted/30 p-1"
+          role="tablist"
+          aria-label="Probability time range"
+        >
+          {PROBABILITY_CHART_PRESETS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              role="tab"
+              aria-selected={preset === p}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide transition-colors",
+                preset === p
+                  ? "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 ring-1 ring-cyan-500/40"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+              onClick={() => setPreset(p)}
+            >
+              {PROBABILITY_CHART_PRESET_LABEL[p]}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

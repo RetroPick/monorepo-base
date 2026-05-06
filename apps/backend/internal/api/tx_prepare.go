@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -157,11 +158,15 @@ func submitTxHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body txSubmitRequest
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json body", nil)
 			return
 		}
-		if !common.IsHexAddress(body.Wallet) || !strings.HasPrefix(body.TxHash, "0x") || len(body.TxHash) != 66 {
-			http.Error(w, `{"error":"invalid wallet or txHash"}`, http.StatusBadRequest)
+		if err := validateTxSubmitBody(body); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "INVALID_TX_SUBMIT", err.Error(), nil)
+			return
+		}
+		if err := authorizeOptionalWalletPrincipal(r, body.Wallet, authSecretFromContext(r)); err != nil {
+			writeAPIError(w, http.StatusUnauthorized, "UNAUTHORIZED", err.Error(), nil)
 			return
 		}
 		var tid any
@@ -177,23 +182,99 @@ func submitTxHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			epoch = body.EpochID
 		}
 		var idem any
-		if body.IdempotencyKey != "" {
-			idem = body.IdempotencyKey
+		idem = strings.TrimSpace(body.IdempotencyKey)
+
+		tx, err := pool.Begin(r.Context())
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not open database transaction", nil)
+			return
 		}
-		_, err := pool.Exec(r.Context(), `
+		defer tx.Rollback(r.Context())
+
+		var existingWallet string
+		err = tx.QueryRow(r.Context(), `
+SELECT user_address
+FROM submitted_transactions
+WHERE tx_hash = $1
+FOR UPDATE
+`, strings.ToLower(body.TxHash)).Scan(&existingWallet)
+		switch {
+		case err == nil:
+			if !strings.EqualFold(existingWallet, body.Wallet) {
+				writeAPIError(w, http.StatusConflict, "TX_OWNERSHIP_MISMATCH", "tx hash already belongs to another wallet", nil)
+				return
+			}
+			_, err = tx.Exec(r.Context(), `
+UPDATE submitted_transactions
+SET status = 'submitted', updated_at = NOW()
+WHERE tx_hash = $1
+`, strings.ToLower(body.TxHash))
+			if err != nil {
+				writeAPIError(w, http.StatusInternalServerError, "DB", "could not update submitted transaction", nil)
+				return
+			}
+		case !errors.Is(err, pgx.ErrNoRows):
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not query submitted transaction", nil)
+			return
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			var idemWallet, idemTxHash string
+			idemErr := tx.QueryRow(r.Context(), `
+SELECT user_address, tx_hash
+FROM submitted_transactions
+WHERE idempotency_key = $1
+FOR UPDATE
+`, idem).Scan(&idemWallet, &idemTxHash)
+			switch {
+			case idemErr == nil:
+				if !strings.EqualFold(idemWallet, body.Wallet) {
+					writeAPIError(w, http.StatusConflict, "IDEMPOTENCY_OWNERSHIP_MISMATCH", "idempotency key already belongs to another wallet", nil)
+					return
+				}
+				if !strings.EqualFold(idemTxHash, body.TxHash) {
+					writeAPIError(w, http.StatusConflict, "IDEMPOTENCY_REUSE_MISMATCH", "idempotency key already points to a different tx hash", nil)
+					return
+				}
+			case !errors.Is(idemErr, pgx.ErrNoRows):
+				writeAPIError(w, http.StatusInternalServerError, "DB", "could not query idempotency key", nil)
+				return
+			default:
+				_, err = tx.Exec(r.Context(), `
 INSERT INTO submitted_transactions (tx_hash, user_address, action, template_id, epoch_id, idempotency_key)
 VALUES ($1, LOWER($2), $3, $4, $5, $6)
-ON CONFLICT (tx_hash) DO UPDATE SET
-    status = 'submitted',
-    updated_at = NOW()
 `, strings.ToLower(body.TxHash), body.Wallet, strings.ToLower(body.Action), tid, epoch, idem)
-		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				if err != nil {
+					writeAPIError(w, http.StatusInternalServerError, "DB", "could not insert submitted transaction", nil)
+					return
+				}
+			}
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not commit submitted transaction", nil)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "txHash": strings.ToLower(body.TxHash)})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"ok":      true,
+			"txHash":  strings.ToLower(body.TxHash),
+			"tracked": true,
+			"scope":   "observability_only",
+		})
 	}
+}
+
+func validateTxSubmitBody(body txSubmitRequest) error {
+	if !common.IsHexAddress(body.Wallet) {
+		return fmt.Errorf("invalid wallet")
+	}
+	if !isValidTxHash(strings.TrimSpace(body.TxHash)) {
+		return fmt.Errorf("invalid txHash")
+	}
+	if strings.TrimSpace(body.IdempotencyKey) == "" {
+		return fmt.Errorf("missing idempotencyKey")
+	}
+	return nil
 }
 
 func decodePrepareBody(w http.ResponseWriter, r *http.Request) (txPrepareRequest, bool) {

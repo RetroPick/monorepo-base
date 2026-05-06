@@ -49,6 +49,25 @@ services:
       DB_MAX_CONNS: "16"
       DB_MIN_CONNS: "2"
       DB_HEALTH_CHECK_INTERVAL: 30s
+      # Abstraction layer funding config (Base Sepolia defaults)
+      SETTLEMENT_CHAIN_ID: "84532"
+      SETTLEMENT_USDC_ADDRESS: "<base_sepolia_usdc_address>"
+      SETTLEMENT_RECEIVER_ADDRESS: "<your_receiver_address>"
+      MIN_DEPOSIT_USDC: "5000000"
+      SOFT_MAX_DEPOSIT_USDC: "500000000"
+      HARD_MAX_DEPOSIT_USDC: "2000000000"
+      LIFI_BASE_URL: "https://li.quest/v1"
+      LIFI_TIMEOUT: "4s"
+      FUNDING_ALLOWED_CHAIN_IDS: "84532"
+      FUNDING_ALLOWED_PROVIDERS: "LIFI"
+      # Optional: comma-separated lowercase token addresses
+      # FUNDING_ALLOWED_TOKENS: "0x...,0x..."
+      DESTINATION_POLL_INTERVAL: "4s"
+      MATCHER_POLL_INTERVAL: "2s"
+      INDEXER_FINALITY_DEPTH: "3"
+      MARKET_ENTRY_SAFETY_BUFFER: "90s"
+      # Set before enabling webhook calls from LI.FI
+      LIFI_WEBHOOK_SECRET: "<strong_random_secret>"
     ports:
       - "8080:8080"
     healthcheck:
@@ -93,7 +112,11 @@ services:
     environment:
       DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
-      INDEXER_LOOKBACK_BLOCKS: "50000"
+      # Must include historical market bootstrap events without forcing multi-hour cold sync.
+      INDEXER_LOOKBACK_BLOCKS: "500000"
+      # Speed up catch-up on fresh DB bootstrap windows.
+      INDEXER_MAX_BLOCKS_PER_TICK: "10000"
+      INDEXER_TICK_INTERVAL_MS: "500"
 
   ops:
     build:

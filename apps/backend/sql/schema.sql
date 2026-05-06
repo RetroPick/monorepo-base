@@ -125,6 +125,50 @@ CREATE TABLE market_snapshots (
 CREATE INDEX idx_market_snapshots_active
     ON market_snapshots (active_epoch_id, last_indexed_block DESC);
 
+CREATE TABLE market_read_models (
+    template_id BYTEA PRIMARY KEY REFERENCES templates (template_id) ON DELETE CASCADE,
+    slug VARCHAR(512) NOT NULL,
+    market_type SMALLINT NOT NULL DEFAULT 0,
+    initialized BOOLEAN NOT NULL DEFAULT FALSE,
+    execution_mode SMALLINT NOT NULL DEFAULT 0,
+    rolling_phase SMALLINT NOT NULL DEFAULT 0,
+    rolling_halt_reason SMALLINT NOT NULL DEFAULT 0,
+    active_epoch_id BIGINT NOT NULL DEFAULT 0,
+    last_resolved_epoch_id BIGINT,
+    rolling_next_epoch_id BIGINT,
+    halted_at_epoch_id BIGINT,
+    status VARCHAR(32) NOT NULL DEFAULT 'unknown',
+    total_pool NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    volume NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    outcome_count SMALLINT NOT NULL DEFAULT 2,
+    outcomes_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    last_event_seq BIGINT,
+    last_indexed_block BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_market_read_models_active
+    ON market_read_models (active_epoch_id, last_indexed_block DESC);
+
+CREATE TABLE probability_points (
+    template_id BYTEA NOT NULL REFERENCES templates (template_id) ON DELETE CASCADE,
+    epoch_id BIGINT NOT NULL,
+    seq BIGINT NOT NULL,
+    outcome_index SMALLINT NOT NULL,
+    block_number BIGINT NOT NULL,
+    tx_hash VARCHAR(66),
+    log_index INT,
+    probability_bps INT NOT NULL DEFAULT 0,
+    pool_amount NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    total_pool NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (template_id, epoch_id, seq, outcome_index)
+);
+
+CREATE INDEX idx_probability_points_lookup
+    ON probability_points (template_id, epoch_id, seq DESC, outcome_index);
+
 CREATE TABLE realtime_events (
     seq BIGSERIAL PRIMARY KEY,
     channel VARCHAR(128) NOT NULL,
@@ -273,6 +317,11 @@ CREATE TABLE destination_usdc_transfers (
     matched_funding_intent_id UUID REFERENCES funding_intents(id),
     matched_execution_id UUID,
     credit_status TEXT NOT NULL DEFAULT 'UNMATCHED',
+    provenance TEXT NOT NULL DEFAULT 'POLLER',
+    webhook_event_id UUID,
+    provider_execution_ref TEXT,
+    match_confidence NUMERIC(10,6),
+    match_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(chain_id, tx_hash, log_index)
 );
@@ -330,9 +379,30 @@ CREATE TABLE route_update_events (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE funding_webhook_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    execution_id UUID REFERENCES funding_executions(id) ON DELETE SET NULL,
+    event_type TEXT,
+    payload JSONB NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (provider, event_id)
+);
+
+CREATE TABLE destination_transfer_indexer_state (
+    id SMALLINT PRIMARY KEY DEFAULT 1,
+    last_block BIGINT NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 ALTER TABLE destination_usdc_transfers
     ADD CONSTRAINT fk_destination_usdc_transfers_execution
     FOREIGN KEY (matched_execution_id) REFERENCES funding_executions(id);
+
+ALTER TABLE destination_usdc_transfers
+    ADD CONSTRAINT fk_destination_usdc_transfers_webhook
+    FOREIGN KEY (webhook_event_id) REFERENCES funding_webhook_events(id);
 
 CREATE TABLE user_balances (
     user_address VARCHAR(42) PRIMARY KEY,

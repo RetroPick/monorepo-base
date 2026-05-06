@@ -48,14 +48,16 @@ function makeMarket(overrides: Partial<Market> = {}): Market {
 }
 
 describe("MarketCard", () => {
-  it("uses the same fixed-height shell as binary cards and scrolls overflowing multi outcomes", () => {
+  it("uses a min-height shell on mobile (grows with outcomes) and the fixed binary-card shell on sm+", () => {
     const { container } = render(<MarketCard market={makeMarket()} variant="discover" />);
 
     const card = container.querySelector('[role="button"]') as HTMLElement | null;
     expect(card).toBeTruthy();
-    expect(card?.className).toContain("h-[200px]");
-    expect(card?.className).toContain("max-h-[200px]");
+    /** Mobile: min-h only so phones can grow for long outcome lists without scrollbars. */
+    expect(card?.className).toContain("min-h-[200px]");
+    /** Desktop (sm+): retain the fixed binary-card shell so cards align in a grid. */
     expect(card?.className).toContain("sm:h-[212px]");
+    expect(card?.className).toContain("sm:max-h-[212px]");
     const scroll = screen.getByTestId("market-card-outcomes-scroll");
     expect(scroll.className).toContain("overflow-y-auto");
     expect(scroll.className).toContain("flex-1");

@@ -55,7 +55,7 @@ const Footer = () => {
           "dark:border-white/[0.06]",
         )}
       >
-        <div className="mx-auto flex h-11 max-w-[1440px] items-center justify-between gap-2 px-5 sm:gap-4 lg:px-10 min-[360px]:gap-3">
+        <div className="mx-auto flex h-11 max-w-screen-2xl items-center justify-between gap-2 px-5 sm:gap-4 lg:px-10 min-[360px]:gap-3">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <span className="size-2 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(34,197,94,0.55)]" />
             <span className="shrink-0 font-semibold text-foreground">{t("dashboard.live")}</span>

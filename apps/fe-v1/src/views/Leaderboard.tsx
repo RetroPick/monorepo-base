@@ -49,7 +49,15 @@ const PodiumPlace = ({ user, rank, delay }: { user: User, rank: number, delay: n
                 className="mb-4 flex flex-col items-center"
             >
                 <div className={`size-20 md:size-24 rounded-full border-4 ${isFirst ? 'border-yellow-500' : isSecond ? 'border-slate-300' : 'border-orange-600'} overflow-hidden bg-background shadow-xl`}>
-                    <img src={user.avatar} alt={user.user} className="w-full h-full object-cover" />
+                    <img
+                        src={user.avatar}
+                        alt={user.user}
+                        width={96}
+                        height={96}
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover"
+                    />
                 </div>
                 <div className="mt-2 text-center">
                     <div className="font-bold text-lg md:text-xl truncate max-w-[120px]">{user.user}</div>
@@ -90,7 +98,15 @@ const LeaderboardRow = ({ user, index }: { user: User, index: number }) => {
 
             {/* Avatar */}
             <div className="size-10 rounded-full bg-secondary overflow-hidden border border-border group-hover:border-primary transition-colors">
-                <img src={user.avatar} alt={user.user} className="w-full h-full object-cover" />
+                <img
+                    src={user.avatar}
+                    alt={user.user}
+                    width={48}
+                    height={48}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                />
             </div>
 
             {/* User Info */}

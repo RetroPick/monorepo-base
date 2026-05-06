@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { getApiWebSocketUrl, type MarketDetail, type MarketRow, type ProbabilityHistoryResponse } from "@/lib/api/retropickApi";
+import { getApiWebSocketUrl, type ChartCandle, type MarketDetail, type MarketRow, type ProbabilityHistoryResponse } from "@/lib/api/retropickApi";
 
 const WS_STALE_MS = 12_000;
+const WS_CURSOR_KEY = "retropick:ws-channel-cursors";
 
 function normalizeWsTemplateId(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
@@ -36,7 +37,7 @@ function parseNotifyTemplateIds(raw: string): string[] {
   }
 }
 
-type RealtimeEvent = {
+export type RealtimeEvent = {
   seq?: number;
   type?: string;
   channel?: string;
@@ -73,7 +74,52 @@ function parseRealtimeEvent(raw: string): RealtimeEvent | null {
   }
 }
 
-function patchMarketCaches(qc: QueryClient, event: RealtimeEvent): boolean {
+function patchChartCaches(qc: QueryClient, event: RealtimeEvent): boolean {
+  const payload = event.payload as {
+    feedId?: string;
+    intervalSec?: number;
+    bucketStart?: string;
+    closeE8?: string;
+    source?: string;
+  } | undefined;
+  if (!payload?.feedId || !payload.intervalSec || !payload.bucketStart || !payload.closeE8) return false;
+
+  qc.setQueriesData<{ feedId: string; intervalSec: number; candles: ChartCandle[] }>(
+    { queryKey: ["retropick-api", "market-chart"] },
+    (old) => {
+      if (!old || old.feedId !== payload.feedId || old.intervalSec !== payload.intervalSec) return old;
+      const existingIdx = old.candles.findIndex((c) => c.bucketStart === payload.bucketStart);
+      const nextCandle: ChartCandle = existingIdx >= 0
+        ? {
+            ...old.candles[existingIdx],
+            closeE8: payload.closeE8,
+            highE8: old.candles[existingIdx]?.highE8 ?? payload.closeE8,
+            lowE8: old.candles[existingIdx]?.lowE8 ?? payload.closeE8,
+            source: payload.source ?? old.candles[existingIdx]?.source ?? "live",
+          }
+        : {
+            feedId: payload.feedId,
+            intervalSec: payload.intervalSec,
+            bucketStart: payload.bucketStart,
+            openE8: payload.closeE8,
+            highE8: payload.closeE8,
+            lowE8: payload.closeE8,
+            closeE8: payload.closeE8,
+            source: payload.source ?? "live",
+            sampleCount: 1,
+            updatedAt: new Date().toISOString(),
+          };
+      const candles = [...old.candles];
+      if (existingIdx >= 0) candles[existingIdx] = nextCandle;
+      else candles.unshift(nextCandle);
+      return { ...old, candles };
+    },
+  );
+  return true;
+}
+
+export function applyRealtimeEventToCaches(qc: QueryClient, event: RealtimeEvent): boolean {
+  if (isChartChannel(event.channel) && patchChartCaches(qc, event)) return true;
   const payload = event.payload;
   const templateId = normalizeWsTemplateId(event.templateId ?? payload?.templateId);
   if (!templateId || !payload) return false;
@@ -145,6 +191,27 @@ function invalidateProbabilityHistoryNow(qc: QueryClient, templateId?: string) {
   }
 }
 
+export function loadChannelCursorMap(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(WS_CURSOR_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = {};
+    for (const [channel, seq] of Object.entries(parsed)) {
+      if (typeof seq === "number" && Number.isFinite(seq) && seq > 0) out[channel] = seq;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function saveChannelCursorMap(cursors: Record<string, number>) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(WS_CURSOR_KEY, JSON.stringify(cursors));
+}
+
 /**
  * Subscribes to the backend `/ws` fanout (Postgres NOTIFY).
  * Probability history is invalidated immediately; other `retropick-api` queries are debounced.
@@ -154,6 +221,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
   const qc = useQueryClient();
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scope = normalizeWsTemplateId(scopeTemplateId);
+  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;
@@ -162,7 +230,8 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
     let closed = false;
     let retryAttempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let lastSeq = Number(window.localStorage.getItem("retropick:last-ws-seq") ?? "0") || 0;
+    let cursorByChannel = loadChannelCursorMap();
+    let lastSeq = Math.max(0, ...Object.values(cursorByChannel), Number(window.localStorage.getItem("retropick:last-ws-seq") ?? "0") || 0);
 
     const scheduleInvalidate = (templateId?: string, event?: RealtimeEvent) => {
       invalidateProbabilityHistoryNow(qc, templateId);
@@ -186,7 +255,9 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
             void qc.invalidateQueries({ queryKey: ["retropick-api", "user-balance"] });
           }
         } else {
-          void qc.invalidateQueries({ queryKey: ["retropick-api"] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "markets"] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "market-chart"] });
+          void qc.invalidateQueries({ queryKey: ["retropick-api", "probability-history"] });
         }
       }, WS_STALE_MS);
     };
@@ -204,8 +275,10 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
 
       ws.onopen = () => {
         retryAttempt = 0;
+        setConnected(true);
         const channels = scope ? ["global:markets", `market:${scope}`] : ["global:markets"];
-        ws?.send(JSON.stringify({ type: "subscribe", channels, lastSeq }));
+        const scopedCursors = Object.fromEntries(channels.map((channel) => [channel, cursorByChannel[channel] ?? 0]));
+        ws?.send(JSON.stringify({ type: "subscribe", channels, lastSeq, cursorByChannel: scopedCursors }));
       };
 
       ws.onmessage = (ev) => {
@@ -213,6 +286,10 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
         const raw = String(ev.data);
         const realtimeEvent = parseRealtimeEvent(raw);
         if (realtimeEvent?.seq != null) {
+          if (realtimeEvent.channel) {
+            cursorByChannel = { ...cursorByChannel, [realtimeEvent.channel]: Math.max(cursorByChannel[realtimeEvent.channel] ?? 0, realtimeEvent.seq) };
+            saveChannelCursorMap(cursorByChannel);
+          }
           if (lastSeq > 0 && realtimeEvent.seq > lastSeq + 1) {
             scheduleInvalidate(scope, realtimeEvent);
           }
@@ -223,7 +300,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
           scheduleInvalidate(scope, realtimeEvent);
           return;
         }
-        if (realtimeEvent && patchMarketCaches(qc, realtimeEvent)) {
+        if (realtimeEvent && applyRealtimeEventToCaches(qc, realtimeEvent)) {
           return;
         }
 
@@ -243,12 +320,14 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
       };
 
       ws.onclose = () => {
+        setConnected(false);
         if (!closed) {
           scheduleReconnect();
         }
       };
 
       ws.onerror = () => {
+        setConnected(false);
         ws?.close();
       };
     };
@@ -267,9 +346,12 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
 
     return () => {
       closed = true;
+      setConnected(false);
       if (refetchTimer.current) clearTimeout(refetchTimer.current);
       if (retryTimer) clearTimeout(retryTimer);
       ws?.close();
     };
   }, [enabled, qc, scope]);
+
+  return { connected };
 }

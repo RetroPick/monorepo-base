@@ -18,6 +18,9 @@ package-lock.json
 /.next/
 /out/
 
+# vite (alt build pipeline used by tests/dev:vite)
+/dist
+
 # production
 /build
 

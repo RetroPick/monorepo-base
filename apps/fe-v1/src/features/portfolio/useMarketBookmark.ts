@@ -12,6 +12,7 @@ import {
 } from "@/features/portfolio/watchlistStorage";
 
 import { useGuestWatchlistSnapshot } from "@/features/portfolio/useGuestWatchlistSnapshot";
+import { useBackendAuthSession } from "@/context/BackendAuthContext";
 
 function mergeTemplateIds(...lists: (string[] | undefined)[]): string[] {
   const s = new Set<string>();
@@ -37,15 +38,23 @@ export function useMarketBookmark(templateIdRaw: string) {
     }
   }, [guestSnap]);
 
-  const { address } = useAccount();
+  // Some presentation-only surfaces render outside WagmiProvider in tests and non-wallet shells.
+  // Treat those cases as guest mode instead of making the whole tree provider-dependent.
+  let address: `0x${string}` | undefined;
+  try {
+    address = useAccount().address;
+  } catch {
+    address = undefined;
+  }
   const qc = useQueryClient();
   const { toast } = useToast();
+  const auth = useBackendAuthSession();
   const [busy, setBusy] = useState(false);
 
   const watchlistQ = useQuery({
     queryKey: ["retropick-api", "user-watchlist", address],
     queryFn: () => fetchUserWatchlist(address!),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
     staleTime: 15_000,
   });
 
@@ -67,7 +76,7 @@ export function useMarketBookmark(templateIdRaw: string) {
 
   const toggle = useCallback(async () => {
     if (!tid) return;
-    if (!address) {
+    if (!address || !auth.isAuthenticated) {
       toggleGuestWatchlist(tid, !isBookmarked);
       toast({
         title: !isBookmarked ? "Saved locally" : "Removed",
@@ -115,6 +124,6 @@ export function useMarketBookmark(templateIdRaw: string) {
     isBookmarked,
     toggle,
     busy,
-    watchlistLoading: Boolean(address) && watchlistQ.isLoading,
+    watchlistLoading: Boolean(address) && auth.isAuthenticated && watchlistQ.isLoading,
   };
 }

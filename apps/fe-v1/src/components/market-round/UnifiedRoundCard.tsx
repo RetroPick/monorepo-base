@@ -246,7 +246,15 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   {assetImage ? (
-                    <img src={assetImage} alt="" className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border" />
+                    <img
+                      src={assetImage}
+                      alt=""
+                      width={32}
+                      height={32}
+                      loading="lazy"
+                      decoding="async"
+                      className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
+                    />
                   ) : null}
                   <div className="flex min-w-0 items-center gap-1 text-xs font-semibold text-foreground">
                     <PlayCircle className="size-3.5 shrink-0 text-primary" aria-hidden />
@@ -460,7 +468,15 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
         <div className="relative flex shrink-0 items-start justify-between gap-1.5">
           <div className="flex min-w-0 items-center gap-1.5">
             {assetImage ? (
-              <img src={assetImage} alt="" className="size-7 shrink-0 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15" />
+              <img
+                src={assetImage}
+                alt=""
+                width={28}
+                height={28}
+                loading="lazy"
+                decoding="async"
+                className="size-7 shrink-0 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15"
+              />
             ) : null}
             <div
               className={cn(

@@ -3,7 +3,6 @@ import {
   getApiRetries,
   getApiTimeoutMs,
 } from "@/lib/runtimeEnv";
-import { getBackendAuthToken } from "@/lib/api/authToken";
 
 /**
  * RetroPick Go API client: health, markets, config, epochs, user events; extends as backend grows.
@@ -37,6 +36,11 @@ function responseMessage(path: string, status: number, body: unknown) {
   if (body && typeof body === "object") {
     const record = body as { message?: unknown; error?: unknown };
     if (typeof record.message === "string") return record.message;
+    if (record.error && typeof record.error === "object") {
+      const nested = record.error as { message?: unknown; code?: unknown };
+      if (typeof nested.message === "string" && nested.message.trim()) return nested.message;
+      if (typeof nested.code === "string" && nested.code.trim()) return nested.code;
+    }
     if (typeof record.error === "string") return record.error;
   }
   if (typeof body === "string" && body.trim()) return body.trim().slice(0, 240);
@@ -67,9 +71,15 @@ function delay(ms: number) {
 
 function buildHeaders() {
   const headers: Record<string, string> = { Accept: "application/json" };
-  const token = getBackendAuthToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const csrf = getCsrfToken();
+  if (csrf) headers["X-CSRF-Token"] = csrf;
   return headers;
+}
+
+function getCsrfToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^|;\s*)rp_csrf=([^;]+)/);
+  return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
 async function getJson<T>(path: string): Promise<T> {
@@ -81,6 +91,7 @@ async function getJson<T>(path: string): Promise<T> {
       const res = await fetch(`${base}${path}`, {
         cache: "no-store",
         headers: buildHeaders(),
+        credentials: "include",
         signal: ctrl.signal,
       });
       if (!res.ok) {
@@ -127,6 +138,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
         cache: "no-store",
         headers,
         body: JSON.stringify(body),
+        credentials: "include",
         signal: ctrl.signal,
       });
       if (!res.ok) {
@@ -169,6 +181,40 @@ export type HealthResponse = {
 
 export async function fetchHealth(): Promise<HealthResponse> {
   return getJson<HealthResponse>("/api/v1/health");
+}
+
+export type AuthNonceResponse = {
+  wallet: `0x${string}`;
+  message: string;
+  challenge: string;
+  expiresIn: number;
+};
+
+export type AuthSessionResponse = {
+  authenticated: boolean;
+  wallet: `0x${string}`;
+  expiresAt?: string;
+};
+
+export async function createAuthNonce(wallet: `0x${string}`): Promise<AuthNonceResponse> {
+  return postJson<AuthNonceResponse>("/api/v1/auth/nonce", { wallet });
+}
+
+export async function verifyAuthSession(body: {
+  wallet: `0x${string}`;
+  message: string;
+  signature: `0x${string}`;
+  challenge: string;
+}): Promise<AuthSessionResponse> {
+  return postJson<AuthSessionResponse>("/api/v1/auth/verify", body);
+}
+
+export async function fetchAuthSession(): Promise<AuthSessionResponse> {
+  return getJson<AuthSessionResponse>("/api/v1/auth/session");
+}
+
+export async function logoutAuthSession(): Promise<{ ok: boolean }> {
+  return postJson<{ ok: boolean }>("/api/v1/auth/logout", {});
 }
 
 export type MarketRow = {
@@ -326,24 +372,22 @@ export type UserBalanceResponse = {
 };
 
 export async function fetchUserBalance(walletAddress: string): Promise<UserBalanceResponse> {
-  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
-  return getJson<UserBalanceResponse>(`/api/v1/user/balance?wallet=${encodeURIComponent(addr)}`);
+  void walletAddress;
+  return getJson<UserBalanceResponse>("/api/v1/me/balance");
 }
 
 export async function fetchUserPositions(
   walletAddress: string,
   context?: { templateId?: string; epochId?: bigint | number | string | null },
 ): Promise<UserPositionsResponse> {
-  const addr = walletAddress.startsWith("0x")
-    ? walletAddress
-    : `0x${walletAddress}`;
-  const params = new URLSearchParams({ wallet: addr });
+  void walletAddress;
+  const params = new URLSearchParams();
   if (context?.templateId && context.epochId != null) {
     params.set("templateId", context.templateId);
     params.set("epochId", String(context.epochId));
   }
   return getJson<UserPositionsResponse>(
-    `/api/v1/user/positions?${params.toString()}`,
+    `/api/v1/me/positions${params.size > 0 ? `?${params.toString()}` : ""}`,
   );
 }
 
@@ -369,13 +413,9 @@ export async function fetchUserClaims(
   walletAddress: string,
   limit = 100,
 ): Promise<UserClaimsResponse> {
-  const addr = walletAddress.startsWith("0x")
-    ? walletAddress
-    : `0x${walletAddress}`;
-  const q = limit !== 100 ? `&limit=${limit}` : "";
-  return getJson<UserClaimsResponse>(
-    `/api/v1/user/claims?wallet=${encodeURIComponent(addr)}${q}`,
-  );
+  void walletAddress;
+  const q = limit !== 100 ? `?limit=${limit}` : "";
+  return getJson<UserClaimsResponse>(`/api/v1/me/claims${q}`);
 }
 
 export type FaucetStateResponse = {
@@ -545,12 +585,10 @@ export async function fetchUserEvents(
   walletAddress: string,
   limit = 100,
 ): Promise<UserChainEventRow[]> {
-  const addr = walletAddress.startsWith("0x")
-    ? walletAddress
-    : `0x${walletAddress}`;
+  void walletAddress;
   const q = limit !== 100 ? `?limit=${limit}` : "";
   const data = await getJson<{ events: UserChainEventRow[] }>(
-    `/api/v1/user/${encodeURIComponent(addr)}/events${q}`,
+    `/api/v1/me/events${q}`,
   );
   return data.events;
 }
@@ -747,13 +785,37 @@ export async function fetchFundingOptionsV2(intentId: string): Promise<{
 export async function selectFundingOption(
   intentId: string,
   body: { optionId: string },
-): Promise<{ intentId: string; status: string; execution: { executionId: string; provider: string } }> {
+): Promise<{
+  intentId: string;
+  status: string;
+  execution: { executionId: string; provider: string; serializedRoute?: unknown; routeVersion?: string };
+}> {
   return postJson(`/api/funding/intents/${encodeURIComponent(intentId)}/select-option`, body);
+}
+
+export async function fetchFundingExecution(executionId: string): Promise<{
+  executionId: string;
+  status: string;
+  provider: string;
+  sourceChainId: number;
+  sourceToken: string;
+  sourceAmount: string;
+  destinationChainId: number;
+  destinationToken: string;
+  expectedUsdcAmount: string;
+  minUsdcAmount: string;
+  sourceTxHash?: string;
+  destinationTxHash?: string;
+  serializedRoute?: unknown;
+  routeVersion?: string;
+  updatedAt: string;
+}> {
+  return getJson(`/api/funding/executions/${encodeURIComponent(executionId)}`);
 }
 
 export async function markFundingExecutionStartedV2(
   executionId: string,
-  body: { walletAddress: string; clientRouteExecutionId: string },
+  body: { walletAddress: string; clientRouteExecutionId: string; idempotencyKey: string },
 ): Promise<{ status: string }> {
   return postJson(`/api/funding/executions/${encodeURIComponent(executionId)}/start`, body);
 }
@@ -764,7 +826,7 @@ export async function markFundingRouteUpdateV2(executionId: string, body: unknow
 
 export async function markFundingSourceTxV2(
   executionId: string,
-  body: { chainId: number; txHash: string },
+  body: { chainId: number; txHash: string; idempotencyKey: string },
 ): Promise<{ status: string }> {
   return postJson(`/api/funding/executions/${encodeURIComponent(executionId)}/source-tx`, body);
 }
@@ -834,8 +896,8 @@ export type PortfolioSummaryResponse = {
 };
 
 export async function fetchPortfolioSummary(walletAddress: string): Promise<PortfolioSummaryResponse> {
-  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
-  return getJson<PortfolioSummaryResponse>(`/api/v1/user/portfolio-summary?wallet=${encodeURIComponent(addr)}`);
+  void walletAddress;
+  return getJson<PortfolioSummaryResponse>("/api/v1/me/portfolio-summary");
 }
 
 export async function fetchWatchlistNonce(walletAddress: string): Promise<{ wallet: string; nonce: number }> {
@@ -846,10 +908,8 @@ export async function fetchWatchlistNonce(walletAddress: string): Promise<{ wall
 }
 
 export async function fetchUserWatchlist(walletAddress: string): Promise<{ wallet: string; templateIds: string[] }> {
-  const addr = walletAddress.startsWith("0x") ? walletAddress : `0x${walletAddress}`;
-  return getJson<{ wallet: string; templateIds: string[] }>(
-    `/api/v1/user/watchlist?wallet=${encodeURIComponent(addr)}`,
-  );
+  void walletAddress;
+  return getJson<{ wallet: string; templateIds: string[] }>("/api/v1/me/watchlist");
 }
 
 export type WatchlistMutateRequest = {
@@ -867,7 +927,8 @@ export async function postWatchlistMutate(body: WatchlistMutateRequest): Promise
   templateId?: string;
   templateIds?: string[];
 }> {
-  return postJson("/api/v1/user/watchlist", body);
+  const path = body.action === "import" ? "/api/v1/user/watchlist" : "/api/v1/me/watchlist";
+  return postJson(path, body);
 }
 
 export function getApiBaseUrl(): string {

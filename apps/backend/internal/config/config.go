@@ -35,6 +35,12 @@ type Config struct {
 	FundingAllowedTokens    []string
 	FundingAllowedProviders []string
 	AuthJWTSecret           string
+	AuthSessionSecret       string
+	AuthSessionTTL          time.Duration
+	AuthNonceTTL            time.Duration
+	AuthCookieDomain        string
+	AuthCookieSecure        bool
+	AuthCookieSameSite      string
 	WSAllowedOrigins        []string
 	IndexerFinalityDepth    uint64
 	SettlementChainID       int64
@@ -44,6 +50,9 @@ type Config struct {
 	SoftMaxDepositUSDC      string
 	HardMaxDepositUSDC      string
 	MarketEntrySafetyBuffer time.Duration
+	LifiWebhookSecret       string
+	DestinationPollInterval time.Duration
+	MatcherPollInterval     time.Duration
 }
 
 func Load() (*Config, error) {
@@ -102,7 +111,23 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	authSessionTTL, err := durationFromEnv("AUTH_SESSION_TTL", 7*24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	authNonceTTL, err := durationFromEnv("AUTH_NONCE_TTL", 10*time.Minute)
+	if err != nil {
+		return nil, err
+	}
 	marketEntrySafetyBuffer, err := durationFromEnv("MARKET_ENTRY_SAFETY_BUFFER", 90*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	destinationPollInterval, err := durationFromEnv("DESTINATION_POLL_INTERVAL", 4*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	matcherPollInterval, err := durationFromEnv("MATCHER_POLL_INTERVAL", 2*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +172,12 @@ func Load() (*Config, error) {
 		FundingAllowedTokens:    parseCSVLower(os.Getenv("FUNDING_ALLOWED_TOKENS")),
 		FundingAllowedProviders: parseCSVUpper(os.Getenv("FUNDING_ALLOWED_PROVIDERS")),
 		AuthJWTSecret:           strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")),
+		AuthSessionSecret:       strings.TrimSpace(envDefault("AUTH_SESSION_SECRET", strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")))),
+		AuthSessionTTL:          authSessionTTL,
+		AuthNonceTTL:            authNonceTTL,
+		AuthCookieDomain:        strings.TrimSpace(os.Getenv("AUTH_COOKIE_DOMAIN")),
+		AuthCookieSecure:        os.Getenv("AUTH_COOKIE_SECURE") == "1",
+		AuthCookieSameSite:      strings.TrimSpace(envDefault("AUTH_COOKIE_SAMESITE", "Lax")),
 		WSAllowedOrigins:        parseCSVLower(os.Getenv("WS_ALLOWED_ORIGINS")),
 		IndexerFinalityDepth:    indexerFinalityDepth,
 		SettlementChainID:       settlementChainID,
@@ -156,6 +187,9 @@ func Load() (*Config, error) {
 		SoftMaxDepositUSDC:      envDefault("SOFT_MAX_DEPOSIT_USDC", "500000000"),
 		HardMaxDepositUSDC:      envDefault("HARD_MAX_DEPOSIT_USDC", "2000000000"),
 		MarketEntrySafetyBuffer: marketEntrySafetyBuffer,
+		LifiWebhookSecret:       strings.TrimSpace(os.Getenv("LIFI_WEBHOOK_SECRET")),
+		DestinationPollInterval: destinationPollInterval,
+		MatcherPollInterval:     matcherPollInterval,
 	}, nil
 }
 

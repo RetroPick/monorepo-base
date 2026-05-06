@@ -35,6 +35,21 @@ type Service struct {
 	log    *slog.Logger
 }
 
+type projectionEventMeta struct {
+	Seq         int64
+	BlockNumber int64
+	TxHash      string
+	LogIndex    int32
+	IndexedAt   time.Time
+}
+
+type projectionOutcomeState struct {
+	Index          int16
+	PoolAmount     *big.Int
+	ProbabilityBps int32
+	MultiplierBps  int32
+}
+
 func NewService(pool *pgxpool.Pool, client *ethclient.Client, proxyHex string, log *slog.Logger) (*Service, error) {
 	if !common.IsHexAddress(proxyHex) {
 		return nil, fmt.Errorf("invalid proxy address %q", proxyHex)
@@ -92,7 +107,7 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 			if _, err := tx.Exec(ctx, `DELETE FROM chain_events WHERE block_number > $1`, rewindTo); err != nil {
 				return fmt.Errorf("reorg delete chain_events: %w", err)
 			}
-			if _, err := tx.Exec(ctx, `TRUNCATE market_epoch_outcomes, market_snapshots, user_position_outcomes`); err != nil {
+			if _, err := tx.Exec(ctx, `TRUNCATE market_epoch_outcomes, market_snapshots, market_read_models, probability_points, user_position_outcomes`); err != nil {
 				return fmt.Errorf("reorg truncate projections: %w", err)
 			}
 			if _, err := tx.Exec(ctx, `
@@ -534,6 +549,12 @@ func (s *Service) onPositionDeposited(ctx context.Context, tx pgx.Tx, realtimeSe
 	if err := s.addOutcomePool(ctx, tx, tid, eid, int16(outcome), amount, int64(lg.BlockNumber)); err != nil {
 		return err
 	}
+	if err := s.addTradedVolume(ctx, tx, tid, amount, int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if err := s.recomputeProjection(ctx, tx, tid, eid, projectionEventMetaFromLog(lg)); err != nil {
+		return err
+	}
 	if user != nil {
 		if err := s.addUserPosition(ctx, tx, strings.ToLower(*user), tid, eid, int16(outcome), amount, int64(lg.BlockNumber)); err != nil {
 			return err
@@ -560,6 +581,12 @@ func (s *Service) onSideSwitched(ctx context.Context, tx pgx.Tx, realtimeSeqs *[
 		return err
 	}
 	if err := s.addOutcomePool(ctx, tx, tid, eid, int16(to), net, int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if err := s.addTradedVolume(ctx, tx, tid, gross, int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if err := s.recomputeProjection(ctx, tx, tid, eid, projectionEventMetaFromLog(lg)); err != nil {
 		return err
 	}
 	if user != nil {
@@ -629,7 +656,7 @@ ON CONFLICT (template_id, epoch_id, outcome_index) DO UPDATE SET
 			return err
 		}
 	}
-	return s.recomputeProjection(ctx, tx, tid, eid, block)
+	return s.recomputeProjection(ctx, tx, tid, eid, projectionEventMeta{BlockNumber: block})
 }
 
 func (s *Service) updateSnapshotStatus(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, status string, block int64) error {
@@ -655,7 +682,21 @@ ON CONFLICT (template_id, epoch_id, outcome_index) DO UPDATE SET
 `, tid, eid, outcome, delta.String(), block); err != nil {
 		return err
 	}
-	return s.recomputeProjection(ctx, tx, tid, eid, block)
+	return nil
+}
+
+func (s *Service) addTradedVolume(ctx context.Context, tx pgx.Tx, tid []byte, delta *big.Int, block int64) error {
+	if delta == nil || delta.Sign() <= 0 {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `
+UPDATE market_snapshots
+SET volume = market_snapshots.volume + $2::numeric,
+    last_indexed_block = GREATEST(market_snapshots.last_indexed_block, $3),
+    updated_at = NOW()
+WHERE template_id = $1
+`, tid, delta.String(), block)
+	return err
 }
 
 func (s *Service) addUserPosition(ctx context.Context, tx pgx.Tx, user string, tid []byte, eid int64, outcome int16, delta *big.Int, block int64) error {
@@ -692,7 +733,7 @@ WHERE user_address = $1 AND template_id = $2 AND epoch_id = $3
 	return err
 }
 
-func (s *Service) recomputeProjection(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, block int64) error {
+func (s *Service) recomputeProjection(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, meta projectionEventMeta) error {
 	rows, err := tx.Query(ctx, `
 SELECT outcome_index, pool_amount::text
 FROM market_epoch_outcomes
@@ -704,11 +745,7 @@ ORDER BY outcome_index
 	}
 	defer rows.Close()
 
-	type outcomeRow struct {
-		index  int16
-		amount *big.Int
-	}
-	var outcomes []outcomeRow
+	var outcomes []projectionOutcomeState
 	total := new(big.Int)
 	for rows.Next() {
 		var idx int16
@@ -720,7 +757,7 @@ ORDER BY outcome_index
 		if !ok {
 			amount = new(big.Int)
 		}
-		outcomes = append(outcomes, outcomeRow{index: idx, amount: amount})
+		outcomes = append(outcomes, projectionOutcomeState{Index: idx, PoolAmount: amount})
 		total.Add(total, amount)
 	}
 	if err := rows.Err(); err != nil {
@@ -730,36 +767,218 @@ ORDER BY outcome_index
 	if count == 0 {
 		return nil
 	}
-	for _, outcome := range outcomes {
-		prob := int64(0)
-		mult := int64(0)
-		if total.Sign() > 0 {
-			prob = new(big.Int).Div(new(big.Int).Mul(outcome.amount, big.NewInt(10_000)), total).Int64()
-			if outcome.amount.Sign() > 0 {
-				mult = new(big.Int).Div(new(big.Int).Mul(total, big.NewInt(10_000)), outcome.amount).Int64()
-			}
-		} else {
-			prob = 10_000 / count
-		}
+	prev, err := s.loadProjectionOutcomeStates(ctx, tx, tid, eid)
+	if err != nil {
+		return err
+	}
+	next := computeProjectionOutcomes(outcomes)
+	for _, outcome := range next {
 		if _, err := tx.Exec(ctx, `
 UPDATE market_epoch_outcomes
 SET probability_bps = $4, multiplier_bps = $5, updated_block = $6, updated_at = NOW()
 WHERE template_id = $1 AND epoch_id = $2 AND outcome_index = $3
-`, tid, eid, outcome.index, int32(prob), int32(mult), block); err != nil {
+`, tid, eid, outcome.Index, outcome.ProbabilityBps, outcome.MultiplierBps, meta.BlockNumber); err != nil {
 			return err
 		}
 	}
+	if probabilityPointNeeded(prev, next) {
+		if err := s.appendProbabilityPoint(ctx, tx, tid, eid, total, next, meta); err != nil {
+			return err
+		}
+	}
+	var status string
+	var volumeText string
+	if err := tx.QueryRow(ctx, `
+SELECT status, volume::text
+FROM market_snapshots
+WHERE template_id = $1
+`, tid).Scan(&status, &volumeText); err != nil {
+		return err
+	}
+	outcomesJSON, err := marshalProjectionOutcomes(next)
+	if err != nil {
+		return err
+	}
 	_, err = tx.Exec(ctx, `
 INSERT INTO market_snapshots (template_id, active_epoch_id, status, total_pool, volume, outcome_count, last_indexed_block)
-VALUES ($1, $2, 'open', $3::numeric, $3::numeric, $4, $5)
+VALUES ($1, $2, $3, $4::numeric, $5::numeric, $6, $7)
 ON CONFLICT (template_id) DO UPDATE SET
+    active_epoch_id = EXCLUDED.active_epoch_id,
+    status = EXCLUDED.status,
     total_pool = EXCLUDED.total_pool,
     volume = EXCLUDED.volume,
     outcome_count = EXCLUDED.outcome_count,
     last_indexed_block = EXCLUDED.last_indexed_block,
     updated_at = NOW()
-`, tid, eid, total.String(), int16(count), block)
+`, tid, eid, status, total.String(), volumeText, int16(count), meta.BlockNumber)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+INSERT INTO market_read_models (
+    template_id, slug, market_type, initialized, execution_mode, rolling_phase, rolling_halt_reason,
+    active_epoch_id, last_resolved_epoch_id, rolling_next_epoch_id, halted_at_epoch_id,
+    status, total_pool, volume, outcome_count, outcomes_json, last_indexed_block, updated_at
+)
+SELECT
+    t.template_id, t.slug, t.market_type, t.initialized, t.execution_mode, t.rolling_phase, t.rolling_halt_reason,
+    COALESCE(l.active_epoch_id, $2), l.last_resolved_epoch_id, l.rolling_next_epoch_id, l.halted_at_epoch_id,
+    $3, $4::numeric, $5::numeric, $6, $7::jsonb, $8, NOW()
+FROM templates t
+LEFT JOIN ledgers l ON l.template_id = t.template_id
+WHERE t.template_id = $1
+ON CONFLICT (template_id) DO UPDATE SET
+    slug = EXCLUDED.slug,
+    market_type = EXCLUDED.market_type,
+    initialized = EXCLUDED.initialized,
+    execution_mode = EXCLUDED.execution_mode,
+    rolling_phase = EXCLUDED.rolling_phase,
+    rolling_halt_reason = EXCLUDED.rolling_halt_reason,
+    active_epoch_id = EXCLUDED.active_epoch_id,
+    last_resolved_epoch_id = EXCLUDED.last_resolved_epoch_id,
+    rolling_next_epoch_id = EXCLUDED.rolling_next_epoch_id,
+    halted_at_epoch_id = EXCLUDED.halted_at_epoch_id,
+    status = EXCLUDED.status,
+    total_pool = EXCLUDED.total_pool,
+    volume = EXCLUDED.volume,
+    outcome_count = EXCLUDED.outcome_count,
+    outcomes_json = EXCLUDED.outcomes_json,
+    last_indexed_block = EXCLUDED.last_indexed_block,
+    updated_at = NOW()
+	`, tid, eid, status, total.String(), volumeText, int16(count), string(outcomesJSON), meta.BlockNumber)
 	return err
+}
+
+func projectionEventMetaFromLog(lg types.Log) projectionEventMeta {
+	return projectionEventMeta{
+		BlockNumber: int64(lg.BlockNumber),
+		TxHash:      lg.TxHash.Hex(),
+		LogIndex:    int32(lg.Index),
+		IndexedAt:   time.Now().UTC(),
+	}
+}
+
+func computeProjectionOutcomes(outcomes []projectionOutcomeState) []projectionOutcomeState {
+	next := make([]projectionOutcomeState, 0, len(outcomes))
+	total := new(big.Int)
+	for _, outcome := range outcomes {
+		amount := outcome.PoolAmount
+		if amount == nil {
+			amount = new(big.Int)
+		}
+		total.Add(total, amount)
+		next = append(next, projectionOutcomeState{
+			Index:      outcome.Index,
+			PoolAmount: new(big.Int).Set(amount),
+		})
+	}
+	count := int64(len(next))
+	for i := range next {
+		if total.Sign() > 0 {
+			prob := new(big.Int).Div(new(big.Int).Mul(next[i].PoolAmount, big.NewInt(10_000)), total).Int64()
+			next[i].ProbabilityBps = int32(prob)
+			if next[i].PoolAmount.Sign() > 0 {
+				mult := new(big.Int).Div(new(big.Int).Mul(total, big.NewInt(10_000)), next[i].PoolAmount).Int64()
+				next[i].MultiplierBps = int32(mult)
+			}
+			continue
+		}
+		if count > 0 {
+			next[i].ProbabilityBps = int32(10_000 / count)
+		}
+	}
+	return next
+}
+
+func probabilityPointNeeded(prev, next []projectionOutcomeState) bool {
+	if len(prev) != len(next) {
+		return true
+	}
+	for i := range next {
+		if prev[i].Index != next[i].Index || prev[i].ProbabilityBps != next[i].ProbabilityBps {
+			return true
+		}
+	}
+	return false
+}
+
+func marshalProjectionOutcomes(outcomes []projectionOutcomeState) ([]byte, error) {
+	payload := make([]map[string]any, 0, len(outcomes))
+	for _, outcome := range outcomes {
+		payload = append(payload, map[string]any{
+			"outcomeIndex":         outcome.Index,
+			"poolSize":             outcome.PoolAmount.String(),
+			"impliedProbabilityE6": fmt.Sprintf("%d", outcome.ProbabilityBps*100),
+			"displayPercentE4":     fmt.Sprintf("%d", outcome.ProbabilityBps),
+			"multiplierBps":        fmt.Sprintf("%d", outcome.MultiplierBps),
+			"grossPayoutXe6":       fmt.Sprintf("%d", outcome.MultiplierBps*100),
+			"updatedBlock":         nil,
+		})
+	}
+	return json.Marshal(payload)
+}
+
+func (s *Service) loadProjectionOutcomeStates(ctx context.Context, tx pgx.Tx, tid []byte, eid int64) ([]projectionOutcomeState, error) {
+	rows, err := tx.Query(ctx, `
+SELECT outcome_index, pool_amount::text, probability_bps, multiplier_bps
+FROM market_epoch_outcomes
+WHERE template_id = $1 AND epoch_id = $2
+ORDER BY outcome_index
+`, tid, eid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []projectionOutcomeState
+	for rows.Next() {
+		var row projectionOutcomeState
+		var amountText string
+		if err := rows.Scan(&row.Index, &amountText, &row.ProbabilityBps, &row.MultiplierBps); err != nil {
+			return nil, err
+		}
+		row.PoolAmount, _ = new(big.Int).SetString(amountText, 10)
+		if row.PoolAmount == nil {
+			row.PoolAmount = new(big.Int)
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+func (s *Service) appendProbabilityPoint(ctx context.Context, tx pgx.Tx, tid []byte, eid int64, total *big.Int, outcomes []projectionOutcomeState, meta projectionEventMeta) error {
+	if meta.Seq <= 0 {
+		var err error
+		meta.Seq, err = s.nextProbabilityPointSeq(ctx, tx)
+		if err != nil {
+			return err
+		}
+	}
+	totalText := "0"
+	if total != nil {
+		totalText = total.String()
+	}
+	indexedAt := meta.IndexedAt
+	if indexedAt.IsZero() {
+		indexedAt = time.Now().UTC()
+	}
+	for _, outcome := range outcomes {
+		if _, err := tx.Exec(ctx, `
+INSERT INTO probability_points (
+    template_id, epoch_id, seq, outcome_index, block_number, tx_hash, log_index,
+    probability_bps, pool_amount, total_pool, indexed_at
+)
+VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, 0), $8, $9::numeric, $10::numeric, $11)
+`, tid, eid, meta.Seq, outcome.Index, meta.BlockNumber, meta.TxHash, meta.LogIndex, outcome.ProbabilityBps, outcome.PoolAmount.String(), totalText, indexedAt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) nextProbabilityPointSeq(ctx context.Context, tx pgx.Tx) (int64, error) {
+	var seq int64
+	err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(seq), 0) + 1 FROM probability_points`).Scan(&seq)
+	return seq, err
 }
 
 func (s *Service) emitProjectionEvent(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, eventType string, tid []byte, eid int64, lg types.Log) error {
@@ -772,18 +991,39 @@ func (s *Service) emitProjectionEvent(ctx context.Context, tx pgx.Tx, realtimeSe
 	snap["logIndex"] = lg.Index
 	block := int64(lg.BlockNumber)
 	logIndex := int32(lg.Index)
-	return s.insertRealtimeEvent(ctx, tx, realtimeSeqs, realtime.InsertEvent{
-		Channel:     "global:markets",
-		Type:        eventType,
-		Scope:       "public",
-		TemplateID:  tid,
-		EpochID:     &eid,
-		BlockNumber: &block,
-		TxHash:      lg.TxHash.Hex(),
-		LogIndex:    &logIndex,
-		Payload:     snap,
-		DedupeKey:   fmt.Sprintf("%s:%s:%d", eventType, lg.TxHash.Hex(), lg.Index),
-	})
+	channels := []string{
+		"global:markets",
+		"market:" + strings.ToLower(common.BytesToHash(tid).Hex()),
+		fmt.Sprintf("epoch:%s:%d", strings.ToLower(common.BytesToHash(tid).Hex()), eid),
+	}
+	for _, channel := range channels {
+		seq, inserted, err := realtime.Insert(ctx, tx, realtime.InsertEvent{
+			Channel:     channel,
+			Type:        eventType,
+			Scope:       "public",
+			TemplateID:  tid,
+			EpochID:     &eid,
+			BlockNumber: &block,
+			TxHash:      lg.TxHash.Hex(),
+			LogIndex:    &logIndex,
+			Payload:     snap,
+			DedupeKey:   fmt.Sprintf("%s:%s:%d:%s", eventType, lg.TxHash.Hex(), lg.Index, channel),
+		})
+		if err != nil {
+			return err
+		}
+		if inserted {
+			if realtimeSeqs != nil {
+				*realtimeSeqs = append(*realtimeSeqs, seq)
+			}
+			if channel == "global:markets" {
+				if err := s.updateReadModelEventSeq(ctx, tx, tid, seq); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Service) emitUserPositionEvent(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, eventType string, user string, tid []byte, eid int64, lg types.Log) error {
@@ -930,6 +1170,15 @@ func (s *Service) insertRealtimeEvent(ctx context.Context, tx pgx.Tx, realtimeSe
 		*realtimeSeqs = append(*realtimeSeqs, seq)
 	}
 	return nil
+}
+
+func (s *Service) updateReadModelEventSeq(ctx context.Context, tx pgx.Tx, tid []byte, seq int64) error {
+	_, err := tx.Exec(ctx, `
+UPDATE market_read_models
+SET last_event_seq = $2
+WHERE template_id = $1
+`, tid, seq)
+	return err
 }
 
 func payloadUint(v any) (uint64, bool) {

@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { Link } from "react-router-dom";
 import { Market } from "@/types/market";
 import Icon from "./Icon";
-import BetModal from "./BetModal";
-import ProbabilityChart from "./market/ProbabilityChart";
+import BetModal from "./LazyBetModal";
 import { useLanguage } from "@/context/LanguageContext";
+
+const ProbabilityChart = lazy(() => import("./market/ProbabilityChart"));
+
+function ChartFallback() {
+  return (
+    <div
+      aria-hidden
+      className="h-[280px] w-full animate-pulse rounded-lg bg-muted/40"
+    />
+  );
+}
 
 interface FeaturedMarketProps {
   market: Market;
@@ -97,7 +107,9 @@ const FeaturedMarket = ({ market }: FeaturedMarketProps) => {
 
             {/* Right: Exact ProbabilityChart (same as MarketDetail) - unified bg to avoid layering seam */}
             <div className="p-8 lg:p-10 relative flex flex-col justify-center">
-              <ProbabilityChart outcomes={market.outcomes} volume={market.volume} embedded />
+              <Suspense fallback={<ChartFallback />}>
+                <ProbabilityChart outcomes={market.outcomes} volume={market.volume} embedded />
+              </Suspense>
             </div>
           </div>
         </div>

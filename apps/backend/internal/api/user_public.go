@@ -54,24 +54,19 @@ func pairKey(templateID []byte, epochID int64) string {
 // UserPositionsHandler returns indexed position projections by default; source=live keeps the RPC fallback for debug.
 func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
-		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
-			http.Error(w, `{"error":"invalid wallet (use ?wallet=0x...)"}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		wallet, ok := requireAuthorizedWalletQuery(w, r, "wallet")
+		if !ok {
 			return
 		}
 		requestedPair, ok := requestedTemplateEpochPair(r)
 		if !ok {
-			http.Error(w, `{"error":"invalid templateId/epochId"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_TEMPLATE_EPOCH_PAIR", "invalid templateId/epochId", nil)
 			return
 		}
 		q := dbqueries.New(pool)
 		st, err := q.GetIndexerState(r.Context())
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load indexer state", nil)
 			return
 		}
 		var lastSync *string
@@ -85,7 +80,7 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 			Limit:       pairLimit,
 		})
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user template epochs", nil)
 			return
 		}
 
@@ -113,7 +108,7 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 		if r.URL.Query().Get("source") != "live" {
 			positions, err = indexedUserPositions(r.Context(), pool, wallet, requestedPair)
 			if err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				writeAPIError(w, http.StatusInternalServerError, "DB", "could not load indexed user positions", nil)
 				return
 			}
 		} else if eth != nil {
@@ -150,7 +145,7 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"wallet":    strings.ToLower(wallet),
+			"wallet":    wallet,
 			"positions": positions,
 			"dataFreshness": map[string]any{
 				"lastSyncAt":       lastSync,
@@ -214,9 +209,7 @@ LIMIT 512
 		if n, ok := new(big.Int).SetString(stakeText, 10); ok {
 			p.totalStake.Add(p.totalStake, n)
 		}
-		if n, ok := new(big.Int).SetString(claimedText, 10); ok {
-			p.claimedAmount.Add(p.claimedAmount, n)
-		}
+		accumulateClaimedAmount(p.claimedAmount, claimedText)
 		p.claimed = p.claimed || claimed
 		if updatedBlock > p.updatedBlock {
 			p.updatedBlock = updatedBlock
@@ -286,16 +279,24 @@ WHERE template_id = $1 AND epoch_id = $2
 	return out, nil
 }
 
+func accumulateClaimedAmount(current *big.Int, claimedText string) {
+	n, ok := new(big.Int).SetString(claimedText, 10)
+	if !ok {
+		return
+	}
+	if n.Cmp(current) > 0 {
+		// `user_position_outcomes` stores one row per outcome. When a claim is recorded,
+		// each row can carry the same claimed_amount for the position, so summing would
+		// double count for multi-outcome markets. Keep the max per position.
+		current.Set(n)
+	}
+}
+
 // UserClaimsHandler lists Claimed events with indexer payload and epoch claim flags.
 func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
-		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
-			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		wallet, ok := requireAuthorizedWalletQuery(w, r, "wallet")
+		if !ok {
 			return
 		}
 		limit := int32(100)
@@ -307,7 +308,7 @@ func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		q := dbqueries.New(pool)
 		st, err := q.GetIndexerState(r.Context())
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load indexer state", nil)
 			return
 		}
 		var lastSync *string
@@ -320,7 +321,7 @@ func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			Limit:       limit,
 		})
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load claimed events", nil)
 			return
 		}
 		claims := make([]map[string]any, 0, len(rows))
@@ -353,7 +354,7 @@ func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"wallet": strings.ToLower(wallet),
+			"wallet": wallet,
 			"claims": claims,
 			"dataFreshness": map[string]any{
 				"lastSyncAt":       lastSync,
@@ -369,10 +370,6 @@ func UserFaucetStateHandler(eth *ethops.Caller, reg *registry.Registry) http.Han
 		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
 		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
 			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		if reg.ChainID != 84532 {

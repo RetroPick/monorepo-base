@@ -39,10 +39,6 @@ import (
 	"retropick/apps/backend/internal/wshub"
 )
 
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return false },
-}
-
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -114,11 +110,36 @@ func main() {
 	}
 	fundingSvc := funding.NewService(pool, funding.NewLifiProvider(cfg.LifiBaseURL, cfg.LifiTimeout), allowlist, log)
 	creditWorker := funding.NewCreditWorker(pool, log, 2*time.Second)
+	matcherWorker := funding.NewMatcherWorker(pool, log, cfg.MatcherPollInterval)
+	destinationPoller, err := funding.NewDestinationPoller(
+		pool,
+		cfg.RPCURL,
+		cfg.SettlementChainID,
+		cfg.SettlementUSDCAddress,
+		cfg.SettlementReceiver,
+		cfg.DestinationPollInterval,
+		log,
+	)
+	if err != nil {
+		log.Error("destination poller", "err", err)
+		os.Exit(1)
+	}
+	defer destinationPoller.Close()
 	marketDataSvc := marketdata.NewService(pool, log)
 	_ = marketDataSvc
 	go func() {
 		if err := creditWorker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Warn("credit worker stopped", "err", err)
+		}
+	}()
+	go func() {
+		if err := matcherWorker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			log.Warn("matcher worker stopped", "err", err)
+		}
+	}()
+	go func() {
+		if err := destinationPoller.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			log.Warn("destination poller stopped", "err", err)
 		}
 	}()
 	go func() {
@@ -130,7 +151,15 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, api.WithAuthSecret(r, cfg.AuthJWTSecret))
+			next.ServeHTTP(w, api.WithAuthConfig(r, api.AuthConfig{
+				JWTSecret:      cfg.AuthJWTSecret,
+				SessionSecret:  cfg.AuthSessionSecret,
+				SessionTTL:     cfg.AuthSessionTTL,
+				NonceTTL:       cfg.AuthNonceTTL,
+				CookieDomain:   cfg.AuthCookieDomain,
+				CookieSecure:   cfg.AuthCookieSecure,
+				CookieSameSite: cfg.AuthCookieSameSite,
+			}))
 		})
 	})
 	// CORS: see internal/api/cors.go — non-strict mode allows any localhost / 127.0.0.1 http port
@@ -138,11 +167,15 @@ func main() {
 	r.Use(cors.Handler(cors.Options{
 		AllowOriginFunc:  api.BuildCORSAllowOriginFunc(),
 		AllowedMethods:   []string{"GET", "HEAD", "OPTIONS", "POST"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
-		AllowCredentials: false,
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "X-CSRF-Token"},
+		AllowCredentials: true,
 	}))
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
-	r.Use(api.RateLimitMiddleware)
+	r.Use(func(next http.Handler) http.Handler {
+		return api.RateLimitMiddleware(next, api.RateLimitOptions{
+			TrustForwardedFor: false,
+		})
+	})
 
 	api.RegisterHealthRoutes(r, pool, ethCaller, reg, api.BuildInfo{
 		Version: cfg.BuildVersion,
@@ -150,6 +183,7 @@ func main() {
 		Time:    cfg.BuildTime,
 		ABIHash: api.ABIHash(),
 	}, cfg.FaucetRelayEnabled)
+	r.Mount("/api/v1/auth", api.AuthRouter())
 
 	r.Get("/api/v1/config/contracts", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -170,6 +204,7 @@ func main() {
 	r.Mount("/api/v1/ops", api.RequireOperator(api.OpsRouter(pool, reg, ethCaller), cfg.AuthJWTSecret))
 	r.Mount("/api/v1/tx", api.TxRouter(pool, ethCaller, reg))
 	r.Mount("/api/v1/funding", api.FundingRouter(pool, reg, fundingSvc))
+	r.Mount("/api/v1/me", api.MeRouter(pool, ethCaller, reg))
 	r.Mount("/api/funding", api.FundingAbstractionRouter(pool, fundingSvc, api.FundingAPIConfig{
 		SettlementChainID:      cfg.SettlementChainID,
 		SettlementUSDCAddress:  cfg.SettlementUSDCAddress,
@@ -180,6 +215,7 @@ func main() {
 		SupportedSourceChains:  cfg.FundingAllowedChains,
 		SupportedSourceTokens:  cfg.FundingAllowedTokens,
 		SupportedProviderNames: cfg.FundingAllowedProviders,
+		LifiWebhookSecret:      cfg.LifiWebhookSecret,
 	}))
 
 	r.Get("/api/v1/user/balance", api.UserBalanceHandler(pool))
@@ -213,7 +249,7 @@ func main() {
 		}
 		st, _ := q.GetIndexerState(ctx)
 
-		projections, err := loadMarketSnapshots(ctx, pool)
+		projections, err := marketDataSvc.ListProjectionSnapshots(ctx)
 		if err != nil {
 			http.Error(w, `{"error":"list market projections"}`, http.StatusInternalServerError)
 			return
@@ -338,7 +374,7 @@ func main() {
 				}
 				resp["activeEpoch"] = ae
 			}
-			if snap, err := loadMarketSnapshot(ctx, pool, row.TemplateID); err == nil {
+			if snap, err := marketDataSvc.GetProjectionSnapshot(ctx, row.TemplateID); err == nil {
 				resp["activeEpochId"] = snap.ActiveEpochID
 				resp["status"] = snap.Status
 				resp["totalPool"] = snap.TotalPool
@@ -449,7 +485,7 @@ func main() {
 			return
 		}
 		if r.URL.Query().Get("source") != "live" {
-			outcomes, blockNum, err := loadMarketOutcomes(r.Context(), pool, b, int64(eid))
+			outcomes, blockNum, err := marketDataSvc.LoadProjectionOutcomes(r.Context(), b, int64(eid))
 			if err != nil {
 				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 				return
@@ -553,7 +589,7 @@ func main() {
 			u := tm.UTC()
 			minIndexedAt = &u
 		}
-		phr, err := probabilityHistoryFromEvents(r.Context(), pool, b, epochID, int(row.OutcomeCount), maxEvents, minIndexedAt)
+		phr, err := probabilityHistoryFromPoints(r.Context(), pool, b, epochID, maxEvents, minIndexedAt)
 		if err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 			return
@@ -564,7 +600,7 @@ func main() {
 			"epochId":      epochID,
 			"outcomeCount": row.OutcomeCount,
 			"points":       phr.Points,
-			"source":       "indexed-events",
+			"source":       "probability_points",
 			"truncated":    phr.Truncated,
 			"eventCount":   phr.EventCount,
 			"maxEvents":    maxEvents,
@@ -575,6 +611,10 @@ func main() {
 		addr := chi.URLParam(r, "address")
 		if !strings.HasPrefix(addr, "0x") || len(addr) != 42 {
 			http.Error(w, `{"error":"invalid address"}`, http.StatusBadRequest)
+			return
+		}
+		if !api.WalletAuthorized(r, addr, cfg.AuthJWTSecret) {
+			api.WriteAPIError(w, http.StatusUnauthorized, "UNAUTHENTICATED", "sign in required", nil)
 			return
 		}
 		limit := int32(100)
@@ -591,40 +631,11 @@ func main() {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
 			return
 		}
-		out := make([]map[string]any, 0, len(rows))
-		for _, row := range rows {
-			m := map[string]any{
-				"id":           row.ID,
-				"blockNumber":  row.BlockNumber,
-				"txHash":       row.TxHash,
-				"logIndex":     row.LogIndex,
-				"contractAddr": row.ContractAddr,
-				"eventName":    row.EventName,
-				"indexedAt":    formatTime(row.IndexedAt),
-			}
-			if len(row.TemplateID) == 32 {
-				m["templateId"] = "0x" + hex.EncodeToString(row.TemplateID)
-			}
-			if row.EpochID.Valid {
-				m["epochId"] = row.EpochID.Int64
-			}
-			if row.UserAddress.Valid {
-				m["userAddress"] = row.UserAddress.String
-			}
-			if len(row.Payload) > 0 {
-				var payload any
-				if err := json.Unmarshal(row.Payload, &payload); err == nil {
-					m["payload"] = payload
-				}
-			}
-			out = append(out, m)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"events": out})
+		api.WriteUserEventsResponse(w, rows)
 	})
 
 	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
-		upgrader.CheckOrigin = buildWSOriginChecker(cfg.WSAllowedOrigins)
+		upgrader := newWSUpgrader(cfg.WSAllowedOrigins)
 		c, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			return
@@ -653,9 +664,10 @@ func main() {
 			subscribeWindowStart := time.Now()
 			for {
 				var msg struct {
-					Type     string   `json:"type"`
-					Channels []string `json:"channels"`
-					LastSeq  int64    `json:"lastSeq"`
+					Type            string           `json:"type"`
+					Channels        []string         `json:"channels"`
+					LastSeq         int64            `json:"lastSeq"`
+					CursorByChannel map[string]int64 `json:"cursorByChannel"`
 				}
 				if err := c.ReadJSON(&msg); err != nil {
 					return
@@ -697,6 +709,20 @@ func main() {
 							writeMu.Unlock()
 						}
 					}
+					for _, channel := range accepted {
+						afterSeq := msg.CursorByChannel[channel]
+						if afterSeq <= 0 {
+							continue
+						}
+						writeMu.Lock()
+						err := replayRealtimeEvents(r.Context(), pool, c, afterSeq, 500, []string{channel})
+						writeMu.Unlock()
+						if err != nil {
+							writeMu.Lock()
+							_ = c.WriteJSON(map[string]any{"type": "resync_required", "channel": channel, "lastSeq": afterSeq})
+							writeMu.Unlock()
+						}
+					}
 					writeMu.Lock()
 					_ = c.WriteJSON(map[string]any{"type": "subscribed", "channels": accepted})
 					writeMu.Unlock()
@@ -716,6 +742,19 @@ func main() {
 						if err != nil {
 							writeMu.Lock()
 							_ = c.WriteJSON(map[string]any{"type": "resync_required", "channel": "global", "reason": "SEQUENCE_GAP"})
+							writeMu.Unlock()
+						}
+					}
+					for channel, seq := range msg.CursorByChannel {
+						if seq <= 0 {
+							continue
+						}
+						writeMu.Lock()
+						err := replayRealtimeEvents(r.Context(), pool, c, seq, 500, []string{channel})
+						writeMu.Unlock()
+						if err != nil {
+							writeMu.Lock()
+							_ = c.WriteJSON(map[string]any{"type": "resync_required", "channel": channel, "reason": "SEQUENCE_GAP"})
 							writeMu.Unlock()
 						}
 					}
@@ -870,42 +909,11 @@ ORDER BY outcome_index
 }
 
 func replayRealtimeEvents(ctx context.Context, pool *pgxpool.Pool, c *websocket.Conn, afterSeq int64, limit int32, allowedChannels []string) error {
-	allowedSet := make(map[string]struct{}, len(allowedChannels))
-	for _, ch := range allowedChannels {
-		allowedSet[strings.ToLower(strings.TrimSpace(ch))] = struct{}{}
-	}
-	rows, err := pool.Query(ctx, `
-SELECT seq
-FROM realtime_events
-WHERE seq > $1
-ORDER BY seq ASC
-LIMIT $2
-`, afterSeq, limit)
+	events, err := realtime.LoadEnvelopesAfter(ctx, pool, afterSeq, limit, allowedChannels)
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
-	var seqs []int64
-	for rows.Next() {
-		var seq int64
-		if err := rows.Scan(&seq); err != nil {
-			return err
-		}
-		seqs = append(seqs, seq)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, seq := range seqs {
-		env, err := realtime.LoadEnvelope(ctx, pool, seq)
-		if err != nil {
-			return err
-		}
-		if len(allowedSet) > 0 {
-			if _, ok := allowedSet[strings.ToLower(strings.TrimSpace(env.Channel))]; !ok {
-				continue
-			}
-		}
+	for _, env := range events {
 		msg, err := json.Marshal(env)
 		if err != nil {
 			return err
@@ -947,6 +955,12 @@ func websocketChannelAllowed(ctx context.Context, pool *pgxpool.Pool, channel st
 		return isAuthed && principal != nil && principal.IsOperator
 	default:
 		return false
+	}
+}
+
+func newWSUpgrader(allowed []string) websocket.Upgrader {
+	return websocket.Upgrader{
+		CheckOrigin: buildWSOriginChecker(allowed),
 	}
 }
 
@@ -1127,6 +1141,122 @@ ORDER BY block_number ASC, log_index ASC
 	}
 	if err := rows.Err(); err != nil {
 		return empty, err
+	}
+	return probabilityHistoryReplayResult{
+		Points:     points,
+		Truncated:  truncated,
+		EventCount: eventCount,
+	}, nil
+}
+
+func probabilityHistoryFromPoints(
+	ctx context.Context,
+	pool interface {
+		Query(context.Context, string, ...interface{}) (pgx.Rows, error)
+		QueryRow(context.Context, string, ...interface{}) pgx.Row
+	},
+	templateID []byte,
+	epochID int64,
+	maxEvents int32,
+	minIndexedAt *time.Time,
+) (probabilityHistoryReplayResult, error) {
+	empty := probabilityHistoryReplayResult{Points: []map[string]any{}}
+	if maxEvents < 1 {
+		maxEvents = 1
+	}
+
+	var eventCount int64
+	err := pool.QueryRow(ctx, `
+SELECT COUNT(DISTINCT seq)::bigint
+FROM probability_points
+WHERE template_id = $1
+  AND epoch_id = $2
+`, templateID, epochID).Scan(&eventCount)
+	if err != nil {
+		return empty, err
+	}
+
+	skip := int64(0)
+	truncated := false
+	if eventCount > int64(maxEvents) {
+		skip = eventCount - int64(maxEvents)
+		truncated = true
+	}
+
+	rows, err := pool.Query(ctx, `
+SELECT seq, outcome_index, block_number, tx_hash, log_index, probability_bps, pool_amount::text, total_pool::text, indexed_at
+FROM probability_points
+WHERE template_id = $1
+  AND epoch_id = $2
+ORDER BY seq ASC, outcome_index ASC
+`, templateID, epochID)
+	if err != nil {
+		return empty, err
+	}
+	defer rows.Close()
+
+	points := make([]map[string]any, 0, maxEvents)
+	var currentSeq int64 = -1
+	var current map[string]any
+	var currentOutcomes []map[string]any
+	var seen int64
+	flush := func() {
+		if current == nil {
+			return
+		}
+		current["outcomes"] = currentOutcomes
+		points = append(points, current)
+	}
+
+	for rows.Next() {
+		var seq int64
+		var outcomeIndex int16
+		var blockNumber int64
+		var txHash pgtype.Text
+		var logIndex pgtype.Int4
+		var probabilityBps int32
+		var poolAmount, totalPool string
+		var indexedAt pgtype.Timestamptz
+		if err := rows.Scan(&seq, &outcomeIndex, &blockNumber, &txHash, &logIndex, &probabilityBps, &poolAmount, &totalPool, &indexedAt); err != nil {
+			return empty, err
+		}
+		if seq != currentSeq {
+			if current != nil {
+				flush()
+			}
+			seen++
+			currentSeq = seq
+			current = nil
+			currentOutcomes = nil
+			if seen <= skip {
+				continue
+			}
+			if minIndexedAt != nil && indexedAt.Valid && indexedAt.Time.Before(*minIndexedAt) {
+				continue
+			}
+			current = map[string]any{
+				"blockNumber": blockNumber,
+				"txHash":      txHash.String,
+				"logIndex":    logIndex.Int32,
+				"eventName":   "probability_update",
+				"indexedAt":   formatTime(indexedAt),
+				"totalPool":   totalPool,
+			}
+		}
+		if current == nil {
+			continue
+		}
+		currentOutcomes = append(currentOutcomes, map[string]any{
+			"outcomeIndex":         outcomeIndex,
+			"poolSize":             poolAmount,
+			"impliedProbabilityE6": fmt.Sprintf("%d", probabilityBps*100),
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return empty, err
+	}
+	if current != nil {
+		flush()
 	}
 	return probabilityHistoryReplayResult{
 		Points:     points,

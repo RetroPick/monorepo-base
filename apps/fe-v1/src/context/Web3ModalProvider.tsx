@@ -1,18 +1,6 @@
-import { createAppKit, modal } from '@reown/appkit/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode, useEffect } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { appDefaultNetwork, networks, projectId, wagmiAdapter } from '../config'
-import { isTransientApiError } from '@/lib/api/retropickApi'
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 10_000,
-      retry: (failureCount, error) => failureCount < 2 && isTransientApiError(error),
-    },
-  },
-})
 
 /** Above Radix Dialog (z-50) and in-app menus (z-[10000]) so WalletConnect stays usable */
 const APPKIT_Z_INDEX = 100_150
@@ -30,10 +18,18 @@ function getMetadataUrl() {
   return 'https://retropick.io'
 }
 
-function initAppKit() {
+/**
+ * Loads `@reown/appkit/react` lazily so the React UI half of AppKit
+ * (and its transitive dependencies) does not sit in the initial JS graph.
+ * The wagmi adapter itself is still imported at module scope because
+ * `WagmiProvider` needs the wagmi config synchronously.
+ */
+async function initAppKit() {
   if (typeof window === 'undefined' || window.__retropickReownAppKitInit) return
 
   try {
+    const { createAppKit } = await import('@reown/appkit/react')
+
     createAppKit({
       adapters:       [wagmiAdapter],
       networks,
@@ -69,19 +65,30 @@ function initAppKit() {
   }
 }
 
+async function prewarmModal() {
+  if (typeof window === 'undefined') return
+  try {
+    const { modal } = await import('@reown/appkit/react')
+    await modal?.ready()
+  } catch {
+    /* If AppKit can't initialize, the wallet button surfaces the error path itself. */
+  }
+}
+
 export function Web3ModalProvider({ children, cookies }: { children: ReactNode; cookies?: string }) {
+  void cookies
   useEffect(() => {
-    initAppKit()
+    void initAppKit()
   }, [])
 
   /** Pre-warm AppKit before auth actions; Google sign-in needs a synchronous popup. */
   useEffect(() => {
-    void modal?.ready().catch(() => undefined)
+    void prewarmModal()
   }, [])
 
   return (
     <WagmiProvider config={wagmiAdapter.wagmiConfig as typeof wagmiAdapter.wagmiConfig} reconnectOnMount={false}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      {children}
     </WagmiProvider>
   )
 }

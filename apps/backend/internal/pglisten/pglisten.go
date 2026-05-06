@@ -2,6 +2,7 @@ package pglisten
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strconv"
 
@@ -27,6 +28,7 @@ func Run(ctx context.Context, databaseURL string, pool *pgxpool.Pool, hub *wshub
 	if log != nil {
 		log.Info("postgres listen", "channel", MarketUpdateChannel)
 	}
+	lastSeenSeq := int64(0)
 	for {
 		n, err := conn.WaitForNotification(ctx)
 		if err != nil {
@@ -39,15 +41,37 @@ func Run(ctx context.Context, databaseURL string, pool *pgxpool.Pool, hub *wshub
 			continue
 		}
 		if n != nil && n.Payload != "" {
-			msg := []byte(n.Payload)
-			if seq, err := strconv.ParseInt(n.Payload, 10, 64); err == nil && pool != nil {
-				if event, err := realtime.Load(ctx, pool, seq); err == nil {
-					msg = event
-				} else if log != nil {
-					log.Warn("load realtime event", "seq", seq, "err", err)
+			seq, parseErr := strconv.ParseInt(n.Payload, 10, 64)
+			if parseErr != nil || pool == nil {
+				hub.Broadcast([]byte(n.Payload))
+				continue
+			}
+			if seq > lastSeenSeq {
+				lastSeenSeq = seq - 1
+			}
+			for {
+				events, err := realtime.LoadEnvelopesAfter(ctx, pool, lastSeenSeq, 256, nil)
+				if err != nil {
+					if log != nil {
+						log.Warn("load realtime batch", "afterSeq", lastSeenSeq, "err", err)
+					}
+					break
+				}
+				if len(events) == 0 {
+					break
+				}
+				for _, event := range events {
+					msg, err := json.Marshal(event)
+					if err != nil {
+						continue
+					}
+					hub.Broadcast(msg)
+					lastSeenSeq = event.Seq
+				}
+				if len(events) < 256 {
+					break
 				}
 			}
-			hub.Broadcast(msg)
 		}
 	}
 }

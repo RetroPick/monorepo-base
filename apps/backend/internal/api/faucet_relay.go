@@ -44,13 +44,15 @@ func UserFaucetRelayHandler(cfg *config.Config, relayer *ethops.FaucetRelayer, r
 			return
 		}
 		if cfg == nil || !cfg.FaucetRelayEnabled || relayer == nil {
-			writeJSON(w, http.StatusNotImplemented, map[string]any{
-				"error":               "faucet relay not enabled",
-				"faucetRelayEnabled": false,
-			})
-			return
+			if cfg == nil || !cfg.FaucetRelayEnabled {
+				writeJSON(w, http.StatusNotImplemented, map[string]any{
+					"error":               "faucet relay not enabled",
+					"faucetRelayEnabled": false,
+				})
+				return
+			}
 		}
-		if reg.ChainID != baseSepoliaChainID {
+		if reg == nil || reg.ChainID != baseSepoliaChainID {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
 				"error": "faucet relay only supported on Base Sepolia",
 			})
@@ -67,6 +69,13 @@ func UserFaucetRelayHandler(cfg *config.Config, relayer *ethops.FaucetRelayer, r
 		var body faucetRelayRequest
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"error": "invalid json"})
+			return
+		}
+		if relayer == nil {
+			writeJSON(w, http.StatusNotImplemented, map[string]any{
+				"error":               "faucet relay not enabled",
+				"faucetRelayEnabled": false,
+			})
 			return
 		}
 

@@ -122,8 +122,61 @@ func Load(ctx context.Context, pool *pgxpool.Pool, seq int64) ([]byte, error) {
 	return json.Marshal(env)
 }
 
+func LoadEnvelopesAfter(ctx context.Context, pool *pgxpool.Pool, afterSeq int64, limit int32, channels []string) ([]EventEnvelope, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	args := []any{afterSeq, limit}
+	query := `
+SELECT seq, type, channel, scope, user_address, template_id, epoch_id,
+       block_number, tx_hash, log_index, payload::text, created_at
+FROM realtime_events
+WHERE seq > $1
+`
+	if len(channels) > 0 {
+		query += " AND channel = ANY($3)\n"
+		args = append(args, channels)
+	}
+	query += "ORDER BY seq ASC LIMIT $2"
+
+	rows, err := pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []EventEnvelope
+	for rows.Next() {
+		env, err := scanEnvelope(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, env)
+	}
+	return out, rows.Err()
+}
+
 func LoadEnvelope(ctx context.Context, pool *pgxpool.Pool, seq int64) (EventEnvelope, error) {
+	row := pool.QueryRow(ctx, `
+SELECT seq, type, channel, scope, user_address, template_id, epoch_id,
+       block_number, tx_hash, log_index, payload::text, created_at
+FROM realtime_events
+WHERE seq = $1
+`, seq)
+	env, err := scanEnvelope(row)
+	if err != nil {
+		return EventEnvelope{}, err
+	}
+	return env, nil
+}
+
+type scanRow interface {
+	Scan(dest ...any) error
+}
+
+func scanEnvelope(row scanRow) (EventEnvelope, error) {
 	var env EventEnvelope
+	var seq int64
 	var tid []byte
 	var epochID pgtype.Int8
 	var blockNumber pgtype.Int8
@@ -132,12 +185,8 @@ func LoadEnvelope(ctx context.Context, pool *pgxpool.Pool, seq int64) (EventEnve
 	var userAddress pgtype.Text
 	var payloadText string
 	var createdAt time.Time
-	err := pool.QueryRow(ctx, `
-SELECT type, channel, scope, user_address, template_id, epoch_id,
-       block_number, tx_hash, log_index, payload::text, created_at
-FROM realtime_events
-WHERE seq = $1
-`, seq).Scan(
+	err := row.Scan(
+		&seq,
 		&env.Type,
 		&env.Channel,
 		&env.Scope,

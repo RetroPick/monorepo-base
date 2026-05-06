@@ -50,13 +50,8 @@ func FundingRouter(pool *pgxpool.Pool, reg *registry.Registry, svc *funding.Serv
 
 func UserBalanceHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		wallet := strings.TrimSpace(r.URL.Query().Get("wallet"))
-		if !common.IsHexAddress(wallet) {
-			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		wallet, ok := requireAuthorizedWalletQuery(w, r, "wallet")
+		if !ok {
 			return
 		}
 		var available, locked string
@@ -71,11 +66,11 @@ WHERE LOWER(user_address) = LOWER($1)
 			locked = "0"
 			updatedAt = time.Now().UTC()
 		} else if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user balance", nil)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"wallet":        strings.ToLower(wallet),
+			"wallet":        wallet,
 			"usdcAvailable": available,
 			"usdcLocked":    locked,
 			"updatedAt":     updatedAt.UTC().Format(time.RFC3339),
@@ -141,18 +136,21 @@ RETURNING id::text, created_at
 
 func getFundingIntentHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		intent, err := loadFundingIntent(r.Context(), pool, chi.URLParam(r, "id"))
+		intentID, err := uuid.Parse(chi.URLParam(r, "id"))
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "INVALID_INTENT_ID", "invalid funding intent id", nil)
+			return
+		}
+		if _, ok := requireFundingIntentAccess(w, r, pool, intentID); !ok {
+			return
+		}
+		intent, err := loadFundingIntent(r.Context(), pool, intentID.String())
 		if err == pgx.ErrNoRows {
 			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 			return
 		}
 		if err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
-			return
-		}
-		wallet, _ := intent["wallet"].(string)
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
 		writeJSON(w, http.StatusOK, intent)
@@ -164,6 +162,9 @@ func listFundingOptionsHandler(pool *pgxpool.Pool, svc *funding.Service) http.Ha
 		intentID, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {
 			http.Error(w, `{"error":"invalid intent id"}`, http.StatusBadRequest)
+			return
+		}
+		if _, ok := requireFundingIntentAccess(w, r, pool, intentID); !ok {
 			return
 		}
 		if svc != nil && r.URL.Query().Get("refresh") == "1" {
@@ -220,55 +221,59 @@ func selectFundingRouteHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		intentID, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {
-			http.Error(w, `{"error":"invalid intent id"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_INTENT_ID", "invalid funding intent id", nil)
+			return
+		}
+		ownerWallet, ok := requireFundingIntentAccess(w, r, pool, intentID)
+		if !ok {
 			return
 		}
 		var body fundingRouteSelectionRequest
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json", nil)
 			return
 		}
-		if !common.IsHexAddress(body.Wallet) {
-			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, body.Wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		if _, err := validateOwnedWalletBinding(body.Wallet, ownerWallet); err != nil {
+			if errors.Is(err, errInvalidWallet) {
+				writeAPIError(w, http.StatusBadRequest, "INVALID_WALLET", err.Error(), nil)
+			} else {
+				writeAPIError(w, http.StatusForbidden, "WALLET_MISMATCH", err.Error(), nil)
+			}
 			return
 		}
 		routeID, err := uuid.Parse(strings.TrimSpace(body.RouteID))
 		if err != nil {
-			http.Error(w, `{"error":"invalid route id"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_ROUTE_ID", "invalid route id", nil)
 			return
 		}
 		tx, err := pool.Begin(r.Context())
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not start funding route transaction", nil)
 			return
 		}
 		defer tx.Rollback(r.Context())
 
-		var currentStatus, ownerWallet string
+		var currentStatus, lockedOwnerWallet string
 		err = tx.QueryRow(r.Context(), `
 SELECT status, user_address
 FROM funding_intents
 WHERE id = $1
 FOR UPDATE
-`, intentID).Scan(&currentStatus, &ownerWallet)
+`, intentID).Scan(&currentStatus, &lockedOwnerWallet)
 		if errors.Is(err, pgx.ErrNoRows) {
-			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "NOT_FOUND", "funding intent not found", nil)
 			return
 		}
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load funding intent", nil)
 			return
 		}
-		if !strings.EqualFold(ownerWallet, body.Wallet) {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		if !strings.EqualFold(lockedOwnerWallet, ownerWallet) {
+			writeAPIError(w, http.StatusConflict, "OWNER_CHANGED", "funding intent owner changed during request", nil)
 			return
 		}
 		if err := funding.ValidateTransition(currentStatus, funding.StatusRouteSelected); err != nil {
-			http.Error(w, `{"error":"invalid transition"}`, http.StatusConflict)
+			writeAPIError(w, http.StatusConflict, "INVALID_TRANSITION", "invalid transition", nil)
 			return
 		}
 		tag, err := tx.Exec(r.Context(), `
@@ -278,11 +283,11 @@ WHERE funding_intent_id = $1
   AND (id = $2 OR status = 'SELECTED')
 `, intentID, routeID)
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not update funding route options", nil)
 			return
 		}
 		if tag.RowsAffected() == 0 {
-			http.Error(w, `{"error":"route not found"}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "ROUTE_NOT_FOUND", "route not found", nil)
 			return
 		}
 		_, err = tx.Exec(r.Context(), `
@@ -291,16 +296,16 @@ SET status = $2, selected_route_id = $3, updated_at = NOW()
 WHERE id = $1
 `, intentID, funding.StatusRouteSelected, routeID)
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not update funding intent status", nil)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not commit funding route selection", nil)
 			return
 		}
 		intent, err := loadFundingIntent(r.Context(), pool, intentID.String())
 		if err != nil {
-			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "NOT_FOUND", "funding intent not found", nil)
 			return
 		}
 		writeJSON(w, http.StatusOK, intent)
@@ -311,59 +316,64 @@ func transitionFundingIntentHandler(pool *pgxpool.Pool, toStatus string) http.Ha
 	return func(w http.ResponseWriter, r *http.Request) {
 		intentID, err := uuid.Parse(chi.URLParam(r, "id"))
 		if err != nil {
-			http.Error(w, `{"error":"invalid intent id"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_INTENT_ID", "invalid funding intent id", nil)
+			return
+		}
+		ownerWallet, ok := requireFundingIntentAccess(w, r, pool, intentID)
+		if !ok {
 			return
 		}
 		var body fundingTransitionRequest
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json", nil)
 			return
 		}
-		if !common.IsHexAddress(body.Wallet) {
-			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, body.Wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		boundWallet, err := validateOwnedWalletBinding(body.Wallet, ownerWallet)
+		if err != nil {
+			if errors.Is(err, errInvalidWallet) {
+				writeAPIError(w, http.StatusBadRequest, "INVALID_WALLET", err.Error(), nil)
+			} else {
+				writeAPIError(w, http.StatusForbidden, "WALLET_MISMATCH", err.Error(), nil)
+			}
 			return
 		}
 		if requiresIdempotencyKey(toStatus) && strings.TrimSpace(body.IdempotencyKey) == "" {
-			http.Error(w, `{"error":"missing idempotencyKey"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "MISSING_IDEMPOTENCY_KEY", "missing idempotencyKey", nil)
 			return
 		}
 		txHash := strings.TrimSpace(body.TxHash)
 		if requiresTxHash(toStatus) && !isValidTxHash(txHash) {
-			http.Error(w, `{"error":"invalid txHash"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_TX_HASH", "invalid txHash", nil)
 			return
 		}
 		tx, err := pool.Begin(r.Context())
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not start funding transition transaction", nil)
 			return
 		}
 		defer tx.Rollback(r.Context())
 
-		var currentStatus, ownerWallet string
+		var currentStatus, lockedOwnerWallet string
 		err = tx.QueryRow(r.Context(), `
 SELECT status, user_address
 FROM funding_intents
 WHERE id = $1
 FOR UPDATE
-`, intentID).Scan(&currentStatus, &ownerWallet)
+`, intentID).Scan(&currentStatus, &lockedOwnerWallet)
 		if errors.Is(err, pgx.ErrNoRows) {
-			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "NOT_FOUND", "funding intent not found", nil)
 			return
 		}
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load funding intent", nil)
 			return
 		}
-		if !strings.EqualFold(ownerWallet, body.Wallet) {
-			http.Error(w, `{"error":"forbidden"}`, http.StatusForbidden)
+		if !strings.EqualFold(lockedOwnerWallet, ownerWallet) {
+			writeAPIError(w, http.StatusConflict, "OWNER_CHANGED", "funding intent owner changed during request", nil)
 			return
 		}
 		if err := funding.ValidateTransition(currentStatus, toStatus); err != nil {
-			http.Error(w, `{"error":"invalid transition"}`, http.StatusConflict)
+			writeAPIError(w, http.StatusConflict, "INVALID_TRANSITION", "invalid transition", nil)
 			return
 		}
 		idempotencyKey := strings.TrimSpace(body.IdempotencyKey)
@@ -374,11 +384,11 @@ VALUES ($1, $2, $3)
 ON CONFLICT (funding_intent_id, to_status, idempotency_key) DO NOTHING
 `, intentID, toStatus, idempotencyKey)
 			if err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				writeAPIError(w, http.StatusInternalServerError, "DB", "could not create funding transition guard", nil)
 				return
 			}
 			if tag.RowsAffected() == 0 {
-				http.Error(w, `{"error":"duplicate transition"}`, http.StatusConflict)
+				writeAPIError(w, http.StatusConflict, "DUPLICATE_TRANSITION", "duplicate transition", nil)
 				return
 			}
 		}
@@ -388,7 +398,7 @@ SET status = $2, updated_at = NOW()
 WHERE id = $1
 `, intentID, toStatus)
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not update funding intent status", nil)
 			return
 		}
 		if txHash != "" {
@@ -397,19 +407,19 @@ INSERT INTO submitted_transactions (tx_hash, user_address, action, idempotency_k
 VALUES ($1, LOWER($2), 'funding_transition', NULLIF($3,''), 'submitted')
 ON CONFLICT (tx_hash) DO UPDATE
 SET status = EXCLUDED.status, updated_at = NOW()
-`, txHash, body.Wallet, strings.TrimSpace(body.IdempotencyKey))
+`, txHash, boundWallet, strings.TrimSpace(body.IdempotencyKey))
 			if err != nil {
-				http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+				writeAPIError(w, http.StatusInternalServerError, "DB", "could not upsert submitted transaction", nil)
 				return
 			}
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not commit funding transition", nil)
 			return
 		}
 		intent, err := loadFundingIntent(r.Context(), pool, intentID.String())
 		if err != nil {
-			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "NOT_FOUND", "funding intent not found", nil)
 			return
 		}
 		writeJSON(w, http.StatusOK, intent)

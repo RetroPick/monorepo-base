@@ -23,10 +23,7 @@ func UserWatchlistNonceHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		wallet = strings.ToLower(wallet)
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
+		// Legacy nonce endpoint remains unsigned for compatibility with client watchlist flows.
 		ctx := r.Context()
 		q := dbqueries.New(pool)
 		if err := q.CreateUserWatchlistNonceIfMissing(ctx, wallet); err != nil {
@@ -52,10 +49,7 @@ func UserWatchlistListHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		wallet = strings.ToLower(wallet)
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
+		// Watchlist list is wallet-scoped and intentionally unsigned for guest/connect merge flow.
 		ctx := r.Context()
 		rows, err := dbqueries.New(pool).ListUserWatchlist(ctx, wallet)
 		if err != nil {
@@ -182,56 +176,106 @@ func writeWatchlistMutateOK(w http.ResponseWriter, wallet, action string, tplByt
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-// UserWatchlistMutateHandler applies add/remove/import for the wallet in the JSON body (no signature).
+// UserWatchlistMutateHandler keeps only the guest-safe import compatibility path.
 func UserWatchlistMutateHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.Error(w, `{"error":"method"}`, http.StatusMethodNotAllowed)
+			writeAPIError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed", nil)
 			return
 		}
 		var body watchlistMutateBody
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"error":"invalid json"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json", nil)
 			return
 		}
 		wallet := strings.TrimSpace(body.Wallet)
 		if !strings.HasPrefix(wallet, "0x") || len(wallet) != 42 {
-			http.Error(w, `{"error":"invalid wallet"}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_WALLET", "invalid wallet", nil)
 			return
 		}
 		wallet = strings.ToLower(wallet)
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-			return
-		}
 		action := strings.TrimSpace(strings.ToLower(body.Action))
-		if action != "add" && action != "remove" && action != "import" {
-			http.Error(w, `{"error":"invalid action"}`, http.StatusBadRequest)
+		if action != "import" {
+			writeAPIError(w, http.StatusForbidden, "AUTH_REQUIRED", "authenticated watchlist mutations moved to /api/v1/me/watchlist", nil)
 			return
 		}
 
 		tplBytesList, err := resolveWatchlistTemplates(&body, action)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":%q}`, err.Error()), http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_TEMPLATE_ID", err.Error(), nil)
 			return
 		}
 
 		ctx := r.Context()
 		tx, err := pool.Begin(ctx)
 		if err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not start watchlist transaction", nil)
 			return
 		}
 		defer func() { _ = tx.Rollback(ctx) }()
 		qtx := dbqueries.New(tx)
 		if err := applyWatchlistMutation(ctx, qtx, wallet, action, tplBytesList); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not update watchlist", nil)
 			return
 		}
 		if err := tx.Commit(ctx); err != nil {
-			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not commit watchlist update", nil)
 			return
 		}
 		writeWatchlistMutateOK(w, wallet, action, tplBytesList)
+	}
+}
+
+// UserWatchlistMutateAuthenticatedHandler applies add/remove/import for the authenticated wallet.
+func UserWatchlistMutateAuthenticatedHandler(pool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			writeAPIError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "method not allowed", nil)
+			return
+		}
+		if err := requireCSRFSameOrigin(r); err != nil {
+			writeAPIError(w, http.StatusForbidden, "CSRF_REJECTED", err.Error(), nil)
+			return
+		}
+		principal, ok := requireAuthenticatedPrincipal(w, r)
+		if !ok {
+			return
+		}
+		var body watchlistMutateBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json", nil)
+			return
+		}
+		action := strings.TrimSpace(strings.ToLower(body.Action))
+		if action != "add" && action != "remove" && action != "import" {
+			writeAPIError(w, http.StatusBadRequest, "INVALID_ACTION", "invalid action", nil)
+			return
+		}
+		if wallet := strings.TrimSpace(body.Wallet); wallet != "" && !strings.EqualFold(wallet, principal.Wallet) {
+			writeAPIError(w, http.StatusForbidden, "WALLET_MISMATCH", "wallet does not match active session", nil)
+			return
+		}
+		tplBytesList, err := resolveWatchlistTemplates(&body, action)
+		if err != nil {
+			writeAPIError(w, http.StatusBadRequest, "INVALID_TEMPLATE_ID", err.Error(), nil)
+			return
+		}
+		ctx := r.Context()
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not start watchlist transaction", nil)
+			return
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		qtx := dbqueries.New(tx)
+		if err := applyWatchlistMutation(ctx, qtx, principal.Wallet, action, tplBytesList); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not update watchlist", nil)
+			return
+		}
+		if err := tx.Commit(ctx); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not commit watchlist update", nil)
+			return
+		}
+		writeWatchlistMutateOK(w, principal.Wallet, action, tplBytesList)
 	}
 }

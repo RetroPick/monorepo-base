@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -31,6 +32,7 @@ type FundingAPIConfig struct {
 	SupportedSourceChains  []int64
 	SupportedSourceTokens  []string
 	SupportedProviderNames []string
+	LifiWebhookSecret      string
 }
 
 type createFundingIntentV2Request struct {
@@ -49,9 +51,11 @@ func FundingAbstractionRouter(pool *pgxpool.Pool, svc *funding.Service, cfg Fund
 	r.Get("/intents/{intentId}/options", listFundingOptionsV2Handler(pool))
 	r.Post("/intents/{intentId}/select-option", selectFundingOptionHandler(pool))
 	r.Get("/intents/{intentId}", getFundingIntentV2Handler(pool))
+	r.Get("/executions/{executionId}", getFundingExecutionHandler(pool))
 	r.Post("/executions/{executionId}/start", fundingExecutionStartHandler(pool))
 	r.Post("/executions/{executionId}/route-update", fundingExecutionRouteUpdateHandler(pool))
 	r.Post("/executions/{executionId}/source-tx", fundingExecutionSourceTxHandler(pool))
+	r.Post("/webhooks/lifi", fundingLifiWebhookHandler(pool, cfg))
 	return r
 }
 
@@ -87,36 +91,33 @@ func createFundingIntentV2Handler(pool *pgxpool.Pool, cfg FundingAPIConfig) http
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body createFundingIntentV2Request
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"error":{"code":"INVALID_JSON"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json", nil)
 			return
 		}
-		if !common.IsHexAddress(body.UserAddress) {
-			http.Error(w, `{"error":{"code":"UNSUPPORTED_WALLET"}}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, body.UserAddress, authSecretFromContext(r)) {
-			http.Error(w, `{"error":{"code":"UNAUTHORIZED"}}`, http.StatusUnauthorized)
+		userAddress, ok := requireAuthorizedWalletValue(w, r, body.UserAddress)
+		if !ok {
 			return
 		}
 		targetUsdc, ok := usdcBaseUnits(body.TargetAmount)
 		if !ok || targetUsdc <= 0 {
-			http.Error(w, `{"error":{"code":"INVALID_TARGET_AMOUNT"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_TARGET_AMOUNT", "invalid target amount", nil)
 			return
 		}
 		minAmt, _ := strconv.ParseInt(cfg.MinDepositUSDC, 10, 64)
 		hardMax, _ := strconv.ParseInt(cfg.HardMaxDepositUSDC, 10, 64)
 		if minAmt > 0 && targetUsdc < minAmt {
-			http.Error(w, `{"error":{"code":"TARGET_TOO_LOW"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "TARGET_TOO_LOW", "target amount below minimum", nil)
 			return
 		}
 		if hardMax > 0 && targetUsdc > hardMax {
-			http.Error(w, `{"error":{"code":"TARGET_TOO_HIGH"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "TARGET_TOO_HIGH", "target amount above maximum", nil)
 			return
 		}
 
+		var err error
 		var id string
 		var createdAt, expiresAt time.Time
-		err := pool.QueryRow(r.Context(), `
+		err = pool.QueryRow(r.Context(), `
 INSERT INTO funding_intents (
     user_address, client_nonce, status, target_currency, target_display_amount, target_amount_decimal, target_usdc_amount,
     settlement_chain_id, settlement_token_address, settlement_receiver_address, settlement_token_symbol, settlement_token_decimals,
@@ -126,13 +127,13 @@ INSERT INTO funding_intents (
     $6, LOWER($7), LOWER($8), 'USDC', 6, $9, NOW() + INTERVAL '15 minutes'
 )
 RETURNING id::text, created_at, expires_at
-`, body.UserAddress, strings.TrimSpace(body.ClientNonce), funding.StatusBalanceScanning, strings.TrimSpace(body.TargetAmount), strconv.FormatInt(targetUsdc, 10), cfg.SettlementChainID, cfg.SettlementUSDCAddress, cfg.SettlementReceiver, normalizedMode(body.Mode)).Scan(&id, &createdAt, &expiresAt)
+`, userAddress, strings.TrimSpace(body.ClientNonce), funding.StatusBalanceScanning, strings.TrimSpace(body.TargetAmount), strconv.FormatInt(targetUsdc, 10), cfg.SettlementChainID, cfg.SettlementUSDCAddress, cfg.SettlementReceiver, normalizedMode(body.Mode)).Scan(&id, &createdAt, &expiresAt)
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "uniq_funding_intents_user_nonce") {
-				http.Error(w, `{"error":{"code":"DUPLICATE_CLIENT_NONCE"}}`, http.StatusConflict)
+				writeAPIError(w, http.StatusConflict, "DUPLICATE_CLIENT_NONCE", "duplicate client nonce", nil)
 				return
 			}
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not create funding intent", nil)
 			return
 		}
 		writeJSON(w, http.StatusCreated, map[string]any{
@@ -158,13 +159,16 @@ func scanFundingIntentBalancesHandler(pool *pgxpool.Pool, svc *funding.Service) 
 	return func(w http.ResponseWriter, r *http.Request) {
 		intentID, err := uuid.Parse(chi.URLParam(r, "intentId"))
 		if err != nil {
-			http.Error(w, `{"error":{"code":"INVALID_INTENT_ID"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_INTENT_ID", "invalid funding intent id", nil)
+			return
+		}
+		if _, ok := requireFundingIntentAccess(w, r, pool, intentID); !ok {
 			return
 		}
 		if svc != nil {
 			if err := svc.EnsureRouteOptions(r.Context(), intentID); err != nil {
 				_ = setIntentStatus(r.Context(), pool, intentID, funding.StatusNoFundingOptions, "NO_FUNDING_OPTIONS", err.Error())
-				http.Error(w, `{"error":{"code":"NO_FUNDING_OPTIONS"}}`, http.StatusConflict)
+				writeAPIError(w, http.StatusConflict, "NO_FUNDING_OPTIONS", "no funding options available", nil)
 				return
 			}
 		}
@@ -177,6 +181,9 @@ func listFundingOptionsV2Handler(pool *pgxpool.Pool) http.HandlerFunc {
 		intentID, err := uuid.Parse(chi.URLParam(r, "intentId"))
 		if err != nil {
 			http.Error(w, `{"error":{"code":"INVALID_INTENT_ID"}}`, http.StatusBadRequest)
+			return
+		}
+		if _, ok := requireFundingIntentAccess(w, r, pool, intentID); !ok {
 			return
 		}
 		rows, err := pool.Query(r.Context(), `
@@ -248,6 +255,9 @@ func selectFundingOptionHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		intentID, err := uuid.Parse(chi.URLParam(r, "intentId"))
 		if err != nil {
 			http.Error(w, `{"error":{"code":"INVALID_INTENT_ID"}}`, http.StatusBadRequest)
+			return
+		}
+		if _, ok := requireFundingIntentAccess(w, r, pool, intentID); !ok {
 			return
 		}
 		var body req
@@ -323,17 +333,39 @@ RETURNING id::text
 			"intentId": intentID.String(),
 			"status":   funding.StatusRouteSelected,
 			"execution": map[string]any{
-				"executionId": executionID,
-				"provider":    provider,
+				"executionId":    executionID,
+				"provider":       provider,
+				"serializedRoute": json.RawMessage(snap),
+				"routeVersion":   routeVersionHex(snap),
 			},
 		})
 	}
 }
 
-func getFundingIntentV2Handler(pool *pgxpool.Pool) http.HandlerFunc {
+func getFundingExecutionHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		intentID := chi.URLParam(r, "intentId")
-		intent, err := loadFundingIntent(r.Context(), pool, intentID)
+		executionID := strings.TrimSpace(chi.URLParam(r, "executionId"))
+		executionUUID, err := uuid.Parse(executionID)
+		if err != nil {
+			http.Error(w, `{"error":{"code":"INVALID_EXECUTION_ID"}}`, http.StatusBadRequest)
+			return
+		}
+		if _, _, ok := requireFundingExecutionAccess(w, r, pool, executionUUID); !ok {
+			return
+		}
+		var status, provider, sourceToken, destinationToken string
+		var sourceChain, destinationChain int64
+		var sourceAmount, expectedAmount, minAmount string
+		var sourceTxHash, destinationTxHash *string
+		var routeSnapshot []byte
+		var updatedAt time.Time
+		err = pool.QueryRow(r.Context(), `
+SELECT status, provider, source_chain_id, source_token_address, source_amount::text,
+       destination_chain_id, destination_token_address, expected_usdc_amount::text, min_usdc_amount::text,
+       source_tx_hash, destination_tx_hash, route_snapshot, updated_at
+FROM funding_executions
+WHERE id::text = $1
+`, executionID).Scan(&status, &provider, &sourceChain, &sourceToken, &sourceAmount, &destinationChain, &destinationToken, &expectedAmount, &minAmount, &sourceTxHash, &destinationTxHash, &routeSnapshot, &updatedAt)
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				http.Error(w, `{"error":{"code":"NOT_FOUND"}}`, http.StatusNotFound)
@@ -343,7 +375,46 @@ func getFundingIntentV2Handler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"intentId":          intent["id"],
+			"executionId":      executionID,
+			"status":           status,
+			"provider":         provider,
+			"sourceChainId":    sourceChain,
+			"sourceToken":      sourceToken,
+			"sourceAmount":     sourceAmount,
+			"destinationChainId": destinationChain,
+			"destinationToken": destinationToken,
+			"expectedUsdcAmount": expectedAmount,
+			"minUsdcAmount":    minAmount,
+			"sourceTxHash":     sourceTxHash,
+			"destinationTxHash": destinationTxHash,
+			"serializedRoute":  json.RawMessage(routeSnapshot),
+			"routeVersion":     routeVersionHex(routeSnapshot),
+			"updatedAt":        updatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+}
+
+func getFundingIntentV2Handler(pool *pgxpool.Pool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		intentUUID, err := uuid.Parse(chi.URLParam(r, "intentId"))
+		if err != nil {
+			http.Error(w, `{"error":{"code":"INVALID_INTENT_ID"}}`, http.StatusBadRequest)
+			return
+		}
+		if _, ok := requireFundingIntentAccess(w, r, pool, intentUUID); !ok {
+			return
+		}
+		intent, err := loadFundingIntent(r.Context(), pool, intentUUID.String())
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, `{"error":{"code":"NOT_FOUND"}}`, http.StatusNotFound)
+				return
+			}
+			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"intentId":          intentUUID.String(),
 			"status":            intent["status"],
 			"targetUsdcAmount":  intent["targetUsdcAmount"],
 			"selectedOptionId":  intent["selectedRouteId"],
@@ -358,6 +429,7 @@ func fundingExecutionStartHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	type req struct {
 		WalletAddress          string `json:"walletAddress"`
 		ClientRouteExecutionID string `json:"clientRouteExecutionId"`
+		IdempotencyKey         string `json:"idempotencyKey"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body req
@@ -365,12 +437,32 @@ func fundingExecutionStartHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, `{"error":{"code":"INVALID_JSON"}}`, http.StatusBadRequest)
 			return
 		}
-		executionID := chi.URLParam(r, "executionId")
-		_, err := pool.Exec(r.Context(), `
+		executionID, err := uuid.Parse(chi.URLParam(r, "executionId"))
+		if err != nil {
+			http.Error(w, `{"error":{"code":"INVALID_EXECUTION_ID"}}`, http.StatusBadRequest)
+			return
+		}
+		wallet, intentID, ok := requireFundingExecutionAccess(w, r, pool, executionID)
+		if !ok {
+			return
+		}
+		if !common.IsHexAddress(body.WalletAddress) || !strings.EqualFold(wallet, body.WalletAddress) {
+			writeAPIError(w, http.StatusForbidden, "WALLET_MISMATCH", "walletAddress does not match execution owner", nil)
+			return
+		}
+		if strings.TrimSpace(body.IdempotencyKey) == "" {
+			writeAPIError(w, http.StatusBadRequest, "MISSING_IDEMPOTENCY_KEY", "idempotencyKey is required", nil)
+			return
+		}
+		if err := insertFundingTransitionGuard(r.Context(), pool, intentID, funding.StatusExecutionStarted, body.IdempotencyKey); err != nil {
+			handleFundingGuardErr(w, err)
+			return
+		}
+		_, err = pool.Exec(r.Context(), `
 UPDATE funding_executions
 SET status = $2, client_route_execution_id = NULLIF($3,''), updated_at = NOW()
 WHERE id::text = $1
-`, executionID, funding.StatusExecutionStarted, strings.TrimSpace(body.ClientRouteExecutionID))
+`, executionID.String(), funding.StatusExecutionStarted, strings.TrimSpace(body.ClientRouteExecutionID))
 		if err != nil {
 			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
 			return
@@ -380,7 +472,7 @@ UPDATE funding_intents fi
 SET status = $2, updated_at = NOW()
 FROM funding_executions fe
 WHERE fe.id::text = $1 AND fi.id = fe.funding_intent_id
-`, executionID, funding.StatusExecutionStarted)
+`, executionID.String(), funding.StatusExecutionStarted)
 		writeJSON(w, http.StatusOK, map[string]any{"status": funding.StatusExecutionStarted})
 	}
 }
@@ -397,6 +489,19 @@ func fundingExecutionRouteUpdateHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			http.Error(w, `{"error":{"code":"INVALID_JSON"}}`, http.StatusBadRequest)
 			return
 		}
+		_, intentID, ok := requireFundingExecutionAccess(w, r, pool, executionID)
+		if !ok {
+			return
+		}
+		idempotencyKey := strings.TrimSpace(stringValue(payload["idempotencyKey"]))
+		if idempotencyKey == "" {
+			writeAPIError(w, http.StatusBadRequest, "MISSING_IDEMPOTENCY_KEY", "idempotencyKey is required", nil)
+			return
+		}
+		if err := insertFundingTransitionGuard(r.Context(), pool, intentID, funding.StatusBridging, idempotencyKey); err != nil {
+			handleFundingGuardErr(w, err)
+			return
+		}
 		raw, _ := json.Marshal(payload)
 		_, err = pool.Exec(r.Context(), `
 INSERT INTO route_update_events (funding_execution_id, provider, status, payload)
@@ -411,31 +516,55 @@ UPDATE funding_executions
 SET provider_status = $2::jsonb, updated_at = NOW()
 WHERE id = $1
 `, executionID, string(raw))
+		if dstTx, ok := payload["destinationTxHash"].(string); ok && isValidTxHash(strings.TrimSpace(dstTx)) {
+			_, _ = pool.Exec(r.Context(), `
+UPDATE funding_executions
+SET destination_tx_hash = LOWER($2), updated_at = NOW()
+WHERE id = $1
+`, executionID, dstTx)
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": funding.StatusBridging})
 	}
 }
 
 func fundingExecutionSourceTxHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	type req struct {
-		ChainID int64  `json:"chainId"`
-		TxHash  string `json:"txHash"`
+		ChainID        int64  `json:"chainId"`
+		TxHash         string `json:"txHash"`
+		IdempotencyKey string `json:"idempotencyKey"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		executionID := chi.URLParam(r, "executionId")
+		executionID, err := uuid.Parse(chi.URLParam(r, "executionId"))
+		if err != nil {
+			http.Error(w, `{"error":{"code":"INVALID_EXECUTION_ID"}}`, http.StatusBadRequest)
+			return
+		}
 		var body req
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			http.Error(w, `{"error":{"code":"INVALID_JSON"}}`, http.StatusBadRequest)
+			return
+		}
+		_, intentID, ok := requireFundingExecutionAccess(w, r, pool, executionID)
+		if !ok {
 			return
 		}
 		if !isValidTxHash(strings.TrimSpace(body.TxHash)) {
 			http.Error(w, `{"error":{"code":"INVALID_TX_HASH"}}`, http.StatusBadRequest)
 			return
 		}
-		_, err := pool.Exec(r.Context(), `
+		if strings.TrimSpace(body.IdempotencyKey) == "" {
+			writeAPIError(w, http.StatusBadRequest, "MISSING_IDEMPOTENCY_KEY", "idempotencyKey is required", nil)
+			return
+		}
+		if err := insertFundingTransitionGuard(r.Context(), pool, intentID, funding.StatusSourceTxSubmitted, body.IdempotencyKey); err != nil {
+			handleFundingGuardErr(w, err)
+			return
+		}
+		_, err = pool.Exec(r.Context(), `
 UPDATE funding_executions
 SET status = $2, source_chain_id = $3, source_tx_hash = LOWER($4), updated_at = NOW()
 WHERE id::text = $1
-`, executionID, funding.StatusSourceTxSubmitted, body.ChainID, body.TxHash)
+`, executionID.String(), funding.StatusSourceTxSubmitted, body.ChainID, body.TxHash)
 		if err != nil {
 			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
 			return
@@ -445,20 +574,131 @@ UPDATE funding_intents fi
 SET status = $2, updated_at = NOW()
 FROM funding_executions fe
 WHERE fe.id::text = $1 AND fi.id = fe.funding_intent_id
-`, executionID, funding.StatusSourceTxSubmitted)
+`, executionID.String(), funding.StatusSourceTxSubmitted)
 		writeJSON(w, http.StatusOK, map[string]any{"status": funding.StatusSourceTxSubmitted})
 	}
+}
+
+func fundingLifiWebhookHandler(pool *pgxpool.Pool, cfg FundingAPIConfig) http.HandlerFunc {
+	type webhookTx struct {
+		ChainID int64  `json:"chainId"`
+		TxHash  string `json:"txHash"`
+		Type    string `json:"type"`
+	}
+	type webhookReq struct {
+		EventID            string      `json:"eventId"`
+		EventType          string      `json:"eventType"`
+		ExecutionID        string      `json:"executionId"`
+		RouteExecutionID   string      `json:"routeExecutionId"`
+		Status             string      `json:"status"`
+		SourceTxHash       string      `json:"sourceTxHash"`
+		DestinationTxHash  string      `json:"destinationTxHash"`
+		ObservedTxHashes   []webhookTx `json:"observedTxHashes"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSpace(cfg.LifiWebhookSecret) != "" {
+			if r.Header.Get("X-Lifi-Webhook-Secret") != cfg.LifiWebhookSecret {
+				http.Error(w, `{"error":{"code":"UNAUTHORIZED"}}`, http.StatusUnauthorized)
+				return
+			}
+		}
+		var body webhookReq
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, `{"error":{"code":"INVALID_JSON"}}`, http.StatusBadRequest)
+			return
+		}
+		raw, _ := json.Marshal(body)
+		if strings.TrimSpace(body.EventID) == "" {
+			body.EventID = routeVersionHex(raw)
+		}
+		var eventID string
+		tx, err := pool.Begin(r.Context())
+		if err != nil {
+			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			return
+		}
+		defer tx.Rollback(r.Context())
+
+		var executionUUID *uuid.UUID
+		if id := strings.TrimSpace(body.ExecutionID); id != "" {
+			if parsed, err := uuid.Parse(id); err == nil {
+				executionUUID = &parsed
+			}
+		}
+		err = tx.QueryRow(r.Context(), `
+INSERT INTO funding_webhook_events (provider, event_id, execution_id, event_type, payload)
+VALUES ('LIFI', $1, $2, NULLIF($3,''), $4::jsonb)
+ON CONFLICT (provider, event_id) DO UPDATE
+SET payload = EXCLUDED.payload, event_type = EXCLUDED.event_type
+RETURNING id::text
+`, body.EventID, executionUUID, strings.TrimSpace(body.EventType), string(raw)).Scan(&eventID)
+		if err != nil {
+			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			return
+		}
+		if executionUUID != nil {
+			if isValidTxHash(strings.TrimSpace(body.SourceTxHash)) {
+				_, _ = tx.Exec(r.Context(), `UPDATE funding_executions SET source_tx_hash = LOWER($2), updated_at = NOW() WHERE id = $1`, executionUUID, body.SourceTxHash)
+			}
+			if isValidTxHash(strings.TrimSpace(body.DestinationTxHash)) {
+				_, _ = tx.Exec(r.Context(), `UPDATE funding_executions SET destination_tx_hash = LOWER($2), updated_at = NOW() WHERE id = $1`, executionUUID, body.DestinationTxHash)
+			}
+			_, _ = tx.Exec(r.Context(), `
+INSERT INTO route_update_events (funding_execution_id, provider, status, payload)
+VALUES ($1, 'LIFI', NULLIF($2,''), $3::jsonb)
+`, executionUUID, strings.TrimSpace(body.Status), string(raw))
+			if isValidTxHash(strings.TrimSpace(body.DestinationTxHash)) {
+				_, _ = tx.Exec(r.Context(), `
+UPDATE destination_usdc_transfers
+SET webhook_event_id = $2::uuid, provenance = 'MERGED', provider_execution_ref = NULLIF($3,'')
+WHERE tx_hash = LOWER($1)
+`, body.DestinationTxHash, eventID, strings.TrimSpace(body.RouteExecutionID))
+			}
+		}
+		if err := tx.Commit(r.Context()); err != nil {
+			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "eventId": eventID})
+	}
+}
+
+func insertFundingTransitionGuard(ctx context.Context, pool *pgxpool.Pool, intentID uuid.UUID, toStatus, idempotencyKey string) error {
+	tag, err := pool.Exec(ctx, `
+INSERT INTO funding_transition_guards (funding_intent_id, to_status, idempotency_key)
+VALUES ($1, $2, $3)
+ON CONFLICT (funding_intent_id, to_status, idempotency_key) DO NOTHING
+`, intentID, toStatus, strings.TrimSpace(idempotencyKey))
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("duplicate transition")
+	}
+	return nil
+}
+
+func handleFundingGuardErr(w http.ResponseWriter, err error) {
+	if err == nil {
+		return
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "duplicate transition") {
+		writeAPIError(w, http.StatusConflict, "DUPLICATE_TRANSITION", "duplicate transition", nil)
+		return
+	}
+	writeAPIError(w, http.StatusInternalServerError, "DB", "could not persist transition guard", nil)
+}
+
+func stringValue(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 func UserBalanceV2Handler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		wallet := strings.TrimSpace(chi.URLParam(r, "address"))
-		if !common.IsHexAddress(wallet) {
-			http.Error(w, `{"error":{"code":"INVALID_WALLET"}}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, wallet, authSecretFromContext(r)) {
-			http.Error(w, `{"error":{"code":"UNAUTHORIZED"}}`, http.StatusUnauthorized)
+		wallet, ok := requireAuthorizedWalletValue(w, r, wallet)
+		if !ok {
 			return
 		}
 		var available, locked string
@@ -468,7 +708,7 @@ FROM user_balances
 WHERE LOWER(user_address) = LOWER($1)
 `, wallet).Scan(&available, &locked)
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user balance", nil)
 			return
 		}
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -495,32 +735,28 @@ func EnterMarketFromBalanceHandler(pool *pgxpool.Pool, safetyBuffer time.Duratio
 	return func(w http.ResponseWriter, r *http.Request) {
 		var body req
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			http.Error(w, `{"error":{"code":"INVALID_JSON"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_JSON", "invalid json", nil)
 			return
 		}
-		if !common.IsHexAddress(body.UserAddress) {
-			http.Error(w, `{"error":{"code":"INVALID_WALLET"}}`, http.StatusBadRequest)
-			return
-		}
-		if !WalletAuthorized(r, body.UserAddress, authSecretFromContext(r)) {
-			http.Error(w, `{"error":{"code":"UNAUTHORIZED"}}`, http.StatusUnauthorized)
+		userAddress, ok := requireAuthorizedWalletValue(w, r, body.UserAddress)
+		if !ok {
 			return
 		}
 		amount, ok := fundingDecimalValid(body.Amount)
 		if !ok || amount <= 0 {
-			http.Error(w, `{"error":{"code":"INVALID_AMOUNT"}}`, http.StatusBadRequest)
+			writeAPIError(w, http.StatusBadRequest, "INVALID_AMOUNT", "invalid amount", nil)
 			return
 		}
 		marketID := chi.URLParam(r, "marketId")
 		tx, err := pool.Begin(r.Context())
 		if err != nil {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not start market entry transaction", nil)
 			return
 		}
 		defer tx.Rollback(r.Context())
 		templateID, epochID, err := resolveActiveEpochForMarket(r.Context(), tx, marketID)
 		if err != nil {
-			http.Error(w, `{"error":{"code":"MARKET_NOT_FOUND"}}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "MARKET_NOT_FOUND", "market not found", nil)
 			return
 		}
 		var epochStatus string
@@ -531,15 +767,15 @@ FROM epochs
 WHERE template_id = $1 AND epoch_id = $2
 `, templateID, epochID).Scan(&epochStatus, &lockAt)
 		if err != nil {
-			http.Error(w, `{"error":{"code":"MARKET_NOT_FOUND"}}`, http.StatusNotFound)
+			writeAPIError(w, http.StatusNotFound, "MARKET_NOT_FOUND", "market not found", nil)
 			return
 		}
 		if !strings.EqualFold(epochStatus, "open") {
-			http.Error(w, `{"error":{"code":"MARKET_LOCKED"}}`, http.StatusConflict)
+			writeAPIError(w, http.StatusConflict, "MARKET_LOCKED", "market is not open for trading", nil)
 			return
 		}
 		if lockAt != nil && time.Now().UTC().Add(safetyBuffer).After(lockAt.UTC()) {
-			http.Error(w, `{"error":{"code":"MARKET_LOCKED"}}`, http.StatusConflict)
+			writeAPIError(w, http.StatusConflict, "MARKET_LOCKED", "market is not open for trading", nil)
 			return
 		}
 
@@ -549,23 +785,23 @@ SELECT COALESCE(usdc_available, 0)::bigint
 FROM user_balances
 WHERE LOWER(user_address) = LOWER($1)
 FOR UPDATE
-`, body.UserAddress).Scan(&available); err != nil {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+`, userAddress).Scan(&available); err != nil {
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user balance", nil)
 			return
 		}
 		if available < amount {
-			http.Error(w, `{"error":{"code":"INSUFFICIENT_BALANCE"}}`, http.StatusConflict)
+			writeAPIError(w, http.StatusConflict, "INSUFFICIENT_BALANCE", "insufficient balance", nil)
 			return
 		}
-		idem := fmt.Sprintf("market-entry:%s:%s:%d:%d", strings.ToLower(body.UserAddress), marketID, body.OutcomeID, amount)
+		idem := fmt.Sprintf("market-entry:%s:%s:%d:%d", userAddress, marketID, body.OutcomeID, amount)
 		tag, err := tx.Exec(r.Context(), `
 INSERT INTO balance_ledger (
     user_address, delta_available, delta_locked, reason, reference_type, reference_id, idempotency_key
 ) VALUES ($1, $2::numeric, 0, 'MARKET_ENTRY_DEBIT', 'market', $3, $4)
 ON CONFLICT (idempotency_key) DO NOTHING
-`, strings.ToLower(body.UserAddress), strconv.FormatInt(-amount, 10), marketID, idem)
+`, userAddress, strconv.FormatInt(-amount, 10), marketID, idem)
 		if err != nil {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not write balance ledger", nil)
 			return
 		}
 		if tag.RowsAffected() == 0 {
@@ -576,21 +812,21 @@ ON CONFLICT (idempotency_key) DO NOTHING
 UPDATE user_balances
 SET usdc_available = usdc_available - $2::numeric, updated_at = NOW()
 WHERE LOWER(user_address) = LOWER($1)
-`, body.UserAddress, amount)
+`, userAddress, amount)
 		if err != nil {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not update user balance", nil)
 			return
 		}
 		_, err = tx.Exec(r.Context(), `
 INSERT INTO market_entries (user_address, market_id, outcome_id, amount, funding_intent_id, status)
 VALUES (LOWER($1), $2, $3, $4::numeric, NULLIF($5,'')::uuid, 'CONFIRMED')
-`, body.UserAddress, marketID, body.OutcomeID, body.Amount, strings.TrimSpace(body.IntentID))
+`, userAddress, marketID, body.OutcomeID, body.Amount, strings.TrimSpace(body.IntentID))
 		if err != nil {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not create market entry", nil)
 			return
 		}
 		if err := tx.Commit(r.Context()); err != nil {
-			http.Error(w, `{"error":{"code":"DB"}}`, http.StatusInternalServerError)
+			writeAPIError(w, http.StatusInternalServerError, "DB", "could not commit market entry", nil)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "CONFIRMED", "marketId": marketID})
@@ -658,4 +894,9 @@ func usdcBaseUnits(raw string) (int64, bool) {
 		return 0, false
 	}
 	return int64(base), true
+}
+
+func routeVersionHex(payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
 }

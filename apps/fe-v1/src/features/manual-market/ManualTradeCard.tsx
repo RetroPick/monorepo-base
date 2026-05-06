@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useBackendAuthSession } from "@/context/BackendAuthContext";
 import { useMarketEngine } from "@/hooks/useMarketEngine";
 import { parseUsdc, formatUsdc } from "@/config/tokens";
 import { DEPLOYMENT_CHAIN_ID } from "@/config/chains";
@@ -145,6 +146,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     approveHash: `0x${string}`;
   } | null>(null);
   const { address } = useAccount();
+  const auth = useBackendAuthSession();
   const chainId = useChainId();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -162,13 +164,13 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
   const positionsQ = useQuery({
     queryKey: ["retropick-api", "user-positions", address, templateId],
     queryFn: () => fetchUserPositions(address!, { templateId, epochId: activeEpochId }),
-    enabled: Boolean(address && templateId),
+    enabled: Boolean(address && templateId) && auth.isAuthenticated,
     staleTime: 8_000,
   });
   const backendBalanceQ = useQuery({
     queryKey: ["retropick-api", "user-balance", address],
     queryFn: () => fetchUserBalance(address!),
-    enabled: Boolean(address),
+    enabled: Boolean(address) && auth.isAuthenticated,
     staleTime: 10_000,
   });
 

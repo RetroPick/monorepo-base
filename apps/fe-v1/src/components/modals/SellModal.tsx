@@ -63,7 +63,11 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
     return createPortal(
         <AnimatePresence>
             {open && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    className="fixed inset-0 z-[9999] flex items-end justify-center sm:items-center sm:p-4"
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -77,7 +81,7 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 30 }}
                         transition={{ type: "spring", damping: 28, stiffness: 350 }}
-                        className="relative w-full max-w-sm rounded-2xl shadow-2xl border border-border bg-card p-5"
+                        className="relative w-full max-h-[92dvh] overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-2xl pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:max-w-sm sm:max-h-[min(90dvh,40rem)] sm:rounded-2xl sm:overflow-visible sm:pb-5"
                     >
                         <button
                             onClick={onClose}

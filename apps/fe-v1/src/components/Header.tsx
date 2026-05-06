@@ -1,13 +1,15 @@
 import { lazy, Suspense, useRef, useState, type WheelEvent as ReactWheelEvent } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useAccount } from "wagmi";
-import { Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { openAppKitModal } from "@/lib/openAppKitModal";
 import { useAssetContext } from "@/context/AssetContext";
-import HowRetroPickWorksDialog from "@/components/HowRetroPickWorksDialog";
 import Logo from "@/components/Logo";
+
+const HowRetroPickWorksDialog = lazy(() => import("@/components/HowRetroPickWorksDialog"));
 import type { AssetClass } from "@/lib/market-data/types";
 import { ASSET_CLASS_OPTIONS, ASSET_CLASS_SUBTITLE } from "@/lib/market-data/asset-classes";
 import type { DiscoveryVerticalId } from "@/lib/discovery-verticals";
@@ -63,6 +65,12 @@ const Header = ({
   const { assets, selectedSymbol, setSelectedSymbol } = useAssetContext();
   const railRef = useRef<HTMLDivElement>(null);
   const [howRetroPickOpen, setHowRetroPickOpen] = useState(false);
+  const howRetroPickHasOpenedRef = useRef(false);
+  if (howRetroPickOpen) {
+    howRetroPickHasOpenedRef.current = true;
+  }
+  const howRetroPickHasOpened = howRetroPickHasOpenedRef.current;
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pathNorm = location.pathname.replace(/\/+$/, "") || "/";
   const isMarketsAllPage = pathNorm === "/app/markets/all";
   const isPortfolioPage = pathNorm === "/app/portfolio";
@@ -81,10 +89,15 @@ const Header = ({
     return location.pathname === item.path;
   };
 
+  /**
+   * Translate vertical wheel delta into horizontal scroll on the rail. React
+   * already attaches wheel listeners as passive in React 17+, so calling
+   * `preventDefault()` would emit a console warning and have no effect — we
+   * just nudge `scrollLeft`. The page may still scroll vertically; that's the
+   * accepted trade-off for keeping the listener passive.
+   */
   const handleWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
     if (!railRef.current) return;
-    event.preventDefault();
-    event.stopPropagation();
     const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
     if (!delta) return;
     railRef.current.scrollLeft += delta;
@@ -128,9 +141,69 @@ const Header = ({
           : "border-b border-border/40 dark:border-white/[0.06]",
       )}
     >
-      <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
+      <div className="mx-auto max-w-screen-2xl px-5 sm:px-8">
         <div className="flex min-h-11 flex-nowrap items-center gap-2 py-1.5 sm:min-h-12 sm:gap-3 sm:py-2">
-          <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5">
+          <div className="flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2.5">
+            <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <SheetTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-border/60 bg-background/75 text-muted-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+                  aria-label="Open main menu"
+                >
+                  <Menu className="size-4" aria-hidden />
+                </button>
+              </SheetTrigger>
+              <SheetContent
+                side="left"
+                className="w-[min(20rem,80vw)] flex flex-col gap-6 px-5 pt-[max(env(safe-area-inset-top),1rem)] pb-[max(env(safe-area-inset-bottom),1rem)]"
+              >
+                <Link
+                  to="/app/markets/all"
+                  className="flex items-center gap-2"
+                  onClick={() => setMobileNavOpen(false)}
+                >
+                  <div className="flex size-8 items-center justify-center rounded-lg">
+                    <Logo className="size-7" />
+                  </div>
+                  <div className="text-sm font-semibold tracking-tight text-foreground">
+                    RetroPick
+                  </div>
+                </Link>
+                <nav className="flex flex-col gap-1" aria-label="Main navigation (mobile)">
+                  {navItems.map((item) => {
+                    const isActive = isNavItemActive(item);
+                    return (
+                      <SheetClose asChild key={item.path}>
+                        <Link
+                          to={item.path}
+                          className={cn(
+                            "rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                            isActive
+                              ? "bg-primary/15 text-primary"
+                              : "text-foreground/85 hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          {item.name}
+                        </Link>
+                      </SheetClose>
+                    );
+                  })}
+                </nav>
+                <div className="mt-auto flex flex-col gap-2">
+                  <SheetClose asChild>
+                    <button
+                      type="button"
+                      onClick={() => setHowRetroPickOpen(true)}
+                      className="inline-flex h-10 items-center justify-center rounded-md border border-border/60 bg-background/75 px-4 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      How RetroPick works
+                    </button>
+                  </SheetClose>
+                </div>
+              </SheetContent>
+            </Sheet>
+
             <Link to="/app/markets/all" className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-2.5">
               <div className="flex size-8 items-center justify-center rounded-lg bg-transparent sm:size-9">
                 <Logo className="size-7 sm:size-8" />
@@ -209,14 +282,7 @@ const Header = ({
 
       {/* Viewport-wide strip so border + tint span edge-to-edge (not clipped by max-width). */}
       <div className="w-full min-w-0 border-t border-border/40 bg-muted/40 py-1.5 dark:border-white/[0.08] dark:bg-card/40">
-        <div className="mx-auto max-w-[1440px] px-5 sm:px-8">
-          <nav
-            className="mb-1.5 w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain lg:mb-0 lg:hidden"
-            aria-label="Main navigation"
-          >
-            <div className="flex min-w-max flex-nowrap items-center gap-1.5 sm:gap-2">{primaryNav}</div>
-          </nav>
-
+        <div className="mx-auto max-w-screen-2xl px-5 sm:px-8">
           <div className="min-w-0">
             {(() => {
               const assetPriceLowerRail = (
@@ -246,6 +312,10 @@ const Header = ({
                         <img
                           src={asset.image}
                           alt=""
+                          width={28}
+                          height={28}
+                          loading="lazy"
+                          decoding="async"
                           className={cn(
                             "size-6 rounded-full object-contain ring-1 sm:size-7",
                             selectedSymbol === asset.symbol
@@ -435,6 +505,10 @@ const Header = ({
                         <img
                           src={asset.image}
                           alt=""
+                          width={28}
+                          height={28}
+                          loading="lazy"
+                          decoding="async"
                           className={cn(
                             "size-6 rounded-full object-contain ring-1 sm:size-7",
                             selectedSymbol === asset.symbol
@@ -550,7 +624,11 @@ const Header = ({
           </div>
         </div>
       </div>
-      <HowRetroPickWorksDialog open={howRetroPickOpen} onOpenChange={setHowRetroPickOpen} />
+      {howRetroPickHasOpened ? (
+        <Suspense fallback={null}>
+          <HowRetroPickWorksDialog open={howRetroPickOpen} onOpenChange={setHowRetroPickOpen} />
+        </Suspense>
+      ) : null}
     </header>
   );
 };
