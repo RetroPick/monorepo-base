@@ -1,7 +1,15 @@
-
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  lazy,
+  Suspense,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
 import { useAccount } from "wagmi";
-import OnboardingModal from "@/components/auth/OnboardingModal";
+
+/** Deferred until a wallet needs onboarding — pulls framer-motion + funding dialog out of the cold ClientApp graph. */
+const OnboardingModal = lazy(() => import("@/components/auth/OnboardingModal"));
 
 interface OnboardingContextType {
     isOnboarded: boolean;
@@ -59,15 +67,19 @@ export const OnboardingProvider = ({ children }: { children: React.ReactNode }) 
     return (
         <OnboardingContext.Provider value={{ isOnboarded, completeOnboarding, isWorldIDVerified, verifyWorldID }}>
             {children}
-            <OnboardingModal
-                isOpen={showModal}
-                onClose={() => {
-                    // Optional: If you want to force onboarding, don't allow closing without completion.
-                    // For now, let's allow closing but it won't set onboarded=true.
-                    setShowModal(false);
-                }}
-                onComplete={completeOnboarding}
-            />
+            {showModal ? (
+                <Suspense fallback={null}>
+                    <OnboardingModal
+                        isOpen={showModal}
+                        onClose={() => {
+                            // Optional: If you want to force onboarding, don't allow closing without completion.
+                            // For now, let's allow closing but it won't set onboarded=true.
+                            setShowModal(false);
+                        }}
+                        onComplete={completeOnboarding}
+                    />
+                </Suspense>
+            ) : null}
         </OnboardingContext.Provider>
     );
 };

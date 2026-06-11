@@ -20,6 +20,13 @@ func TestEmbeddedIMarketEngineABI_Parses(t *testing.T) {
 	}
 }
 
+func TestEmbeddedChainlinkAdapterABI_Parses(t *testing.T) {
+	_, err := abi.JSON(strings.NewReader(string(abis.ChainlinkAdapterJSON)))
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTokenFaucetConfig_UnpackTuple(t *testing.T) {
 	faucetABI, err := abi.JSON(strings.NewReader(string(abis.TokenFaucetJSON)))
 	if err != nil {
@@ -79,8 +86,8 @@ func TestUpsertTemplate_Pack(t *testing.T) {
 		"active": true,
 		"outcomeCount": 2,
 		"absoluteThresholdValueE8": "10000000000",
-		"switchFeeBps": 100,
-		"settlementFeeBps": 100,
+		"switchFeeBps": 0,
+		"settlementFeeBps": 75,
 		"allowMultiSidePositions": true,
 		"executionMode": 0,
 		"templateOracleKind": 0,
@@ -138,5 +145,21 @@ func TestGenesisStartRolling_Pack(t *testing.T) {
 	want := marketABI.Methods["genesisStartRolling"].ID
 	if !bytes.Equal(data[:4], want[:]) {
 		t.Fatalf("genesisStartRolling selector got %x want %x", data[:4], want)
+	}
+}
+
+func TestSetFeedDecimals_Pack(t *testing.T) {
+	adapterABI, err := abi.JSON(strings.NewReader(string(abis.ChainlinkAdapterJSON)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	feedID := common.HexToHash("0x0000000000000000000000000FB99723Aee6f420beAD13e6bBB79b7E6F034298")
+	data, err := adapterABI.Pack("setFeedDecimals", feedID, uint8(8))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := adapterABI.Methods["setFeedDecimals"].ID
+	if !bytes.Equal(data[:4], want[:]) {
+		t.Fatalf("setFeedDecimals selector got %x want %x", data[:4], want)
 	}
 }

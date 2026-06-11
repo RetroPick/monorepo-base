@@ -3,7 +3,7 @@ import type { Market } from "@/types/market";
 const MARKET_TYPE_COUNT = 9;
 
 /**
- * `MarketTypes.MarketType` uint; matches `package/contract/src/types/MarketTypes.sol` order.
+ * `MarketTypes.MarketType` uint; matches `package/prediction-v2/src/types/MarketTypes.sol` order.
  * Direction=0: Up/Down. Threshold=1 and other binary: Yes/No (unless multi-outcome range).
  */
 export function binaryPresentationForMarketType(
@@ -17,6 +17,39 @@ export function binaryPresentationForMarketType(
 /** `MarketTypes.ExecutionMode`: 0=Manual, 1=Rolling */
 export function executionModeLabel(executionMode: number): "Manual" | "Rolling" {
   return executionMode === 1 ? "Rolling" : "Manual";
+}
+
+/** Indexer rolling lifecycle phase label (best-effort; unknown values pass through). */
+export function rollingPhaseLabel(phase: number | null | undefined): string {
+  const p = typeof phase === "number" ? phase : -1;
+  const labels: Readonly<Record<number, string>> = {
+    0: "Uninitialized",
+    1: "Genesis open",
+    2: "Genesis closed",
+    3: "Live",
+    4: "Halted",
+  };
+  if (labels[p] !== undefined) return labels[p] as string;
+  if (p < 0) return "Unknown";
+  return `Phase ${p}`;
+}
+
+/**
+ * Rolling status for cards: show Halted when phase indicates halt or a non-zero halt reason is present.
+ * Keeps semantics stable even if the backend encodes halt in either field.
+ */
+export function rollingStatusLabel(args: {
+  phase?: number | null;
+  haltReason?: number | null;
+}): "Live" | "Halted" | "Genesis" | "Uninitialized" | "Unknown" {
+  const p = typeof args.phase === "number" ? args.phase : null;
+  const r = typeof args.haltReason === "number" ? args.haltReason : null;
+  const halted = (p === 4) || (r != null && r !== 0);
+  if (halted) return "Halted";
+  if (p === 3) return "Live";
+  if (p === 1 || p === 2) return "Genesis";
+  if (p === 0) return "Uninitialized";
+  return "Unknown";
 }
 
 /** User-facing one-line name for the canonical market type (index 0..8+). */

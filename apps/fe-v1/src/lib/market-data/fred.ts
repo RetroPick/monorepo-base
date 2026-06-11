@@ -1,5 +1,4 @@
 import type { LinePoint } from "./types";
-import { getPublicEnv } from "@/lib/runtimeEnv";
 
 const TTL_MS = 60 * 60_000;
 const cache = new Map<string, { expiresAt: number; value: LinePoint[] }>();
@@ -33,11 +32,6 @@ export function parseFredObservationsToLinePoints(json: FredObservationsResponse
 }
 
 export async function fetchFredSeries(seriesId: string, observationYears = 10): Promise<LinePoint[]> {
-  const apiKey = getPublicEnv("FRED_API_KEY");
-  if (!apiKey) {
-    throw new Error("missing_fred_key");
-  }
-
   const end = new Date();
   const start = new Date(end.getFullYear() - observationYears, end.getMonth(), end.getDate());
   const cacheKey = `${seriesId}:${start.toISOString().slice(0, 10)}:${end.toISOString().slice(0, 10)}`;
@@ -46,15 +40,19 @@ export async function fetchFredSeries(seriesId: string, observationYears = 10): 
 
   const params = new URLSearchParams({
     series_id: seriesId,
-    api_key: apiKey,
-    file_type: "json",
     observation_start: start.toISOString().slice(0, 10),
     observation_end: end.toISOString().slice(0, 10),
   });
 
   const url = `${FRED_PROXY_PREFIX}/series/observations?${params.toString()}`;
   const res = await fetch(url, { headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`FRED failed: ${res.status}`);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+    if (body?.error?.code === "missing_fred_key") {
+      throw new Error("missing_fred_key");
+    }
+    throw new Error(`FRED failed: ${res.status}`);
+  }
   const json = (await res.json()) as FredObservationsResponse;
   const value = parseFredObservationsToLinePoints(json);
   cache.set(cacheKey, { expiresAt: Date.now() + TTL_MS, value });

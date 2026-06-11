@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMarketPastSetup, marketRowToCardMarket } from "./chainDiscover";
+import { inferMarketCardLifecycle, isMarketPastSetup, marketRowToCardMarket, sortMarketsByActivity } from "./chainDiscover";
 import type { MarketRow } from "@/lib/api/retropickApi";
 
 const base: MarketRow = {
@@ -22,6 +22,26 @@ describe("isMarketPastSetup", () => {
 
   it("is true after initializeMarket", () => {
     expect(isMarketPastSetup({ ...base, initialized: true })).toBe(true);
+  });
+});
+
+describe("inferMarketCardLifecycle", () => {
+  it("maps projection epochStatus to engine tokens", () => {
+    expect(inferMarketCardLifecycle({ ...base, epochStatus: "open" })).toBe("open");
+    expect(inferMarketCardLifecycle({ ...base, epochStatus: "locked" })).toBe("lock");
+    expect(inferMarketCardLifecycle({ ...base, epochStatus: "resolved" })).toBe("resolve");
+  });
+
+  it("returns syncing when activeEpochId exists but projection status is absent", () => {
+    expect(inferMarketCardLifecycle({ ...base, activeEpochId: 3 })).toBe("syncing");
+  });
+
+  it("returns paused when initialized but no active epoch", () => {
+    expect(inferMarketCardLifecycle({ ...base, activeEpochId: undefined })).toBe("paused");
+  });
+
+  it("returns setup for template-only rows", () => {
+    expect(inferMarketCardLifecycle({ ...base, initialized: false, activeEpochId: undefined })).toBe("setup");
   });
 });
 
@@ -55,6 +75,38 @@ describe("marketRowToCardMarket", () => {
     });
     expect(m.outcomes[0]?.probability).toBe(75);
     expect(m.outcomes[1]?.probability).toBe(25);
+  });
+
+  it("prefers API title and labels for launch-board markets", () => {
+    const m = marketRowToCardMarket({
+      ...base,
+      slug: "btc-5d-above-82000-manual",
+      title: "Will BTC close at or above $82,000 by resolve?",
+      feedLabel: "BTC / USD",
+      marketType: 1,
+      outcomes: [
+        { outcomeIndex: 0, label: "Yes", poolSize: "300", impliedProbabilityE6: "750000" },
+        { outcomeIndex: 1, label: "No", poolSize: "100", impliedProbabilityE6: "250000" },
+      ],
+    });
+    expect(m.title).toBe("Will BTC close at or above $82,000 by resolve?");
+    expect(m.outcomes[0]?.label).toBe("Yes");
+    expect(m.oracleSource).toBe("Chainlink BTC / USD");
+  });
+
+  it("uses provided range labels instead of generic outcome names", () => {
+    const m = marketRowToCardMarket({
+      ...base,
+      marketType: 2,
+      outcomeCount: 4,
+      outcomeLabels: ["< $2,250", "$2,250 to < $2,300", "$2,300 to < $2,400", ">= $2,400"],
+    });
+    expect(m.outcomes.map((outcome) => outcome.label)).toEqual([
+      "< $2,250",
+      "$2,250 to < $2,300",
+      "$2,300 to < $2,400",
+      ">= $2,400",
+    ]);
   });
 
   it("derives card pool volume from live outcome pools", () => {
@@ -92,5 +144,13 @@ describe("marketRowToCardMarket", () => {
     });
     expect(m.totalPool).toBe("-");
     expect(m.volume).toBe("-");
+  });
+
+  it("sorts launch-board rows by displayOrder after live status", () => {
+    const sorted = sortMarketsByActivity([
+      { ...base, slug: "zeta", displayOrder: 9 },
+      { ...base, slug: "alpha", displayOrder: 1 },
+    ]);
+    expect(sorted.map((row) => row.slug)).toEqual(["alpha", "zeta"]);
   });
 });

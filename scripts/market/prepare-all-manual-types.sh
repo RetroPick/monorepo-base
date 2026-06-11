@@ -14,7 +14,7 @@
 set -euo pipefail
 
 V1_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INNER="$V1_ROOT/package/contract/scripts/market/launch/launch-by-type.sh"
+INNER="$V1_ROOT/scripts/market/launch/launch-by-type.sh"
 API_URL="${API_URL:-http://127.0.0.1:8080}"
 
 if [[ -n "${OUT_DIR:-}" ]]; then

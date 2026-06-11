@@ -46,6 +46,7 @@ export type RealtimeEvent = {
   payload?: Partial<MarketRow & MarketDetail> & {
     templateId?: string;
     epochId?: number;
+    status?: string;
     blockNumber?: number;
     txHash?: string;
     logIndex?: number;
@@ -118,30 +119,72 @@ function patchChartCaches(qc: QueryClient, event: RealtimeEvent): boolean {
   return true;
 }
 
+function mergeOutcomeViews<T extends { outcomeIndex: number; label?: string }>(
+  existing: T[] | undefined,
+  incoming: T[] | undefined,
+): T[] | undefined {
+  if (!incoming) return existing;
+  if (!existing || existing.length === 0) return incoming;
+  const existingByIndex = new Map(existing.map((outcome) => [outcome.outcomeIndex, outcome] as const));
+  return incoming.map((outcome) => {
+    const prior = existingByIndex.get(outcome.outcomeIndex);
+    if (!prior) return outcome;
+    return {
+      ...prior,
+      ...outcome,
+      label: outcome.label ?? prior.label,
+    };
+  });
+}
+
 export function applyRealtimeEventToCaches(qc: QueryClient, event: RealtimeEvent): boolean {
   if (isChartChannel(event.channel) && patchChartCaches(qc, event)) return true;
   const payload = event.payload;
   const templateId = normalizeWsTemplateId(event.templateId ?? payload?.templateId);
   if (!templateId || !payload) return false;
 
-  const patch: Partial<MarketRow & MarketDetail> = {
-    activeEpochId: payload.activeEpochId ?? payload.epochId ?? event.epochId,
-    totalPool: payload.totalPool,
-    volume: payload.volume,
-    outcomeCount: payload.outcomeCount,
-    outcomes: payload.outcomes,
-    outcomeViewBlock: payload.lastIndexedBlock ?? payload.blockNumber,
-    lastIndexedBlock: payload.lastIndexedBlock ?? payload.blockNumber,
-  };
-
   qc.setQueriesData<MarketRow[]>({ queryKey: ["retropick-api", "markets"] }, (old) => {
     if (!Array.isArray(old)) return old;
-    return old.map((row) => (normalizeWsTemplateId(row.templateId) === templateId ? { ...row, ...patch } : row));
+    return old.map((row) => {
+      if (normalizeWsTemplateId(row.templateId) !== templateId) return row;
+      const nextEpochStatus =
+        typeof payload.epochStatus === "string"
+          ? payload.epochStatus
+          : typeof payload.status === "string"
+            ? payload.status
+            : row.epochStatus;
+      return {
+        ...row,
+        activeEpochId: payload.activeEpochId ?? payload.epochId ?? event.epochId ?? row.activeEpochId,
+        epochStatus: nextEpochStatus,
+        totalPool: payload.totalPool ?? row.totalPool,
+        volume: payload.volume ?? row.volume,
+        outcomeCount: payload.outcomeCount ?? row.outcomeCount,
+        outcomes: mergeOutcomeViews(row.outcomes, payload.outcomes),
+        outcomeViewBlock: payload.lastIndexedBlock ?? payload.blockNumber ?? row.outcomeViewBlock,
+        lastIndexedBlock: payload.lastIndexedBlock ?? payload.blockNumber ?? row.lastIndexedBlock,
+      };
+    });
   });
 
   qc.setQueriesData<MarketDetail>({ queryKey: ["retropick-api", "market", templateId] }, (old) => {
     if (!old) return old;
-    return { ...old, ...patch };
+    return {
+      ...old,
+      activeEpochId: payload.activeEpochId ?? payload.epochId ?? event.epochId ?? old.activeEpochId,
+      epochStatus:
+        typeof payload.epochStatus === "string"
+          ? payload.epochStatus
+          : typeof payload.status === "string"
+            ? payload.status
+            : old.epochStatus,
+      totalPool: payload.totalPool ?? old.totalPool,
+      volume: payload.volume ?? old.volume,
+      outcomeCount: payload.outcomeCount ?? old.outcomeCount,
+      outcomes: mergeOutcomeViews(old.outcomes, payload.outcomes),
+      outcomeViewBlock: payload.lastIndexedBlock ?? payload.blockNumber ?? old.outcomeViewBlock,
+      lastIndexedBlock: payload.lastIndexedBlock ?? payload.blockNumber ?? old.lastIndexedBlock,
+    };
   });
 
   if (payload.outcomes && payload.blockNumber != null && payload.txHash && payload.logIndex != null) {
@@ -176,6 +219,33 @@ export function applyRealtimeEventToCaches(qc: QueryClient, event: RealtimeEvent
         };
       },
     );
+  }
+
+  return true;
+}
+
+function shouldImmediatelyRefetchScopedMarket(event: RealtimeEvent): boolean {
+  switch (event.type) {
+    case "pool_update":
+    case "epoch_opened":
+    case "epoch_locked":
+    case "epoch_resolved":
+    case "claim_update":
+      return true;
+    default:
+      return false;
+  }
+}
+
+export function syncRealtimeEventToCaches(qc: QueryClient, event: RealtimeEvent): boolean {
+  const patched = applyRealtimeEventToCaches(qc, event);
+  if (!patched) return false;
+
+  const templateId = normalizeWsTemplateId(event.templateId ?? event.payload?.templateId);
+  if (templateId && shouldImmediatelyRefetchScopedMarket(event)) {
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "market", templateId] });
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "epochs", templateId] });
+    void qc.invalidateQueries({ queryKey: ["retropick-api", "probability-history", templateId] });
   }
 
   return true;
@@ -217,7 +287,7 @@ export function saveChannelCursorMap(cursors: Record<string, number>) {
  * Probability history is invalidated immediately; other `retropick-api` queries are debounced.
  * Scoped pages ignore NOTIFY payloads that only mention other template IDs when `templateIds` is present.
  */
-export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
+export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string, primaryFeedId?: string) {
   const qc = useQueryClient();
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scope = normalizeWsTemplateId(scopeTemplateId);
@@ -277,6 +347,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
         retryAttempt = 0;
         setConnected(true);
         const channels = scope ? ["global:markets", `market:${scope}`] : ["global:markets"];
+        if (primaryFeedId) channels.push(`chart:${primaryFeedId.toLowerCase()}`);
         const scopedCursors = Object.fromEntries(channels.map((channel) => [channel, cursorByChannel[channel] ?? 0]));
         ws?.send(JSON.stringify({ type: "subscribe", channels, lastSeq, cursorByChannel: scopedCursors }));
       };
@@ -300,7 +371,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
           scheduleInvalidate(scope, realtimeEvent);
           return;
         }
-        if (realtimeEvent && applyRealtimeEventToCaches(qc, realtimeEvent)) {
+        if (realtimeEvent && syncRealtimeEventToCaches(qc, realtimeEvent)) {
           return;
         }
 
@@ -351,7 +422,7 @@ export function useIndexerWebSocket(enabled = true, scopeTemplateId?: string) {
       if (retryTimer) clearTimeout(retryTimer);
       ws?.close();
     };
-  }, [enabled, qc, scope]);
+  }, [enabled, primaryFeedId, qc, scope]);
 
   return { connected };
 }

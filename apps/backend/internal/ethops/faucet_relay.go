@@ -15,15 +15,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-
 	"retropick/apps/backend/internal/abis"
 )
 
 // FaucetRelayer submits TokenFaucet.requestWithSig using a funded hot key.
 type FaucetRelayer struct {
-	rpcURL      string
-	client      *ethclient.Client
+	client      *failoverClient
 	key         *ecdsa.PrivateKey
 	relayerAddr common.Address
 	chainID     *big.Int
@@ -31,7 +28,7 @@ type FaucetRelayer struct {
 }
 
 // NewFaucetRelayer parses a hex-encoded secp256k1 private key (with or without 0x).
-func NewFaucetRelayer(rpcURL string, privateKeyHex string, chainID int64) (*FaucetRelayer, error) {
+func NewFaucetRelayer(rpcURL string, privateKeyHex string, chainID int64, fallbackURLs ...string) (*FaucetRelayer, error) {
 	keyHex := strings.TrimPrefix(strings.TrimSpace(privateKeyHex), "0x")
 	if len(keyHex) != 64 {
 		return nil, fmt.Errorf("FAUCET_RELAYER_PRIVATE_KEY must be 32-byte hex")
@@ -44,7 +41,7 @@ func NewFaucetRelayer(rpcURL string, privateKeyHex string, chainID int64) (*Fauc
 		return nil, fmt.Errorf("rpc url required")
 	}
 	return &FaucetRelayer{
-		rpcURL:      rpcURL,
+		client:      newFailoverClient(rpcURL, fallbackURLs),
 		key:         key,
 		relayerAddr: crypto.PubkeyToAddress(key.PublicKey),
 		chainID:     big.NewInt(chainID),
@@ -56,25 +53,10 @@ func (r *FaucetRelayer) Close() {
 	defer r.mu.Unlock()
 	if r.client != nil {
 		r.client.Close()
-		r.client = nil
 	}
 }
 
 func (r *FaucetRelayer) RelayerAddress() common.Address { return r.relayerAddr }
-
-func (r *FaucetRelayer) ensureClient(ctx context.Context) (*ethclient.Client, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.client != nil {
-		return r.client, nil
-	}
-	cl, err := ethclient.DialContext(ctx, r.rpcURL)
-	if err != nil {
-		return nil, err
-	}
-	r.client = cl
-	return r.client, nil
-}
 
 // RelayRequestWithSig verifies the EIP-712 MintRequest and sends requestWithSig.
 // amount must equal the on-chain maxMintAmount; deadline is validated against wall clock.
@@ -101,11 +83,6 @@ func (r *FaucetRelayer) RelayRequestWithSig(
 		return common.Hash{}, fmt.Errorf("deadline too far in future")
 	}
 
-	cl, err := r.ensureClient(ctx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
 	fa, err := abi.JSON(strings.NewReader(string(abis.TokenFaucetJSON)))
 	if err != nil {
 		return common.Hash{}, err
@@ -116,7 +93,7 @@ func (r *FaucetRelayer) RelayRequestWithSig(
 	if err != nil {
 		return common.Hash{}, err
 	}
-	rawCfg, err := callContract(ctx, cl, faucet, cfgData)
+	rawCfg, err := callContract(ctx, r.client, faucet, cfgData)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("read config: %w", err)
 	}
@@ -137,7 +114,7 @@ func (r *FaucetRelayer) RelayRequestWithSig(
 	if err != nil {
 		return common.Hash{}, err
 	}
-	rawNonce, err := callContract(ctx, cl, faucet, nonceData)
+	rawNonce, err := callContract(ctx, r.client, faucet, nonceData)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("read nonces: %w", err)
 	}
@@ -161,20 +138,20 @@ func (r *FaucetRelayer) RelayRequestWithSig(
 	}
 
 	msg := ethereum.CallMsg{From: r.relayerAddr, To: &faucet, Data: callData}
-	if _, err := cl.CallContract(ctx, msg, nil); err != nil {
+	if _, err := r.client.CallContract(ctx, msg, nil); err != nil {
 		return common.Hash{}, fmt.Errorf("simulation failed: %w", err)
 	}
 
-	gasLimit, err := cl.EstimateGas(ctx, msg)
+	gasLimit, err := r.client.EstimateGas(ctx, msg)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("estimate gas: %w", err)
 	}
 
-	pendingNonce, err := cl.PendingNonceAt(ctx, r.relayerAddr)
+	pendingNonce, err := r.client.PendingNonceAt(ctx, r.relayerAddr)
 	if err != nil {
 		return common.Hash{}, err
 	}
-	gasPrice, err := cl.SuggestGasPrice(ctx)
+	gasPrice, err := r.client.SuggestGasPrice(ctx)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -191,13 +168,13 @@ func (r *FaucetRelayer) RelayRequestWithSig(
 	if err != nil {
 		return common.Hash{}, err
 	}
-	if err := cl.SendTransaction(ctx, signed); err != nil {
+	if err := r.client.SendTransaction(ctx, signed); err != nil {
 		return common.Hash{}, err
 	}
 	return signed.Hash(), nil
 }
 
-func callContract(ctx context.Context, cl *ethclient.Client, to common.Address, data []byte) ([]byte, error) {
+func callContract(ctx context.Context, cl rpcClient, to common.Address, data []byte) ([]byte, error) {
 	msg := ethereum.CallMsg{To: &to, Data: data}
 	return cl.CallContract(ctx, msg, nil)
 }

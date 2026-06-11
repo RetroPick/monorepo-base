@@ -406,6 +406,21 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
     }
   };
 
+  const refreshMarketSoon = () => {
+    if (!templateId) return;
+    const invalidateScoped = () => {
+      void qc.invalidateQueries({ queryKey: ["retropick-api", "market", templateId] });
+      void qc.invalidateQueries({ queryKey: ["retropick-api", "epochs", templateId] });
+      void qc.invalidateQueries({ queryKey: ["retropick-api", "probability-history", templateId] });
+      void qc.invalidateQueries({ queryKey: ["retropick-api", "market-chart", templateId] });
+      void qc.invalidateQueries({ queryKey: ["retropick-api", "markets"] });
+    };
+    invalidateScoped();
+    for (const delay of [2_000, 5_000, 10_000, 20_000]) {
+      window.setTimeout(invalidateScoped, delay);
+    }
+  };
+
   const handleBuy = async () => {
     if (tab !== "Buy") return;
     if (!address || !tc || tc.activeEpochId == null || !canTradeOnChain || parsedAmount <= 0n) return;
@@ -466,6 +481,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
       setApprovedBuy(null);
       void reportSubmittedTx(hash, "enter", idempotencyKey);
       refreshPositionSoon();
+      refreshMarketSoon();
       toast({
         title: "Deposit submitted",
         description: "Waiting for wallet confirmation and indexer refresh.",
@@ -503,6 +519,7 @@ export function ManualTradeCard({ outcomes, tradeContext }: ManualTradeCardProps
       setLastSubmitted(hash);
       void reportSubmittedTx(hash, "switch", idempotencyKey);
       refreshPositionSoon();
+      refreshMarketSoon();
       toast({
         title: "Switch submitted",
         description: "Waiting for wallet confirmation and indexer refresh.",

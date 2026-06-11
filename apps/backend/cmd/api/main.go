@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -32,6 +33,7 @@ import (
 	"retropick/apps/backend/internal/dbqueries"
 	"retropick/apps/backend/internal/ethops"
 	"retropick/apps/backend/internal/funding"
+	"retropick/apps/backend/internal/launchboard"
 	"retropick/apps/backend/internal/marketdata"
 	"retropick/apps/backend/internal/pglisten"
 	"retropick/apps/backend/internal/realtime"
@@ -55,8 +57,13 @@ func main() {
 		log.Error("registry", "err", err)
 		os.Exit(1)
 	}
+	boardCatalog, err := launchboard.Metadata()
+	if err != nil {
+		log.Error("launchboard", "err", err)
+		os.Exit(1)
+	}
 
-	ethCaller, err := ethops.NewCaller(cfg.RPCURL)
+	ethCaller, err := ethops.NewCaller(cfg.RPCURL, cfg.RPCFallbackURLs...)
 	if err != nil {
 		log.Error("ethops", "err", err)
 		os.Exit(1)
@@ -66,7 +73,7 @@ func main() {
 
 	var faucetRelayer *ethops.FaucetRelayer
 	if cfg.FaucetRelayEnabled {
-		fr, err := ethops.NewFaucetRelayer(cfg.RPCURL, cfg.FaucetRelayPrivateKey, reg.ChainID)
+		fr, err := ethops.NewFaucetRelayer(cfg.RPCURL, cfg.FaucetRelayPrivateKey, reg.ChainID, cfg.RPCFallbackURLs...)
 		if err != nil {
 			log.Error("faucet relayer", "err", err)
 			os.Exit(1)
@@ -109,41 +116,14 @@ func main() {
 		allowlist.Tokens[t] = struct{}{}
 	}
 	fundingSvc := funding.NewService(pool, funding.NewLifiProvider(cfg.LifiBaseURL, cfg.LifiTimeout), allowlist, log)
-	creditWorker := funding.NewCreditWorker(pool, log, 2*time.Second)
-	matcherWorker := funding.NewMatcherWorker(pool, log, cfg.MatcherPollInterval)
-	destinationPoller, err := funding.NewDestinationPoller(
-		pool,
-		cfg.RPCURL,
-		cfg.SettlementChainID,
-		cfg.SettlementUSDCAddress,
-		cfg.SettlementReceiver,
-		cfg.DestinationPollInterval,
-		log,
-	)
-	if err != nil {
-		log.Error("destination poller", "err", err)
-		os.Exit(1)
-	}
-	defer destinationPoller.Close()
 	marketDataSvc := marketdata.NewService(pool, log)
 	_ = marketDataSvc
 	go func() {
-		if err := creditWorker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Warn("credit worker stopped", "err", err)
-		}
-	}()
-	go func() {
-		if err := matcherWorker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Warn("matcher worker stopped", "err", err)
-		}
-	}()
-	go func() {
-		if err := destinationPoller.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-			log.Warn("destination poller stopped", "err", err)
-		}
-	}()
-	go func() {
-		if err := pglisten.Run(ctx, cfg.DatabaseURL, pool, hub, log); err != nil && ctx.Err() == nil {
+		if err := pglisten.RunWithCallback(ctx, cfg.DatabaseURL, pool, hub, func(env realtime.EventEnvelope) {
+			if env.Channel == "global:markets" || strings.HasPrefix(env.Channel, "market:") {
+				marketDataSvc.InvalidateProjections()
+			}
+		}, log); err != nil && ctx.Err() == nil {
 			log.Error("pg listen stopped", "err", err)
 		}
 	}()
@@ -170,10 +150,11 @@ func main() {
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "X-CSRF-Token"},
 		AllowCredentials: true,
 	}))
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
+	r.Use(middleware.RequestID, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
 	r.Use(func(next http.Handler) http.Handler {
 		return api.RateLimitMiddleware(next, api.RateLimitOptions{
-			TrustForwardedFor: false,
+			TrustForwardedFor: len(cfg.TrustedProxyCIDRs) > 0,
+			TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
 		})
 	})
 
@@ -289,6 +270,7 @@ func main() {
 			if snap, ok := projections[tidKey]; ok {
 				m["activeEpochId"] = snap.ActiveEpochID
 				m["status"] = snap.Status
+				m["epochStatus"] = snap.Status
 				m["totalPool"] = snap.TotalPool
 				m["volume"] = snap.Volume
 				m["outcomeCount"] = snap.OutcomeCount
@@ -296,6 +278,12 @@ func main() {
 				m["lastIndexedBlock"] = snap.LastIndexedBlock
 				m["lastIndexedAt"] = snap.UpdatedAt.UTC().Format(time.RFC3339)
 				m["outcomes"] = snap.Outcomes
+			}
+			if meta, ok := boardCatalog.LookupTemplateBytes(row.TemplateID); ok {
+				meta.Decorate(m)
+				if outcomes, ok := m["outcomes"].([]map[string]any); ok {
+					m["outcomes"] = launchboard.DecorateOutcomeRows(meta, outcomes)
+				}
 			}
 			out = append(out, m)
 		}
@@ -377,6 +365,7 @@ func main() {
 			if snap, err := marketDataSvc.GetProjectionSnapshot(ctx, row.TemplateID); err == nil {
 				resp["activeEpochId"] = snap.ActiveEpochID
 				resp["status"] = snap.Status
+				resp["epochStatus"] = snap.Status
 				resp["totalPool"] = snap.TotalPool
 				resp["volume"] = snap.Volume
 				resp["outcomeCount"] = snap.OutcomeCount
@@ -388,6 +377,11 @@ func main() {
 					"lastSyncAt":       snap.UpdatedAt.UTC().Format(time.RFC3339),
 					"lastIndexedBlock": snap.LastIndexedBlock,
 				}
+				if outcomes, ok := resp["outcomes"].([]map[string]any); ok {
+					if meta, ok := boardCatalog.LookupTemplateBytes(row.TemplateID); ok {
+						resp["outcomes"] = launchboard.DecorateOutcomeRows(meta, outcomes)
+					}
+				}
 			} else if !errors.Is(err, pgx.ErrNoRows) {
 				http.Error(w, `{"error":"market projection"}`, http.StatusInternalServerError)
 				return
@@ -395,6 +389,9 @@ func main() {
 		}
 		if row.LastResolvedEpochID.Valid {
 			resp["lastResolvedEpochId"] = row.LastResolvedEpochID.Int64
+		}
+		if meta, ok := boardCatalog.LookupTemplateBytes(row.TemplateID); ok {
+			meta.Decorate(resp)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
@@ -491,6 +488,9 @@ func main() {
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
+			if meta, ok := boardCatalog.LookupTemplateBytes(b); ok {
+				outcomes = launchboard.DecorateOutcomeRows(meta, outcomes)
+			}
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"source":      "projection",
 				"templateId":  "0x" + hex.EncodeToString(b),
@@ -519,6 +519,9 @@ func main() {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
+		if meta, ok := boardCatalog.LookupTemplateBytes(b); ok {
+			outcomes = launchboard.DecorateOutcomeRows(meta, outcomes)
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"source":            "live",
 			"chainId":           reg.ChainID,
@@ -976,6 +979,18 @@ func buildWSOriginChecker(allowed []string) func(r *http.Request) bool {
 		origin := strings.ToLower(strings.TrimSpace(r.Header.Get("Origin")))
 		if origin == "" {
 			return false
+		}
+		if len(allowedSet) == 0 {
+			u, err := url.Parse(origin)
+			if err != nil {
+				return false
+			}
+			switch strings.ToLower(strings.TrimSpace(u.Hostname())) {
+			case "localhost", "127.0.0.1", "::1":
+				return true
+			default:
+				return false
+			}
 		}
 		_, ok := allowedSet[origin]
 		return ok

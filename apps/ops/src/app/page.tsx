@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { OpsDeployPreflight } from "@/components/OpsDeployPreflight";
+import { OpsOperatorHub } from "@/components/OpsOperatorHub";
 import { fetchGlobalState } from "@/lib/api";
 import { publicClient } from "@/lib/chain";
 
@@ -17,6 +19,21 @@ const LINKS = [
   { href: "/retrodeployer", label: "RETRODEPLOYER", desc: "CLI bridge & runbook pointers" },
   { href: "/governance", label: "Governance", desc: "Dispatcher selector wiring" },
 ] as const;
+
+/** Ordered playbook — mirrors docs/feature/ops-admin-operator-workflow.md */
+const PLAYBOOK: { step: number; href: string; title: string; detail: string }[] = [
+  { step: 0, href: "/", title: "Overview", detail: "Preflight + hub (this page); then drill down" },
+  { step: 1, href: "/monitor", title: "Monitor", detail: "Indexer vs RPC; global counters" },
+  { step: 2, href: "/templates", title: "Markets", detail: "Templates, halts, epoch drill-down" },
+  { step: 3, href: "/launch", title: "Lifecycle", detail: "Epoch transitions vs engine truth" },
+  { step: 4, href: "/prepare", title: "Transactions", detail: "Calldata prepare / export for signing" },
+  { step: 5, href: "/keeper", title: "Keeper", detail: "Schedule + execution audit trail" },
+  { step: 6, href: "/oracle", title: "Oracles", detail: "Feeds + health signals" },
+  { step: 7, href: "/incidents", title: "Incidents", detail: "Automation + operator triage" },
+  { step: 8, href: "/visibility", title: "Visibility", detail: "Public API exposure" },
+  { step: 9, href: "/governance", title: "Governance", detail: "Dispatcher / admin wiring visibility" },
+  { step: 10, href: "/retrodeployer", title: "RETRODEPLOYER", detail: "Chain / deploy runbooks" },
+];
 
 export default async function HomePage() {
   let gs: Awaited<ReturnType<typeof fetchGlobalState>> | null = null;
@@ -46,6 +63,33 @@ export default async function HomePage() {
           </span>
         </p>
       </div>
+
+      <OpsDeployPreflight />
+      <OpsOperatorHub variant="theme" />
+
+      <section className="rounded-xl border border-[color:var(--color-mainBorder)] bg-[color:var(--color-primaryBg)] p-4 text-sm">
+        <h2 className="font-medium text-[color:var(--color-primaryText)]">Operator playbook</h2>
+        <p className="mt-2 text-xs text-[color:var(--color-placeholderText)]">
+          Recommended order for bring-up or post-deploy checks. Full matrix (agents, APIs, report
+          template):{" "}
+          <code className="rounded bg-[color:var(--color-tabActiveBgHover)] px-1 py-0.5 text-[11px]">
+            docs/feature/ops-admin-operator-workflow.md
+          </code>
+        </p>
+        <ol className="mt-3 list-decimal space-y-2 pl-5 text-[color:var(--color-secondaryText)]">
+          {PLAYBOOK.map((row) => (
+            <li key={row.step}>
+              <Link
+                href={row.href}
+                className="font-medium text-[color:var(--color-primaryText)] underline-offset-2 hover:underline"
+              >
+                {row.step}. {row.title}
+              </Link>
+              <span className="text-[color:var(--color-placeholderText)]"> — {row.detail}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
 
       {err ? (
         <p className="rounded-lg border border-amber-900/60 bg-amber-950/40 px-3 py-2 text-sm text-amber-200">

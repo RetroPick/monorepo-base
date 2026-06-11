@@ -1,0 +1,76 @@
+{
+  "schema": "agent-harness.project.v1",
+  "project": {
+    "name": "retropick",
+    "type": "web3-prediction",
+    "root": ".",
+    "description": "RetroPick prediction markets — MarketEngine epochs, Go apps/backend API, Next.js fe-v1/ops, Foundry smart contracts in package/prediction-v2."
+  },
+  "harness": {
+    "mode": "embedded",
+    "harnessRootEnv": "AGENT_HARNESS_HOME",
+    "defaultHarnessRoot": "../.."
+  },
+  "kanban": {
+    "board": "retropick-v1",
+    "workspace": "dir:${projectRoot}"
+  },
+  "paths": {
+    "product": ["apps", "packages", "package/prediction-v2"],
+    "docs": ["docs", ".dev"],
+    "scripts": ["scripts"],
+    "tasks": ".harness/tasks",
+    "state": ".harness/state"
+  },
+  "commands": {
+    "dev": "pnpm dev:fe-v1",
+    "typecheck": "pnpm -r exec tsc --noEmit 2>/dev/null || pnpm build",
+    "lint": "pnpm lint",
+    "test": "pnpm test",
+    "smoke": "pnpm smoke",
+    "verify": "pnpm lint && pnpm test && pnpm smoke"
+  },
+  "agents": {
+    "enabled": [
+      "orchestrator",
+      "sc-market-engine",
+      "sc-oracles",
+      "sc-deploy-upgrades",
+      "sc-testing",
+      "be-api",
+      "be-indexer",
+      "be-keeper",
+      "be-funding",
+      "be-realtime",
+      "be-data",
+      "fe-markets",
+      "fe-wallet",
+      "fe-ops",
+      "pkg-abi-registry",
+      "security",
+      "qa-integration",
+      "docs-curator",
+      "devops-sre",
+      "harness-librarian"
+    ]
+  },
+  "skills": {
+    "enabled": [
+      "retropick-market-engine",
+      "systematic-debugging",
+      "tdd",
+      "web3-infra",
+      "solidity-security",
+      "hermes-kiro-runtime",
+      "agent-harness-os",
+      "harness-mcp",
+      "opensrc-research"
+    ]
+  },
+  "rules": {
+    "noSecrets": true,
+    "requireTaskFile": true,
+    "requireVerification": true,
+    "archiveBeforeDelete": true
+  }
+}

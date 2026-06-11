@@ -40,6 +40,17 @@ func TestDecodePrepareArgs_RollingAndBatch(t *testing.T) {
 	if len(open) != 5 {
 		t.Fatalf("openEpochsBatch: got %d args", len(open))
 	}
+
+	feed, err := decodePrepareArgs("setFeedDecimals", []json.RawMessage{
+		json.RawMessage(`"0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298"`),
+		json.RawMessage(`8`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(feed) != 2 {
+		t.Fatalf("setFeedDecimals: got %d args", len(feed))
+	}
 }
 
 func TestDecodePrepareArgs_Emergency(t *testing.T) {

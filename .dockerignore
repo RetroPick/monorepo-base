@@ -14,4 +14,6 @@ coverage
 .env.*
 apps/backend/tmp
 apps/public
-package/contract
+package/prediction-v2/cache
+package/prediction-v2/out
+package/prediction-v2/broadcast

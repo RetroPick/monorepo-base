@@ -5,7 +5,9 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import RetroErrorState from "@/components/RetroErrorState";
 import RouteFallback from "@/components/RouteFallback";
 import AppProviders from "@/app/AppProviders";
-import MarketsAll from "@/views/MarketsAll";
+
+/** Default landing route — separate chunk so initial parse stays smaller (Phase 3 perf). */
+const MarketsAll = lazy(() => import("@/views/MarketsAll"));
 
 const Activity = lazy(() => import("@/views/Activity"));
 const Leaderboard = lazy(() => import("@/views/Leaderboard"));

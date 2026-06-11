@@ -31,10 +31,32 @@ function isPublishedActive(market: MarketRow) {
 }
 
 function StatusPill({ market }: { market: MarketRow }) {
-  if (isPublishedActive(market)) {
+  const epoch = market.epochStatus?.trim().toLowerCase();
+  if (epoch === "open" && market.activeEpochId != null) {
     return (
       <span className="inline-flex items-center rounded-full border border-emerald-400/35 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-300">
-        Active epoch #{market.activeEpochId}
+        Open · epoch #{market.activeEpochId}
+      </span>
+    );
+  }
+  if (epoch === "locked" && market.activeEpochId != null) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-amber-400/35 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-200">
+        Locked · epoch #{market.activeEpochId}
+      </span>
+    );
+  }
+  if (epoch === "resolved" && market.activeEpochId != null) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-sky-400/35 bg-sky-500/10 px-2 py-0.5 text-xs font-medium text-sky-200">
+        Resolved · epoch #{market.activeEpochId}
+      </span>
+    );
+  }
+  if (isPublishedActive(market) && !epoch) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-zinc-400/35 bg-zinc-500/10 px-2 py-0.5 text-xs font-medium text-zinc-300">
+        Active epoch #{market.activeEpochId} · projection syncing
       </span>
     );
   }

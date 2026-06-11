@@ -29,7 +29,7 @@ type prepareMeta struct {
 var opsPrepareWhitelist = map[string]prepareMeta{
 	"pauseProgram": {
 		RequiredRole:   "admin / governance (Safe)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — pause / unpause",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — pause / unpause",
 		ExpectedEvents: []string{"Paused / program pause state change (see deployment ABI)"},
 		Checklist: []string{
 			"Confirm incident or drill scope",
@@ -39,7 +39,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"upsertTemplate": {
 		RequiredRole:   "admin or workerAuthority (per deployment); Safe on mainnet",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Before a template goes live; Manual lifecycle",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Before a template goes live; Manual lifecycle",
 		ExpectedEvents: []string{"TemplateUpserted"},
 		Checklist: []string{
 			"Confirm market family approved (.operator/.marketType.md)",
@@ -48,9 +48,19 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 			"Post-action: read getMarketView / getOperatorTemplateView for templateId = keccak256(bytes(slug))",
 		},
 	},
+	"setFeedDecimals": {
+		RequiredRole:   "Chainlink adapter owner / governance",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Chainlink adapter feed bootstrap",
+		ExpectedEvents: []string{"FeedDecimalsConfigured"},
+		Checklist: []string{
+			"Confirm adapter target matches the deployed Chainlink adapter",
+			"Confirm feedId is the bytes32-encoded Chainlink proxy address and decimals match the feed contract",
+			"Post-action: read adapter.getFeedDecimals(feedId) before upserting templates",
+		},
+	},
 	"initializeMarket": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Initialize market",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Initialize market",
 		ExpectedEvents: []string{"MarketInitialized"},
 		Checklist: []string{
 			"Template upserted and active",
@@ -60,7 +70,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"openEpoch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Open epoch",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Open epoch",
 		ExpectedEvents: []string{"EpochOpened"},
 		Checklist: []string{
 			"Protocol not paused; template Manual mode, initialized, active",
@@ -70,7 +80,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"genesisStartRolling": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Rolling lifecycle",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling lifecycle",
 		ExpectedEvents: []string{"RollingGenesisStarted"},
 		Checklist: []string{
 			"Template Rolling mode, initialized; not Manual openEpoch path",
@@ -80,7 +90,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"genesisLockRolling": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Rolling lifecycle — Genesis lock",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling lifecycle — Genesis lock",
 		ExpectedEvents: []string{"RollingGenesisLocked"},
 		Checklist: []string{
 			"After genesisStartRolling; within lock window + buffer",
@@ -89,7 +99,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"executeRollingRound": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Rolling steady state",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling steady state",
 		ExpectedEvents: []string{"RollingRoundExecuted", "EpochResolved", "EpochLocked", "EpochOpened"},
 		Checklist: []string{
 			"Template in Live phase; not halted",
@@ -98,7 +108,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"executeRollingRoundBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Rolling batch",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling batch",
 		ExpectedEvents: []string{"RollingRoundExecuted (per template that advances)"},
 		Checklist: []string{
 			"Each templateId is Rolling + Live; same worker batching as single tick",
@@ -106,7 +116,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"openEpochsBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Manual lifecycle — batch open",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Manual lifecycle — batch open",
 		ExpectedEvents: []string{"EpochOpened (per row)"},
 		Checklist: []string{
 			"Parallel arrays same length; each row valid openEpoch semantics",
@@ -114,7 +124,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"lockEpochsBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Manual lifecycle — batch lock",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Manual lifecycle — batch lock",
 		ExpectedEvents: []string{"EpochLocked / EpochLockedV2 (per row)"},
 		Checklist: []string{
 			"Each epoch in Open and past lockAt; oracle path valid for type",
@@ -122,23 +132,23 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"resolveEpochsBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/contract/.operator/.runbook.md — Manual lifecycle — batch resolve",
+		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Manual lifecycle — batch resolve",
 		ExpectedEvents: []string{"EpochResolved / EpochResolvedV2 (per row)"},
 		Checklist: []string{
 			"Each epoch Locked and past resolveAt",
 		},
 	},
-	"haltRollingMarket":             emergencyMeta("package/contract/.operator/.runbook.md — rolling halt", []string{"RollingMarketHalted"}),
-	"resetRollingLifecycle":         emergencyMeta("package/contract/.operator/.runbook.md — rolling recovery reset", []string{"RollingLifecycleReset"}),
-	"cancelEpoch":                   emergencyMeta("package/contract/.operator/.runbook.md — manual emergency cancel", []string{"EpochCancelled / EpochVoided"}),
-	"cancelRollingEpochWhileHalted": emergencyMeta("package/contract/.operator/.runbook.md — rolling emergency cancel while halted", []string{"EpochCancelled / EpochVoided"}),
-	"yieldEmergencyWithdraw":        emergencyMeta("package/contract/.operator/.runbook.md — yield emergency withdraw", []string{"YieldEmergencyWithdrawn"}),
-	"reconcileEpochRoutedPrincipal": emergencyMeta("package/contract/.operator/.runbook.md — routed-principal recovery", []string{"EpochRoutedPrincipalReconciled"}),
-	"recoverRoutedSettledClaims":    emergencyMeta("package/contract/.operator/.runbook.md — routed settled-claims recovery", []string{"RoutedSettledClaimsRecovered"}),
-	"reassignRecoveredBalance":      emergencyMeta("package/contract/.operator/.runbook.md — recovered-balance reassignment", []string{"EmergencyRecoveredBalanceReassigned"}),
-	"finalizeRecoveredYield":        emergencyMeta("package/contract/.operator/.runbook.md — finalize recovered yield", []string{"RecoveredYieldFinalized"}),
-	"resetYieldRouterFailures":      emergencyMeta("package/contract/.operator/.runbook.md — yield router reset", []string{"YieldRouterFailuresReset"}),
-	"withdrawFees":                  emergencyMeta("package/contract/.operator/.runbook.md — fee withdrawal", []string{"FeesWithdrawn"}),
+	"haltRollingMarket":             emergencyMeta("package/prediction-v2/.operator/.runbook.md — rolling halt", []string{"RollingMarketHalted"}),
+	"resetRollingLifecycle":         emergencyMeta("package/prediction-v2/.operator/.runbook.md — rolling recovery reset", []string{"RollingLifecycleReset"}),
+	"cancelEpoch":                   emergencyMeta("package/prediction-v2/.operator/.runbook.md — manual emergency cancel", []string{"EpochCancelled / EpochVoided"}),
+	"cancelRollingEpochWhileHalted": emergencyMeta("package/prediction-v2/.operator/.runbook.md — rolling emergency cancel while halted", []string{"EpochCancelled / EpochVoided"}),
+	"yieldEmergencyWithdraw":        emergencyMeta("package/prediction-v2/.operator/.runbook.md — yield emergency withdraw", []string{"YieldEmergencyWithdrawn"}),
+	"reconcileEpochRoutedPrincipal": emergencyMeta("package/prediction-v2/.operator/.runbook.md — routed-principal recovery", []string{"EpochRoutedPrincipalReconciled"}),
+	"recoverRoutedSettledClaims":    emergencyMeta("package/prediction-v2/.operator/.runbook.md — routed settled-claims recovery", []string{"RoutedSettledClaimsRecovered"}),
+	"reassignRecoveredBalance":      emergencyMeta("package/prediction-v2/.operator/.runbook.md — recovered-balance reassignment", []string{"EmergencyRecoveredBalanceReassigned"}),
+	"finalizeRecoveredYield":        emergencyMeta("package/prediction-v2/.operator/.runbook.md — finalize recovered yield", []string{"RecoveredYieldFinalized"}),
+	"resetYieldRouterFailures":      emergencyMeta("package/prediction-v2/.operator/.runbook.md — yield router reset", []string{"YieldRouterFailuresReset"}),
+	"withdrawFees":                  emergencyMeta("package/prediction-v2/.operator/.runbook.md — fee withdrawal", []string{"FeesWithdrawn"}),
 }
 
 func emergencyMeta(runbook string, events []string) prepareMeta {
@@ -199,25 +209,30 @@ func registerOpsPrepareRoutes(r chi.Router, eth *ethops.Caller, reg *registry.Re
 		log.Printf("ops tx/prepare ip=%s function=%s", clientIP(req), fn)
 		meta, ok := opsPrepareWhitelist[fn]
 		if !ok {
-			http.Error(w, `{"error":"function not allowed for prepare"}`, http.StatusForbidden)
+			WriteAPIError(w, http.StatusForbidden, "FUNCTION_NOT_ALLOWED", "function not allowed for prepare", nil)
 			return
 		}
 		args, err := decodePrepareArgs(fn, body.Args)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"args","message":%q}`, err.Error()), http.StatusBadRequest)
+			WriteAPIError(w, http.StatusBadRequest, "INVALID_ARGS", err.Error(), nil)
 			return
 		}
-		calldata, err := eth.PrepareTx(reg.ChainID, common.HexToAddress(reg.Contracts.MarketEngineProxy), fn, args, nil)
+		target := common.HexToAddress(reg.Contracts.MarketEngineProxy)
+		abiName := "IMarketEngine"
+		if fn == "setFeedDecimals" {
+			target = common.HexToAddress(reg.Contracts.ChainlinkAdapter)
+			abiName = "ChainlinkAdapter"
+		}
+		calldata, err := eth.PrepareTx(reg.ChainID, target, fn, args, nil)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"error":"pack","message":%q}`, err.Error()), http.StatusBadRequest)
+			WriteAPIError(w, http.StatusBadRequest, "PACK", err.Error(), nil)
 			return
 		}
-		proxy := common.HexToAddress(reg.Contracts.MarketEngineProxy)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"target":              proxy.Hex(),
+			"target":              target.Hex(),
 			"chainId":             reg.ChainID,
-			"abi":                 "IMarketEngine",
+			"abi":                 abiName,
 			"function":            fn,
 			"calldata":            "0x" + hex.EncodeToString(calldata),
 			"value":               "0",
@@ -251,6 +266,19 @@ func decodePrepareArgs(fn string, raw []json.RawMessage) ([]any, error) {
 			return nil, fmt.Errorf("upsertTemplate params: %w", err)
 		}
 		return []any{p}, nil
+	case "setFeedDecimals":
+		if len(raw) != 2 {
+			return nil, fmt.Errorf("setFeedDecimals expects 2 args: feedId, decimals")
+		}
+		feedID, err := decodeBytes32OrAddressArg(raw[0], "feedId")
+		if err != nil {
+			return nil, err
+		}
+		decimals, err := decodeUint8Arg(raw[1], "decimals")
+		if err != nil {
+			return nil, err
+		}
+		return []any{feedID, decimals}, nil
 	case "initializeMarket", "genesisStartRolling", "genesisLockRolling", "executeRollingRound":
 		if len(raw) != 1 {
 			return nil, fmt.Errorf("%s expects 1 templateId (bytes32 hex string)", fn)
@@ -525,21 +553,29 @@ func decodeUint64ListArg(raw json.RawMessage, field string) ([]uint64, error) {
 }
 
 func decodeTemplateIDArg(raw json.RawMessage) (common.Hash, error) {
+	return decodeBytes32OrAddressArg(raw, "templateId")
+}
+
+func decodeBytes32OrAddressArg(raw json.RawMessage, field string) (common.Hash, error) {
 	var s string
 	if err := json.Unmarshal(raw, &s); err != nil {
-		return common.Hash{}, fmt.Errorf("templateId: %w", err)
+		return common.Hash{}, fmt.Errorf("%s: %w", field, err)
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return common.Hash{}, fmt.Errorf("templateId empty")
+		return common.Hash{}, fmt.Errorf("%s empty", field)
 	}
 	if !strings.HasPrefix(s, "0x") && !strings.HasPrefix(s, "0X") {
 		s = "0x" + s
 	}
-	if len(s) != 2+64 {
-		return common.Hash{}, fmt.Errorf("templateId must be 32-byte hex")
+	switch len(s) {
+	case 2 + 40:
+		return common.HexToHash(s), nil
+	case 2 + 64:
+		return common.HexToHash(s), nil
+	default:
+		return common.Hash{}, fmt.Errorf("%s must be 20-byte address or 32-byte hex", field)
 	}
-	return common.HexToHash(s), nil
 }
 
 func decodeUint64Arg(raw json.RawMessage, field string) (uint64, error) {

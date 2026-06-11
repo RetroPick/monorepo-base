@@ -1,6 +1,6 @@
 # RetroPick Production Cost and Deployment Guide
 
-Last updated: 2026-05-06
+Last updated: 2026-06-02
 
 This document is the production budget, deployment policy, and live-network validation note for the RetroPick MVP.
 
@@ -71,19 +71,14 @@ These numbers were verified on 2026-05-06 from vendor pricing pages and live net
 
 ### Hosting references
 
-- Hetzner Cloud pricing and block storage: `https://www.hetzner.com/cloud/volumes/`
-- Hetzner 2026 cloud price adjustment: `https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/`
-- Hetzner snapshot / backup billing notes: `https://docs.hetzner.com/cloud/billing/faq/`
-- Vercel pricing: `https://vercel.com/pricing`
-- Backblaze B2 pricing: `https://www.backblaze.com/cloud-storage/pricing`
+- OrangeVPS or equivalent single-box VPS
+- Vercel pricing
+- Backblaze B2 pricing
 
 ### Vendor prices used
 
-- Hetzner `CX33` (4 vCPU / 8 GB / 80 GB): `$6.59/mo`
-- Hetzner `CX53` (16 vCPU / 32 GB / 320 GB): `$19.59/mo`
-- Hetzner Volume: `$0.0484 / GB / month`
-- Hetzner Snapshot: `$0.0130 / GB / month`
-- Hetzner automatic backups: `20% of server price`
+- OrangeVPS-class target: `4 vCPU / 8 GB / 60+ GB NVMe minimum`
+- OrangeVPS-class headroom target for single-box production: not below `8 GB RAM`
 - Vercel Pro: `$20/mo`
 - Backblaze B2: first `10 GB` free, then `$0.005 / GB / month`
 
@@ -92,7 +87,7 @@ These numbers were verified on 2026-05-06 from vendor pricing pages and live net
 Live network pricing was pulled with:
 
 ```bash
-python3 package/smart-contract/scripts/estimate_deploy_and_epoch_costs.py \
+retro costs estimate \
   --json --no-deploy-sim --rpc-url https://mainnet.base.org
 ```
 
@@ -109,29 +104,23 @@ Observed live inputs:
 
 Recommended when you want Vercel CDN convenience but keep the backend correct.
 
-- Hetzner `CX33`: `$6.59`
-- Volume `100 GB`: `$4.84`
-- Snapshot `80 GB`: `$1.04`
+- OrangeVPS-class `4 vCPU / 8 GB` host
+- 60 to 100 GB attached storage or equivalent NVMe plan
 - Backblaze B2 offsite backup `100 GB`: `$0.45`
 - Vercel Pro: `$20.00`
-
-Fixed total: **$32.92 / month**
 
 Notes:
 
 - this is the cheapest shape I would still call production-capable for the MVP
 - use this only after the hot-path backend refactor is complete and websocket/indexer are stable
+- do not ship mainnet on 2 GB or 4 GB low-end VPS tiers
 
 ## B. Single VPS for everything
 
 Recommended when minimizing vendor count matters more than frontend CDN convenience.
 
-- Hetzner `CX53`: `$19.59`
-- Volume `200 GB`: `$9.68`
-- Snapshot `160 GB`: `$2.08`
+- OrangeVPS-class box with stronger headroom than the lean split stack
 - Backblaze B2 offsite backup `200 GB`: `$0.95`
-
-Fixed total: **$32.30 / month**
 
 Notes:
 
@@ -227,7 +216,7 @@ All-in monthly totals:
 For production deployment, the script was also run with full dry-run simulation:
 
 ```bash
-python3 package/smart-contract/scripts/estimate_deploy_and_epoch_costs.py \
+retro costs estimate \
   --json --rpc-url https://mainnet.base.org
 ```
 
@@ -255,19 +244,40 @@ Practical conclusion:
 
 For the current MVP, use:
 
-1. `apps/fe-v1` on Vercel only if you want Vercel preview and CDN workflow
-2. persistent Hetzner VPS for:
+1. `apps/fe-v1` on Vercel
+2. persistent OrangeVPS box for:
    - API
    - indexer
+   - price-worker
+   - funding-worker
    - keeper
+   - alert
    - websocket / stream gateway
    - Postgres
 
 If minimizing bill and ops complexity matters more than Vercel workflow, move the frontend onto the same VPS and use Cloudflare in front.
 
+### Canonical operator commands
+
+Run these through the root-aware launcher from any working directory:
+
+```bash
+retro doctor
+retro costs estimate --rpc-url https://mainnet.base.org --json --color always
+retro stack prod config
+retro stack prod up -d --build
+retro stack prod status
+retro stack prod logs
+retro stack prod smoke
+retro db backup
+retro db restore-drill ./backups/<dump>.dump
+```
+
+The nginx edge proxies `/api/` and `/ws`; metrics stay bound to VPS loopback. Production startup requires explicit CORS and websocket origins, trusted nginx proxy CIDRs, non-zero settlement addresses, and a non-placeholder LI.FI webhook secret.
+
 ### Why this is the right default
 
-- fixed monthly cost stays under roughly `$53/mo` for the 8-market MVP
+- fixed monthly cost stays under roughly `$53/mo` for the 8-market MVP plus backup storage
 - protocol chain maintenance remains under roughly `$21/mo`
 - public RPC can still be the baseline
 - there is no need yet for Redis, Kafka, or managed queue infrastructure
@@ -304,12 +314,14 @@ Do not add paid RPC before measuring a real problem.
 These defaults keep the MVP cheap and correct:
 
 - API: zero routine chain reads on hot public paths
+- Chainlink price worker: poll curated feeds outside request paths and persist candle/read projections
 - alerting: zero routine chain polling
 - websocket: persistent process, not serverless
 - indexer block range: cap `eth_getLogs` at `10,000` blocks per call
 - indexer poll cadence: use `2s-3s` steady-state default, not an aggressive `500ms` forever loop
 - database remains Postgres-only
 - no Redis unless measured need appears
+- keep the production compose stack single-box and provider-neutral
 
 ## 11. Real-network validation commands
 
@@ -334,7 +346,7 @@ cast block-number --rpc-url https://sepolia.base.org
 ### Reprice mainnet maintenance cost
 
 ```bash
-python3 package/smart-contract/scripts/estimate_deploy_and_epoch_costs.py \
+retro costs estimate \
   --json --no-deploy-sim --rpc-url https://mainnet.base.org
 ```
 
@@ -345,9 +357,27 @@ MANUAL_TEMPLATES=4 \
 ROLLING_TEMPLATES=4 \
 MANUAL_EPOCHS_PER_DAY=1 \
 ROLLING_INTERVAL_SECONDS=3600 \
-python3 package/smart-contract/scripts/estimate_deploy_and_epoch_costs.py \
+retro costs estimate \
   --json --no-deploy-sim --rpc-url https://mainnet.base.org
 ```
+
+### Scripted production smoke (read-only)
+
+Use this after each VPS or API deploy, **before** announcing green. Scripts only issue `GET` probes; they do not submit transactions or rotate keys.
+
+**Environment (no secrets in git or shell history):**
+
+- **`RETROPICK_API_BASE`** — HTTPS origin of the public API (trailing slash optional). Example: `https://api.yourdomain.com`. You can omit this if you pass the same URL as the first argument to the script.
+- **`RETROPICK_OPS_JWT`** — optional. Bearer token for operator-only routes (`/api/v1/ops/*`). Load from your secret store (`export` in the current shell only); never commit or paste into tickets.
+
+**Dry-run sequence (recommended order):**
+
+1. **`./scripts/smoke-production.sh`** — public: `livez`, `health`, `readyz`, `markets`; prints the derived **`/ws`** URL for manual WebSocket checks. With **`RETROPICK_OPS_JWT`** set, also probes `ops/global-state`, `ops/oracle/health`, `ops/audit`.
+2. **`./scripts/keeper-operator-smoke.sh`** — same public set plus, when JWT is set, **`ops/keeper/schedule`** and **`ops/keeper/executions`** for pre-rotation / handoff (see [.dev/backend/keeper.md](.dev/backend/keeper.md) — *Operator smoke*).
+
+**Pass criteria:** every `curl` exits 0; **`health`** JSON shows `ok`, expected `environment` / `chainId`, and indexer fields consistent with chain head (see [.dev/backend/operations-runbook.md](.dev/backend/operations-runbook.md)). Ops probes require a valid operator JWT aligned with **`apps/ops`**.
+
+**Related:** [docs/feature/ops-admin-operator-workflow.md](docs/feature/ops-admin-operator-workflow.md), [docs/vps-deploy.md](docs/vps-deploy.md) (edge + loopback metrics after smoke).
 
 ## 12. Final recommendation
 

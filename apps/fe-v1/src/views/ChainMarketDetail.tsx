@@ -53,14 +53,13 @@ export default function ChainMarketDetail() {
   const id = decodeURIComponent(templateId);
   const queryTemplateKey = id ? normId(id) : "";
 
-  useIndexerWebSocket(!!queryTemplateKey, queryTemplateKey);
-
   const marketQ = useQuery({
     queryKey: ["retropick-api", "market", queryTemplateKey],
     queryFn: () => fetchMarket(id),
     enabled: !!id,
     staleTime: 5_000,
   });
+  useIndexerWebSocket(!!queryTemplateKey, queryTemplateKey, marketQ.data?.primaryFeedId);
 
   const epochsQ = useQuery({
     queryKey: ["retropick-api", "epochs", queryTemplateKey],
@@ -78,7 +77,7 @@ export default function ChainMarketDetail() {
   });
   const chartQ = useQuery({
     queryKey: ["retropick-api", "market-chart", queryTemplateKey],
-    queryFn: () => fetchMarketChart(id, { interval: 300, limit: 240 }),
+    queryFn: () => fetchMarketChart(id, { feedId: marketQ.data?.primaryFeedId, interval: 300, limit: 240 }),
     enabled: !!id,
     staleTime: 10_000,
     refetchInterval: 45_000,

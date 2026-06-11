@@ -194,7 +194,7 @@ export function PrepareExplorer() {
             <code className="font-mono">
               ./scripts/RETRODEPLOYER send ./retropick-prepared.json
             </code>{" "}
-            (from monorepo root, with package/contract/.env loaded).
+            (from monorepo root, with package/prediction-v2/.env loaded).
           </p>
         </div>
       ) : null}

@@ -27,3 +27,25 @@ func TestNewWSUpgraderBuildsIndependentOriginChecks(t *testing.T) {
 		t.Fatal("expected first upgrader to reject second upgrader origin")
 	}
 }
+
+func TestNewWSUpgraderAllowsLocalhostOriginsWhenUnset(t *testing.T) {
+	upgrader := newWSUpgrader(nil)
+
+	req := httptest.NewRequest("GET", "/ws", nil)
+	req.Header.Set("Origin", "http://localhost:3000")
+	if !upgrader.CheckOrigin(req) {
+		t.Fatal("expected localhost origin to be allowed when WS_ALLOWED_ORIGINS is unset")
+	}
+
+	req = httptest.NewRequest("GET", "/ws", nil)
+	req.Header.Set("Origin", "http://127.0.0.1:3000")
+	if !upgrader.CheckOrigin(req) {
+		t.Fatal("expected loopback origin to be allowed when WS_ALLOWED_ORIGINS is unset")
+	}
+
+	req = httptest.NewRequest("GET", "/ws", nil)
+	req.Header.Set("Origin", "https://example.com")
+	if upgrader.CheckOrigin(req) {
+		t.Fatal("expected non-localhost origin to be rejected when WS_ALLOWED_ORIGINS is unset")
+	}
+}

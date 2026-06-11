@@ -45,12 +45,12 @@ button {
 
 /* Font switching via class toggle */
 body {
-  font-family: var(--font-outfit), sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   color: var(--color-primaryText);
 }
 
 body.font-alternative {
-  font-family: var(--font-open-sans), sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Prevent Radix UI Select from hiding page scrollbar */

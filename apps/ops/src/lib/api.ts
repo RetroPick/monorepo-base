@@ -103,15 +103,31 @@ export async function fetchGlobalState() {
   return res.json() as Promise<OpsGlobalState>;
 }
 
-export async function fetchHealth() {
-  const res = await fetch(`${base}/api/v1/health`, { cache: "no-store" });
-  if (!res.ok) throw new Error("health");
-  return res.json() as Promise<{
-    ok: boolean;
+export type OpsHealth = {
+  ok: boolean;
+  /** Stable contract version for automation (e.g. retropick.health.v1). */
+  schemaVersion?: string;
+  environment?: string;
+  chainId?: number;
+  lastIndexedBlock: number;
+  /** Alias of lastIndexedBlock — same value when present. */
+  indexedBlock?: number;
+  lastBlockHash?: string | null;
+  lastSyncAt?: string | null;
+  /** Same shape as OpsGlobalState["indexer"] for single-endpoint probes. */
+  indexer?: {
     lastIndexedBlock: number;
     lastBlockHash?: string | null;
     lastSyncAt?: string | null;
-  }>;
+    reorgDepth: number;
+  };
+  contracts?: { marketEngineProxy?: string };
+};
+
+export async function fetchHealth() {
+  const res = await fetch(`${base}/api/v1/health`, { cache: "no-store" });
+  if (!res.ok) throw new Error("health");
+  return res.json() as Promise<OpsHealth>;
 }
 
 export async function fetchContracts() {
@@ -190,7 +206,18 @@ export async function fetchOracleHealth() {
   });
   if (!res.ok) throw new Error("oracle health");
   return res.json() as Promise<{
-    feeds: unknown[];
+    feeds: Array<{
+      feedId: string;
+      label: string;
+      roundId: string;
+      priceE8: string;
+      publishTime: string | null;
+      lastCheckedAt: string;
+      stale: boolean;
+      error: string;
+      source: string;
+      updatedAt: string;
+    }>;
     note: string;
     source: string;
   }>;

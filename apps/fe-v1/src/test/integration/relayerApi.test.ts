@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { relayerApi } from '../../lib/relayerApi';
 
 const RELAYER_BASE_URL = 'http://localhost:8790';
@@ -13,7 +13,7 @@ describe('Relayer API Wrapper', () => {
 
     it('should call createSession with correct parameters', async () => {
         const mockResponse = { ok: true, sessionId: '0x123' };
-        (global.fetch as any).mockResolvedValueOnce({
+        (global.fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => mockResponse,
         });
@@ -38,7 +38,7 @@ describe('Relayer API Wrapper', () => {
 
     it('should call buyShares with correct parameters and hit /api/trade/buy', async () => {
         const mockResponse = { ok: true, cost: 50, nonce: "1" };
-        (global.fetch as any).mockResolvedValueOnce({
+        (global.fetch as Mock).mockResolvedValueOnce({
             ok: true,
             json: async () => mockResponse,
         });
@@ -61,7 +61,7 @@ describe('Relayer API Wrapper', () => {
     });
 
     it('should throw an error if the fetch fails', async () => {
-        (global.fetch as any).mockResolvedValueOnce({
+        (global.fetch as Mock).mockResolvedValueOnce({
             ok: false,
             text: async () => "Insufficient balance",
         });

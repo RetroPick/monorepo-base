@@ -1,5 +1,7 @@
 # 04 Frontend Architecture
 
+> **App docs:** [`apps/fe-v1/README.md`](../../../apps/fe-v1/README.md).
+
 ## Runtime Model
 - Host shell: Next app under `apps/fe-v1/app`.
 - App body: client-rendered React app via React Router (`src/App.tsx`).

@@ -18,7 +18,7 @@ vi.mock("@/hooks/useIndexerWebSocket", () => ({
   useIndexerWebSocket: vi.fn(() => ({ connected: false })),
 }));
 
-const mockRow = {
+const baseRow = {
   templateId: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
   slug: "btc-up-down",
   marketType: 0,
@@ -33,7 +33,7 @@ const mockRow = {
 };
 
 vi.mock("@/lib/api/retropickApi", () => ({
-  fetchMarkets: vi.fn(async () => [mockRow]),
+  fetchMarkets: vi.fn(async () => [baseRow]),
   apiErrorSummary: (e: unknown) => String(e),
 }));
 
@@ -62,6 +62,18 @@ describe("MarketsAll", () => {
       screen.queryByTestId("discover-crypto-nav-mobile") ?? screen.queryByTestId("discover-crypto-nav-desktop"),
     ).toBeTruthy();
     expect(await screen.findByText("Btc Up Down")).toBeInTheDocument();
+  });
+
+  it("renders RollingMarketCard when executionMode=1", async () => {
+    const { fetchMarkets } = await import("@/lib/api/retropickApi");
+    vi.mocked(fetchMarkets).mockResolvedValueOnce([
+      { ...baseRow, templateId: "0x" + "b".repeat(64), slug: "eth-up-down", executionMode: 1, rollingPhase: 3, rollingHaltReason: 0 },
+    ]);
+
+    renderAll("trending");
+
+    expect(await screen.findByText("Eth Up Down")).toBeInTheDocument();
+    expect(screen.getByTestId("rolling-market-card")).toBeInTheDocument();
   });
 
   it("renders Trending layout with market types strip and full-width market grid", async () => {

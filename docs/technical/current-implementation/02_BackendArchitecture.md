@@ -1,5 +1,7 @@
 # 02 Backend Architecture
 
+> **As-implemented:** [`.dev/backend/architecture.md`](../../../.dev/backend/architecture.md) and [`.dev/backend/README.md`](../../../.dev/backend/README.md).
+
 ## Runtime Processes
 - `apps/backend/cmd/api/main.go`: main HTTP + websocket service, route registration, workers, DB pool, and shutdown coordination.
 - `apps/backend/cmd/indexer/main.go`: chain event ingestion loop writing projections and realtime envelopes.

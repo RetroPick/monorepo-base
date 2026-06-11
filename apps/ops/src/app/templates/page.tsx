@@ -1,5 +1,5 @@
-import { fetchOpsTemplates } from "@/lib/api";
 import { TemplatesDataTable } from "@/components/templates/TemplatesDataTable";
+import { fetchOpsTemplates } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 

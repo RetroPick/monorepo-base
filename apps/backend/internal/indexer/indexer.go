@@ -7,9 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
-	"os"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,22 +15,33 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/abiembed"
 	"retropick/apps/backend/internal/dbqueries"
+	"retropick/apps/backend/internal/keeper"
 	"retropick/apps/backend/internal/realtime"
 )
 
 type Service struct {
 	pool   *pgxpool.Pool
-	client *ethclient.Client
-	proxy  common.Address
-	abi    abi.ABI
-	log    *slog.Logger
+	client interface {
+		BlockNumber(context.Context) (uint64, error)
+		HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
+		FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error)
+	}
+	proxy common.Address
+	abi   abi.ABI
+	log   *slog.Logger
+	cfg   Config
+}
+
+type Config struct {
+	FinalityDepth  uint64
+	StartBlock     uint64
+	LookbackBlocks uint64
 }
 
 type projectionEventMeta struct {
@@ -50,7 +59,11 @@ type projectionOutcomeState struct {
 	MultiplierBps  int32
 }
 
-func NewService(pool *pgxpool.Pool, client *ethclient.Client, proxyHex string, log *slog.Logger) (*Service, error) {
+func NewService(pool *pgxpool.Pool, client interface {
+	BlockNumber(context.Context) (uint64, error)
+	HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
+	FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error)
+}, proxyHex string, cfg Config, log *slog.Logger) (*Service, error) {
 	if !common.IsHexAddress(proxyHex) {
 		return nil, fmt.Errorf("invalid proxy address %q", proxyHex)
 	}
@@ -64,6 +77,7 @@ func NewService(pool *pgxpool.Pool, client *ethclient.Client, proxyHex string, l
 		proxy:  common.HexToAddress(proxyHex),
 		abi:    parsed,
 		log:    log,
+		cfg:    cfg,
 	}, nil
 }
 
@@ -78,16 +92,13 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 	if err != nil {
 		return fmt.Errorf("block number: %w", err)
 	}
-	finalityDepth := uint64(3)
-	if raw := strings.TrimSpace(os.Getenv("INDEXER_FINALITY_DEPTH")); raw != "" {
-		if n, parseErr := strconv.ParseUint(raw, 10, 64); parseErr == nil {
-			finalityDepth = n
-		}
+	finalityDepth := s.cfg.FinalityDepth
+	if finalityDepth == 0 {
+		finalityDepth = 3
 	}
 	if head <= finalityDepth {
 		return nil
 	}
-	stableHead := head - finalityDepth
 	if state.LastBlock > 0 && state.LastBlockHash.Valid {
 		prevHdr, err := s.client.HeaderByNumber(ctx, big.NewInt(state.LastBlock))
 		if err != nil {
@@ -111,6 +122,22 @@ func (s *Service) SyncOnce(ctx context.Context, maxBlocks uint64) error {
 				return fmt.Errorf("reorg truncate projections: %w", err)
 			}
 			if _, err := tx.Exec(ctx, `
+UPDATE keeper_schedule
+SET status = 'failed',
+    last_error = $1,
+    claimed_by = NULL,
+    claimed_at = NULL
+WHERE status IN ('pending', 'claimed')
+`, fmt.Sprintf("reorg rewind to block %d", rewindTo)); err != nil {
+				return fmt.Errorf("reorg cancel keeper jobs: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `
+INSERT INTO incidents (title, severity, payload)
+VALUES ('indexer reorg rewind', 'high', $1::jsonb)
+`, fmt.Sprintf(`{"rewindTo":%d,"previousLastBlock":%d}`, rewindTo, state.LastBlock)); err != nil {
+				return fmt.Errorf("reorg incident: %w", err)
+			}
+			if _, err := tx.Exec(ctx, `
 UPDATE indexer_state
 SET last_block = $1, last_block_hash = NULL, reorg_depth = $2, last_indexed_at = NOW()
 WHERE id = 1
@@ -123,26 +150,9 @@ WHERE id = 1
 			return fmt.Errorf("reorg detected; rewound to block %d", rewindTo)
 		}
 	}
-	from := uint64(state.LastBlock) + 1
-	if state.LastBlock == 0 {
-		lookback := uint64(50_000)
-		if v := os.Getenv("INDEXER_LOOKBACK_BLOCKS"); v != "" {
-			if n, err := strconv.ParseUint(v, 10, 64); err == nil && n > 0 {
-				lookback = n
-			}
-		}
-		if head > lookback {
-			from = head - lookback
-		} else {
-			from = 1
-		}
-	}
-	if from > stableHead {
+	from, to, ok := resolveSyncWindow(uint64(state.LastBlock), head, maxBlocks, s.cfg)
+	if !ok {
 		return nil
-	}
-	to := from + maxBlocks - 1
-	if to > stableHead {
-		to = stableHead
 	}
 
 	query := ethereum.FilterQuery{
@@ -234,6 +244,39 @@ WHERE id = 1
 	return nil
 }
 
+func resolveSyncWindow(lastBlock, head, maxBlocks uint64, cfg Config) (uint64, uint64, bool) {
+	if maxBlocks == 0 {
+		return 0, 0, false
+	}
+	finalityDepth := cfg.FinalityDepth
+	if finalityDepth == 0 {
+		finalityDepth = 3
+	}
+	if head <= finalityDepth {
+		return 0, 0, false
+	}
+	stableHead := head - finalityDepth
+	from := lastBlock + 1
+	if lastBlock == 0 {
+		switch {
+		case cfg.StartBlock > 0:
+			from = cfg.StartBlock
+		case cfg.LookbackBlocks > 0 && stableHead > cfg.LookbackBlocks:
+			from = stableHead - cfg.LookbackBlocks
+		default:
+			from = 1
+		}
+	}
+	if from > stableHead {
+		return 0, 0, false
+	}
+	to := from + maxBlocks - 1
+	if to > stableHead {
+		to = stableHead
+	}
+	return from, to, true
+}
+
 func (s *Service) handleLog(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log) error {
 	ev, err := s.abi.EventByID(lg.Topics[0])
 	if err != nil {
@@ -269,6 +312,12 @@ func (s *Service) handleLog(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries
 		return s.onEpochResolved(ctx, tx, q, realtimeSeqs, lg, ev)
 	case "EpochResolvedV2":
 		return s.onEpochResolvedV2(ctx, tx, q, realtimeSeqs, lg)
+	case "RollingGenesisStarted":
+		return s.onRollingGenesisStarted(ctx, tx, lg)
+	case "RollingGenesisLocked":
+		return s.onRollingGenesisLocked(ctx, tx, lg)
+	case "RollingRoundExecuted":
+		return s.onRollingRoundExecuted(ctx, tx, lg)
 	case "PositionDeposited":
 		return s.onPositionDeposited(ctx, tx, realtimeSeqs, lg, payload)
 	case "SideSwitched":
@@ -465,6 +514,9 @@ func (s *Service) onEpochOpened(ctx context.Context, tx pgx.Tx, q *dbqueries.Que
 	if err := s.initializeProjection(ctx, tx, tid, eid, int64(lg.BlockNumber), "open"); err != nil {
 		return err
 	}
+	if err := s.scheduleNextLifecycleAction(ctx, tx, tid, eid); err != nil {
+		return err
+	}
 	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_opened", tid, eid, lg)
 }
 
@@ -479,6 +531,9 @@ func (s *Service) onEpochLocked(ctx context.Context, tx pgx.Tx, q *dbqueries.Que
 		return err
 	}
 	if err := s.updateSnapshotStatus(ctx, tx, tid, eid, "locked", int64(lg.BlockNumber)); err != nil {
+		return err
+	}
+	if err := s.scheduleManualResolve(ctx, tx, tid, eid); err != nil {
 		return err
 	}
 	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_locked", tid, eid, lg)
@@ -535,6 +590,128 @@ func (s *Service) onEpochResolvedV2(ctx context.Context, tx pgx.Tx, q *dbqueries
 		return err
 	}
 	return s.emitProjectionEvent(ctx, tx, realtimeSeqs, "epoch_resolved", tid, eid, lg)
+}
+
+func (s *Service) onRollingGenesisStarted(ctx context.Context, tx pgx.Tx, lg types.Log) error {
+	tid := lg.Topics[1].Bytes()
+	if _, err := tx.Exec(ctx, `
+UPDATE templates
+SET rolling_phase = 1, updated_at = NOW()
+WHERE template_id = $1
+`, tid); err != nil {
+		return err
+	}
+	return s.scheduleCurrentRollingAction(ctx, tx, tid, keeper.ActionGenesisLockRolling)
+}
+
+func (s *Service) onRollingGenesisLocked(ctx context.Context, tx pgx.Tx, lg types.Log) error {
+	tid := lg.Topics[1].Bytes()
+	if _, err := tx.Exec(ctx, `
+UPDATE templates
+SET rolling_phase = 2, updated_at = NOW()
+WHERE template_id = $1
+`, tid); err != nil {
+		return err
+	}
+	return s.scheduleCurrentRollingAction(ctx, tx, tid, keeper.ActionExecuteRollingRound)
+}
+
+func (s *Service) onRollingRoundExecuted(ctx context.Context, tx pgx.Tx, lg types.Log) error {
+	return s.scheduleCurrentRollingAction(ctx, tx, lg.Topics[1].Bytes(), keeper.ActionExecuteRollingRound)
+}
+
+func (s *Service) scheduleNextLifecycleAction(ctx context.Context, tx pgx.Tx, tid []byte, eid int64) error {
+	var executionMode int16
+	var rollingPhase int16
+	if err := tx.QueryRow(ctx, `
+SELECT execution_mode, rolling_phase
+FROM templates
+WHERE template_id = $1
+`, tid).Scan(&executionMode, &rollingPhase); err != nil {
+		return err
+	}
+	var lockAt, resolveAt time.Time
+	if err := tx.QueryRow(ctx, `
+SELECT lock_at, resolve_at
+FROM epochs
+WHERE template_id = $1 AND epoch_id = $2
+`, tid, eid).Scan(&lockAt, &resolveAt); err != nil {
+		return err
+	}
+	if executionMode == 1 {
+		action := keeper.ActionExecuteRollingRound
+		if rollingPhase == 1 {
+			action = keeper.ActionGenesisLockRolling
+		}
+		return keeper.ScheduleIfAbsent(ctx, tx, keeper.ScheduleParams{
+			TemplateID:  tid,
+			EpochID:     &eid,
+			Action:      action,
+			ScheduledAt: lockAt,
+			WindowEndAt: resolveAt,
+		})
+	}
+	return keeper.ScheduleIfAbsent(ctx, tx, keeper.ScheduleParams{
+		TemplateID:  tid,
+		EpochID:     &eid,
+		Action:      keeper.ActionLockEpoch,
+		ScheduledAt: lockAt,
+		WindowEndAt: resolveAt,
+	})
+}
+
+func (s *Service) scheduleManualResolve(ctx context.Context, tx pgx.Tx, tid []byte, eid int64) error {
+	var executionMode int16
+	if err := tx.QueryRow(ctx, `
+SELECT execution_mode
+FROM templates
+WHERE template_id = $1
+`, tid).Scan(&executionMode); err != nil {
+		return err
+	}
+	if executionMode != 0 {
+		return nil
+	}
+	var resolveAt time.Time
+	if err := tx.QueryRow(ctx, `
+SELECT resolve_at
+FROM epochs
+WHERE template_id = $1 AND epoch_id = $2
+`, tid, eid).Scan(&resolveAt); err != nil {
+		return err
+	}
+	return keeper.ScheduleIfAbsent(ctx, tx, keeper.ScheduleParams{
+		TemplateID:  tid,
+		EpochID:     &eid,
+		Action:      keeper.ActionResolveEpoch,
+		ScheduledAt: resolveAt,
+		WindowEndAt: resolveAt.Add(15 * time.Minute),
+	})
+}
+
+func (s *Service) scheduleCurrentRollingAction(ctx context.Context, tx pgx.Tx, tid []byte, action keeper.Action) error {
+	var eid int64
+	var lockAt, resolveAt time.Time
+	if err := tx.QueryRow(ctx, `
+SELECT e.epoch_id, e.lock_at, e.resolve_at
+FROM epochs e
+JOIN ledgers l ON l.template_id = e.template_id AND l.active_epoch_id = e.epoch_id
+WHERE e.template_id = $1
+ORDER BY e.epoch_id DESC
+LIMIT 1
+`, tid).Scan(&eid, &lockAt, &resolveAt); err != nil {
+		if err == pgx.ErrNoRows {
+			return nil
+		}
+		return err
+	}
+	return keeper.ScheduleIfAbsent(ctx, tx, keeper.ScheduleParams{
+		TemplateID:  tid,
+		EpochID:     &eid,
+		Action:      action,
+		ScheduledAt: lockAt,
+		WindowEndAt: resolveAt,
+	})
 }
 
 func (s *Service) onPositionDeposited(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, lg types.Log, payload map[string]any) error {
@@ -977,7 +1154,7 @@ VALUES ($1, $2, $3, $4, $5, NULLIF($6, ''), NULLIF($7, 0), $8, $9::numeric, $10:
 
 func (s *Service) nextProbabilityPointSeq(ctx context.Context, tx pgx.Tx) (int64, error) {
 	var seq int64
-	err := tx.QueryRow(ctx, `SELECT COALESCE(MAX(seq), 0) + 1 FROM probability_points`).Scan(&seq)
+	err := tx.QueryRow(ctx, `SELECT nextval('probability_points_seq')`).Scan(&seq)
 	return seq, err
 }
 

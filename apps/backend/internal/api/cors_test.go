@@ -23,15 +23,15 @@ func TestBuildCORSAllowOriginFunc_LocalhostHighPortWhenNotStrict(t *testing.T) {
 	}
 }
 
-func TestBuildCORSAllowOriginFunc_StrictBlocksArbitraryPort(t *testing.T) {
+func TestBuildCORSAllowOriginFunc_StrictBlocksLocalhostUnlessConfigured(t *testing.T) {
 	t.Setenv("CORS_STRICT", "1")
 	t.Cleanup(func() { _ = os.Unsetenv("CORS_STRICT") })
 	f := BuildCORSAllowOriginFunc()
 	if f(nil, "http://localhost:3002") {
 		t.Fatal("expected localhost:3002 blocked in strict mode")
 	}
-	if !f(nil, "http://localhost:3001") {
-		t.Fatal("expected default list still allows 3001")
+	if f(nil, "http://localhost:3001") {
+		t.Fatal("expected default localhost origins blocked in strict mode")
 	}
 }
 

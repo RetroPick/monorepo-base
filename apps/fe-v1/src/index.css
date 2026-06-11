@@ -45,6 +45,9 @@
 
 @layer base {
    :root {
+    --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-display: "Plus Jakarta Sans", "Inter", "Segoe UI", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", monospace;
     /* Light: cool gray surfaces; avoid pure white; matches dark theme hue family */
     --background: 220 16% 93%;
     --foreground: 222 24% 11%;

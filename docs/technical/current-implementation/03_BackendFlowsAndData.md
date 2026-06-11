@@ -1,5 +1,7 @@
 # 03 Backend Flows And Data
 
+> **As-implemented:** [`.dev/backend/`](../../../.dev/backend/README.md) (indexer, realtime, funding).
+
 ## Core Data Flow
 
 ```mermaid

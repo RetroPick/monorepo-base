@@ -1,0 +1,336 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import {MarketEngineState} from "../MarketEngineState.sol";
+import {IYieldRouterV2} from "../../interfaces/IYieldRouterV2.sol";
+import {IYieldRouterV3} from "../../interfaces/IYieldRouterV3.sol";
+import {IPriceOracle} from "../../interfaces/IPriceOracle.sol";
+import {MarketTypes} from "../../types/MarketTypes.sol";
+import {MarketMath} from "../../math/MarketMath.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+/// @notice Admin/config module extracted from monolithic MarketEngine.
+/// @dev Runs via delegatecall from `MarketEngineDispatcher`.
+contract MarketEngineAdminModule is MarketEngineState {
+    using SafeERC20 for IERC20;
+
+    function pauseProgram(bool paused) external {
+        _authAdmin();
+        if (!paused && (yieldRouterDisabled || totalUnreconciledRecovered != 0)) {
+            revert UnsafeToUnpause(yieldRouterDisabled, totalUnreconciledRecovered);
+        }
+        globalPaused = paused;
+    }
+
+    function setWorkerAuthority(address worker) external {
+        _authAdmin();
+        if (worker == address(0)) revert InvalidAuthority();
+        address prev = workerAuthority;
+        workerAuthority = worker;
+        emit WorkerAuthorityUpdated(prev, worker);
+    }
+
+    function setTreasury(address t) external {
+        _authAdmin();
+        if (t == address(0)) revert InvalidAuthority();
+        address prev = treasury;
+        treasury = t;
+        emit TreasuryUpdated(prev, t);
+    }
+
+    function setDepositExecutor(address account, bool allowed) external {
+        _authAdmin();
+        isDepositExecutor[account] = allowed;
+        emit DepositExecutorSet(account, allowed);
+    }
+
+    function setYieldRouter(address router, uint16 feeBps) external {
+        _authAdmin();
+        if (feeBps > 10_000) revert InvalidFeeBps();
+        address old = address(yieldRouter);
+        if (old != router && old != address(0) && totalRoutedPrincipal != 0) {
+            revert OutstandingRoutedPrincipal(totalRoutedPrincipal);
+        }
+        if (old != router) {
+            _syncYieldRouterApproval(old, router);
+        }
+        yieldRouter = IYieldRouterV2(router);
+        yieldFeeBps = router == address(0) ? 0 : feeBps;
+        if (old != router) {
+            yieldRouterFailureCount = 0;
+            yieldRouterDisabled = false;
+        }
+        if (router == address(0)) {
+            lmRewardsEnabled = false;
+        }
+        emit YieldRouterSet(old, router, yieldFeeBps);
+        if (old != router) {
+            emit YieldRouterFailureStateReset();
+        }
+    }
+
+    function setRateOracle(address oracle) external {
+        _authAdmin();
+        if (oracle == address(0)) revert InvalidOracleFeed();
+        address old = address(rateOracle);
+        _requirePausedForOracleAdapterReplacement(old, oracle);
+        rateOracle = IPriceOracle(oracle);
+        emit RateOracleSet(old, oracle);
+    }
+
+    function setSmartDataOracle(address oracle) external {
+        _authAdmin();
+        if (oracle == address(0)) revert InvalidOracleFeed();
+        address old = address(smartDataOracle);
+        _requirePausedForOracleAdapterReplacement(old, oracle);
+        smartDataOracle = IPriceOracle(oracle);
+        emit SmartDataOracleSet(old, oracle);
+    }
+
+    function setMacroOracle(address oracle) external {
+        _authAdmin();
+        if (oracle == address(0)) revert InvalidOracleFeed();
+        address old = address(macroOracle);
+        _requirePausedForOracleAdapterReplacement(old, oracle);
+        macroOracle = IPriceOracle(oracle);
+        emit MacroOracleSet(old, oracle);
+    }
+
+    function setEquityOracle(address oracle) external {
+        _authAdmin();
+        if (oracle == address(0)) revert InvalidOracleFeed();
+        address old = address(equityOracle);
+        _requirePausedForOracleAdapterReplacement(old, oracle);
+        equityOracle = IPriceOracle(oracle);
+        emit EquityOracleSet(old, oracle);
+    }
+
+    function resetOracleCursor(bytes32 templateId, bytes32 feedId) external {
+        _authAdmin();
+        if (_templates[templateId].version == 0) revert InvalidTemplate();
+        if (feedId == bytes32(0)) revert InvalidOracleFeed();
+        MarketTypes.Ledger storage ledger = _ledgers[templateId];
+        uint64 activeEpochId = ledger.activeEpochId;
+        if (activeEpochId != 0) {
+            MarketTypes.EpochStatus status = _epochs[templateId][activeEpochId].status;
+            if (status == MarketTypes.EpochStatus.Open || status == MarketTypes.EpochStatus.Locked) {
+                revert OracleCursorResetWhileEpochActive(templateId, activeEpochId, uint8(status));
+            }
+        }
+        delete lastOracleCursorByTemplateFeed[templateId][feedId];
+        delete oracleCursorUsesRoundId[templateId][feedId];
+        emit OracleCursorReset(templateId, feedId);
+    }
+
+    function setLmRewardsEnabled(bool enabled) external {
+        _authAdmin();
+        if (enabled && address(yieldRouter) == address(0)) revert Unauthorized();
+        lmRewardsEnabled = enabled;
+        emit LMRewardsEnabledUpdated(enabled);
+    }
+
+    function keeperClaimLmRewards(bytes32 templateId) external {
+        _authAdminOrWorker();
+        IYieldRouterV2 r = yieldRouter;
+        if (address(r) == address(0)) revert Unauthorized();
+        if (!lmRewardsEnabled) return;
+        (address[] memory tokens, uint256[] memory amounts) = r.claimLmRewards(templateId);
+        uint256 n = tokens.length;
+        for (uint256 i; i < n; ++i) {
+            if (amounts[i] > 0) {
+                emit LMRewardReceived(templateId, tokens[i], amounts[i]);
+            }
+        }
+    }
+
+    function yieldEmergencyWithdraw(bytes32 templateId) external {
+        _authAdmin();
+        if (!globalPaused) revert ProtocolPaused();
+        if (_templates[templateId].version == 0 || !_ledgers[templateId].initialized) revert InvalidTemplate();
+        IYieldRouterV2 r = yieldRouter;
+        if (address(r) == address(0)) revert Unauthorized();
+        uint256 balBefore = stakeToken.balanceOf(address(this));
+        r.emergencyWithdraw(templateId);
+        uint256 balAfter = stakeToken.balanceOf(address(this));
+        if (balAfter < balBefore) revert YieldRouterBalanceInvariant();
+        uint256 grossAmount;
+        unchecked {
+            grossAmount = balAfter - balBefore;
+        }
+        if (grossAmount > 0) {
+            _unreconciledRecoveredByTemplate[templateId] += grossAmount;
+            totalUnreconciledRecovered += grossAmount;
+        }
+        emit YieldEmergencyWithdrawn(templateId, grossAmount);
+    }
+
+    function reconcileEpochRoutedPrincipal(bytes32 templateId, uint64 epochId, uint256 recoveredPrincipal) external {
+        _authAdmin();
+        if (!globalPaused) revert ProtocolPaused();
+        if (recoveredPrincipal == 0) revert NothingToClaim();
+        MarketTypes.Epoch storage e = _epochs[templateId][epochId];
+        if (!e.exists) revert InvalidEpochState();
+        if (recoveredPrincipal > e.routedPrincipal) revert YieldRouterBalanceInvariant();
+        uint256 availableRecovered = _unreconciledRecoveredByTemplate[templateId];
+        if (recoveredPrincipal > availableRecovered) {
+            revert UnreconciledRecoveryInsufficient(templateId, availableRecovered, recoveredPrincipal);
+        }
+        unchecked {
+            e.routedPrincipal -= recoveredPrincipal;
+            totalRoutedPrincipal -= recoveredPrincipal;
+            _templateRoutedPrincipal[templateId] -= recoveredPrincipal;
+            _unreconciledRecoveredByTemplate[templateId] = availableRecovered - recoveredPrincipal;
+            totalUnreconciledRecovered -= recoveredPrincipal;
+        }
+        if (totalRoutedPrincipal == 0) {
+            _finalizeRecoveredYield(templateId);
+        }
+        emit EpochRoutedPrincipalReconciled(templateId, epochId, recoveredPrincipal, e.routedPrincipal);
+    }
+
+    function recoverRoutedSettledClaims(bytes32 templateId, uint64 epochId, uint256 recoveredAmount) external {
+        _authAdmin();
+        if (!globalPaused) revert ProtocolPaused();
+        MarketTypes.Epoch storage e = _epochs[templateId][epochId];
+        if (!e.exists) revert InvalidEpochState();
+
+        SettledClaimRouting storage bucket = _settledClaimRouting[templateId][epochId];
+        if (!bucket.enabled || bucket.refundMode) revert InvalidEpochState();
+
+        uint256 availableRecovered = _unreconciledRecoveredByTemplate[templateId];
+        if (recoveredAmount > availableRecovered) {
+            revert UnreconciledRecoveryInsufficient(templateId, availableRecovered, recoveredAmount);
+        }
+
+        uint256 principalOutstanding = bucket.principalOutstanding;
+        _settledClaimRouting[templateId][epochId].enabled = false;
+        _settledClaimRouting[templateId][epochId].refundMode = false;
+        _settledClaimRouting[templateId][epochId].principalOutstanding = 0;
+        _settledClaimRouting[templateId][epochId].baseOutstanding = 0;
+        _settledClaimRouting[templateId][epochId].attributionOutstanding = 0;
+
+        unchecked {
+            totalRoutedPrincipal -= principalOutstanding;
+            _templateSettledClaimsRoutedPrincipal[templateId] -= principalOutstanding;
+            _unreconciledRecoveredByTemplate[templateId] = availableRecovered - recoveredAmount;
+            totalUnreconciledRecovered -= recoveredAmount;
+        }
+
+        if (recoveredAmount > 0) {
+            _vaults[templateId].claims += recoveredAmount;
+            _ledgers[templateId].claimsReserveTotal += recoveredAmount;
+        }
+        e.claimLiabilityTotal = e.claimedTotal + recoveredAmount;
+        emit EpochSettledClaimsRecovered(templateId, epochId, principalOutstanding, recoveredAmount);
+        emit EpochSettledClaimsRoutingDisabled(templateId, epochId);
+
+        if (totalRoutedPrincipal == 0) {
+            _finalizeRecoveredYield(templateId);
+        }
+    }
+
+    function finalizeRecoveredYield(bytes32 templateId) external {
+        _authAdmin();
+        if (!globalPaused) revert ProtocolPaused();
+        if (_templates[templateId].version == 0 || !_ledgers[templateId].initialized) revert InvalidTemplate();
+        if (totalRoutedPrincipal != 0) revert OutstandingRoutedPrincipal(totalRoutedPrincipal);
+        _finalizeRecoveredYield(templateId);
+    }
+
+    function reassignRecoveredBalance(bytes32 fromTemplateId, bytes32 toTemplateId, uint256 amount) external {
+        _authAdmin();
+        if (!globalPaused) revert ProtocolPaused();
+        if (amount == 0) revert NothingToClaim();
+        if (fromTemplateId == toTemplateId) revert InvalidTemplate();
+        if (_templates[toTemplateId].version == 0 || !_ledgers[toTemplateId].initialized) revert InvalidTemplate();
+        uint256 availableRecovered = _unreconciledRecoveredByTemplate[fromTemplateId];
+        if (amount > availableRecovered) {
+            revert UnreconciledRecoveryInsufficient(fromTemplateId, availableRecovered, amount);
+        }
+        unchecked {
+            _unreconciledRecoveredByTemplate[fromTemplateId] = availableRecovered - amount;
+            _unreconciledRecoveredByTemplate[toTemplateId] += amount;
+        }
+        emit EmergencyRecoveredBalanceReassigned(fromTemplateId, toTemplateId, amount);
+    }
+
+    function resetYieldRouterFailures() external {
+        _authAdmin();
+        if (!globalPaused) revert ProtocolPaused();
+        yieldRouterFailureCount = 0;
+        yieldRouterDisabled = false;
+        emit YieldRouterFailureStateReset();
+    }
+
+    function initializeMarket(bytes32 templateId) external {
+        _authAdmin();
+        MarketTypes.Template storage t = _templates[templateId];
+        if (t.version == 0) revert InvalidTemplate();
+        MarketTypes.Ledger storage ledger = _ledgers[templateId];
+        if (ledger.initialized) revert EpochAlreadyExists();
+
+        _lockYieldRouteIfRequired(templateId);
+
+        ledger.version = MarketTypes.VERSION;
+        ledger.initialized = true;
+        ledger.rollingPhase = MarketTypes.RollingPhase.Uninitialized;
+        ledger.rollingHaltReason = MarketTypes.RollingHaltReason.NoneReason;
+        ledger.rollingNextEpochId = 1;
+
+        emit MarketInitialized(templateId);
+    }
+
+    function _lockYieldRouteIfRequired(bytes32 templateId) internal {
+        IYieldRouterV2 r = yieldRouter;
+        if (address(r) == address(0)) return;
+
+        uint256 apiVersion;
+        try r.yieldRouterApiVersion() returns (uint256 version) {
+            apiVersion = version;
+        } catch {
+            return;
+        }
+        if (apiVersion < 2) return;
+
+        try IYieldRouterV3(address(r)).lockTemplateYieldRoute(templateId) returns (
+            bytes32 routeId,
+            address strategy,
+            IYieldRouterV3.StrategyKind kind
+        ) {
+            emit TemplateYieldRouteLocked(templateId, routeId, strategy, uint8(kind));
+        } catch {
+            revert InvalidYieldRoute(templateId);
+        }
+    }
+
+    function withdrawFees(bytes32 templateId, uint256 amount) external {
+        _authTreasuryOrAdmin();
+        if (amount == 0) revert NothingToClaim();
+        MarketTypes.Ledger storage ledger = _ledgers[templateId];
+        if (!ledger.initialized) revert InvalidTemplate();
+        if (ledger.feeReserveTotal < amount) revert NothingToClaim();
+
+        MarketMath.releaseFeeOnWithdraw(ledger, amount);
+        _vaults[templateId].fees -= amount;
+        stakeToken.safeTransfer(treasury, amount);
+        emit FeesWithdrawn(templateId, amount);
+    }
+
+    function _requirePausedForOracleAdapterReplacement(address oldOracle, address newOracle) internal view {
+        if (oldOracle != address(0) && oldOracle != newOracle && !globalPaused) {
+            revert OracleAdapterChangeRequiresPause(oldOracle, newOracle);
+        }
+    }
+
+    function _finalizeRecoveredYield(bytes32 templateId) internal {
+        if (_templateRoutedPrincipal[templateId] != 0) return;
+        uint256 excessRecovered = _unreconciledRecoveredByTemplate[templateId];
+        if (excessRecovered == 0) return;
+        _unreconciledRecoveredByTemplate[templateId] = 0;
+        totalUnreconciledRecovered -= excessRecovered;
+        _vaults[templateId].fees += excessRecovered;
+        _ledgers[templateId].feeReserveTotal += excessRecovered;
+        emit EmergencyRecoveredYieldBooked(templateId, excessRecovered);
+    }
+}

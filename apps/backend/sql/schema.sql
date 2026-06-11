@@ -72,7 +72,13 @@ CREATE TABLE keeper_schedule (
     scheduled_at TIMESTAMPTZ NOT NULL,
     window_end_at TIMESTAMPTZ NOT NULL,
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    attempt_count INT NOT NULL DEFAULT 0,
+    last_error TEXT,
+    tx_hash VARCHAR(66),
+    claimed_by TEXT,
+    claimed_at TIMESTAMPTZ,
+    preflight_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE keeper_executions (
@@ -83,7 +89,16 @@ CREATE TABLE keeper_executions (
     result VARCHAR(32) NOT NULL,
     tx_hash VARCHAR(66),
     error_message TEXT,
-    executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    executed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    schedule_id BIGINT REFERENCES keeper_schedule (id) ON DELETE SET NULL,
+    started_at TIMESTAMPTZ,
+    submitted_at TIMESTAMPTZ,
+    mined_at TIMESTAMPTZ,
+    gas_used BIGINT,
+    receipt_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    chain_id BIGINT,
+    nonce BIGINT,
+    preflight_snapshot JSONB NOT NULL DEFAULT '{}'::jsonb
 );
 
 CREATE TABLE incidents (
@@ -93,7 +108,10 @@ CREATE TABLE incidents (
     status VARCHAR(32) NOT NULL DEFAULT 'open',
     template_id BYTEA,
     payload JSONB NOT NULL DEFAULT '{}',
-    opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    opened_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    notified_at TIMESTAMPTZ,
+    notification_attempts INT NOT NULL DEFAULT 0,
+    last_error TEXT
 );
 
 CREATE TABLE market_epoch_outcomes (
@@ -149,6 +167,8 @@ CREATE TABLE market_read_models (
 
 CREATE INDEX idx_market_read_models_active
     ON market_read_models (active_epoch_id, last_indexed_block DESC);
+
+CREATE SEQUENCE probability_points_seq;
 
 CREATE TABLE probability_points (
     template_id BYTEA NOT NULL REFERENCES templates (template_id) ON DELETE CASCADE,
@@ -470,6 +490,22 @@ CREATE TABLE price_candles (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (feed_id, interval_sec, bucket_start)
 );
+
+CREATE TABLE oracle_feed_health (
+    feed_id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    round_id NUMERIC(78,0) NOT NULL DEFAULT 0,
+    price_e8 NUMERIC(38,0) NOT NULL DEFAULT 0,
+    publish_time TIMESTAMPTZ,
+    last_checked_at TIMESTAMPTZ NOT NULL,
+    stale BOOLEAN NOT NULL DEFAULT FALSE,
+    error_text TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_oracle_feed_health_stale_checked
+    ON oracle_feed_health (stale, last_checked_at DESC);
 
 -- Omitted from public /api/v1/markets; see migrations/000002_frontend_hidden.up.sql
 CREATE TABLE frontend_hidden_templates (

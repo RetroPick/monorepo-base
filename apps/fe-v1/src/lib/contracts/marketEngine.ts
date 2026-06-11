@@ -134,6 +134,12 @@ export type TemplateYieldView = {
   scaledPrincipal: bigint;
   stataShares: bigint;
   yieldFeeBpsCurrent: number;
+  yieldRouteId: `0x${string}`;
+  yieldStrategy: `0x${string}`;
+  yieldStrategyKind: number;
+  yieldRouteEnabled: boolean;
+  yieldRouteLocked: boolean;
+  yieldRouteCap: bigint;
 };
 
 export function useTemplateYieldView(templateId: `0x${string}` | undefined, chainId: number) {
@@ -164,7 +170,7 @@ function formatYieldFeePercent(bps: number): string {
 
 /**
  * Plain-language lines for the trade “Amount” card, driven by `getTemplateYieldView` /
- * `TemplateYieldView` (see package smart-contract `MarketEngineViewModule`).
+ * `TemplateYieldView` (see package/prediction-v2 `MarketEngineViewModule`).
  */
 export function buildYieldAmountHintLines(
   buyMode: "add" | "move",

@@ -11,20 +11,18 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-
 	"retropick/apps/backend/internal/abis"
 )
 
 // Caller performs read-only eth_calls against the MarketEngine proxy using embedded ABIs.
 type Caller struct {
-	rpcURL    string
-	client    *ethclient.Client
-	marketABI abi.ABI
-	dispABI   abi.ABI
-	mu        sync.Mutex
-	globalTTL time.Duration
-	global    cachedGlobalView
+	client     *failoverClient
+	marketABI  abi.ABI
+	dispABI    abi.ABI
+	adapterABI abi.ABI
+	mu         sync.Mutex
+	globalTTL  time.Duration
+	global     cachedGlobalView
 }
 
 type cachedGlobalView struct {
@@ -33,8 +31,8 @@ type cachedGlobalView struct {
 	expiresAt time.Time
 }
 
-// NewCaller parses embedded ABIs and dials RPC (lazy on first use if you pass Dial in New).
-func NewCaller(rpcURL string) (*Caller, error) {
+// NewCaller parses embedded ABIs and prepares a lazy RPC failover client.
+func NewCaller(rpcURL string, fallbackURLs ...string) (*Caller, error) {
 	marketABI, err := abi.JSON(strings.NewReader(string(abis.IMarketEngineJSON)))
 	if err != nil {
 		return nil, fmt.Errorf("market abi: %w", err)
@@ -43,7 +41,16 @@ func NewCaller(rpcURL string) (*Caller, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dispatcher abi: %w", err)
 	}
-	return &Caller{rpcURL: rpcURL, marketABI: marketABI, dispABI: dispABI}, nil
+	adapterABI, err := abi.JSON(strings.NewReader(string(abis.ChainlinkAdapterJSON)))
+	if err != nil {
+		return nil, fmt.Errorf("chainlink adapter abi: %w", err)
+	}
+	return &Caller{
+		client:     newFailoverClient(rpcURL, fallbackURLs),
+		marketABI:  marketABI,
+		dispABI:    dispABI,
+		adapterABI: adapterABI,
+	}, nil
 }
 
 func (c *Caller) SetGlobalCacheTTL(ttl time.Duration) {
@@ -52,26 +59,10 @@ func (c *Caller) SetGlobalCacheTTL(ttl time.Duration) {
 	c.globalTTL = ttl
 }
 
-func (c *Caller) ensureClient(ctx context.Context) (*ethclient.Client, error) {
-	if c.client != nil {
-		return c.client, nil
-	}
-	if c.rpcURL == "" {
-		return nil, fmt.Errorf("RPC_URL not configured")
-	}
-	cl, err := ethclient.DialContext(ctx, c.rpcURL)
-	if err != nil {
-		return nil, err
-	}
-	c.client = cl
-	return c.client, nil
-}
-
 // Close releases the underlying client if dialed.
 func (c *Caller) Close() {
 	if c.client != nil {
 		c.client.Close()
-		c.client = nil
 	}
 }
 
@@ -244,16 +235,12 @@ func (c *Caller) GetSelectorModule(ctx context.Context, proxy common.Address, se
 
 // callContract performs an eth_call to an arbitrary contract address.
 func (c *Caller) callContract(ctx context.Context, to common.Address, input []byte) ([]byte, uint64, error) {
-	cl, err := c.ensureClient(ctx)
-	if err != nil {
-		return nil, 0, err
-	}
 	msg := ethereum.CallMsg{To: &to, Data: input}
-	raw, err := cl.CallContract(ctx, msg, nil)
+	raw, err := c.client.CallContract(ctx, msg, nil)
 	if err != nil {
 		return nil, 0, err
 	}
-	head, err := cl.HeaderByNumber(ctx, nil)
+	head, err := c.client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		return raw, 0, nil
 	}
@@ -265,11 +252,7 @@ func (c *Caller) call(ctx context.Context, proxy common.Address, input []byte) (
 }
 
 func (c *Caller) BlockNumber(ctx context.Context) (uint64, error) {
-	cl, err := c.ensureClient(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return cl.BlockNumber(ctx)
+	return c.client.BlockNumber(ctx)
 }
 
 // PrepareTx builds calldata for a whitelisted write on the proxy.
@@ -280,7 +263,11 @@ func (c *Caller) PrepareTx(chainID int64, proxy common.Address, method string, a
 	if value.Sign() != 0 {
 		return nil, fmt.Errorf("non-zero value not supported for prepared ops txs")
 	}
-	calldata, err = c.marketABI.Pack(method, args...)
+	packABI := c.marketABI
+	if method == "setFeedDecimals" {
+		packABI = c.adapterABI
+	}
+	calldata, err = packABI.Pack(method, args...)
 	if err != nil {
 		return nil, err
 	}

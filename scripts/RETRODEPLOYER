@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
 # RETRODEPLOYER — single entry point for RetroPick market prepare + broadcast helpers.
-# Run only from the V1 monorepo root: ./scripts/RETRODEPLOYER <subcommand> [args]
-# Shorthand: ./scripts/retro  or  ./scripts/retro menu  — same as  ./scripts/RETRODEPLOYER menu
-# (If you are in package/contract, `cd` to the repo root first; ./scripts/ there is a different path.)
+# Compatibility shim for legacy market commands. Prefer: retro market <subcommand> [args]
 #
-# Delegates to package/contract/scripts/market/*.sh (no duplicate HTTP/cast logic).
+# Uses repository-owned scripts/market helpers for HTTP prepare and cast broadcast.
 set -euo pipefail
 
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 V1_ROOT="$(cd "$_SCRIPT_DIR/.." && pwd)"
 export V1_ROOT
-CONTRACT_DIR="$V1_ROOT/package/contract"
-MARKET_DIR="$CONTRACT_DIR/scripts/market"
+CONTRACT_DIR="$V1_ROOT/package/prediction-v2"
+MARKET_DIR="$V1_ROOT/scripts/market"
 UPSERT_DIR="${UPSERT_DIR:-$CONTRACT_DIR/.operator/upsert-params}"
 RETRODEPLOYER_BROADCAST_SCRIPT="${RETRODEPLOYER_BROADCAST_SCRIPT:-$MARKET_DIR/broadcast-prepared-ops-tx.sh}"
 RETRODEPLOYER_MANIFEST="${RETRODEPLOYER_MANIFEST:-}"
@@ -46,9 +44,9 @@ _retro_color_init() {
 }
 _retro_color_init
 
-# Same as package/contract/scripts/market/{prepare-upsert,broadcast}*.sh: load RPC, CAST_ACCOUNT, API_URL, etc.
+# Shared RPC, CAST_ACCOUNT, API_URL, and operator-token environment.
 # shellcheck disable=SC1091
-source "$CONTRACT_DIR/scripts/lib/load-env.sh"
+source "$V1_ROOT/scripts/lib/load-env.sh"
 if [[ -f "$CONTRACT_DIR/.env" ]]; then
   load_repo_env "$CONTRACT_DIR/.env"
 fi
@@ -112,7 +110,7 @@ _resolve_types() {
   done
 }
 
-# Accept manual fixture keys "1".."9" or "01".."09" (see package/contract/.operator/upsert-params/*.manual.json).
+# Accept manual fixture keys "1".."9" or "01".."09" (see package/prediction-v2/.operator/upsert-params/*.manual.json).
 _normalize_manual_type_key() {
   local k="${1:?}"
   k="${k//[[:space:]]/}"
@@ -807,7 +805,7 @@ _cmd_feeds() {
     cat <<'EOF'
 usage: RETRODEPLOYER feeds <sub> [args]
   discover [--rpc-url ...] [--engine 0x...] [--source path] [--out path] [-v]
-        Parse package/contract/.docs/market/baseFeeds.md, validate each candidate has
+        Parse package/prediction-v2/.docs/market/baseFeeds.md, validate each candidate has
         on-chain code (skip hallucinated rows), then probe via the matching adapter
         (price | rate | smartdata | macro | equity) using the engine as msg.sender.
         Writes JSON of the result to /tmp/retropick-feeds-discover.json.
@@ -930,7 +928,7 @@ _retro_classify_feed_revert() {
 # via the engine→<class adapter>.getNormalizedPrice() to produce a JSON of usable feeds
 # at /tmp/retropick-feeds-discover.json (or --out path).
 _cmd_feeds_discover() {
-  local rpc="${RPC_URL:-}" engine="" md="$V1_ROOT/package/contract/.docs/market/baseFeeds.md"
+  local rpc="${RPC_URL:-}" engine="" md="$V1_ROOT/package/prediction-v2/.docs/market/baseFeeds.md"
   local out_json="/tmp/retropick-feeds-discover.json" verbose=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -1177,7 +1175,7 @@ _cmd_feeds_probe() {
     echo "feeds probe: $ok readable feed(s) — engine can lock/resolve against any of them." >&2
     echo "next: pick one and update both files, then re-upsert the template:" >&2
     echo "  apps/backend/internal/feedregistry/registry.json    (proxyAddress)" >&2
-    echo "  package/contract/.operator/upsert-params/<NN>-*.json  (oracleFeedId = 0x000…<20-byte addr>)" >&2
+    echo "  package/prediction-v2/.operator/upsert-params/<NN>-*.json  (oracleFeedId = 0x000…<20-byte addr>)" >&2
     echo "  $V1_ROOT/scripts/RETRODEPLOYER prepare upsert <NN>  &&  send the prepared JSON" >&2
     return 0
   fi
@@ -1285,7 +1283,7 @@ _cmd_feeds_set_decimals() {
 _cmd_feeds_auto_assign() {
   local typ_filter="all" rediscover=0 sync_registry=1 dry=0
   local discover_json="/tmp/retropick-feeds-discover.json"
-  local md="$V1_ROOT/package/contract/.docs/market/baseFeeds.md"
+  local md="$V1_ROOT/package/prediction-v2/.docs/market/baseFeeds.md"
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --rediscover) rediscover=1; shift ;;
@@ -1448,7 +1446,7 @@ PY
 # Detect-and-recover a stuck Open/Locked epoch whose snapshotted oracleFeedId no longer
 # resolves (e.g. gated Chainlink feed swapped out via a new upsertTemplate). The on-chain
 # lockEpoch reads `e.oracleFeedId` (snapshot at openEpoch time, see
-# package/contract/src/engine/MarketEngineSettlement.sol::_snapshotEpochTemplateMarketConfig),
+# package/prediction-v2/src/engine/MarketEngineSettlement.sol::_snapshotEpochTemplateMarketConfig),
 # so re-upserting the template does NOT fix the open epoch — only cancelEpoch + reopen does.
 #
 # Args: <templateId> [<indexer-wait-after-tx>]
@@ -1945,12 +1943,12 @@ _cmd_template_routes() {
   echo "  $V1_ROOT/scripts/RETRODEPLOYER activate-epoch 0x<64 hex> [--epoch-id N]   # positional, same as --template-id"
   echo "  $V1_ROOT/scripts/RETRODEPLOYER advance-epoch <1-9|0x|--template-id ...> [--wait 30]   # alias for activate-epoch --advance"
   echo "  $V1_ROOT/scripts/RETRODEPLOYER routes   # (this screen)"
-  echo "See also: package/contract/.operator/.runbook.md"
+  echo "See also: package/prediction-v2/.operator/.runbook.md"
 }
 
 _cmd_help() {
   _print_design_banner
-  echo -e "${M}${B}Interface${R}  ${D}· calldata (prepare) + broadcast (cast send)  ·  ${D}source:${R} ${S}package/contract/scripts/market/${R}"
+  echo -e "${M}${B}Interface${R}  ${D}· calldata (prepare) + broadcast (cast send)  ·  ${D}source:${R} ${S}scripts/market/${R}"
   echo ""
   echo -e "${A}${B}  ★  deploy  ${R}${D}← full pipeline: 9 types, keystore + password${R}"
   echo -e "     ${C}./scripts/retro d${R}  ${D}|${R}  ${C}./scripts/RETRODEPLOYER deploy-all${R}  ${D}|${R}  ${C}pnpm run retropick:deploy${R}"
@@ -2000,7 +1998,7 @@ _cmd_help() {
   echo -e "  ${C}./scripts/RETRODEPLOYER emergency prepare yield-withdraw <templateId>${R}"
   echo ""
   echo -e "${T}${B}Env${R}"
-  echo -e "  ${D}Loads${R} ${M}package/contract/.env${R} ${D}·${R} ${M}API_URL${R} ${D}default${R} http://127.0.0.1:8080  ·  ${M}RPC_URL${R} ${D}·${R} ${M}CAST_ACCOUNT${R} ${D}·${R} ${M}ETH_PASSWORD${R} ${D}(optional path to one-line keystore password file; Foundry)${R}"
+  echo -e "  ${D}Loads${R} ${M}package/prediction-v2/.env${R} ${D}·${R} ${M}API_URL${R} ${D}default${R} http://127.0.0.1:8080  ·  ${M}RPC_URL${R} ${D}·${R} ${M}CAST_ACCOUNT${R} ${D}·${R} ${M}ETH_PASSWORD${R} ${D}(optional path to one-line keystore password file; Foundry)${R}"
   echo -e "  ${D}Launch (open):${R} ${M}OPEN_AT LOCK_AT RESOLVE_AT EPOCH_ID${R}"
   echo -e "  ${D}Send:${R} ${M}SKIP_CHAIN_CHECK DRY_RUN${R}"
   echo -e "  ${D}deploy-all / activate-epoch / prepare-open times:${R} ${M}RETRODEPLOYER_OPEN_OFFSET_SEC RETRODEPLOYER_LOCK_OFFSET_SEC RETRODEPLOYER_RESOLVE_OFFSET_SEC${R}"
@@ -2023,7 +2021,7 @@ _cmd_menu_context() {
   if [[ -n "$rpc" ]]; then
     echo -e "${D}  env  ·  API_URL=${M}$api${R}  ${D}·${R}  RPC_URL=${M}$rpc${R}" >&2
   else
-    echo -e "${D}  env  ·  API_URL=${M}$api${R}  ${D}·  RPC_URL=${D}(unset — set RPC_URL in package/contract/.env)${R}" >&2
+    echo -e "${D}  env  ·  API_URL=${M}$api${R}  ${D}·  RPC_URL=${D}(unset — set RPC_URL in package/prediction-v2/.env)${R}" >&2
   fi
   echo "" >&2
 }
@@ -3066,7 +3064,7 @@ usage: RETRODEPLOYER activate-epoch { <1-9|01-09> | 0x<64 hex> | --template-id 0
   Ledger: openEpoch requires indexed activeEpochId==lastResolvedEpochId and --epoch-id == next id; if an epoch is still
   uncompleted on-chain, run lock/resolve (ops/keeper) first — else PreviousEpochUnresolved (0x5bedc9d2) on send.
   Chainlink: activate-epoch does not set oracles. oracleFeedId and other market params are set at upsert
-  (package/contract/.operator/upsert-params); see https://docs.chain.link/data-feeds/price-feeds/addresses
+  (package/prediction-v2/.operator/upsert-params); see https://docs.chain.link/data-feeds/price-feeds/addresses
 EOF
       return 0
       ;;

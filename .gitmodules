@@ -1,3 +1,0 @@
-[submodule "package/smart-contract"]
-	path = package/smart-contract
-	url = git@github.com:RetroPick/smart-contract.git

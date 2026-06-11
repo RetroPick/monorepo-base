@@ -16,7 +16,7 @@ export default function RetrodeployerPage() {
           </code>{" "}
           from the monorepo root with{" "}
           <code className="rounded bg-[color:var(--color-inputBg)] px-1 font-mono text-xs">
-            package/contract/.env
+            package/prediction-v2/.env
           </code>
           .
         </p>
@@ -58,7 +58,7 @@ pnpm run retropick:deployer -- help`}
       <section className="rounded-xl border border-[color:var(--color-mainBorder)] bg-[color:var(--color-primaryBg)] p-4">
         <h2 className="text-sm font-medium text-[color:var(--color-primaryText)]">Environment (shell)</h2>
         <p className="mt-2 text-xs text-[color:var(--color-secondaryText)]">
-          Loaded from <code className="font-mono">package/contract/.env</code> / repo root. See{" "}
+          Loaded from <code className="font-mono">package/prediction-v2/.env</code> / repo root. See{" "}
           <code className="font-mono">./scripts/RETRODEPLOYER help</code> for full list.
         </p>
         <ul className="mt-3 space-y-1 font-mono text-[11px] text-[color:var(--color-secondaryText)]">
@@ -88,7 +88,7 @@ pnpm run retropick:deployer -- help`}
         <p className="mt-2 text-sm text-[color:var(--color-secondaryText)]">
           Authoritative procedures:{" "}
           <span className="font-mono text-xs text-[color:var(--color-coloredText)]">
-            package/contract/.operator/.runbook.md
+            package/prediction-v2/.operator/.runbook.md
           </span>
         </p>
       </section>

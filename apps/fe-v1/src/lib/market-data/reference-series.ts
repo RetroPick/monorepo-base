@@ -145,7 +145,7 @@ export async function loadReferenceChartData(assetClass: AssetClass): Promise<Re
       return {
         kind: "unavailable",
         reason: "missing_fred_key",
-        message: "Add VITE_FRED_API_KEY for commodity, macro, and benchmark charts.",
+        message: "FRED-backed charts are not configured yet.",
         meta: {
           title: subtitle,
           subtitle: fredSubtitle,

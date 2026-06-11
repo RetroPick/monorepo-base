@@ -63,7 +63,7 @@ interface ImportMetaEnv {
   // ── External data APIs ───────────────────────────────────────────────────────
   readonly VITE_COINGECKO_DEMO_API_KEY?: string
 
-  /** FRED API key for macro/commodity/benchmark reference charts. */
+  /** FRED API key for local Vite dev; Vercel/Next uses the same-origin `/api/fred` route. */
   readonly VITE_FRED_API_KEY?: string
 
   // ── App features ─────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ interface ImportMetaEnv {
   /** WorldID action name. */
   readonly VITE_WLD_ACTION?: string
 
-  /** RetroPick Go API (markets, health, indexer WS). Default http://127.0.0.1:8080 */
+  /** RetroPick Go API for local Vite dev; deployed builds must use NEXT_PUBLIC_API_URL. */
   readonly VITE_API_URL?: string
 
   /** Enable AML geofencing checks (set to "false" for local dev). */

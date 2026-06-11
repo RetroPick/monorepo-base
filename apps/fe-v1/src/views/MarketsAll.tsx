@@ -6,6 +6,7 @@ import DiscoverLeftNav from "@/components/discover/DiscoverLeftNav";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import MarketCard from "@/components/MarketCard";
+import { RollingMarketCard } from "@/components/RollingMarketCard";
 import { useIndexerWebSocket } from "@/hooks/useIndexerWebSocket";
 import { DISCOVERY_VERTICALS } from "@/lib/discovery-verticals";
 import type { DiscoveryVerticalId, MarketDiscoveryVerticalId } from "@/lib/discovery-verticals";
@@ -13,7 +14,7 @@ import { countByAsset, marketChainMatchesAsset, type CryptoAssetFilterId } from 
 import { apiErrorSummary, fetchMarkets, type MarketRow } from "@/lib/api/retropickApi";
 import {
   chainDetailPath,
-  chainMarketIsLive,
+  inferMarketCardLifecycle,
   isDiscoverCryptoRow,
   isMarketPastSetup,
   marketRowToCardMarket,
@@ -118,8 +119,8 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
     filteredMarkets = [...filteredMarkets].sort((a, b) => {
       const aRow = listableRows.find((r) => r.templateId === a.id);
       const bRow = listableRows.find((r) => r.templateId === b.id);
-      const aL = aRow && chainMarketIsLive(aRow) ? 1 : 0;
-      const bL = bRow && chainMarketIsLive(bRow) ? 1 : 0;
+      const aL = aRow && inferMarketCardLifecycle(aRow) === "open" ? 1 : 0;
+      const bL = bRow && inferMarketCardLifecycle(bRow) === "open" ? 1 : 0;
       if (aL !== bL) return bL - aL;
       return 0;
     });
@@ -144,17 +145,14 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
     "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4 lg:gap-6 xl:grid-cols-4 xl:gap-5";
   const gridClass = cn(discoverGridGap, "xl:grid-cols-3");
 
-  /**
-   * Stable callback so `memo(MarketCard)` short-circuits when the underlying
-   * `market` reference is stable. Returning an object literal still allocates,
-   * but the function identity is now constant across renders.
-   */
-  const marketCardProps = useCallback(
-    (market: Market) => ({
-      market,
-      variant: "discover" as const,
-      href: chainDetailPath(market.id),
-    }),
+  const renderMarketCard = useCallback(
+    (market: Market) => {
+      const href = chainDetailPath(market.id);
+      if (market.chainExecutionMode === 1) {
+        return <RollingMarketCard market={market} href={href} />;
+      }
+      return <MarketCard market={market} variant="discover" href={href} />;
+    },
     [],
   );
 
@@ -191,7 +189,7 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
               >
                 {gridMarkets.map((market) => (
                   <div key={market.id} className="min-h-0 w-full self-start">
-                    <MarketCard {...marketCardProps(market)} />
+                    {renderMarketCard(market)}
                   </div>
                 ))}
               </div>
@@ -218,7 +216,7 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
               <div className={gridClass}>
                 {gridMarkets.map((market) => (
                   <div key={market.id} className="min-h-0 w-full self-start">
-                    <MarketCard {...marketCardProps(market)} />
+                    {renderMarketCard(market)}
                   </div>
                 ))}
               </div>
@@ -239,7 +237,7 @@ const MarketsAll = ({ initialVertical = "trending" }: MarketsAllProps = {}) => {
           <div className={gridClass}>
             {gridMarkets.map((market) => (
               <div key={market.id} className="min-h-0 w-full self-start">
-                <MarketCard {...marketCardProps(market)} />
+                {renderMarketCard(market)}
               </div>
             ))}
           </div>

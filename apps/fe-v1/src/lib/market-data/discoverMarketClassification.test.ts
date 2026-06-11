@@ -6,6 +6,8 @@ import {
   discoverTypeShortLabel,
   executionModeLabel,
   formatDiscoverEyebrow,
+  rollingPhaseLabel,
+  rollingStatusLabel,
 } from "./discoverMarketClassification";
 import type { Market } from "@/types/market";
 
@@ -30,6 +32,31 @@ describe("executionModeLabel", () => {
     expect(executionModeLabel(0)).toBe("Manual");
     expect(executionModeLabel(1)).toBe("Rolling");
     expect(executionModeLabel(99)).toBe("Manual");
+  });
+});
+
+describe("rollingPhaseLabel", () => {
+  it("maps known phases and falls back safely", () => {
+    expect(rollingPhaseLabel(0)).toBe("Uninitialized");
+    expect(rollingPhaseLabel(3)).toBe("Live");
+    expect(rollingPhaseLabel(4)).toBe("Halted");
+    expect(rollingPhaseLabel(99)).toBe("Phase 99");
+    expect(rollingPhaseLabel(undefined)).toBe("Unknown");
+  });
+});
+
+describe("rollingStatusLabel", () => {
+  it("treats phase=4 or non-zero haltReason as Halted", () => {
+    expect(rollingStatusLabel({ phase: 4, haltReason: 0 })).toBe("Halted");
+    expect(rollingStatusLabel({ phase: 3, haltReason: 7 })).toBe("Halted");
+  });
+
+  it("distinguishes live/genesis/uninitialized", () => {
+    expect(rollingStatusLabel({ phase: 3, haltReason: 0 })).toBe("Live");
+    expect(rollingStatusLabel({ phase: 1, haltReason: 0 })).toBe("Genesis");
+    expect(rollingStatusLabel({ phase: 2, haltReason: 0 })).toBe("Genesis");
+    expect(rollingStatusLabel({ phase: 0, haltReason: 0 })).toBe("Uninitialized");
+    expect(rollingStatusLabel({ phase: undefined, haltReason: 0 })).toBe("Unknown");
   });
 });
 

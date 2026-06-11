@@ -1,0 +1,17 @@
+[Unit]
+Description=RetroPick production compose stack
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/retropick/monorepo-base
+RemainAfterExit=yes
+Environment=COMPOSE_PROJECT_NAME=retropick
+Environment=RETROPICK_ENV_FILE=.env.production
+ExecStart=/opt/retropick/monorepo-base/scripts/compose-production.sh up -d --build
+ExecStop=/opt/retropick/monorepo-base/scripts/compose-production.sh down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

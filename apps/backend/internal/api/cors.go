@@ -36,7 +36,10 @@ func BuildCORSAllowOriginFunc() func(*http.Request, string) bool {
 			}
 		}
 	}
-	allow := append(slices.Clone(defaultCORSOrigins), extra...)
+	allow := slices.Clone(extra)
+	if !strict {
+		allow = append(slices.Clone(defaultCORSOrigins), extra...)
+	}
 	patterns := splitCSVEnv("CORS_ALLOWED_ORIGIN_PATTERNS")
 
 	return func(_ *http.Request, origin string) bool {

@@ -1,0 +1,342 @@
+{
+  "boardId": "base-sepolia-7-chainlink-types-v1",
+  "chainId": 84532,
+  "network": "Base Sepolia",
+  "contracts": {
+    "marketEngineProxy": "0x1ed89defc8fbcbd512c562b148868ffdc778018a",
+    "stakeToken": "0xB7F49377af6AdbEf64f513cF04dBdAC9D0Af01b1",
+    "chainlinkAdapter": "0x682B79D6cbD8BcB4E89Aeac487ee94E2c306175E"
+  },
+  "manualEpochOffsetsSeconds": {
+    "openAt": 120,
+    "lockAt": 344700,
+    "resolveAt": 345600
+  },
+  "rollingDefaults": {
+    "intervalSeconds": 43200,
+    "bufferSeconds": 900
+  },
+  "markets": [
+    {
+      "slug": "btc-4d-direction-manual",
+      "title": "Will BTC close higher or lower in four days?",
+      "subtitle": "Four-day BTC/USD direction market settled from the Base Sepolia Chainlink feed.",
+      "resolutionRule": "Settles Up if BTC / USD closes above its opening checkpoint and Down if it closes below. Equal prices void the epoch.",
+      "feedLabel": "BTC / USD",
+      "vertical": "crypto",
+      "displayOrder": 101,
+      "outcomeLabels": [
+        "Up",
+        "Down"
+      ],
+      "feed": {
+        "address": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+        "decimals": 8,
+        "maxDelaySeconds": 3600
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "btc-4d-direction-manual",
+        "assetSymbol": "BTC",
+        "oracleFeedId": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+        "marketType": 0,
+        "condition": 0,
+        "thresholdRule": 0,
+        "active": true,
+        "outcomeCount": 2,
+        "switchFeeBps": 0,
+        "settlementFeeBps": 75,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 3600,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "slug": "eth-4d-above-2000-manual",
+      "title": "Will ETH close at or above $2,000 in four days?",
+      "subtitle": "Four-day ETH/USD threshold market settled from the Base Sepolia Chainlink feed.",
+      "resolutionRule": "Resolves Yes if ETH / USD is at or above $2,000 at settlement. Otherwise No wins.",
+      "feedLabel": "ETH / USD",
+      "vertical": "crypto",
+      "displayOrder": 102,
+      "outcomeLabels": [
+        "Yes",
+        "No"
+      ],
+      "feed": {
+        "address": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+        "decimals": 8,
+        "maxDelaySeconds": 3600
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "eth-4d-above-2000-manual",
+        "assetSymbol": "ETH",
+        "oracleFeedId": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+        "marketType": 1,
+        "condition": 0,
+        "thresholdRule": 1,
+        "active": true,
+        "outcomeCount": 2,
+        "absoluteThresholdValueE8": "200000000000",
+        "switchFeeBps": 0,
+        "settlementFeeBps": 75,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 3600,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "slug": "link-4d-range-8p50-9p25-manual",
+      "title": "Where will LINK close in four days?",
+      "subtitle": "Four-day LINK/USD range-close market settled from the Base Sepolia Chainlink feed.",
+      "resolutionRule": "Settles into the LINK / USD bucket containing the settlement price.",
+      "feedLabel": "LINK / USD",
+      "vertical": "crypto",
+      "displayOrder": 103,
+      "outcomeLabels": [
+        "< $8.50",
+        "$8.50 to < $9.25",
+        ">= $9.25"
+      ],
+      "feed": {
+        "address": "0xb113F5A928BCfF189C998ab20d753a47F9dE5A61",
+        "decimals": 8,
+        "maxDelaySeconds": 3600
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "link-4d-range-8p50-9p25-manual",
+        "assetSymbol": "LINK",
+        "oracleFeedId": "0xb113F5A928BCfF189C998ab20d753a47F9dE5A61",
+        "marketType": 2,
+        "condition": 0,
+        "thresholdRule": 0,
+        "active": true,
+        "outcomeCount": 3,
+        "rangeBoundsE8": [
+          "850000000",
+          "925000000"
+        ],
+        "switchFeeBps": 0,
+        "settlementFeeBps": 75,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 3600,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "slug": "btc-4d-velocity-manual",
+      "title": "How far will BTC move in four days?",
+      "subtitle": "Four-day BTC/USD velocity market measuring absolute percentage movement.",
+      "resolutionRule": "Settles into the bucket matching the absolute BTC / USD move between opening and settlement checkpoints.",
+      "feedLabel": "BTC / USD",
+      "vertical": "crypto",
+      "displayOrder": 104,
+      "outcomeLabels": [
+        "< 1%",
+        "1% to < 3%",
+        "3% to < 6%",
+        ">= 6%"
+      ],
+      "feed": {
+        "address": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+        "decimals": 8,
+        "maxDelaySeconds": 3600
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "btc-4d-velocity-manual",
+        "assetSymbol": "BTC",
+        "oracleFeedId": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+        "marketType": 3,
+        "condition": 0,
+        "thresholdRule": 0,
+        "active": true,
+        "outcomeCount": 4,
+        "rangeBoundsE8": [
+          "1",
+          "2",
+          "3"
+        ],
+        "velocityBoundsE4": [
+          100,
+          300,
+          600
+        ],
+        "switchFeeBps": 0,
+        "settlementFeeBps": 100,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 3600,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "slug": "eth-4d-ladder-manual",
+      "title": "Which ETH ladder tier will settle in four days?",
+      "subtitle": "Four-day ETH/USD ladder market with tiered payout weights.",
+      "resolutionRule": "Settles into the ETH / USD tier containing the settlement price, using the configured ladder payout weight.",
+      "feedLabel": "ETH / USD",
+      "vertical": "crypto",
+      "displayOrder": 105,
+      "outcomeLabels": [
+        "< $1,900",
+        "$1,900 to < $2,000",
+        "$2,000 to < $2,100",
+        ">= $2,100"
+      ],
+      "feed": {
+        "address": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+        "decimals": 8,
+        "maxDelaySeconds": 3600
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "eth-4d-ladder-manual",
+        "assetSymbol": "ETH",
+        "oracleFeedId": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+        "marketType": 4,
+        "condition": 0,
+        "thresholdRule": 0,
+        "active": true,
+        "outcomeCount": 4,
+        "rangeBoundsE8": [
+          "190000000000",
+          "200000000000",
+          "210000000000"
+        ],
+        "ladderBoundsE8": [
+          "190000000000",
+          "200000000000",
+          "210000000000"
+        ],
+        "ladderPayoutWeightsBps": [
+          8000,
+          9000,
+          9500,
+          10000
+        ],
+        "switchFeeBps": 0,
+        "settlementFeeBps": 100,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 3600,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "slug": "cbeth-eth-4d-convergence",
+      "title": "Will cbETH/USD converge toward ETH/USD in four days?",
+      "subtitle": "Four-day relative-spread market comparing cbETH/USD and ETH/USD Chainlink feeds.",
+      "resolutionRule": "Resolves Converges if the cbETH/USD versus ETH/USD spread narrows beyond its tolerance band, Diverges if it widens beyond the band, and voids inside the band.",
+      "feedLabel": "cbETH / USD vs ETH / USD",
+      "vertical": "crypto",
+      "displayOrder": 106,
+      "outcomeLabels": [
+        "Converges",
+        "Diverges"
+      ],
+      "feed": {
+        "address": "0x3c65e28D357a37589e1C7C86044a9f44dDC17134",
+        "decimals": 8,
+        "maxDelaySeconds": 86400
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "cbeth-eth-4d-convergence",
+        "assetSymbol": "cbETH/ETH",
+        "oracleFeedId": "0x3c65e28D357a37589e1C7C86044a9f44dDC17134",
+        "oracleFeedIdB": "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+        "marketType": 5,
+        "condition": 0,
+        "thresholdRule": 1,
+        "active": true,
+        "outcomeCount": 2,
+        "spreadToleranceBps": 50,
+        "switchFeeBps": 0,
+        "settlementFeeBps": 100,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 86400,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    {
+      "slug": "btc-eth-link-4d-composite",
+      "title": "Will at least two crypto benchmarks pass in four days?",
+      "subtitle": "Four-day majority composite using BTC/USD, ETH/USD, and LINK/USD Chainlink feeds.",
+      "resolutionRule": "Resolves Yes if at least two conditions pass: BTC >= $70,000, ETH >= $1,950, and LINK >= $8.75. Otherwise No wins.",
+      "feedLabel": "BTC / USD + ETH / USD + LINK / USD",
+      "vertical": "crypto",
+      "displayOrder": 107,
+      "outcomeLabels": [
+        "2+ conditions pass",
+        "Fewer than 2 pass"
+      ],
+      "feed": {
+        "address": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+        "decimals": 8,
+        "maxDelaySeconds": 3600
+      },
+      "launchMode": "manual",
+      "upsertTemplate": {
+        "slug": "btc-eth-link-4d-composite",
+        "assetSymbol": "CRYPTO",
+        "oracleFeedId": "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+        "marketType": 6,
+        "condition": 0,
+        "thresholdRule": 1,
+        "active": true,
+        "outcomeCount": 2,
+        "compositeFeedIds": [
+          "0x0FB99723Aee6f420beAD13e6bBB79b7E6F034298",
+          "0x4aDC67696bA383F43DD60A9e78F2C97Fbbfc7cb1",
+          "0xb113F5A928BCfF189C998ab20d753a47F9dE5A61"
+        ],
+        "compositeConditions": [
+          0,
+          0,
+          0
+        ],
+        "compositeFeedCount": 3,
+        "compositeLogic": 2,
+        "compositeAbsoluteThresholdsE8": [
+          "7000000000000",
+          "195000000000",
+          "875000000"
+        ],
+        "switchFeeBps": 0,
+        "settlementFeeBps": 125,
+        "allowMultiSidePositions": true,
+        "executionMode": 0,
+        "oracleMaxDelaySeconds": 3600,
+        "oracleMaxConfidenceBps": 0,
+        "templateOracleKind": 0,
+        "oracleClass": 0,
+        "eventOracle": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  ]
+}

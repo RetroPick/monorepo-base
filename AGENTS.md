@@ -1,38 +1,123 @@
-## Learned User Preferences
+# AGENTS.md — RetroPick Agent Contract
 
-- Prefers Polymarket-style market detail UX: the market headline reads as one flat strip on the page background in the main (chart) column, with the chart in a separate bordered card below—avoid a full-width band that visually splits the site header from the title/buy layout.
-- Prefers **Stake.com**-inspired styling for the **Discover/Trending** market-types strip (upper homepage area); **Trending** full-width **All markets** uses a **four-column** grid from **lg/xl**, while **Crypto** (main column beside **DiscoverLeftNav**) stays **three columns**.
-- For **discover** **`MarketCard`** listings, prefers a **compact vertical layout** (content-driven height, not a tall fixed shell with empty space between actions and footer); **consistent outer card height** across market types—**multi-outcome** cards should match **direction/threshold** footprint with a **scrollable** outcome list when there are many lines; when tightening layout, **compress vertical padding / box height** without shrinking **button** sizes or removing **scroll** behavior; **range** and **multi-outcome** rows use a **Pick!** control (YES-style emerald chip, **opacity-only hover**) beside the **multiplier** instead of **whole-row** gradient hover affordances.
-- Market-type education and “how to trade” / prediction-market explainers should use **plain language** and **step-by-step** flow through payout for **mixed audiences** (crypto-savvy and **non-crypto-native**), not dev-only jargon.
-- Prefers **Sign In** on portfolio to use the **header / AppKit** control (no separate navigation to another page or “new web” just to connect); when the upper bar shows **Sign In** and **Sign Up** together, **Sign In** reads as a **darker neutral** chip and **Sign Up** as the **solid blue** primary action so the two are visually distinct.
-- Prefers **USD-style ($) labels** for stake, balance, and PnL figures on portfolio and related dashboard surfaces (readable dollar-style amounts, not wei or raw integer emphasis).
-- Prefers a **compact header** strip: keep education entry (“How”) **beside Sign In**, drop a top-level **Docs** link from the upper navbar when simplifying chrome, **omit the theme toggle from the header** if theme is available elsewhere (e.g. footer), and on **`/app/portfolio`** show the **Discover** category strip (**Trending** through **Climate**) in the header **lower rail** instead of the default **crypto price ticker**, with that strip **driving** **`CategoryDistributionCard`** ( **`?vertical=`** on the portfolio URL and **`portfolioDiscoverNav`** / **`setSearchParams`** from **`PortfolioPage`** so the donut is not decoupled from the selection). The **fixed bottom Footer** should follow the same **theme tokens** (`bg-background`, `border-border`, muted hovers)—not a **dark-only** shell when the app is in **light** mode.
-- Prefers the **portfolio overview** column to stack **Profile** (guest / sign-in) **above** the **Overview** stats block, with a clear separator between the two.
-- Prefers the **Exposure and claims** summary area to treat **realized** (indexed claims over the selected timeframe) and **unrealized** (open positions / API) as **separate visible sections**, not a single meaningless flat line only.
-- Prefers **production-grade probability charts**: not overly **spiky**, **live-updating** without needing a manual page refresh, readable **timeframe** and **percentage / delta** readouts; **minimal chart chrome** (no **Vol/24H** badges on the plot, drop heavy **outer grid** framing so the series sits on the **page background**); **`ChartLabelWatermark`** loads **`/assets/chartlabel.png`** with **`/retropick-logo.png`** **fallback**, placed **above** canvases/SVGs so it is not painted over; the **trading** probability chart uses a **readable** upper-right mark (not **subtle**-tiny). **Binary** markets: **one** YES-side line, **“X% chance”** header plus **window delta**; **multi-outcome**: **multiple** top lines (cap **6**). **Short** presets: **EMA** smoothing + **monotone** curve; **long** presets: **linear** curve, no EMA so moves stay **strict**. Prefer **volume** on the **market title / navbar** rather than on the chart surface; **trim redundant chart wording** on portfolio.
-- Prefers **short** trade success feedback (e.g. **“Transaction successful”**) instead of long technical detail in success toasts or banners; when **optional** integrations or config (**relayer**, **yield** hints, etc.) are **missing**, prefers **silent** UI (hide the block) over visible **“not configured”** or placeholder error copy.
-- Wants **watchlist / bookmarks** while **disconnected** stored in **guest** client storage (**no** wallet modal to **toggle**); after **connect**, **merge** into the **Go** watchlist API with **unsigned** `POST /api/v1/user/watchlist` (body: `wallet` + `action` + template id(s)) so **portfolio** stays authoritative.
+## Mission
 
-## Learned Workspace Facts
+Build and maintain **RetroPick v1**: epoch-based prediction markets with **MarketEngine** (UUPS + modules), **Go** backend (`apps/backend`), **Next.js** frontends (`fe-v1`, `ops`), and **Foundry** contracts in `package/prediction-v2`.
 
-- Local `pnpm dev:fe-v1` and the Compose `web` service (`retropick-web`) both use port **3000**; only one should run at a time for that port (stop the container to use host dev server, or remap).
-- API for local Compose work is commonly checked at **`http://127.0.0.1:8080`** (`retropick-api`).
-- **Docker Compose** publishes **Postgres** on host **5433** (`5433:5432`). In-stack **`DATABASE_URL`** defaults to **`postgres:5432`**. **`compose.desktop-hairpin.env`** / **`pnpm docker:up:desktop`** use **`host.docker.internal:5433`** when the bridge to **`postgres:5432`** times out; Compose includes **`extra_hosts: host.docker.internal:host-gateway`** so that hostname resolves on Linux Engine / WSL (avoids **`no such host`**). Host tools: **`127.0.0.1:5433`**. The **`migrator`** service retries DB reachability until **`waitSchemaTimeout` (~5 minutes)** in **`apps/backend/internal/db/migrate.go`**, so a bad **`postgres:5432`** path on some Docker Desktop setups often surfaces as a **~5 minute** hang then **exit 1** rather than an immediate failure.
-- Compose v2 can warn about Bake when **Buildx** is missing: install the **`docker-buildx`** CLI plugin (e.g. `docker-buildx-plugin` from Docker’s APT repo after configuring Docker sources, or a binary under `~/.docker/cli-plugins/`—see README Troubleshooting if `apt` cannot find the package).
-- **`apps/fe-v1/Dockerfile`** uses Dockerfile syntax `# syntax=docker/dockerfile:1`, **`NEXT_TELEMETRY_DISABLED=1`**, **`corepack prepare pnpm@10.0.0`**, **filtered** `pnpm install --filter fe-v1... --store-dir=/pnpm/store`, and (with BuildKit) cache mounts for the pnpm store and **`apps/fe-v1/.next/cache`** so repeat image builds hit cache when dependencies are unchanged.
-- **`ManualMarketPage`** passes **`<Header omitBottomDivider />`** so the sticky site header has no bottom rule above the market headline (blends with **`main`** / page background); sticky offsets come from measuring **`#app-site-header`** via **`useSiteHeaderOffset`** into **`--market-page-sticky-top`**. Sticky market UI (`.market-page-sticky-below-chrome`, `.market-manual-trade-aside`) should align **`top`** with **`calc(var(--market-page-sticky-top, …) + safe-area)`**; avoid clamping sticky **`top`** with a fixed **~9.5rem** floor against a smaller measured header or scrolling content can show in a band between the real header and the sticky title row.
-- **Portfolio** (`PortfolioPage`) is **wallet-style**: **`CategoryDistributionCard`** sits in the summary row (replacing the old balance-spot emphasis); **`PortfolioTradingPanel`** often runs with **`embeddedActivity="sidebar"`** and **`PortfolioActivitySidebar`** shows indexed on-chain **Activity** beside trades; the portfolio route may use **`PortfolioMiniFooter`** instead of the full **`Footer`** for a tighter above-fold layout. **`CategoryDistributionCard`** stake inputs follow the header **Discover strip** bucket via **`?vertical=`** and **`portfolioDiscoverNav`** (strip as **buttons** calling **`setSearchParams`**; **`Trending`** clears **`vertical`**); positions are filtered with **`positionMatchesDiscoveryVertical`** before **`buildCategorySlices`**.
-- A **Vercel** project rooted at **`apps/fe-v1`** only builds **Next.js**; **`apps/backend`** (Go API) must be deployed separately at a public **HTTPS** origin. Set **`NEXT_PUBLIC_API_URL`** in Vercel (**Production** / **Preview**) and **redeploy** so the client bundle picks it up. Browser access requires the API’s **CORS** config (**`CORS_STRICT`**, **`CORS_ALLOWED_ORIGINS`**, optional **`CORS_ALLOWED_ORIGIN_PATTERNS`** such as `https://*.vercel.app`). When **`process.env.VERCEL`** is set at build time, **`apps/fe-v1/next.config.mjs`** fails the build if **`NEXT_PUBLIC_API_URL`** is missing or points at **localhost** / **127.0.0.1**.
-- **`apps/fe-v1/tailwind.config.ts`** **`safelist`** includes **`lg:grid-cols-4`** and **`xl:grid-cols-4`** so Discover Trending grid column utilities always emit in CSS (reduces “class on DOM but no rule” issues from stale **`.next`** or partial Docker image cache).
-- **`Web3ModalProvider`** initializes Reown **`createAppKit`** inside **`useEffect`**, guarded by **`window.__retropickReownAppKitInit`**, instead of at module import—reduces duplicate init on Fast Refresh. **`TypeError: Cannot redefine property: ethereum`** in the browser usually means **multiple injected wallets** (e.g. **Phantom** + **MetaMask**) conflicting on **`window.ethereum`**; mitigate by using **one** EVM injector per tab, not by redefining **`ethereum`** in app code.
-- **`scripts/RETRODEPLOYER`** currently assumes `package/contract/...` paths, while this repo uses `package/smart-contract/...`; running the script as-is fails early on missing `load-env.sh` unless paths are adapted.
-- Base Sepolia public RPC enforces an effective **`eth_getLogs`** block-span cap around **10,000**; indexer sync should keep per-call ranges at or below that to avoid stalled ingestion during bootstrap/catch-up.
+## Non-negotiable product truths
+
+1. RetroPick is **epoch-driven** — all market actions respect on-chain MarketEngine epoch state.
+2. **`apps/backend`** owns server-side indexing, API, keeper, funding workers, and realtime; **`.dev/backend/`** documents that implementation in depth.
+3. Smart contracts live in **`package/prediction-v2`**; merge only with **Foundry** tests green.
+4. Do not index entire vendored forge libs into agent context — use project sources and `currentSmartContract.md`.
+5. Harness MCP at **project root** is canonical when orchestrating via Agent Harness.
+6. **Documentation map** is [`docs/README.md`](docs/README.md); as-built backend is [`.dev/backend/`](.dev/backend/). Future/design specs live under [`docs/archive/`](docs/archive/) only — not active `docs/feature/` design packs.
+7. **`package/prediction-v2`** is the canonical contract path (DECISIONS D9); legacy `smart-contract` and `contract` aliases were removed.
+8. **Production hosting** needs a persistent stack (Postgres, indexer, keeper, realtime). Full backend on Vercel alone is not supported; API-only on Vercel is a non-production experiment — see [`PRODUCTION.md`](PRODUCTION.md).
+
+## Architecture summary
+
+```mermaid
+flowchart LR
+  FE[fe-v1 / ops] --> API[Go API]
+  API --> IDX[Indexer projections]
+  IDX --> DB[(Postgres)]
+  API --> WS[WebSocket hub]
+  FE --> CHAIN[RPC + contracts]
+  IDX --> CHAIN
+  KEEP[Keeper] --> CHAIN
+  CHAIN --> ME[MarketEngine UUPS]
+```
+
+## Twenty harness agents (orchestrator-managed)
+
+| Agent slug | Focus |
+|------------|--------|
+| `orchestrator` | Sequencing, scope, Kanban, `DECISIONS.md` |
+| `sc-market-engine` | Dispatcher, modules, `MarketEngineState`, epoch math |
+| `sc-oracles` | Chainlink adapters, trusted reporter, feed IDs, staleness |
+| `sc-deploy-upgrades` | Foundry deploy/upgrade scripts, proxy wiring |
+| `sc-testing` | Solidity tests, gas snapshots, invariant fuzz where used |
+| `be-api` | HTTP routers, auth, CORS, rate limits, public API shapes |
+| `be-indexer` | Log sync, reorg, `chain_events`, projections |
+| `be-keeper` | Job model, executor, incidents, preflight |
+| `be-funding` | Funding abstraction, workers, provider adapters |
+| `be-realtime` | Durable envelopes, `pg_notify`, websocket hub |
+| `be-data` | Migrations, sqlc, pool tuning |
+| `fe-markets` | Markets UI, charts, epoch UX, trading flows |
+| `fe-wallet` | wagmi/viem/AppKit, chain config, errors |
+| `fe-ops` | Operator dashboard surfaces |
+| `pkg-abi-registry` | Workspace packages, ABI generation, contract registry scripts |
+| `security` | Trust boundaries, keys, admin surfaces |
+| `qa-integration` | Cross-stack verification, CI alignment |
+| `docs-curator` | README, technical docs consistency |
+| `devops-sre` | Docker Compose, desktop hairpin env, release paths |
+| `harness-librarian` | Manifest, tasks, RAG, MCP, skills sync |
+
+Full personas: `.harness/agents/<slug>.agent.md`.
+
+## Coding rules
+
+- Match existing **Go** and **TypeScript** conventions per subtree.
+- Run **Foundry** tests for any contract change.
+- Never commit secrets, deploy keys, or operator mnemonics.
+
+## Read order
+
+1. `.harness/project.manifest.json`
+2. `.harness/project-context.md`
+3. `package/prediction-v2/currentSmartContract.md`
+4. `README.md` → `docs/README.md` (doc map)
+5. `ORCHESTRATOR.md` and `DECISIONS.md`
+6. `.dev/backend/architecture.md` (backend map)
+
+Harness playbooks: `$AGENT_HARNESS_HOME/docs/kit/`
 
 
 <claude-mem-context>
 # Memory Context
 
-# [monorepo-base] recent context, 2026-05-06 10:17pm GMT+7
+# [retropick] recent context, 2026-06-09 3:33pm GMT+7
 
-No previous sessions found.
+Legend: 🎯session 🔴bugfix 🟣feature 🔄refactor ✅change 🔵discovery ⚖️decision 🚨security_alert 🔐security_note
+Format: ID TIME TYPE TITLE
+Fetch details: get_observations([IDs]) | Search: mem-search skill
+
+Stats: 32 obs (15,208t read) | 740,608t work | 98% savings
+
+### Jun 2, 2026
+21 7:37p ⚖️ RetroPick Production Hardening Implementation Plan Adopted
+22 " 🔵 RetroPick Repository Structure and Architecture Baseline
+23 " 🔵 Large Volume of Uncommitted Changes Across All Layers
+24 7:39p 🔵 WebSocket Hub Security: Default-Broadcast Behavior Violates Default-Deny Requirement
+25 " 🔵 Rate Limiter Uses Unbounded Global Map — Memory Leak on Unique IPs
+26 " 🔵 CORS Default-Open in Non-Strict Mode; Operator Auth Shares User JWT Secret
+27 " 🔵 Production Infra Already Partially Built: docker-compose, nginx Template, 6 Backend Services
+28 " 🔵 Backend Internal Module Inventory: metrics, launchboard, marketdata, keeper, feedregistry All Present
+29 7:40p 🔵 RETRODEPLOYER Missing Helper Scripts in package/smart-contract/scripts/
+30 " 🔵 Production Config Validation Tests and Production Startup Guards Already Implemented
+31 " 🔴 WebSocket Hub Default-Deny Implemented and nginx API Route Widened
+32 " 🔴 Rate Limiter Hardened: Bounded Map, TTL Eviction, and CIDR-Gated Proxy Trust
+33 " 🔵 Monorepo market/scripts Are Thin Wrappers That Delegate to Missing package/contract Scripts
+34 7:41p 🔵 Cost Estimator Script Is Self-Contained Python with --rpc-url Flag — No Missing Dependencies
+35 7:42p 🟣 Root-Aware `retro` CLI Implemented with doctor, stack, db, contracts, costs Commands
+36 " ✅ CLI Shell Tests Added for Cross-Directory Invocation of retro
+37 " 🔵 chmod Failure: Scripts Unreachable from apps/backend Working Directory
+38 7:43p 🟣 retro CLI Tests and doctor Verified — All Checks Pass Except Known Missing Legacy Helpers
+39 " 🔴 Webhook Secret Hardened to Constant-Time Comparison; Production Startup Validates Settlement Addresses
+40 " ✅ Git Diff Confirms Complete Working Tree State: 167 Files, 3219 Insertions, 14564 Deletions
+41 " 🟣 All Go Tests and RETRODEPLOYER Shell Tests Pass
+42 " 🔵 Chart Data Plane Gap: price_candles Table Exists but No Worker Polls Chainlink
+43 7:44p 🔴 IngestTick Consolidated to Single Transaction; probability_points Race Fixed with Postgres Sequence
+44 " 🔵 ChartHandler Default Feed Fallback Uses templateId Instead of Feed Address
+45 " 🔵 Git Status Confirms All New Files Are Untracked — No Commits Yet in This Session
+46 7:45p 🔵 ChainMarketDetail Does Not Subscribe to chart: WebSocket Channel and Uses No feedId
+47 " 🟣 primaryFeedId Wired End-to-End: Backend Resolves Feed, API Returns It, Frontend Subscribes to chart Channel
+48 7:46p 🟣 Full Go Test Suite Passes After All Stage 2 and 3 Data Plane Changes
+49 " 🔴 Postgres Listener Hardened with Auto-Reconnect and Catch-Up on Reconnect
+50 " 🔴 pglisten Inner Notification Loop Added — One Connection Serves Multiple Events Without Unnecessary Reconnects
+51 7:47p 🔵 PRODUCTION.md Patch Failed — Context Mismatch on funding-worker Line
+52 " ✅ Docs and .gitignore Hygiene Applied: Python Caches Ignored, retro CLI Documented in README and PRODUCTION
+
+Access 741k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>

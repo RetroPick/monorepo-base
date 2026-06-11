@@ -1,0 +1,40 @@
+{
+  "include": [
+    "apps/**",
+    "packages/**",
+    "package/prediction-v2/src/**",
+    "package/prediction-v2/script/**",
+    "package/prediction-v2/.docs/**",
+    "package/prediction-v2/.operator/**",
+    "package/prediction-v2/currentSmartContract.md",
+    "package/prediction-v2/OPERATIONS_INDEX.md",
+    "package/prediction-v2/rollingMarket.md",
+    "docs/**",
+    ".dev/backend/**",
+    ".harness/project-context.md",
+    "AGENTS.md",
+    "ORCHESTRATOR.md"
+  ],
+  "exclude": [
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/dist/**",
+    "**/out/**",
+    "**/cache/**",
+    "**/broadcast/**",
+    "**/forge-out/**",
+    "**/forge-std/**",
+    "**/openzeppelin-contracts/**",
+    "**/chainlink-brownie-contracts/**",
+    "apps/fe-v1/sources/**",
+    "**/.turbo/**",
+    "package/prediction-v2/**"
+  ],
+  "sourcePriority": {
+    "manifest": 1,
+    "projectContext": 2,
+    "agents": 3,
+    "obsidian": 4,
+    "code": 5
+  }
+}

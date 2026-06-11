@@ -539,7 +539,7 @@
             "internalType": "bool"
           },
           {
-            "name": "checkpointAb",
+            "name": "checkpointA_B",
             "type": "tuple",
             "internalType": "struct MarketTypes.OracleCheckpoint",
             "components": [
@@ -566,7 +566,7 @@
             ]
           },
           {
-            "name": "checkpointBb",
+            "name": "checkpointB_B",
             "type": "tuple",
             "internalType": "struct MarketTypes.OracleCheckpoint",
             "components": [
@@ -1312,7 +1312,7 @@
             "internalType": "bool"
           },
           {
-            "name": "checkpointAb",
+            "name": "checkpointA_B",
             "type": "tuple",
             "internalType": "struct MarketTypes.OracleCheckpoint",
             "components": [
@@ -1339,7 +1339,7 @@
             ]
           },
           {
-            "name": "checkpointBb",
+            "name": "checkpointB_B",
             "type": "tuple",
             "internalType": "struct MarketTypes.OracleCheckpoint",
             "components": [
@@ -2003,7 +2003,7 @@
             "internalType": "bool"
           },
           {
-            "name": "grossPayoutXe6",
+            "name": "grossPayoutXE6",
             "type": "uint256",
             "internalType": "uint256"
           }
@@ -2222,6 +2222,36 @@
             "name": "yieldFeeBpsCurrent",
             "type": "uint16",
             "internalType": "uint16"
+          },
+          {
+            "name": "yieldRouteId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "yieldStrategy",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "yieldStrategyKind",
+            "type": "uint8",
+            "internalType": "uint8"
+          },
+          {
+            "name": "yieldRouteEnabled",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "yieldRouteLocked",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "yieldRouteCap",
+            "type": "uint256",
+            "internalType": "uint256"
           }
         ]
       }
@@ -3913,6 +3943,55 @@
       },
       {
         "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ProtocolFeeAccrued",
+    "inputs": [
+      {
+        "name": "templateId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "epochId",
+        "type": "uint64",
+        "indexed": true,
+        "internalType": "uint64"
+      },
+      {
+        "name": "feeAsset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "feeAmount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "feeBps",
+        "type": "uint16",
+        "indexed": false,
+        "internalType": "uint16"
+      },
+      {
+        "name": "losingPool",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "winningPool",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"

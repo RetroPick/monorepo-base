@@ -1,0 +1,9 @@
+{
+  "name": "@retropick/config-prettier",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./index.json"
+  },
+  "files": ["index.json"]
+}

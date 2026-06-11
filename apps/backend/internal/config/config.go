@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 )
 
 type Config struct {
+	Environment           string
 	DatabaseURL           string
 	RPCURL                string
 	HTTPPort              int
@@ -42,7 +44,13 @@ type Config struct {
 	AuthCookieSecure        bool
 	AuthCookieSameSite      string
 	WSAllowedOrigins        []string
+	TrustedProxyCIDRs       []string
+	IndexerStartBlock       uint64
+	IndexerLookbackBlocks   uint64
 	IndexerFinalityDepth    uint64
+	IndexerTickInterval     time.Duration
+	IndexerMaxBlocksPerTick uint64
+	RPCFallbackURLs         []string
 	SettlementChainID       int64
 	SettlementUSDCAddress   string
 	SettlementReceiver      string
@@ -53,15 +61,30 @@ type Config struct {
 	LifiWebhookSecret       string
 	DestinationPollInterval time.Duration
 	MatcherPollInterval     time.Duration
+	KeeperEnabled           bool
+	KeeperPrivateKeyFile    string
+	KeeperPollInterval      time.Duration
+	KeeperReceiptTimeout    time.Duration
+	KeeperMaxRetryCount     int
+	AlertWebhookURL         string
+	AlertPollInterval       time.Duration
+	PricePollInterval       time.Duration
+	PriceHeartbeatInterval  time.Duration
 }
 
 func Load() (*Config, error) {
+	environment := strings.ToLower(strings.TrimSpace(envDefault("ENVIRONMENT", "development")))
+	switch environment {
+	case "development", "dev", "staging", "production", "test":
+	default:
+		return nil, fmt.Errorf("ENVIRONMENT: unsupported value %q", environment)
+	}
 	db := os.Getenv("DATABASE_URL")
 	if db == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 	rpc := os.Getenv("RPC_URL")
-	if rpc == "" {
+	if rpc == "" && environment != "production" {
 		rpc = "https://sepolia.base.org"
 	}
 	port := 8080
@@ -131,6 +154,54 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	indexerTickInterval, err := durationFromEnv("INDEXER_TICK_INTERVAL_MS", 3*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	indexerMaxBlocksPerTick := uint64(10_000)
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_MAX_BLOCKS_PER_TICK")); raw != "" {
+		n, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("INDEXER_MAX_BLOCKS_PER_TICK: %w", err)
+		}
+		if n > 0 {
+			indexerMaxBlocksPerTick = n
+		}
+	}
+	keeperPollInterval, err := durationFromEnv("KEEPER_POLL_INTERVAL", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	keeperReceiptTimeout, err := durationFromEnv("KEEPER_RECEIPT_TIMEOUT", 90*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	alertPollInterval, err := durationFromEnv("ALERT_POLL_INTERVAL", 15*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	pricePollDefault := 10 * time.Second
+	if environment == "production" {
+		pricePollDefault = 15 * time.Second
+	}
+	pricePollInterval, err := durationFromEnv("PRICE_POLL_INTERVAL", pricePollDefault)
+	if err != nil {
+		return nil, err
+	}
+	priceHeartbeatInterval, err := durationFromEnv("PRICE_HEARTBEAT_INTERVAL", 5*time.Minute)
+	if err != nil {
+		return nil, err
+	}
+	keeperMaxRetryCount := 3
+	if raw := strings.TrimSpace(os.Getenv("KEEPER_MAX_RETRY_COUNT")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return nil, fmt.Errorf("KEEPER_MAX_RETRY_COUNT: %w", err)
+		}
+		if n > 0 {
+			keeperMaxRetryCount = n
+		}
+	}
 	faucetRelayKey := strings.TrimSpace(os.Getenv("FAUCET_RELAYER_PRIVATE_KEY"))
 	faucetRelayEnabled := os.Getenv("FAUCET_RELAY_ENABLED") == "1" && faucetRelayKey != ""
 	indexerFinalityDepth := uint64(3)
@@ -141,6 +212,24 @@ func Load() (*Config, error) {
 		}
 		indexerFinalityDepth = n
 	}
+	indexerStartBlock := uint64(0)
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_START_BLOCK")); raw != "" {
+		n, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("INDEXER_START_BLOCK: %w", err)
+		}
+		indexerStartBlock = n
+	}
+	indexerLookbackBlocks := uint64(50_000)
+	if raw := strings.TrimSpace(os.Getenv("INDEXER_LOOKBACK_BLOCKS")); raw != "" {
+		n, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("INDEXER_LOOKBACK_BLOCKS: %w", err)
+		}
+		if n > 0 {
+			indexerLookbackBlocks = n
+		}
+	}
 	settlementChainID := int64(8453)
 	if raw := strings.TrimSpace(os.Getenv("SETTLEMENT_CHAIN_ID")); raw != "" {
 		v, err := strconv.ParseInt(raw, 10, 64)
@@ -149,7 +238,8 @@ func Load() (*Config, error) {
 		}
 		settlementChainID = v
 	}
-	return &Config{
+	cfg := &Config{
+		Environment:             environment,
 		DatabaseURL:             db,
 		RPCURL:                  rpc,
 		HTTPPort:                port,
@@ -179,7 +269,13 @@ func Load() (*Config, error) {
 		AuthCookieSecure:        os.Getenv("AUTH_COOKIE_SECURE") == "1",
 		AuthCookieSameSite:      strings.TrimSpace(envDefault("AUTH_COOKIE_SAMESITE", "Lax")),
 		WSAllowedOrigins:        parseCSVLower(os.Getenv("WS_ALLOWED_ORIGINS")),
+		TrustedProxyCIDRs:       parseCSV(os.Getenv("TRUSTED_PROXY_CIDRS")),
+		IndexerStartBlock:       indexerStartBlock,
+		IndexerLookbackBlocks:   indexerLookbackBlocks,
 		IndexerFinalityDepth:    indexerFinalityDepth,
+		IndexerTickInterval:     indexerTickInterval,
+		IndexerMaxBlocksPerTick: indexerMaxBlocksPerTick,
+		RPCFallbackURLs:         parseCSV(os.Getenv("RPC_FALLBACK_URLS")),
 		SettlementChainID:       settlementChainID,
 		SettlementUSDCAddress:   strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_USDC_ADDRESS"))),
 		SettlementReceiver:      strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_RECEIVER_ADDRESS"))),
@@ -190,7 +286,20 @@ func Load() (*Config, error) {
 		LifiWebhookSecret:       strings.TrimSpace(os.Getenv("LIFI_WEBHOOK_SECRET")),
 		DestinationPollInterval: destinationPollInterval,
 		MatcherPollInterval:     matcherPollInterval,
-	}, nil
+		KeeperEnabled:           os.Getenv("KEEPER_ENABLED") == "1",
+		KeeperPrivateKeyFile:    strings.TrimSpace(envDefault("KEEPER_PRIVATE_KEY_FILE", os.Getenv("KEEPER_SIGNER_PATH"))),
+		KeeperPollInterval:      keeperPollInterval,
+		KeeperReceiptTimeout:    keeperReceiptTimeout,
+		KeeperMaxRetryCount:     keeperMaxRetryCount,
+		AlertWebhookURL:         strings.TrimSpace(os.Getenv("ALERT_WEBHOOK_URL")),
+		AlertPollInterval:       alertPollInterval,
+		PricePollInterval:       pricePollInterval,
+		PriceHeartbeatInterval:  priceHeartbeatInterval,
+	}
+	if err := validateProductionConfig(cfg); err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
 
 func defaultMinConns() int32 {
@@ -254,6 +363,18 @@ func parseCSVLower(raw string) []string {
 	return out
 }
 
+func parseCSV(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value != "" {
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
 func parseCSVUpper(raw string) []string {
 	parts := strings.Split(raw, ",")
 	out := make([]string, 0, len(parts))
@@ -280,4 +401,77 @@ func parseInt64CSV(raw string) []int64 {
 		}
 	}
 	return out
+}
+
+func validateProductionConfig(cfg *Config) error {
+	if cfg == nil || cfg.Environment != "production" {
+		return nil
+	}
+	if strings.TrimSpace(os.Getenv("RPC_URL")) == "" {
+		return fmt.Errorf("RPC_URL is required in production")
+	}
+	if os.Getenv("CORS_STRICT") != "1" {
+		return fmt.Errorf("CORS_STRICT=1 is required in production")
+	}
+	if len(parseCSV(os.Getenv("CORS_ALLOWED_ORIGINS"))) == 0 {
+		return fmt.Errorf("CORS_ALLOWED_ORIGINS is required in production")
+	}
+	if len(cfg.WSAllowedOrigins) == 0 {
+		return fmt.Errorf("WS_ALLOWED_ORIGINS is required in production")
+	}
+	if len(cfg.TrustedProxyCIDRs) == 0 {
+		return fmt.Errorf("TRUSTED_PROXY_CIDRS is required in production")
+	}
+	for _, raw := range cfg.TrustedProxyCIDRs {
+		if _, err := netip.ParsePrefix(raw); err != nil {
+			return fmt.Errorf("TRUSTED_PROXY_CIDRS contains invalid CIDR %q", raw)
+		}
+	}
+	if isPlaceholderSecret(cfg.AuthJWTSecret) {
+		return fmt.Errorf("AUTH_JWT_SECRET must be set to a non-placeholder value in production")
+	}
+	if isPlaceholderSecret(cfg.AuthSessionSecret) {
+		return fmt.Errorf("AUTH_SESSION_SECRET must be set to a non-placeholder value in production")
+	}
+	if cfg.IndexerMaxBlocksPerTick > 10_000 {
+		return fmt.Errorf("INDEXER_MAX_BLOCKS_PER_TICK must be <= 10000 in production")
+	}
+	if cfg.KeeperEnabled && strings.TrimSpace(cfg.KeeperPrivateKeyFile) == "" {
+		return fmt.Errorf("KEEPER_PRIVATE_KEY_FILE is required when KEEPER_ENABLED=1 in production")
+	}
+	if !isNonZeroAddress(cfg.SettlementUSDCAddress) {
+		return fmt.Errorf("SETTLEMENT_USDC_ADDRESS must be a non-zero address in production")
+	}
+	if !isNonZeroAddress(cfg.SettlementReceiver) {
+		return fmt.Errorf("SETTLEMENT_RECEIVER_ADDRESS must be a non-zero address in production")
+	}
+	if isPlaceholderSecret(cfg.LifiWebhookSecret) {
+		return fmt.Errorf("LIFI_WEBHOOK_SECRET must be set to a non-placeholder value in production")
+	}
+	return nil
+}
+
+func isNonZeroAddress(value string) bool {
+	value = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(value)), "0x")
+	if len(value) != 40 {
+		return false
+	}
+	for _, c := range value {
+		if !strings.ContainsRune("0123456789abcdef", c) {
+			return false
+		}
+	}
+	return value != strings.Repeat("0", 40)
+}
+
+func isPlaceholderSecret(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return true
+	}
+	switch normalized {
+	case "change-me", "replace-me", "example", "example-secret", "secret", "changeme":
+		return true
+	}
+	return strings.Contains(normalized, "your-") || strings.Contains(normalized, "placeholder")
 }

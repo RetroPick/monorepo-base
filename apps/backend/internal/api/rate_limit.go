@@ -3,6 +3,7 @@ package api
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -10,11 +11,13 @@ import (
 
 type RateLimitOptions struct {
 	TrustForwardedFor bool
+	TrustedProxyCIDRs []string
 }
 
 type ipWindowCounter struct {
-	count int
-	start time.Time
+	count    int
+	start    time.Time
+	lastSeen time.Time
 }
 
 type rateBudget struct {
@@ -24,8 +27,10 @@ type rateBudget struct {
 }
 
 var (
-	rateMu         sync.Mutex
-	rateCounters   = map[string]map[string]ipWindowCounter{}
+	rateMu          sync.Mutex
+	rateCounters    = map[string]map[string]ipWindowCounter{}
+	rateLastSweep   time.Time
+	rateMaxEntries  = 10_000
 	publicGETBudget = rateBudget{name: "public_get", limit: 60, window: time.Minute}
 	wsConnectBudget = rateBudget{name: "ws_connect", limit: 30, window: time.Minute}
 	watchlistBudget = rateBudget{name: "watchlist_write", limit: 20, window: time.Minute}
@@ -35,7 +40,7 @@ var (
 
 func RateLimitMiddleware(next http.Handler, opts RateLimitOptions) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ip := requestIP(r, opts.TrustForwardedFor)
+		ip := requestIP(r, opts)
 		if ip == "" {
 			ip = "unknown"
 		}
@@ -69,6 +74,7 @@ func allowIP(bucketName, key string, limit int, window time.Duration) bool {
 	now := time.Now()
 	rateMu.Lock()
 	defer rateMu.Unlock()
+	sweepExpiredRateCounters(now, window)
 	bucket := rateCounters[bucketName]
 	if bucket == nil {
 		bucket = map[string]ipWindowCounter{}
@@ -76,27 +82,84 @@ func allowIP(bucketName, key string, limit int, window time.Duration) bool {
 	}
 	c := bucket[key]
 	if c.start.IsZero() || now.Sub(c.start) >= window {
-		bucket[key] = ipWindowCounter{count: 1, start: now}
+		if len(bucket) >= rateMaxEntries {
+			evictOldestRateCounter(bucket)
+		}
+		bucket[key] = ipWindowCounter{count: 1, start: now, lastSeen: now}
 		return true
 	}
 	if c.count >= limit {
+		c.lastSeen = now
+		bucket[key] = c
 		return false
 	}
 	c.count++
+	c.lastSeen = now
 	bucket[key] = c
 	return true
 }
 
-func requestIP(r *http.Request, trustForwardedFor bool) string {
-	if trustForwardedFor {
+func sweepExpiredRateCounters(now time.Time, window time.Duration) {
+	if !rateLastSweep.IsZero() && now.Sub(rateLastSweep) < window {
+		return
+	}
+	for bucketName, bucket := range rateCounters {
+		for key, counter := range bucket {
+			if now.Sub(counter.lastSeen) >= window {
+				delete(bucket, key)
+			}
+		}
+		if len(bucket) == 0 {
+			delete(rateCounters, bucketName)
+		}
+	}
+	rateLastSweep = now
+}
+
+func evictOldestRateCounter(bucket map[string]ipWindowCounter) {
+	var oldestKey string
+	var oldest time.Time
+	for key, counter := range bucket {
+		if oldestKey == "" || counter.lastSeen.Before(oldest) {
+			oldestKey = key
+			oldest = counter.lastSeen
+		}
+	}
+	if oldestKey != "" {
+		delete(bucket, oldestKey)
+	}
+}
+
+func requestIP(r *http.Request, opts RateLimitOptions) string {
+	remoteIP := remoteAddrIP(r.RemoteAddr)
+	if opts.TrustForwardedFor && proxyTrusted(remoteIP, opts.TrustedProxyCIDRs) {
 		if ip := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); ip != "" {
 			parts := strings.Split(ip, ",")
 			return strings.TrimSpace(parts[0])
 		}
 	}
-	host, _, err := net.SplitHostPort(strings.TrimSpace(r.RemoteAddr))
+	return remoteIP
+}
+
+func remoteAddrIP(remoteAddr string) string {
+	remoteAddr = strings.TrimSpace(remoteAddr)
+	host, _, err := net.SplitHostPort(remoteAddr)
 	if err == nil && host != "" {
 		return host
 	}
-	return strings.TrimSpace(r.RemoteAddr)
+	return remoteAddr
+}
+
+func proxyTrusted(remoteIP string, cidrs []string) bool {
+	addr, err := netip.ParseAddr(strings.TrimSpace(remoteIP))
+	if err != nil {
+		return false
+	}
+	for _, raw := range cidrs {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
+		if err == nil && prefix.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }

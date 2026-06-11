@@ -1,7 +1,7 @@
 /**
  * RetroPick MarketEngine TypeScript types
  *
- * Mirrors `MarketTypes` in package/contract (`EpochStatus`, `MarketType`, `RollingPhase`, etc.).
+ * Mirrors `MarketTypes` in package/prediction-v2 (`EpochStatus`, `MarketType`, `RollingPhase`, etc.).
  */
 
 // ── Enums (must match on-chain `MarketTypes.sol`) ─────────────────────────────

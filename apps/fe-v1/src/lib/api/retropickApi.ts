@@ -174,9 +174,21 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
 export type HealthResponse = {
   ok: boolean;
+  /** Present on API ≥ retropick.health.v1 — use for automation probes. */
+  schemaVersion?: string;
+  environment?: string;
+  chainId?: number;
   lastIndexedBlock: number;
+  indexedBlock?: number;
   lastBlockHash?: string | null;
   lastSyncAt?: string | null;
+  indexer?: {
+    lastIndexedBlock: number;
+    lastBlockHash?: string | null;
+    lastSyncAt?: string | null;
+    reorgDepth: number;
+  };
+  contracts?: { marketEngineProxy?: string };
 };
 
 export async function fetchHealth(): Promise<HealthResponse> {
@@ -220,6 +232,14 @@ export async function logoutAuthSession(): Promise<{ ok: boolean }> {
 export type MarketRow = {
   templateId: string;
   slug: string;
+  title?: string;
+  subtitle?: string;
+  resolutionRule?: string;
+  feedLabel?: string;
+  vertical?: string;
+  displayOrder?: number;
+  outcomeLabels?: string[];
+  primaryFeedId?: string;
   marketType: number;
   outcomeCount: number;
   initialized: boolean;
@@ -237,11 +257,19 @@ export type MarketRow = {
   totalPool?: string;
   volume?: string;
   outcomes?: OutcomeView[];
+  /**
+   * Indexer projection lifecycle for the active epoch (`market_snapshots.status`),
+   * same source as wire `status` when the snapshot row exists. Values: `open`, `locked`, `resolved`.
+   */
+  epochStatus?: string;
 };
 
 export async function fetchMarkets(): Promise<MarketRow[]> {
-  const data = await getJson<{ markets: MarketRow[] }>("/api/v1/markets");
-  return data.markets;
+  const data = await getJson<{ markets: Array<MarketRow & { status?: string }> }>("/api/v1/markets");
+  return data.markets.map(({ status, ...row }) => ({
+    ...row,
+    epochStatus: row.epochStatus ?? (typeof status === "string" ? status : undefined),
+  }));
 }
 
 export type DataFreshness = {
@@ -252,6 +280,14 @@ export type DataFreshness = {
 export type MarketDetail = {
   templateId: string;
   slug: string;
+  title?: string;
+  subtitle?: string;
+  resolutionRule?: string;
+  feedLabel?: string;
+  vertical?: string;
+  displayOrder?: number;
+  outcomeLabels?: string[];
+  primaryFeedId?: string;
   marketType: number;
   outcomeCount: number;
   initialized: boolean;
@@ -264,6 +300,8 @@ export type MarketDetail = {
   volume?: string;
   activeEpochId?: number;
   lastResolvedEpochId?: number;
+  /** Same projection field as list `epochStatus` when `market_snapshots` is merged. */
+  epochStatus?: string;
   activeEpoch?: {
     epochId: number;
     status: string;
@@ -282,6 +320,7 @@ export type MarketDetail = {
 
 export type OutcomeView = {
   outcomeIndex: number;
+  label?: string;
   poolSize: string;
   impliedProbabilityE6: string;
   displayPercentE4?: string;
@@ -462,12 +501,19 @@ export async function fetchFaucetRelay(body: FaucetRelayRequestBody): Promise<Fa
 
 export async function fetchMarket(templateId: string): Promise<MarketDetail> {
   const id = templateId.startsWith("0x") ? templateId.slice(2) : templateId;
-  const raw = await getJson<Partial<MarketDetail> & Pick<MarketDetail, "templateId" | "slug">>(
+  const raw = await getJson<Partial<MarketDetail> & Pick<MarketDetail, "templateId" | "slug"> & { status?: string }>(
     `/api/v1/markets/0x${id}`,
   );
   return {
     templateId: raw.templateId,
     slug: raw.slug,
+    title: raw.title,
+    subtitle: raw.subtitle,
+    resolutionRule: raw.resolutionRule,
+    feedLabel: raw.feedLabel,
+    vertical: raw.vertical,
+    displayOrder: raw.displayOrder,
+    outcomeLabels: raw.outcomeLabels,
     marketType: typeof raw.marketType === "number" ? raw.marketType : 0,
     outcomeCount: typeof raw.outcomeCount === "number" ? raw.outcomeCount : 2,
     initialized: Boolean(raw.initialized),
@@ -480,6 +526,12 @@ export async function fetchMarket(templateId: string): Promise<MarketDetail> {
     volume: raw.volume,
     activeEpochId: raw.activeEpochId,
     lastResolvedEpochId: raw.lastResolvedEpochId,
+    epochStatus:
+      typeof raw.epochStatus === "string"
+        ? raw.epochStatus
+        : typeof raw.status === "string"
+          ? raw.status
+          : raw.activeEpoch?.status,
     activeEpoch: raw.activeEpoch,
     outcomes: raw.outcomes,
     outcomeViewBlock: raw.outcomeViewBlock,

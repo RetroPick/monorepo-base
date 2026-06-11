@@ -1,5 +1,7 @@
 # 07 Operational Model And Risks
 
+> **Deploy policy:** [`PRODUCTION.md`](../../../PRODUCTION.md). **Backend runbook:** [`.dev/backend/operations-runbook.md`](../../../.dev/backend/operations-runbook.md).
+
 ## Operational Model
 
 ## Core Services

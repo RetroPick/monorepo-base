@@ -1,11 +1,19 @@
 import { useEffect, useState } from "react";
-import { modal } from "@reown/appkit/react";
+import { ensureAppKitInitialized } from "@/lib/retropickAppKit";
 
 let readyPromise: Promise<void> | null = null;
 
-function ensureAppKitReadyPromise(): Promise<void> {
+function ensureModalReadyPromise(): Promise<void> {
   if (!readyPromise) {
-    readyPromise = modal?.ready() ?? Promise.resolve();
+    readyPromise = ensureAppKitInitialized()
+      .then(async () => {
+        const { modal } = await import("@reown/appkit/react");
+        await modal?.ready();
+      })
+      .catch((err) => {
+        readyPromise = null;
+        throw err;
+      });
   }
   return readyPromise;
 }
@@ -20,7 +28,7 @@ export function useAppKitReady(): boolean {
 
   useEffect(() => {
     let cancelled = false;
-    void ensureAppKitReadyPromise()
+    void ensureModalReadyPromise()
       .then(() => {
         if (!cancelled) setReady(true);
       })

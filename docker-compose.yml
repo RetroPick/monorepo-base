@@ -44,6 +44,9 @@ services:
       PORT: "8080"
       DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
+      CORS_STRICT: "1"
+      CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+      WS_ALLOWED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
       LIVE_RPC_TIMEOUT: 15s
       LIVE_RPC_GLOBAL_CACHE_TTL: 5s
       DB_MAX_CONNS: "16"
@@ -112,11 +115,39 @@ services:
     environment:
       DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
       RPC_URL: https://sepolia.base.org
-      # Must include historical market bootstrap events without forcing multi-hour cold sync.
+      # Current embedded Base Sepolia MarketEngine proxy
+      # (apps/backend/internal/registrydata/registry.json) is deployed at block 40608939.
+      # Starting from genesis keeps a fresh local DB empty for a long time while the indexer
+      # scans tens of millions of empty blocks.
       INDEXER_LOOKBACK_BLOCKS: "500000"
-      # Speed up catch-up on fresh DB bootstrap windows.
-      INDEXER_MAX_BLOCKS_PER_TICK: "10000"
-      INDEXER_TICK_INTERVAL_MS: "500"
+      INDEXER_START_BLOCK: "40608939"
+      # Base Sepolia public RPC rejects eth_getLogs ranges above 2,000 blocks.
+      INDEXER_MAX_BLOCKS_PER_TICK: "2000"
+      # NOTE: config parser treats plain integers as seconds; use a duration string.
+      INDEXER_TICK_INTERVAL_MS: "500ms"
+
+  price-worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: price-worker
+    container_name: retropick-price-worker
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: ${RETROPICK_COMPOSE_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
+      RPC_URL: https://sepolia.base.org
+      PRICE_POLL_INTERVAL: "10s"
+      PRICE_HEARTBEAT_INTERVAL: "5m"
+      DB_MAX_CONNS: "2"
+      DB_MIN_CONNS: "1"
 
   ops:
     build:

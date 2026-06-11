@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestRateLimitMiddlewareFunding(t *testing.T) {
@@ -32,17 +33,55 @@ func TestRequestIPIgnoresForwardedHeaderByDefault(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets", nil)
 	req.RemoteAddr = "10.0.0.9:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9")
-	if got := requestIP(req, false); got != "10.0.0.9" {
+	if got := requestIP(req, RateLimitOptions{}); got != "10.0.0.9" {
 		t.Fatalf("expected remote addr host, got %q", got)
 	}
 }
 
-func TestRequestIPUsesForwardedHeaderWhenTrusted(t *testing.T) {
+func TestRequestIPUsesForwardedHeaderWhenProxyNetworkTrusted(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets", nil)
 	req.RemoteAddr = "10.0.0.9:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9, 10.0.0.9")
-	if got := requestIP(req, true); got != "198.51.100.9" {
+	if got := requestIP(req, RateLimitOptions{TrustForwardedFor: true, TrustedProxyCIDRs: []string{"10.0.0.0/8"}}); got != "198.51.100.9" {
 		t.Fatalf("expected forwarded client ip, got %q", got)
+	}
+}
+
+func TestRequestIPIgnoresForwardedHeaderFromUntrustedProxy(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets", nil)
+	req.RemoteAddr = "203.0.113.9:1234"
+	req.Header.Set("X-Forwarded-For", "198.51.100.9")
+	if got := requestIP(req, RateLimitOptions{TrustForwardedFor: true, TrustedProxyCIDRs: []string{"10.0.0.0/8"}}); got != "203.0.113.9" {
+		t.Fatalf("expected untrusted proxy remote addr, got %q", got)
+	}
+}
+
+func TestAllowIPEvictsOldestCounterAtBound(t *testing.T) {
+	rateMu.Lock()
+	previousCounters, previousMax, previousSweep := rateCounters, rateMaxEntries, rateLastSweep
+	rateCounters = map[string]map[string]ipWindowCounter{}
+	rateMaxEntries = 2
+	rateLastSweep = time.Now()
+	rateMu.Unlock()
+	t.Cleanup(func() {
+		rateMu.Lock()
+		rateCounters, rateMaxEntries, rateLastSweep = previousCounters, previousMax, previousSweep
+		rateMu.Unlock()
+	})
+
+	allowIP("bounded", "first", 10, time.Minute)
+	time.Sleep(time.Millisecond)
+	allowIP("bounded", "second", 10, time.Minute)
+	time.Sleep(time.Millisecond)
+	allowIP("bounded", "third", 10, time.Minute)
+
+	rateMu.Lock()
+	defer rateMu.Unlock()
+	if _, ok := rateCounters["bounded"]["first"]; ok {
+		t.Fatal("expected oldest rate counter to be evicted")
+	}
+	if got := len(rateCounters["bounded"]); got != 2 {
+		t.Fatalf("counter count = %d, want 2", got)
 	}
 }
 

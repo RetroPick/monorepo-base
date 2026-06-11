@@ -20,3 +20,24 @@ test-ledger
 .turbo/
 .vercel
 .env*.local
+**/__pycache__/
+**/*.pyc
+package/prediction-v2/cache/
+package/prediction-v2/out/
+package/prediction-v2/broadcast/
+package/prediction-v2/.operator/local/
+progress.md
+.retropick-launch/
+
+# local temp/image/package artifacts
+apps/retropick-landing/.tmp-img/
+apps/**/.tmp-img/
+.tmp-img/
+
+# embedded local source clone, not part of main repo
+
+
+# local temp/image/package artifacts
+apps/retropick-landing/.tmp-img/
+apps/**/.tmp-img/
+.tmp-img/

@@ -13,6 +13,12 @@ const baseView = (over: Partial<TemplateYieldView>): TemplateYieldView => ({
   scaledPrincipal: 0n,
   stataShares: 0n,
   yieldFeeBpsCurrent: 100,
+  yieldRouteId: "0x0000000000000000000000000000000000000000000000000000000000000000",
+  yieldStrategy: "0x0000000000000000000000000000000000000000",
+  yieldStrategyKind: 0,
+  yieldRouteEnabled: false,
+  yieldRouteLocked: false,
+  yieldRouteCap: 0n,
   ...over,
 });
 

@@ -32,6 +32,10 @@ export interface Market {
   binaryPresentation?: "yesno" | "updown";
   oracleSource?: string;
   timeframe?: string;
+  /**
+   * Discover / card lifecycle label derived from indexer data (see `inferMarketCardLifecycle`):
+   * `open` | `lock` | `resolve` | `syncing` | `setup` | `paused` — not CRE oracle “frozen” heuristics.
+   */
   status?: string;
   roundId?: string;
   totalPool?: string;
@@ -45,10 +49,22 @@ export interface Market {
    * Used for Discover subtitles and featured eyebrow; omitted for off-chain discovery fixtures.
    */
   chainExecutionMode?: 0 | 1;
+  /** Indexer: rolling lifecycle phase (uint8-ish). Present when `chainExecutionMode=1`. */
+  chainRollingPhase?: number;
+  /** Indexer: rolling halt reason (0=none). Present when `chainExecutionMode=1`. */
+  chainRollingHaltReason?: number;
+  /** Indexer: active epoch id (if any). */
+  chainActiveEpochId?: number;
+  /** Indexer: next rolling epoch id (if any). */
+  chainRollingNextEpochId?: number;
+  /** Indexer: last resolved epoch id (if any). */
+  chainLastResolvedEpochId?: number;
   /**
    * Indexer: Solidity `marketType` uint. Used for stable classification labels alongside `marketType` string.
    */
   chainMarketTypeId?: number;
+  /** Launch board display ordering from backend metadata. Lower values sort first. */
+  chainDisplayOrder?: number;
 }
 
 export interface Position {

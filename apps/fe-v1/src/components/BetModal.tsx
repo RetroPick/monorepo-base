@@ -85,9 +85,9 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
       }
       setIsPending(true);
       alert("Legacy relayer modal is disabled. Use the market Trade panel for backend-orchestrated orders.");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Trade failed:", err);
-      alert(`Trade Error: ${err.message || 'Unknown error'}`);
+      alert(`Trade Error: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setIsPending(false);
     }

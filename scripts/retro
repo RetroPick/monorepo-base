@@ -1,77 +1,134 @@
 #!/usr/bin/env bash
-# retro — short entry to RETRODEPLOYER (V1 monorepo root). Same cwd rules as ./scripts/RETRODEPLOYER.
-#
-#   retro              → open menu
-#   retro menu         → menu
-#   retro d            → deploy-all
-#   retro ro           → resume open batch
-#   retro mon          → monitoring
-#   retro routes       → templateId HTTP paths; activate-epoch, prepare-lock/resolve-epoch
-#   retro e            → emergency prepare
-#   retro p all        → prepare all
-#   pnpm run retro     → from repo root
-#
-# On PATH: use ../bin/retro  (or  pnpm install  then  node_modules/.bin/retro)
+# retro - root-aware RetroPick operator CLI.
 set -euo pipefail
 
 _script="$(readlink -f "${BASH_SOURCE[0]}")"
-_RDIR="$(cd "$(dirname "$_script")" && pwd)"
-V1_ROOT="$(cd "$_RDIR/.." && pwd)"
-RETRO="$V1_ROOT/scripts/RETRODEPLOYER"
+V1_ROOT="$(cd "$(dirname "$_script")/.." && pwd)"
 export V1_ROOT
 
-if [[ ! -f "$RETRO" ]]; then
-  echo "error: RETRODEPLOYER not found: $RETRO" >&2
-  exit 1
-fi
+usage() {
+  cat <<'EOF'
+Usage: retro <command>
 
-# No args: menu
-if [[ $# -eq 0 ]]; then
-  exec bash "$RETRO" menu
-fi
+  doctor
+  costs estimate [estimator args]
+  stack dev  up|down|status|logs [compose args]
+  stack prod config|up|down|status|logs|smoke [compose args]
+  db backup [output-dir]
+  db restore-drill <dump-file>
+  market <RETRODEPLOYER args>
+  contracts test [forge args]
+  contracts estimate [estimator args]
+  contracts verify [verify args]
 
-cmd=$1
-shift
+Legacy RETRODEPLOYER commands are accepted as top-level commands for compatibility.
+EOF
+}
 
+run_estimator() {
+  exec python3 "$V1_ROOT/package/prediction-v2/scripts/estimate_deploy_and_epoch_costs.py" "$@"
+}
+
+doctor() {
+  local failed=0 tool file
+  printf 'RetroPick root: %s\n' "$V1_ROOT"
+  for tool in bash python3 docker go; do
+    if command -v "$tool" >/dev/null 2>&1; then
+      printf 'ok      tool %s\n' "$tool"
+    else
+      printf 'missing tool %s\n' "$tool"
+      failed=1
+    fi
+  done
+  if command -v forge >/dev/null 2>&1; then
+    printf 'ok      tool forge\n'
+  else
+    printf 'warn    tool forge (required for contract tests and deploy simulation)\n'
+  fi
+  if [[ -f "$V1_ROOT/package/prediction-v2/foundry.toml" ]]; then
+    printf 'ok      contracts package/prediction-v2\n'
+  else
+    printf 'missing contracts package/prediction-v2\n'
+    failed=1
+  fi
+  for file in \
+    scripts/lib/load-env.sh \
+    package/prediction-v2/scripts/estimate_deploy_and_epoch_costs.py \
+    scripts/compose-production.sh \
+    scripts/smoke-production.sh; do
+    if [[ -f "$V1_ROOT/$file" ]]; then
+      printf 'ok      file %s\n' "$file"
+    else
+      printf 'missing file %s\n' "$file"
+      failed=1
+    fi
+  done
+  for file in \
+    scripts/market/prepare-upsert-template.sh \
+    scripts/market/prepare-ops-tx.sh \
+    scripts/market/broadcast-prepared-ops-tx.sh; do
+    if [[ -f "$V1_ROOT/$file" ]]; then
+      printf 'ok      file %s\n' "$file"
+    else
+      printf 'missing file %s\n' "$file"
+      failed=1
+    fi
+  done
+  if [[ -n "${RETROPICK_API_BASE:-}" ]]; then
+    if curl -fsS --max-time 3 "${RETROPICK_API_BASE%/}/api/v1/livez" >/dev/null; then
+      printf 'ok      api %s\n' "${RETROPICK_API_BASE%/}"
+    else
+      printf 'missing api %s\n' "${RETROPICK_API_BASE%/}"
+      failed=1
+    fi
+  else
+    printf 'skip    api health (set RETROPICK_API_BASE)\n'
+  fi
+  return "$failed"
+}
+
+cmd="${1:-help}"
+[[ $# -eq 0 ]] || shift
 case "$cmd" in
-menu | m)
-  exec bash "$RETRO" menu "$@"
-  ;;
-help | h | -h | --help)
-  exec bash "$RETRO" help "$@"
-  ;;
-deploy | d)
-  exec bash "$RETRO" deploy-all "$@"
-  ;;
-send | s)
-  exec bash "$RETRO" send "$@"
-  ;;
-batch | bs)
-  exec bash "$RETRO" batch-send "$@"
-  ;;
-launch | l)
-  exec bash "$RETRO" launch "$@"
-  ;;
-open-all | oa)
-  exec bash "$RETRO" prepare-open-all "$@"
-  ;;
-resume-open | ro)
-  exec bash "$RETRO" resume-open "$@"
-  ;;
-monitor | mon)
-  exec bash "$RETRO" monitor "$@"
-  ;;
-routes)
-  exec bash "$RETRO" routes "$@"
-  ;;
-emergency | e)
-  exec bash "$RETRO" emergency "$@"
-  ;;
-prepare | p)
-  exec bash "$RETRO" prepare "$@"
-  ;;
-# passthrough: prepare-open-all, deploy-all, batch-send --yes, etc.
-*)
-  exec bash "$RETRO" "$cmd" "$@"
-  ;;
+  help|-h|--help) usage ;;
+  doctor) doctor "$@" ;;
+  costs)
+    sub="${1:-help}"; [[ $# -eq 0 ]] || shift
+    case "$sub" in estimate) run_estimator "$@" ;; *) usage; exit 2 ;; esac
+    ;;
+  stack)
+    target="${1:-}"; action="${2:-}"; [[ $# -lt 1 ]] || shift; [[ $# -lt 1 ]] || shift
+    case "$target:$action" in
+      dev:up) exec docker compose -f "$V1_ROOT/docker-compose.yml" up "$@" ;;
+      dev:down) exec docker compose -f "$V1_ROOT/docker-compose.yml" down "$@" ;;
+      dev:status) exec docker compose -f "$V1_ROOT/docker-compose.yml" ps "$@" ;;
+      dev:logs) exec docker compose -f "$V1_ROOT/docker-compose.yml" logs "$@" ;;
+      prod:config) exec "$V1_ROOT/scripts/compose-production.sh" config "$@" ;;
+      prod:up) exec "$V1_ROOT/scripts/compose-production.sh" up "$@" ;;
+      prod:down) exec "$V1_ROOT/scripts/compose-production.sh" down "$@" ;;
+      prod:status) exec "$V1_ROOT/scripts/compose-production.sh" ps "$@" ;;
+      prod:logs) exec "$V1_ROOT/scripts/compose-production.sh" logs "$@" ;;
+      prod:smoke) exec "$V1_ROOT/scripts/smoke-production.sh" "$@" ;;
+      *) usage; exit 2 ;;
+    esac
+    ;;
+  db)
+    sub="${1:-}"; [[ $# -eq 0 ]] || shift
+    case "$sub" in
+      backup) exec "$V1_ROOT/scripts/backup-postgres.sh" "$@" ;;
+      restore-drill) exec "$V1_ROOT/scripts/restore-postgres.sh" "$@" ;;
+      *) usage; exit 2 ;;
+    esac
+    ;;
+  contracts)
+    sub="${1:-}"; [[ $# -eq 0 ]] || shift
+    case "$sub" in
+      test) cd "$V1_ROOT/package/prediction-v2"; exec forge test "$@" ;;
+      estimate) run_estimator "$@" ;;
+      verify) cd "$V1_ROOT/package/prediction-v2"; exec ./scripts/verify-base-sepolia-contracts.sh "$@" ;;
+      *) usage; exit 2 ;;
+    esac
+    ;;
+  market) exec bash "$V1_ROOT/scripts/RETRODEPLOYER" "$@" ;;
+  *) exec bash "$V1_ROOT/scripts/RETRODEPLOYER" "$cmd" "$@" ;;
 esac

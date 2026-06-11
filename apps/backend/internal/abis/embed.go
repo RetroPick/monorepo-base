@@ -13,3 +13,6 @@ var TokenFaucetJSON []byte
 
 //go:embed MockERC20.json
 var MockERC20JSON []byte
+
+//go:embed ChainlinkAdapter.json
+var ChainlinkAdapterJSON []byte

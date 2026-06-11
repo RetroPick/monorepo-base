@@ -73,8 +73,8 @@ const defaultUpsert = (): UpsertForm => ({
   active: true,
   outcomeCount: 2,
   absoluteThresholdValueE8: "10000000000",
-  switchFeeBps: 100,
-  settlementFeeBps: 100,
+  switchFeeBps: 0,
+  settlementFeeBps: 75,
   allowMultiSidePositions: true,
   executionMode: 0,
   rollingIntervalSeconds: 0,
@@ -372,7 +372,7 @@ export default function LaunchPage() {
           Guided operator path for <code className="text-zinc-300">upsertTemplate</code> →{" "}
           <code className="text-zinc-300">initializeMarket</code> → manual or rolling epoch actions. Calldata only via{" "}
           <code className="text-zinc-500">{apiBase}</code>. See{" "}
-          <code className="text-zinc-500">package/contract/.operator/.runbook.md</code>.
+          <code className="text-zinc-500">package/prediction-v2/.operator/.runbook.md</code>.
         </p>
       </div>
 
@@ -611,6 +611,8 @@ export default function LaunchPage() {
               <span className="text-zinc-500">switchFeeBps</span>
               <input
                 type="number"
+                min={0}
+                max={200}
                 className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
                 value={upsert.switchFeeBps}
                 onChange={(e) => setUpsert({ ...upsert, switchFeeBps: Number(e.target.value) })}
@@ -620,6 +622,8 @@ export default function LaunchPage() {
               <span className="text-zinc-500">settlementFeeBps</span>
               <input
                 type="number"
+                min={0}
+                max={200}
                 className="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm"
                 value={upsert.settlementFeeBps}
                 onChange={(e) => setUpsert({ ...upsert, settlementFeeBps: Number(e.target.value) })}

@@ -1,6 +1,6 @@
 import { Market } from "@/types/market";
 import { cn } from "@/lib/utils";
-import { useState, memo, MouseEvent } from "react";
+import { useState, memo, type MouseEvent } from "react";
 import BetModal from "./LazyBetModal";
 import { TrendingUp, TrendingDown, Activity, Globe, ArrowUpRight } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
@@ -22,7 +22,7 @@ const MacroMarketCard = memo(({ market }: MacroMarketCardProps) => {
     const accentBg = isInflation ? "bg-red-500" : isForex ? "bg-green-500" : isGrowth ? "bg-blue-500" : "bg-amber-500";
     const ticker = isInflation ? "CPI.US" : isForex ? "USDJPY" : isGrowth ? "EU.GDP" : "MACRO";
 
-    const handleBet = (e: MouseEvent<HTMLButtonElement>, outcomeLabel: string) => {
+    const handleBet = (e: MouseEvent<HTMLElement>, outcomeLabel: string) => {
         e.stopPropagation();
         setBetModal({ open: true, side: 'YES', outcome: outcomeLabel });
     };
@@ -68,7 +68,7 @@ const MacroMarketCard = memo(({ market }: MacroMarketCardProps) => {
                                         <span className={cn("font-bold", accentColor)}>{Math.round(outcome.probability)}%</span>
                                     </div>
                                     <div className="relative h-6 w-full bg-slate-100 dark:bg-white/5 rounded-sm overflow-hidden flex items-center cursor-pointer"
-                                        onClick={(e) => handleBet(e as any, outcome.label)}>
+                                        onClick={(e) => handleBet(e, outcome.label)}>
 
                                         {/* Progress Bar */}
                                         <div

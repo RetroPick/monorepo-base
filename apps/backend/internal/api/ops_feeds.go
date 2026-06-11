@@ -24,16 +24,14 @@ func registerOpsFeedRoutes(r chi.Router, reg *registry.Registry) {
 		if s := strings.TrimSpace(q.Get("oracleClass")); s != "" {
 			n, err := strconv.Atoi(s)
 			if err != nil || n < 0 || n > 4 {
-				http.Error(w, `{"error":"invalid oracleClass"}` , http.StatusBadRequest)
+				WriteAPIError(w, http.StatusBadRequest, "INVALID_ORACLE_CLASS", "invalid oracleClass", nil)
 				return
 			}
 			oc = &n
 		}
 		f, err := feedregistry.Filter(network, oc)
 		if err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			WriteAPIError(w, http.StatusBadRequest, "INVALID_FEED_FILTER", err.Error(), nil)
 			return
 		}
 		// When chain id in registry does not match deployment, still return data but note mismatch.
@@ -45,7 +43,7 @@ func registerOpsFeedRoutes(r chi.Router, reg *registry.Registry) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"network":            f.Network,
 			"chainId":            f.ChainID,
-			"feeds":                f.Feeds,
+			"feeds":              f.Feeds,
 			"source":             "static_registry",
 			"registryNote":       f.SourceNote,
 			"environmentWarning": note,

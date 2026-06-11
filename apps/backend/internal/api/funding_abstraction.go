@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -224,8 +225,8 @@ ORDER BY route_score DESC NULLS LAST, created_at ASC
 					"displayRequiredAmount": sourceAmount,
 				},
 				"destination": map[string]any{
-					"chainId":          nil,
-					"tokenSymbol":      "USDC",
+					"chainId":           nil,
+					"tokenSymbol":       "USDC",
 					"estimatedToAmount": estAmount,
 					"minToAmount":       minAmount,
 				},
@@ -239,10 +240,10 @@ ORDER BY route_score DESC NULLS LAST, created_at ASC
 			})
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"intentId":             intentID.String(),
-			"status":               funding.StatusOptionsReady,
-			"recommendedOptionId":  recommended,
-			"options":              options,
+			"intentId":            intentID.String(),
+			"status":              funding.StatusOptionsReady,
+			"recommendedOptionId": recommended,
+			"options":             options,
 		})
 	}
 }
@@ -333,10 +334,10 @@ RETURNING id::text
 			"intentId": intentID.String(),
 			"status":   funding.StatusRouteSelected,
 			"execution": map[string]any{
-				"executionId":    executionID,
-				"provider":       provider,
+				"executionId":     executionID,
+				"provider":        provider,
 				"serializedRoute": json.RawMessage(snap),
-				"routeVersion":   routeVersionHex(snap),
+				"routeVersion":    routeVersionHex(snap),
 			},
 		})
 	}
@@ -375,21 +376,21 @@ WHERE id::text = $1
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"executionId":      executionID,
-			"status":           status,
-			"provider":         provider,
-			"sourceChainId":    sourceChain,
-			"sourceToken":      sourceToken,
-			"sourceAmount":     sourceAmount,
+			"executionId":        executionID,
+			"status":             status,
+			"provider":           provider,
+			"sourceChainId":      sourceChain,
+			"sourceToken":        sourceToken,
+			"sourceAmount":       sourceAmount,
 			"destinationChainId": destinationChain,
-			"destinationToken": destinationToken,
+			"destinationToken":   destinationToken,
 			"expectedUsdcAmount": expectedAmount,
-			"minUsdcAmount":    minAmount,
-			"sourceTxHash":     sourceTxHash,
-			"destinationTxHash": destinationTxHash,
-			"serializedRoute":  json.RawMessage(routeSnapshot),
-			"routeVersion":     routeVersionHex(routeSnapshot),
-			"updatedAt":        updatedAt.UTC().Format(time.RFC3339),
+			"minUsdcAmount":      minAmount,
+			"sourceTxHash":       sourceTxHash,
+			"destinationTxHash":  destinationTxHash,
+			"serializedRoute":    json.RawMessage(routeSnapshot),
+			"routeVersion":       routeVersionHex(routeSnapshot),
+			"updatedAt":          updatedAt.UTC().Format(time.RFC3339),
 		})
 	}
 }
@@ -414,13 +415,13 @@ func getFundingIntentV2Handler(pool *pgxpool.Pool) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{
-			"intentId":          intentUUID.String(),
-			"status":            intent["status"],
-			"targetUsdcAmount":  intent["targetUsdcAmount"],
-			"selectedOptionId":  intent["selectedRouteId"],
-			"failureCode":       intent["failureCode"],
-			"failureMessage":    intent["failureMessage"],
-			"updatedAt":         intent["updatedAt"],
+			"intentId":         intentUUID.String(),
+			"status":           intent["status"],
+			"targetUsdcAmount": intent["targetUsdcAmount"],
+			"selectedOptionId": intent["selectedRouteId"],
+			"failureCode":      intent["failureCode"],
+			"failureMessage":   intent["failureMessage"],
+			"updatedAt":        intent["updatedAt"],
 		})
 	}
 }
@@ -586,18 +587,18 @@ func fundingLifiWebhookHandler(pool *pgxpool.Pool, cfg FundingAPIConfig) http.Ha
 		Type    string `json:"type"`
 	}
 	type webhookReq struct {
-		EventID            string      `json:"eventId"`
-		EventType          string      `json:"eventType"`
-		ExecutionID        string      `json:"executionId"`
-		RouteExecutionID   string      `json:"routeExecutionId"`
-		Status             string      `json:"status"`
-		SourceTxHash       string      `json:"sourceTxHash"`
-		DestinationTxHash  string      `json:"destinationTxHash"`
-		ObservedTxHashes   []webhookTx `json:"observedTxHashes"`
+		EventID           string      `json:"eventId"`
+		EventType         string      `json:"eventType"`
+		ExecutionID       string      `json:"executionId"`
+		RouteExecutionID  string      `json:"routeExecutionId"`
+		Status            string      `json:"status"`
+		SourceTxHash      string      `json:"sourceTxHash"`
+		DestinationTxHash string      `json:"destinationTxHash"`
+		ObservedTxHashes  []webhookTx `json:"observedTxHashes"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(cfg.LifiWebhookSecret) != "" {
-			if r.Header.Get("X-Lifi-Webhook-Secret") != cfg.LifiWebhookSecret {
+			if !constantTimeSecretEqual(r.Header.Get("X-Lifi-Webhook-Secret"), cfg.LifiWebhookSecret) {
 				http.Error(w, `{"error":{"code":"UNAUTHORIZED"}}`, http.StatusUnauthorized)
 				return
 			}
@@ -661,6 +662,10 @@ WHERE tx_hash = LOWER($1)
 		}
 		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true, "eventId": eventID})
 	}
+}
+
+func constantTimeSecretEqual(got, want string) bool {
+	return subtle.ConstantTimeCompare([]byte(got), []byte(want)) == 1
 }
 
 func insertFundingTransitionGuard(ctx context.Context, pool *pgxpool.Pool, intentID uuid.UUID, toStatus, idempotencyKey string) error {

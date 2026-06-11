@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/funding"
+	"retropick/apps/backend/internal/launchboard"
 	"retropick/apps/backend/internal/registry"
 )
 
@@ -499,7 +500,17 @@ func ChartHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		feedID := strings.TrimSpace(r.URL.Query().Get("feedId"))
 		if feedID == "" {
-			feedID = strings.ToLower(chi.URLParam(r, "templateId"))
+			catalog, err := launchboard.Metadata()
+			if err != nil {
+				http.Error(w, `{"error":"feed registry"}`, http.StatusInternalServerError)
+				return
+			}
+			meta, ok := catalog.LookupTemplateID(chi.URLParam(r, "templateId"))
+			if !ok || strings.TrimSpace(meta.Feed.Address) == "" {
+				http.Error(w, `{"error":"primary feed not found"}`, http.StatusNotFound)
+				return
+			}
+			feedID = strings.ToLower(meta.Feed.Address)
 		}
 		interval := int32(60)
 		if raw := r.URL.Query().Get("interval"); raw != "" {

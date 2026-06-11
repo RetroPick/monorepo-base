@@ -36,3 +36,15 @@ func TestPrepareTx_OpenEpochsBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestPrepareTx_SetFeedDecimals(t *testing.T) {
+	c, err := NewCaller("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	feedID := common.HexToHash("0x0000000000000000000000000FB99723Aee6f420beAD13e6bBB79b7E6F034298")
+	_, err = c.PrepareTx(84532, common.Address{}, "setFeedDecimals", []any{feedID, uint8(8)}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

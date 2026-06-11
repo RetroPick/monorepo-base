@@ -485,9 +485,10 @@ export default function AboveBelowDashboard() {
                   <div className="flex h-full flex-col justify-center bg-background px-2 py-8 text-sm text-muted-foreground">
                     <p className="font-medium text-foreground">{referenceResult.message}</p>
                     {referenceResult.reason === "missing_fred_key" ? (
-                      <p className="mt-2 font-mono text-xs">
-                        Set <code className="rounded bg-muted px-1">VITE_FRED_API_KEY</code> in{" "}
-                        <code className="rounded bg-muted px-1">.env</code> for FRED-backed charts.
+                    <p className="mt-2 font-mono text-xs">
+                        Set <code className="rounded bg-muted px-1">FRED_API_KEY</code> or{" "}
+                        <code className="rounded bg-muted px-1">NEXT_PUBLIC_FRED_API_KEY</code> in the deployment env
+                        for FRED-backed charts.
                       </p>
                     ) : null}
                   </div>

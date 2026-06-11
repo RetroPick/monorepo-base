@@ -4,8 +4,6 @@ import { OpsAppShell } from "@/components/shell/OpsAppShell";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LiveOpsProvider } from "@/components/LiveOpsContext";
 import { fetchGlobalState } from "@/lib/api";
-import { openSans, outfit } from "@/styles/fonts";
-
 import "@/styles/globals.css";
 import { Providers } from "./providers";
 
@@ -28,11 +26,7 @@ export default async function RootLayout({
   }
 
   return (
-    <html
-      lang="en"
-      className={`dark ${outfit.variable} ${openSans.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="en" className="dark" suppressHydrationWarning>
       <body className="min-h-screen bg-[color:var(--color-secondaryBg)] antialiased">
         <ThemeProvider>
           <Providers>

@@ -1,7 +1,7 @@
 /**
  * Map indexed `MarketRow` (Go API) to `Market` card models for Discover.
  * Uses live outcome views when the API hydrates them; falls back to neutral splits for older payloads.
- * `marketType` uint order matches `MarketTypes.MarketType` in `package/contract/src/types/MarketTypes.sol`.
+ * `marketType` uint order matches `MarketTypes.MarketType` in `package/prediction-v2/src/types/MarketTypes.sol`.
  */
 
 import type { Market, MarketOutcome } from "@/types/market";
@@ -36,6 +36,22 @@ function slugToTitle(slug: string): string {
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(" ");
   return t || "Market";
+}
+
+function rowTitle(row: MarketRow): string {
+  return row.title?.trim() || slugToTitle(row.slug);
+}
+
+function labelForOutcome(
+  row: MarketRow,
+  outcomeIndex: number,
+  fallback: string,
+): string {
+  const byIndex = row.outcomes?.find((view) => view.outcomeIndex === outcomeIndex)?.label?.trim();
+  if (byIndex) return byIndex;
+  const catalog = row.outcomeLabels?.[outcomeIndex]?.trim();
+  if (catalog) return catalog;
+  return fallback;
 }
 
 function pickIconForSlug(slug: string): string {
@@ -111,14 +127,23 @@ export function isMarketPastSetup(row: MarketRow): boolean {
   return row.initialized;
 }
 
-function deriveStatus(row: MarketRow): string {
-  if (chainMarketIsLive(row)) {
-    return "open";
+/**
+ * Discover card lifecycle: prefers indexer `epochStatus` / projection (`open` | `locked` | `resolved`).
+ * Does not invent `open` when the API omits projection but `activeEpochId` is set — returns `syncing` instead.
+ */
+export function inferMarketCardLifecycle(row: MarketRow): string {
+  const epoch = row.epochStatus?.trim().toLowerCase();
+  if (epoch === "open") return "open";
+  if (epoch === "locked") return "lock";
+  if (epoch === "resolved") return "resolve";
+
+  if (!row.initialized) {
+    return "setup";
   }
-  if (row.initialized) {
+  if (row.activeEpochId == null) {
     return "paused";
   }
-  return "setup";
+  return "syncing";
 }
 
 /**
@@ -190,9 +215,12 @@ export function inferChainAssetFromSlug(
 
 export function sortMarketsByActivity(rows: MarketRow[]): MarketRow[] {
   return [...rows].sort((a, b) => {
-    const aLive = chainMarketIsLive(a) ? 1 : 0;
-    const bLive = chainMarketIsLive(b) ? 1 : 0;
+    const aLive = inferMarketCardLifecycle(a) === "open" ? 1 : 0;
+    const bLive = inferMarketCardLifecycle(b) === "open" ? 1 : 0;
     if (aLive !== bLive) return bLive - aLive;
+    const aOrder = typeof a.displayOrder === "number" ? a.displayOrder : Number.MAX_SAFE_INTEGER;
+    const bOrder = typeof b.displayOrder === "number" ? b.displayOrder : Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
     return a.slug.localeCompare(b.slug);
   });
 }
@@ -214,13 +242,13 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     isBinary = true;
     if (mt === 0) {
       outcomes = [
-        { id: "0", label: "Up", probability: rowOutcomeProbability(byIndex, 0, 50) },
-        { id: "1", label: "Down", probability: rowOutcomeProbability(byIndex, 1, 50) },
+        { id: "0", label: labelForOutcome(row, 0, "Up"), probability: rowOutcomeProbability(byIndex, 0, 50) },
+        { id: "1", label: labelForOutcome(row, 1, "Down"), probability: rowOutcomeProbability(byIndex, 1, 50) },
       ];
     } else {
       outcomes = [
-        { id: "0", label: "Yes", probability: rowOutcomeProbability(byIndex, 0, 50) },
-        { id: "1", label: "No", probability: rowOutcomeProbability(byIndex, 1, 50) },
+        { id: "0", label: labelForOutcome(row, 0, "Yes"), probability: rowOutcomeProbability(byIndex, 0, 50) },
+        { id: "1", label: labelForOutcome(row, 1, "No"), probability: rowOutcomeProbability(byIndex, 1, 50) },
       ];
     }
   } else {
@@ -232,7 +260,7 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     const rem = 100 - base * oc;
     outcomes = Array.from({ length: oc }, (_, i) => ({
       id: String(i),
-      label: `Outcome ${i + 1}`,
+      label: labelForOutcome(row, i, `Outcome ${i + 1}`),
       probability: rowOutcomeProbability(byIndex, i, base + (i < rem ? 1 : 0)),
     }));
   }
@@ -243,12 +271,18 @@ export function marketRowToCardMarket(row: MarketRow): Market {
   return {
     id: row.templateId,
     slug: row.slug,
-    title: slugToTitle(row.slug),
+    title: rowTitle(row),
     category: "On-chain",
     primitive,
     marketType: typeName,
     chainExecutionMode,
+    chainRollingPhase: typeof row.rollingPhase === "number" ? row.rollingPhase : undefined,
+    chainRollingHaltReason: typeof row.rollingHaltReason === "number" ? row.rollingHaltReason : undefined,
+    chainActiveEpochId: typeof row.activeEpochId === "number" ? row.activeEpochId : undefined,
+    chainRollingNextEpochId: typeof row.rollingNextEpochId === "number" ? row.rollingNextEpochId : undefined,
+    chainLastResolvedEpochId: typeof row.lastResolvedEpochId === "number" ? row.lastResolvedEpochId : undefined,
     chainMarketTypeId: mt,
+    chainDisplayOrder: typeof row.displayOrder === "number" ? row.displayOrder : undefined,
     icon: pickIconForSlug(row.slug),
     iconColor: "text-foreground",
     outcomes,
@@ -256,8 +290,8 @@ export function marketRowToCardMarket(row: MarketRow): Market {
     totalPool: totalPool ?? "-",
     isBinary,
     binaryPresentation,
-    status: deriveStatus(row),
-    oracleSource: "MarketEngine (indexed)",
+    status: inferMarketCardLifecycle(row),
+    oracleSource: row.feedLabel ? `Chainlink ${row.feedLabel}` : "MarketEngine (indexed)",
   };
 }
 

@@ -1,0 +1,213 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: retropick-postgres-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - retropick_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  migrator:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: migrator
+    container_name: retropick-migrator-prod
+    restart: "no"
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: api
+    container_name: retropick-api-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      DB_MAX_CONNS: ${API_DB_MAX_CONNS:-8}
+      DB_MIN_CONNS: ${API_DB_MIN_CONNS:-2}
+      METRICS_HOST: "0.0.0.0"
+      METRICS_PORT: "9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/healthcheck", "/api/v1/livez"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    expose:
+      - "8080"
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  indexer:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: indexer
+    container_name: retropick-indexer-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      DB_MAX_CONNS: ${INDEXER_DB_MAX_CONNS:-4}
+      DB_MIN_CONNS: ${INDEXER_DB_MIN_CONNS:-1}
+      METRICS_HOST: "0.0.0.0"
+      METRICS_PORT: "9091"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:9091:9091"
+
+  price-worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: price-worker
+    container_name: retropick-price-worker-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      DB_MAX_CONNS: ${PRICE_DB_MAX_CONNS:-2}
+      DB_MIN_CONNS: ${PRICE_DB_MIN_CONNS:-1}
+      METRICS_HOST: "0.0.0.0"
+      METRICS_PORT: "9094"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:9094:9094"
+
+  funding-worker:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: funding-worker
+    container_name: retropick-funding-worker-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      DB_MAX_CONNS: ${FUNDING_DB_MAX_CONNS:-4}
+      DB_MIN_CONNS: ${FUNDING_DB_MIN_CONNS:-1}
+      METRICS_HOST: "0.0.0.0"
+      METRICS_PORT: "9093"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:9093:9093"
+
+  keeper:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: keeper
+    container_name: retropick-keeper-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      DB_MAX_CONNS: ${KEEPER_DB_MAX_CONNS:-2}
+      DB_MIN_CONNS: ${KEEPER_DB_MIN_CONNS:-0}
+      METRICS_HOST: "0.0.0.0"
+      METRICS_PORT: "9092"
+    volumes:
+      - /etc/retropick/secrets:/run/secrets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:9092:9092"
+
+  alert:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      args:
+        SERVICE: alert
+    container_name: retropick-alert-prod
+    restart: unless-stopped
+    env_file:
+      - ${RETROPICK_ENV_FILE:-.env.production}
+    environment:
+      DB_MAX_CONNS: ${ALERT_DB_MAX_CONNS:-1}
+      DB_MIN_CONNS: ${ALERT_DB_MIN_CONNS:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: retropick-nginx-prod
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_HOST: ${API_HOST}
+      APP_HOST: ${APP_HOST:-}
+    volumes:
+      - ./docker/nginx-production.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/render-nginx-production.sh:/etc/nginx/render-production-conf.sh:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    command: ["/bin/sh", "/etc/nginx/render-production-conf.sh"]
+
+  web:
+    profiles: ["full-vps"]
+    build:
+      context: .
+      dockerfile: apps/fe-v1/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID}
+    container_name: retropick-web-prod
+    restart: unless-stopped
+    depends_on:
+      - api
+    expose:
+      - "3000"
+
+volumes:
+  retropick_postgres:

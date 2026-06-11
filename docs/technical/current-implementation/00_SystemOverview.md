@@ -1,8 +1,10 @@
 # 00 System Overview
 
+> **Primer only.** Backend as-implemented detail: [`.dev/backend/README.md`](../../../.dev/backend/README.md). Contract detail: [`package/prediction-v2/currentSmartContract.md`](../../../package/prediction-v2/currentSmartContract.md).
+
 ## Purpose
 This document describes the current RetroPick system as implemented today across:
-- `package/smart-contract` (on-chain market engine and settlement model),
+- `package/prediction-v2` (on-chain market engine and settlement model),
 - `apps/backend` (API, indexer, realtime, funding services),
 - `apps/fe-v1` (user-facing web app and wallet interactions).
 

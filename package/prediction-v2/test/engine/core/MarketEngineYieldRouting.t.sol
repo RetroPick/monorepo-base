@@ -1,0 +1,453 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import {MarketEngineBase} from "../../MarketEngineBase.t.sol";
+import {IMarketEngine as MarketEngine} from "../../../src/engine/IMarketEngine.sol";
+import {YieldRouterAaveV3} from "../../../src/yield/YieldRouterAaveV3.sol";
+import {YieldRouterV2} from "../../../src/yield/YieldRouterV2.sol";
+import {MarketEngineState} from "../../../src/engine/MarketEngineState.sol";
+import {MarketTypes} from "../../../src/types/MarketTypes.sol";
+import {MockAavePool} from "../../../src/mocks/MockAavePool.sol";
+import {MockAToken} from "../../../src/mocks/MockAToken.sol";
+import {MockERC20} from "../../../src/mocks/MockERC20.sol";
+import {MockRewardsController} from "../../../src/mocks/MockRewardsController.sol";
+
+contract MarketEngineYieldRoutingTest is MarketEngineBase {
+    MockAToken internal aToken;
+    MockAavePool internal pool;
+    YieldRouterAaveV3 internal router;
+
+    address internal alice = address(0xA71CE);
+    address internal bob = address(0xB0B01);
+
+    function setUp() public override {
+        super.setUp();
+
+        aToken = new MockAToken();
+        pool = new MockAavePool(address(token), address(aToken));
+        router = new YieldRouterAaveV3(address(token), address(pool), address(aToken), address(engine));
+
+        vm.prank(admin);
+        engine.setYieldRouter(address(router), 1000); // 10% yield fee
+    }
+
+    function _initManualThresholdMarket(bytes32 tid, uint64 t0) internal {
+        vm.prank(admin);
+        engine.upsertTemplate(_defaultThresholdTemplate("thr"));
+        vm.prank(admin);
+        engine.initializeMarket(tid);
+
+        vm.warp(t0);
+        vm.prank(worker);
+        engine.openEpoch(tid, 1, uint64(t0), uint64(t0 + 10), uint64(t0 + 20));
+    }
+
+    function test_manualResolve_winnerGetsNetYield() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 1_000_000;
+        _initManualThresholdMarket(tid, t0);
+
+        pool.setYieldBps(2000); // 20% gross yield on withdraw in mock
+
+        token.mint(alice, 1000);
+        token.mint(bob, 1000);
+
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 0, 1000); // YES
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 1, 1000); // NO
+        vm.stopPrank();
+
+        // Resolve outcome = YES (AtOrAbove 100e8), set oracle to 200e8 at resolve.
+        vm.warp(t0 + 21);
+        oracle.set(feed, 200e8, uint64(t0 + 21), 0);
+
+        vm.prank(worker);
+        engine.lockEpoch(tid, 1); // threshold: no checkpoint A, but transitions to Locked
+
+        vm.warp(t0 + 25);
+        oracle.set(feed, 200e8, uint64(t0 + 25), 0);
+
+        uint256 aliceBalBefore = token.balanceOf(alice);
+        vm.prank(worker);
+        engine.resolveEpoch(tid, 1);
+
+        vm.prank(alice);
+        engine.claim(tid, 1);
+        uint256 alicePayout = token.balanceOf(alice) - aliceBalBefore;
+
+        // Net yield credited to winners only: payout should exceed principal.
+        assertGt(alicePayout, 1000);
+
+        vm.prank(bob);
+        vm.expectRevert();
+        engine.claim(tid, 1);
+    }
+
+    function test_manualResolve_settlementFeeBaseExcludesNetYield() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 1_010_000;
+        _initManualThresholdMarket(tid, t0);
+
+        pool.setYieldBps(2000); // 20% gross yield on 1900 routed principal = 380
+
+        token.mint(alice, 1000);
+        token.mint(bob, 1000);
+
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 1, 1000);
+        vm.stopPrank();
+
+        vm.warp(t0 + 11);
+        oracle.set(feed, 200e8, uint64(t0 + 11), 0);
+        vm.prank(worker);
+        engine.lockEpoch(tid, 1);
+
+        vm.warp(t0 + 21);
+        oracle.set(feed, 200e8, uint64(t0 + 21), 0);
+        vm.prank(worker);
+        engine.resolveEpoch(tid, 1);
+
+        MarketTypes.Epoch memory e = engine.epochs(tid, 1);
+        assertEq(e.winningPoolTotal, 1000);
+        assertEq(e.settlementFeeTotal, 10);
+        assertGt(e.claimLiabilityTotal, 1990); // 1000 stake + 990 net losing stake + net yield
+        assertGt(e.claimLiabilityTotal - e.winningPoolTotal, 990);
+    }
+
+    function test_initializeMarket_reverts_whenV3YieldRouterHasNoRoute() public {
+        YieldRouterV2 v3Router =
+            new YieldRouterV2(address(token), address(pool), address(aToken), address(0), address(0), address(engine));
+        bytes32 tid = _tid("strict-yield-route");
+
+        vm.startPrank(admin);
+        engine.setYieldRouter(address(v3Router), 1000);
+        engine.upsertTemplate(_defaultThresholdTemplate("strict-yield-route"));
+        vm.expectRevert(abi.encodeWithSelector(MarketEngineState.InvalidYieldRoute.selector, tid));
+        engine.initializeMarket(tid);
+        vm.stopPrank();
+    }
+
+    function test_initializeMarket_locksExplicitV3YieldRoute() public {
+        YieldRouterV2 v3Router =
+            new YieldRouterV2(address(token), address(pool), address(aToken), address(0), address(0), address(engine));
+        bytes32 tid = _tid("locked-yield-route");
+
+        v3Router.setTemplateYieldRoute(tid, v3Router.ROUTE_AAVE_ATOKEN());
+
+        vm.startPrank(admin);
+        engine.setYieldRouter(address(v3Router), 1000);
+        engine.upsertTemplate(_defaultThresholdTemplate("locked-yield-route"));
+        engine.initializeMarket(tid);
+        vm.stopPrank();
+
+        MarketEngine.TemplateYieldView memory view_ = engine.getTemplateYieldView(tid);
+        assertEq(view_.yieldRouteId, v3Router.ROUTE_AAVE_ATOKEN());
+        assertEq(view_.yieldStrategy, address(pool));
+        assertEq(view_.yieldStrategyKind, 1);
+        assertTrue(view_.yieldRouteEnabled);
+        assertTrue(view_.yieldRouteLocked);
+    }
+
+    function test_manualResolve_reverts_ifYieldWithdrawReverts() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 2_000_000;
+        _initManualThresholdMarket(tid, t0);
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.stopPrank();
+
+        vm.warp(t0 + 21);
+        vm.prank(worker);
+        engine.lockEpoch(tid, 1);
+
+        vm.warp(t0 + 25);
+        oracle.set(feed, 200e8, uint64(t0 + 25), 0);
+
+        pool.setRevertWithdraw(true);
+
+        vm.prank(worker);
+        vm.expectRevert(MockAavePool.WithdrawReverted.selector);
+        engine.resolveEpoch(tid, 1);
+    }
+
+    function test_manualResolve_repeatedWithdrawFailures_doNotAdvanceEpoch() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 2_100_000;
+        vm.prank(admin);
+        engine.upsertTemplate(_defaultThresholdTemplate("thr"));
+        vm.prank(admin);
+        engine.initializeMarket(tid);
+
+        token.mint(alice, 5000);
+        vm.startPrank(alice);
+        token.approve(address(engine), type(uint256).max);
+        vm.stopPrank();
+
+        pool.setRevertWithdraw(true);
+        uint64 start = t0 + 100;
+        vm.warp(start);
+        vm.prank(worker);
+        engine.openEpoch(tid, 1, start, start + 10, start + 20);
+        vm.prank(alice);
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.warp(start + 11);
+        vm.prank(worker);
+        engine.lockEpoch(tid, 1);
+        vm.warp(start + 21);
+        oracle.set(feed, 200e8, start + 21, 0);
+        vm.prank(worker);
+        vm.expectRevert(MockAavePool.WithdrawReverted.selector);
+        engine.resolveEpoch(tid, 1);
+
+        assertEq(engine.yieldRouterFailureCount(), 0);
+        assertFalse(engine.yieldRouterDisabled());
+        assertEq(uint256(engine.epochs(tid, 1).status), uint256(MarketTypes.EpochStatus.Locked));
+    }
+
+    function test_deposit_yieldV2_frozenReserve_emitsYieldRouterDepositFailed() public {
+        bytes32 tid2 = _tid("thr-v2");
+        uint64 t0 = 4_000_000;
+        vm.prank(admin);
+        engine.upsertTemplate(_defaultThresholdTemplate("thr-v2"));
+        vm.prank(admin);
+        engine.initializeMarket(tid2);
+
+        YieldRouterV2 r2 =
+            new YieldRouterV2(address(token), address(pool), address(aToken), address(0), address(0), address(engine));
+        vm.prank(admin);
+        engine.setYieldRouter(address(r2), 1000);
+
+        pool.setReserveFlags(true, true, false);
+
+        vm.warp(t0);
+        vm.prank(worker);
+        engine.openEpoch(tid2, 1, uint64(t0), uint64(t0 + 10), uint64(t0 + 20));
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+
+        uint256 route = (1000 * 9500) / 10_000;
+        vm.expectEmit(true, true, true, true);
+        emit MarketEngineState.YieldRouterDepositFailed(tid2, route);
+
+        engine.depositToSide(tid2, 1, 0, 1000);
+        vm.stopPrank();
+
+        pool.setReserveFlags(true, false, false);
+    }
+
+    function test_keeperClaimLmRewards_transfersToEngine() public {
+        MockERC20 rewardTok = new MockERC20();
+        MockRewardsController rc = new MockRewardsController(address(rewardTok));
+        rewardTok.mint(address(rc), 50e18);
+
+        YieldRouterV2 r2 =
+            new YieldRouterV2(address(token), address(pool), address(aToken), address(rc), address(0), address(engine));
+        vm.startPrank(admin);
+        engine.setYieldRouter(address(r2), 0);
+        engine.setLmRewardsEnabled(true);
+        vm.stopPrank();
+
+        vm.prank(worker);
+        engine.keeperClaimLmRewards(bytes32(0));
+
+        assertEq(rewardTok.balanceOf(address(engine)), 50e18);
+    }
+
+    function test_setYieldRouter_reverts_whenOutstandingRoutedPrincipal_exists() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 4_500_000;
+        _initManualThresholdMarket(tid, t0);
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.stopPrank();
+
+        uint256 outstanding = engine.totalRoutedPrincipal();
+        assertGt(outstanding, 0);
+
+        YieldRouterV2 r2 =
+            new YieldRouterV2(address(token), address(pool), address(aToken), address(0), address(0), address(engine));
+
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(MarketEngineState.OutstandingRoutedPrincipal.selector, outstanding));
+        engine.setYieldRouter(address(r2), 0);
+    }
+
+    function test_setYieldRouter_allows_change_after_emergency_recovery_and_reconcile() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 4_600_000;
+        _initManualThresholdMarket(tid, t0);
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.stopPrank();
+
+        uint256 outstanding = engine.epochs(tid, 1).routedPrincipal;
+        assertGt(outstanding, 0);
+        assertEq(engine.totalRoutedPrincipal(), outstanding);
+
+        YieldRouterV2 r2 =
+            new YieldRouterV2(address(token), address(pool), address(aToken), address(0), address(0), address(engine));
+
+        vm.startPrank(admin);
+        engine.pauseProgram(true);
+        engine.yieldEmergencyWithdraw(tid);
+        assertEq(engine.unreconciledRecoveredByTemplate(tid), outstanding);
+        engine.reconcileEpochRoutedPrincipal(tid, 1, outstanding);
+        engine.setYieldRouter(address(r2), 0);
+        engine.pauseProgram(false);
+        vm.stopPrank();
+
+        assertEq(address(engine.yieldRouter()), address(r2));
+        assertEq(engine.totalRoutedPrincipal(), 0);
+        assertEq(engine.unreconciledRecoveredByTemplate(tid), 0);
+        assertEq(engine.epochs(tid, 1).routedPrincipal, 0);
+    }
+
+    function test_manualResolve_uses_epoch_snapshotted_yield_fee_after_mid_epoch_fee_change() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 4_700_000;
+        _initManualThresholdMarket(tid, t0);
+
+        pool.setYieldBps(2000); // 20% gross yield
+
+        token.mint(alice, 1000);
+        token.mint(bob, 1000);
+
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        token.approve(address(engine), 1000);
+        engine.depositToSide(tid, 1, 1, 1000);
+        vm.stopPrank();
+
+        vm.prank(admin);
+        engine.setYieldRouter(address(router), 5000); // 50%, should not affect epoch 1
+
+        vm.warp(t0 + 21);
+        oracle.set(feed, 200e8, uint64(t0 + 21), 0);
+        vm.prank(worker);
+        engine.lockEpoch(tid, 1);
+
+        vm.warp(t0 + 25);
+        oracle.set(feed, 200e8, uint64(t0 + 25), 0);
+
+        vm.expectEmit(true, true, false, true);
+        emit MarketEngineState.EpochYieldAccrued(tid, 1, 380, 38, 342);
+
+        vm.prank(worker);
+        engine.resolveEpoch(tid, 1);
+    }
+
+    function test_deposit_failedRouting_doesNotIncreaseEpochRoutedPrincipal() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 3_000_000;
+        _initManualThresholdMarket(tid, t0);
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        vm.expectEmit(true, true, true, true);
+        emit MarketEngineState.YieldRouterDepositFailed(tid, (1000 * 9500) / 10_000);
+
+        // Simulate silent router failure mode: returns zero attribution units.
+        vm.mockCall(
+            address(router),
+            abi.encodeWithSelector(router.depositScaled.selector, tid, uint256((1000 * 9500) / 10_000)),
+            abi.encode(uint256(0))
+        );
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.clearMockedCalls();
+        vm.stopPrank();
+
+        MarketTypes.Epoch memory e = engine.epochs(tid, 1);
+        assertEq(e.routedPrincipal, 0);
+    }
+
+    function test_deposit_failedRouting_keeps_persistent_router_allowance() public {
+        bytes32 tid = _tid("thr-allowance-reset");
+        uint64 t0 = 3_050_000;
+        vm.prank(admin);
+        engine.upsertTemplate(_defaultThresholdTemplate("thr-allowance-reset"));
+        vm.prank(admin);
+        engine.initializeMarket(tid);
+
+        vm.warp(t0);
+        vm.prank(worker);
+        engine.openEpoch(tid, 1, uint64(t0), uint64(t0 + 10), uint64(t0 + 20));
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+
+        uint256 route = (1000 * 9500) / 10_000;
+        vm.expectEmit(true, true, true, true);
+        emit MarketEngineState.YieldRouterDepositFailed(tid, route);
+        vm.mockCallRevert(address(router), abi.encodeWithSelector(router.depositScaled.selector, tid, route), hex"01");
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.clearMockedCalls();
+        vm.stopPrank();
+
+        assertEq(token.allowance(address(engine), address(router)), type(uint256).max);
+    }
+
+    function test_resolve_skipsWithdraw_whenNoRoutedPrincipal() public {
+        bytes32 tid = _tid("thr");
+        uint64 t0 = 3_100_000;
+        _initManualThresholdMarket(tid, t0);
+
+        token.mint(alice, 1000);
+        vm.startPrank(alice);
+        token.approve(address(engine), 1000);
+        vm.mockCall(
+            address(router),
+            abi.encodeWithSelector(router.depositScaled.selector, tid, uint256((1000 * 9500) / 10_000)),
+            abi.encode(uint256(0))
+        );
+        engine.depositToSide(tid, 1, 0, 1000);
+        vm.clearMockedCalls();
+        vm.stopPrank();
+
+        vm.warp(t0 + 21);
+        vm.prank(worker);
+        engine.lockEpoch(tid, 1);
+
+        // If withdraw is called despite zero routed principal, this would revert.
+        vm.mockCallRevert(
+            address(router),
+            abi.encodeWithSelector(router.withdrawScaled.selector, tid, uint256((1000 * 9500) / 10_000)),
+            hex""
+        );
+        vm.warp(t0 + 25);
+        oracle.set(feed, 200e8, uint64(t0 + 25), 0);
+        vm.prank(worker);
+        engine.resolveEpoch(tid, 1);
+        vm.clearMockedCalls();
+
+        // No withdraw attempt means no failure recorded.
+        assertEq(engine.yieldRouterFailureCount(), 0);
+    }
+}

@@ -1,5 +1,5 @@
-import privacyMarkdown from "../../../../.docs/production/PrivacyPolicy.md?raw";
-import termsMarkdown from "../../../../.docs/production/Terms.md?raw";
+import privacyMarkdown from "../../../../archive/legacy/dot-docs-production/PrivacyPolicy.md?raw";
+import termsMarkdown from "../../../../archive/legacy/dot-docs-production/Terms.md?raw";
 
 export type LegalDocumentKind = "terms" | "privacy";
 

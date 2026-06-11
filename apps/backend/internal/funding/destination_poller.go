@@ -9,14 +9,20 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"retropick/apps/backend/internal/ethops"
 )
 
 type DestinationPoller struct {
-	pool              *pgxpool.Pool
-	client            *ethclient.Client
+	pool   *pgxpool.Pool
+	client interface {
+		Close()
+		BlockNumber(context.Context) (uint64, error)
+		FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error)
+	}
 	logger            *slog.Logger
 	settlementChainID int64
 	usdcToken         common.Address
@@ -24,20 +30,16 @@ type DestinationPoller struct {
 	interval          time.Duration
 }
 
-func NewDestinationPoller(pool *pgxpool.Pool, rpcURL string, settlementChainID int64, usdcTokenAddr, receiverAddr string, interval time.Duration, logger *slog.Logger) (*DestinationPoller, error) {
+func NewDestinationPoller(pool *pgxpool.Pool, rpcURL string, fallbackURLs []string, settlementChainID int64, usdcTokenAddr, receiverAddr string, interval time.Duration, logger *slog.Logger) (*DestinationPoller, error) {
 	if interval <= 0 {
 		interval = 4 * time.Second
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	client, err := ethclient.Dial(rpcURL)
-	if err != nil {
-		return nil, err
-	}
 	return &DestinationPoller{
 		pool:              pool,
-		client:            client,
+		client:            ethops.NewFailoverRPCClient(rpcURL, fallbackURLs),
 		logger:            logger,
 		settlementChainID: settlementChainID,
 		usdcToken:         common.HexToAddress(usdcTokenAddr),

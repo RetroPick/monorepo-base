@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"retropick/apps/backend/internal/readcache"
 	"retropick/apps/backend/internal/realtime"
 )
 
@@ -24,10 +25,30 @@ type Tick struct {
 	SeenAt  time.Time
 }
 
+type FeedHealth struct {
+	FeedID        string
+	Label         string
+	RoundID       string
+	PriceE8       int64
+	PublishTime   time.Time
+	LastCheckedAt time.Time
+	Stale         bool
+	Error         string
+	Source        string
+}
+
 type Service struct {
 	pool      *pgxpool.Pool
 	logger    *slog.Logger
 	intervals []int32
+	listCache *readcache.Cache[string, map[string]ProjectionSnapshot]
+	itemCache *readcache.Cache[string, ProjectionSnapshot]
+	outcomes  *readcache.Cache[string, projectionOutcomes]
+}
+
+type projectionOutcomes struct {
+	rows  []map[string]any
+	block int64
 }
 
 type ProjectionSnapshot struct {
@@ -56,7 +77,18 @@ func NewService(pool *pgxpool.Pool, logger *slog.Logger) *Service {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Service{pool: pool, logger: logger, intervals: defaultIntervals}
+	return &Service{
+		pool: pool, logger: logger, intervals: defaultIntervals,
+		listCache: readcache.New[string, map[string]ProjectionSnapshot](1, 2*time.Second),
+		itemCache: readcache.New[string, ProjectionSnapshot](512, 2*time.Second),
+		outcomes:  readcache.New[string, projectionOutcomes](2048, 2*time.Second),
+	}
+}
+
+func (s *Service) InvalidateProjections() {
+	s.listCache.Clear()
+	s.itemCache.Clear()
+	s.outcomes.Clear()
 }
 
 func (s *Service) IngestTick(ctx context.Context, tick Tick) error {
@@ -66,12 +98,14 @@ func (s *Service) IngestTick(ctx context.Context, tick Tick) error {
 	if tick.SeenAt.IsZero() {
 		tick.SeenAt = time.Now().UTC()
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var realtimeSeqs []int64
 	for _, interval := range s.intervals {
 		bucket := bucketStart(tick.SeenAt, interval)
-		tx, err := s.pool.Begin(ctx)
-		if err != nil {
-			return err
-		}
 		_, err = tx.Exec(ctx, `
 INSERT INTO price_candles (feed_id, interval_sec, bucket_start, open_e8, high_e8, low_e8, close_e8, source, sample_count)
 VALUES ($1,$2,$3,$4,$4,$4,$4,$5,1)
@@ -84,11 +118,10 @@ SET high_e8 = GREATEST(price_candles.high_e8, EXCLUDED.high_e8),
     updated_at = NOW()
 `, tick.FeedID, interval, bucket, tick.PriceE8, tick.Source)
 		if err != nil {
-			tx.Rollback(ctx)
 			return err
 		}
 		seq, inserted, err := realtime.Insert(ctx, tx, realtime.InsertEvent{
-			Channel: fmt.Sprintf("chart:%s:%d", tick.FeedID, interval),
+			Channel: fmt.Sprintf("chart:%s", tick.FeedID),
 			Type:    "candle_updated",
 			Scope:   "public",
 			Payload: map[string]any{
@@ -101,33 +134,77 @@ SET high_e8 = GREATEST(price_candles.high_e8, EXCLUDED.high_e8),
 			DedupeKey: candleEventDedupeKey(tick.FeedID, interval, tick.SeenAt),
 		})
 		if err != nil {
-			tx.Rollback(ctx)
-			return err
-		}
-		if _, _, err := realtime.Insert(ctx, tx, realtime.InsertEvent{
-			Channel: fmt.Sprintf("chart:%s", tick.FeedID),
-			Type:    "price_tick",
-			Scope:   "public",
-			Payload: map[string]any{
-				"feedId":   tick.FeedID,
-				"priceE8":  fmt.Sprintf("%d", tick.PriceE8),
-				"seenAt":   tick.SeenAt.UTC().Format(time.RFC3339),
-				"source":   tick.Source,
-				"interval": interval,
-			},
-			DedupeKey: fmt.Sprintf("tick:%s:%d:%d", tick.FeedID, interval, tick.SeenAt.UTC().UnixNano()),
-		}); err != nil {
-			tx.Rollback(ctx)
-			return err
-		}
-		if err := tx.Commit(ctx); err != nil {
 			return err
 		}
 		if inserted {
-			_ = realtime.Notify(ctx, s.pool, seq)
+			realtimeSeqs = append(realtimeSeqs, seq)
 		}
 	}
+	seq, inserted, err := realtime.Insert(ctx, tx, realtime.InsertEvent{
+		Channel: fmt.Sprintf("chart:%s", tick.FeedID),
+		Type:    "price_tick",
+		Scope:   "public",
+		Payload: map[string]any{
+			"feedId":  tick.FeedID,
+			"priceE8": fmt.Sprintf("%d", tick.PriceE8),
+			"seenAt":  tick.SeenAt.UTC().Format(time.RFC3339),
+			"source":  tick.Source,
+		},
+		DedupeKey: fmt.Sprintf("tick:%s:%d", tick.FeedID, tick.SeenAt.UTC().UnixNano()),
+	})
+	if err != nil {
+		return err
+	}
+	if inserted {
+		realtimeSeqs = append(realtimeSeqs, seq)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	for _, seq := range realtimeSeqs {
+		_ = realtime.Notify(ctx, s.pool, seq)
+	}
 	return nil
+}
+
+func (s *Service) UpsertFeedHealth(ctx context.Context, health FeedHealth) error {
+	if health.FeedID == "" {
+		return fmt.Errorf("feed id is required")
+	}
+	if health.LastCheckedAt.IsZero() {
+		health.LastCheckedAt = time.Now().UTC()
+	}
+	_, err := s.pool.Exec(ctx, `
+INSERT INTO oracle_feed_health (
+    feed_id, label, round_id, price_e8, publish_time, last_checked_at, stale, error_text, source
+) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+ON CONFLICT (feed_id) DO UPDATE
+SET label = EXCLUDED.label,
+    round_id = EXCLUDED.round_id,
+    price_e8 = EXCLUDED.price_e8,
+    publish_time = EXCLUDED.publish_time,
+    last_checked_at = EXCLUDED.last_checked_at,
+    stale = EXCLUDED.stale,
+    error_text = EXCLUDED.error_text,
+    source = EXCLUDED.source,
+    updated_at = NOW()
+`, health.FeedID, health.Label, numericOrZero(health.RoundID), health.PriceE8, nullableFeedTime(health.PublishTime),
+		health.LastCheckedAt, health.Stale, health.Error, health.Source)
+	return err
+}
+
+func numericOrZero(value string) string {
+	if value == "" {
+		return "0"
+	}
+	return value
+}
+
+func nullableFeedTime(ts time.Time) any {
+	if ts.IsZero() {
+		return nil
+	}
+	return ts.UTC()
 }
 
 func candleEventDedupeKey(feedID string, interval int32, seenAt time.Time) string {
@@ -142,6 +219,9 @@ func bucketStart(ts time.Time, intervalSec int32) time.Time {
 }
 
 func (s *Service) ListProjectionSnapshots(ctx context.Context) (map[string]ProjectionSnapshot, error) {
+	if cached, ok := s.listCache.Get("all"); ok {
+		return cached, nil
+	}
 	rows, err := s.pool.Query(ctx, `
 SELECT
     template_id, slug, market_type, initialized, execution_mode, rolling_phase, rolling_halt_reason,
@@ -162,10 +242,18 @@ FROM market_read_models
 		}
 		out[fmt.Sprintf("%x", snap.TemplateID)] = snap
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	s.listCache.Set("all", out)
+	return out, nil
 }
 
 func (s *Service) GetProjectionSnapshot(ctx context.Context, templateID []byte) (ProjectionSnapshot, error) {
+	key := fmt.Sprintf("%x", templateID)
+	if cached, ok := s.itemCache.Get(key); ok {
+		return cached, nil
+	}
 	rows, err := s.pool.Query(ctx, `
 SELECT
     template_id, slug, market_type, initialized, execution_mode, rolling_phase, rolling_halt_reason,
@@ -182,10 +270,18 @@ WHERE template_id = $1
 	if !rows.Next() {
 		return ProjectionSnapshot{}, pgx.ErrNoRows
 	}
-	return scanProjectionSnapshot(rows)
+	snap, err := scanProjectionSnapshot(rows)
+	if err == nil {
+		s.itemCache.Set(key, snap)
+	}
+	return snap, err
 }
 
 func (s *Service) LoadProjectionOutcomes(ctx context.Context, templateID []byte, epochID int64) ([]map[string]any, int64, error) {
+	key := fmt.Sprintf("%x:%d", templateID, epochID)
+	if cached, ok := s.outcomes.Get(key); ok {
+		return cached.rows, cached.block, nil
+	}
 	rows, err := s.pool.Query(ctx, `
 SELECT outcome_index, pool_amount::text, probability_bps, multiplier_bps, updated_block
 FROM market_epoch_outcomes
@@ -219,7 +315,11 @@ ORDER BY outcome_index
 			"updatedBlock":         updatedBlock,
 		})
 	}
-	return outcomes, maxBlock, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	s.outcomes.Set(key, projectionOutcomes{rows: outcomes, block: maxBlock})
+	return outcomes, maxBlock, nil
 }
 
 type rowScanner interface {

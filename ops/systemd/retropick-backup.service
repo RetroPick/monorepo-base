@@ -1,0 +1,10 @@
+[Unit]
+Description=RetroPick PostgreSQL backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/retropick/monorepo-base
+Environment=RETROPICK_ENV_FILE=.env.production
+ExecStart=/bin/bash -lc 'set -a && . ./.env.production && set +a && ./scripts/backup-postgres.sh /var/backups/retropick'

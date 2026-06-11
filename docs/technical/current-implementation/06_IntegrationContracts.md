@@ -1,5 +1,7 @@
 # 06 Integration Contracts
 
+> **ABI map:** [`.dev/abi-map.md`](../../../.dev/abi-map.md). **Epoch fields:** [`.dev/backend/epoch-field-parity.md`](../../../.dev/backend/epoch-field-parity.md).
+
 ## Purpose
 Defines practical integration boundaries between frontend, backend, and smart contracts in the current implementation.
 

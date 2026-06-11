@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "analyze": "ANALYZE=true next build",
     "start": "next start -p 3000",
     "dev:vite": "vite",
     "build:vite": "vite build",
@@ -14,10 +15,15 @@
     "preview": "next start -p 3000",
     "preview:vite": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.3.7",
+    "@fontsource/inter": "^5.2.8",
+    "@fontsource/jetbrains-mono": "^5.2.8",
+    "@fontsource/material-symbols-outlined": "^5.2.43",
+    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@hookform/resolvers": "^3.10.0",
     "@metamask/connect-evm": "~0.9.0",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -91,6 +97,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@next/bundle-analyzer": "14.2.35",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",

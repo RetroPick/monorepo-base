@@ -111,7 +111,7 @@ export function manualMarketFromChainDetail(
 ): ManualMarketViewModel {
   const oc = api.outcomeCount > 0 ? api.outcomeCount : 2;
   const outcomeViews = api.outcomes ?? [];
-  const outcomes = buildChainOutcomes(api.marketType, oc, outcomeViews);
+  const outcomes = buildChainOutcomes(api.marketType, oc, outcomeViews, api.outcomeLabels);
   const volumeLabel = usdVolumeLabel(formatOutcomePoolVolume(outcomeViews) ?? "-");
 
   const activeEpochId =
@@ -122,9 +122,9 @@ export function manualMarketFromChainDetail(
   return {
     kind: "chain",
     discoveryMarketId: undefined,
-    title: api.slug.replace(/-/g, " "),
+    title: api.title?.trim() || api.slug.replace(/-/g, " "),
     category: "On-chain",
-    description: undefined,
+    description: api.subtitle,
     outcomes,
     volumeLabel,
     headerStats: [
@@ -193,6 +193,7 @@ function buildChainOutcomes(
   marketType: number,
   outcomeCount: number,
   outcomeViews: OutcomeView[],
+  outcomeLabels?: string[],
 ): MarketOutcome[] {
   const count = Math.min(Math.max(outcomeCount, 2), 8);
   const fallback = 100 / count;
@@ -200,13 +201,13 @@ function buildChainOutcomes(
     const [a, b] = binaryLabels(marketType);
     return [0, 1].map((i) => ({
       id: String(i),
-      label: i === 0 ? a : b,
+      label: outcomeViews.find((o) => o.outcomeIndex === i)?.label || outcomeLabels?.[i] || (i === 0 ? a : b),
       probability: outcomeProbability(outcomeViews.find((o) => o.outcomeIndex === i), fallback),
     }));
   }
   return Array.from({ length: count }, (_, i) => ({
     id: String(i),
-    label: `Outcome ${i + 1}`,
+    label: outcomeViews.find((o) => o.outcomeIndex === i)?.label || outcomeLabels?.[i] || `Outcome ${i + 1}`,
     probability: outcomeProbability(outcomeViews.find((o) => o.outcomeIndex === i), fallback),
   }));
 }

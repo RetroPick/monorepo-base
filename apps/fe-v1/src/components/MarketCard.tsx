@@ -391,8 +391,18 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default", b
     navigate(`/app/market/${market.id}`, navigationState ? { state: navigationState } : {});
   };
 
-  const statusLabel = (market.status ?? "Open").toLowerCase() === "open" ? "LIVE" : (market.status ?? "-").toUpperCase();
-  const isLive = (market.status ?? "Open").toLowerCase() === "open";
+  const statusLabel = (() => {
+    const s = (market.status ?? "").toLowerCase();
+    if (s === "open") return "LIVE";
+    if (s === "lock") return "LOCK";
+    if (s === "resolve") return "RESOLVED";
+    if (s === "claim") return "CLAIM";
+    if (s === "syncing") return "SYNC";
+    if (s === "setup") return "SETUP";
+    if (s === "paused") return "PAUSED";
+    return (market.status ?? "-").toUpperCase();
+  })();
+  const isLive = (market.status ?? "").toLowerCase() === "open";
 
   const cardLayout = resolveMarketCardLayout(market);
   const { yes: yesOutcome, no: noOutcome } = market.isBinary ? pickBinaryOutcomes(market) : { yes: undefined, no: undefined };

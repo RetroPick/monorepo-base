@@ -37,6 +37,7 @@ vi.mock("@/lib/api/retropickApi", () => ({
       lastIndexedBlock: 40714576,
       lastIndexedAt: "2026-04-25T11:12:34Z",
       activeEpochId: 1,
+      epochStatus: "open",
     },
     {
       templateId: "0xinactive",
@@ -75,7 +76,7 @@ describe("ChainMarkets", () => {
     renderPage();
 
     expect(await screen.findByText("btc-direction")).toBeInTheDocument();
-    expect(screen.getByText("Active epoch #1")).toBeInTheDocument();
+    expect(screen.getByText("Open · epoch #1")).toBeInTheDocument();
     expect(screen.queryByText("eth-threshold")).not.toBeInTheDocument();
     expect(screen.getByText("1 active epoch · 2 indexed templates")).toBeInTheDocument();
   });

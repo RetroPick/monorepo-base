@@ -1,5 +1,27 @@
 import { useSignTypedData, useAccount } from 'wagmi';
+import type { TypedDataDomain } from 'viem';
 import { appDefaultNetwork } from '@/config';
+
+type OrderField = { name: string; type: string };
+
+const ORDER_TYPES_SWAP: { Order: OrderField[] } = {
+    Order: [
+        { name: 'sessionId', type: 'string' },
+        { name: 'action', type: 'string' },
+        { name: 'fromOutcome', type: 'uint256' },
+        { name: 'toOutcome', type: 'uint256' },
+        { name: 'delta', type: 'string' },
+    ],
+};
+
+const ORDER_TYPES_SIMPLE: { Order: OrderField[] } = {
+    Order: [
+        { name: 'sessionId', type: 'string' },
+        { name: 'action', type: 'string' },
+        { name: 'outcomeIndex', type: 'uint256' },
+        { name: 'delta', type: 'string' },
+    ],
+};
 
 export function useYellowSession() {
     const { address } = useAccount();
@@ -10,57 +32,56 @@ export function useYellowSession() {
         action: 'buy' | 'sell' | 'swap',
         outcomeIndexOrFrom: number,
         delta: number,
-        toOutcome?: number
+        toOutcome?: number,
     ) => {
-        // EIP-712 Domain for RetroPick Relayer
-        const domain = {
-            name: 'RetroPick Relayer',
-            version: '1',
-            chainId: appDefaultNetwork.id,
-        };
-
-        let types: any = {};
-        let message: any = {
-            sessionId,
-            action,
-            delta: delta.toString()
+        const chainIdNum = Number(appDefaultNetwork.id);
+        if (!Number.isFinite(chainIdNum)) {
+            throw new Error("Invalid default network chain id for EIP-712 domain.");
+        }
+        const domain: TypedDataDomain = {
+            name: "RetroPick Relayer",
+            version: "1",
+            chainId: chainIdNum,
         };
 
         if (action === 'swap' && toOutcome !== undefined) {
-            types = {
-                Order: [
-                    { name: 'sessionId', type: 'string' },
-                    { name: 'action', type: 'string' },
-                    { name: 'fromOutcome', type: 'uint256' },
-                    { name: 'toOutcome', type: 'uint256' },
-                    { name: 'delta', type: 'string' }
-                ]
+            const message = {
+                sessionId,
+                action,
+                delta: delta.toString(),
+                fromOutcome: BigInt(outcomeIndexOrFrom),
+                toOutcome: BigInt(toOutcome),
             };
-            message.fromOutcome = BigInt(outcomeIndexOrFrom);
-            message.toOutcome = BigInt(toOutcome);
-        } else {
-            types = {
-                Order: [
-                    { name: 'sessionId', type: 'string' },
-                    { name: 'action', type: 'string' },
-                    { name: 'outcomeIndex', type: 'uint256' },
-                    { name: 'delta', type: 'string' }
-                ]
-            };
-            message.outcomeIndex = BigInt(outcomeIndexOrFrom);
+            try {
+                return await signTypedDataAsync({
+                    domain,
+                    types: ORDER_TYPES_SWAP,
+                    primaryType: 'Order',
+                    message,
+                    account: address,
+                });
+            } catch (err) {
+                console.error('Sign order failed', err);
+                throw err;
+            }
         }
 
+        const message = {
+            sessionId,
+            action,
+            delta: delta.toString(),
+            outcomeIndex: BigInt(outcomeIndexOrFrom),
+        };
         try {
-            const signature = await signTypedDataAsync({
+            return await signTypedDataAsync({
                 domain,
-                types,
+                types: ORDER_TYPES_SIMPLE,
                 primaryType: 'Order',
                 message,
                 account: address,
-            } as any);
-            return signature;
+            });
         } catch (err) {
-            console.error("Sign order failed", err);
+            console.error('Sign order failed', err);
             throw err;
         }
     };

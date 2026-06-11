@@ -42,13 +42,17 @@ export const LanguageProvider = ({ children }: { children: ReactNode }) => {
 
     const t = (key: TranslationKey): string => {
         const keys = key.split('.');
-        let value: any = translations[language];
+        let value: unknown = translations[language];
 
         for (const k of keys) {
-            value = value?.[k];
+            if (value == null || typeof value !== 'object') {
+                value = undefined;
+                break;
+            }
+            value = (value as Record<string, unknown>)[k];
         }
 
-        return value || key;
+        return typeof value === 'string' ? value : key;
     };
 
     return (

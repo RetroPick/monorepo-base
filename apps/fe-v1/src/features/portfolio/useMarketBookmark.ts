@@ -38,14 +38,7 @@ export function useMarketBookmark(templateIdRaw: string) {
     }
   }, [guestSnap]);
 
-  // Some presentation-only surfaces render outside WagmiProvider in tests and non-wallet shells.
-  // Treat those cases as guest mode instead of making the whole tree provider-dependent.
-  let address: `0x${string}` | undefined;
-  try {
-    address = useAccount().address;
-  } catch {
-    address = undefined;
-  }
+  const { address } = useAccount();
   const qc = useQueryClient();
   const { toast } = useToast();
   const auth = useBackendAuthSession();
@@ -117,7 +110,7 @@ export function useMarketBookmark(templateIdRaw: string) {
     } finally {
       setBusy(false);
     }
-  }, [address, isBookmarked, onServer, qc, tid, toast]);
+  }, [address, auth.isAuthenticated, isBookmarked, onServer, qc, tid, toast]);
 
   return {
     templateId: tid,

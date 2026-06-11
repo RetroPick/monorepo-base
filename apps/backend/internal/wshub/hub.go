@@ -52,9 +52,6 @@ func (c *Client) Subscriptions() []string {
 func (c *Client) wants(channel string) bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	if len(c.subscriptions) == 0 {
-		return true
-	}
 	_, ok := c.subscriptions[channel]
 	return ok
 }
@@ -63,14 +60,12 @@ type Hub struct {
 	mu            sync.RWMutex
 	clients       map[*Client]struct{}
 	channelClient map[string]map[*Client]struct{}
-	unfiltered    map[*Client]struct{}
 }
 
 func NewHub() *Hub {
 	return &Hub{
 		clients:       make(map[*Client]struct{}),
 		channelClient: make(map[string]map[*Client]struct{}),
-		unfiltered:    make(map[*Client]struct{}),
 	}
 }
 
@@ -82,7 +77,6 @@ func (h *Hub) Subscribe() *Client {
 	}
 	h.mu.Lock()
 	h.clients[client] = struct{}{}
-	h.unfiltered[client] = struct{}{}
 	h.mu.Unlock()
 	return client
 }
@@ -91,7 +85,6 @@ func (h *Hub) Unsubscribe(client *Client) {
 	h.mu.Lock()
 	if _, ok := h.clients[client]; ok {
 		delete(h.clients, client)
-		delete(h.unfiltered, client)
 		for channel := range client.subscriptions {
 			if members, ok := h.channelClient[channel]; ok {
 				delete(members, client)
@@ -111,15 +104,8 @@ func (h *Hub) Broadcast(msg []byte) {
 	recipients := map[*Client]struct{}{}
 
 	h.mu.RLock()
-	for client := range h.unfiltered {
-		recipients[client] = struct{}{}
-	}
 	if channel != "" {
 		for client := range h.channelClient[channel] {
-			recipients[client] = struct{}{}
-		}
-	} else {
-		for client := range h.clients {
 			recipients[client] = struct{}{}
 		}
 	}
@@ -140,14 +126,13 @@ func (h *Hub) Broadcast(msg []byte) {
 func (h *Hub) trackSubscription(client *Client, channel string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	delete(h.unfiltered, client)
 	if h.channelClient[channel] == nil {
 		h.channelClient[channel] = make(map[*Client]struct{})
 	}
 	h.channelClient[channel][client] = struct{}{}
 }
 
-func (h *Hub) dropSubscription(client *Client, channel string, becameUnfiltered bool) {
+func (h *Hub) dropSubscription(client *Client, channel string, _ bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if members, ok := h.channelClient[channel]; ok {
@@ -155,9 +140,6 @@ func (h *Hub) dropSubscription(client *Client, channel string, becameUnfiltered 
 		if len(members) == 0 {
 			delete(h.channelClient, channel)
 		}
-	}
-	if becameUnfiltered {
-		h.unfiltered[client] = struct{}{}
 	}
 }
 

@@ -48,7 +48,7 @@ Optional but common:
 - **Migrator:** Same Docker image with **`SERVICE=migrator`**—run as a **release / predeploy job** whenever the database schema changes, **before** starting new API containers.
 - **Docs:** Separate Vercel project rooted at `apps/docs` if you ship docs in production.
 
-**Optional — HTTP API on Vercel:** You can deploy **`apps/backend`** (`cmd/api`) with Vercel’s **Go** preset instead of a container host. Postgres and the **indexer** stay outside Vercel. Full walkthrough: **[vercel-backend.md](vercel-backend.md)**.
+**Optional — HTTP API on Vercel (non-production):** You can deploy **`apps/backend`** (`cmd/api`) with Vercel’s **Go** preset instead of a container host. Postgres and the **indexer** stay outside Vercel. This contradicts [PRODUCTION.md](../PRODUCTION.md) for production; archived walkthrough: **[archive/design/vercel-backend.md](archive/design/vercel-backend.md)**.
 
 ---
 

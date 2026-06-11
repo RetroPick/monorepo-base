@@ -53,10 +53,10 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
         description: "Use the backend-driven Trade panel on market detail pages.",
       });
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
         title: "Trade Failed",
-        description: e.message || "Unknown error executing trade off-chain.",
+        description: e instanceof Error ? e.message : "Unknown error executing trade off-chain.",
         variant: "destructive"
       });
     } finally {

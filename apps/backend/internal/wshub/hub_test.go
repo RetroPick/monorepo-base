@@ -28,3 +28,34 @@ func TestHubBroadcastFiltersByChannel(t *testing.T) {
 	default:
 	}
 }
+
+func TestHubBroadcastDefaultDenyBeforeSubscribe(t *testing.T) {
+	hub := NewHub()
+	client := hub.Subscribe()
+	defer hub.Unsubscribe(client)
+
+	hub.Broadcast([]byte(`{"channel":"user:0xabc","type":"position_update"}`))
+	hub.Broadcast([]byte(`{"channel":"deposit:0xabc","type":"deposit_update"}`))
+
+	select {
+	case msg := <-client.C:
+		t.Fatalf("unsubscribed client received private event: %s", msg)
+	default:
+	}
+}
+
+func TestHubBroadcastDefaultDenyAfterLastUnsubscribe(t *testing.T) {
+	hub := NewHub()
+	client := hub.Subscribe()
+	defer hub.Unsubscribe(client)
+	client.Subscribe("market:abc")
+	client.Unsubscribe("market:abc")
+
+	hub.Broadcast([]byte(`{"channel":"user:0xabc","type":"position_update"}`))
+
+	select {
+	case msg := <-client.C:
+		t.Fatalf("client received event after removing its last subscription: %s", msg)
+	default:
+	}
+}

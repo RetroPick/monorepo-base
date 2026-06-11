@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
-# Wrapper: run from monorepo root (V1). Delegates to package/contract.
+# Compatibility entry point for prepare + optional broadcast of one upsert fixture.
 set -euo pipefail
 _WRAP="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 V1_ROOT="$(cd "$_WRAP/../../.." && pwd)"
-exec "$V1_ROOT/package/contract/scripts/market/launch/launch-upsert.sh" "$@"
+upsert_file="${1:?usage: launch-upsert.sh <upsert.json>}"
+prepared="$(mktemp -t retropick-upsert-XXXXXX.json)"
+trap 'rm -f "$prepared"' EXIT
+"$V1_ROOT/scripts/market/prepare-upsert-template.sh" "$upsert_file" >"$prepared"
+if [[ "${BROADCAST:-0}" == "1" ]]; then
+  "$V1_ROOT/scripts/market/broadcast-prepared-ops-tx.sh" "$prepared"
+else
+  cat "$prepared"
+fi
