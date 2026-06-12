@@ -5,7 +5,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', '.next', 'src/retro-waitlist-page', 'src/components/ui']),
+  globalIgnores(['dist', '.next', 'sources', 'src/retro-waitlist-page', 'src/components/ui']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

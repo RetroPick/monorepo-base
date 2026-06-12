@@ -1,9 +1,11 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { LogoMark } from "@/components/source-landing/Logo";
 import { gsap, useGSAP, usePrefersReducedMotion } from "@/lib/motion";
 
 export default function RetroPickIntroSection() {
   const sectionRef = useRef<HTMLElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [soundOn, setSoundOn] = useState(false);
   const prefersReducedMotion = usePrefersReducedMotion();
 
   useGSAP(
@@ -57,7 +59,7 @@ export default function RetroPickIntroSection() {
 
   return (
     <section id="retropick" ref={sectionRef} className="relative w-full bg-rp-bg pb-16 pt-24">
-      <div className="mx-auto flex max-w-[800px] flex-col items-center px-5 text-center md:px-10">
+      <div className="mx-auto flex max-w-[980px] flex-col items-center px-5 text-center md:px-10">
         <div className="retropick-logo flex items-center justify-center gap-3">
           <LogoMark size={40} />
           <span className="text-[32px] font-semibold tracking-tight text-white">RetroPick</span>
@@ -120,6 +122,46 @@ export default function RetroPickIntroSection() {
             </a>
           </div>
         </div>
+      </div>
+
+      <div className="mx-auto mt-12 w-full max-w-[1600px] px-5 md:px-10 lg:px-16 relative" id="demo">
+        <div className="relative overflow-hidden rounded-[36px] border border-white/10 bg-rp-dark-blue shadow-[0_40px_120px_-70px_rgba(0,0,0,0.75)]">
+          <div className="aspect-[16/9] w-full min-h-[360px] sm:min-h-[420px] md:min-h-[520px] lg:min-h-[620px]">
+            <video
+              ref={videoRef}
+              src="/webm/Vidio Demo.webm"
+              autoPlay
+              loop
+              muted={!soundOn}
+              playsInline
+              preload="metadata"
+              className="h-full w-full object-cover"
+              aria-label="RetroPick demo video"
+            />
+
+            <button
+              type="button"
+              onClick={() => {
+                const nextSound = !soundOn;
+                setSoundOn(nextSound);
+                if (videoRef.current) {
+                  videoRef.current.muted = !nextSound;
+                  videoRef.current.play().catch(() => {});
+                }
+              }}
+              className="absolute right-4 top-4 rounded-full border border-white/15 bg-black/60 px-4 py-2 text-sm font-medium text-white transition hover:bg-black/80 z-10"
+            >
+              {soundOn ? "Sound on" : "Sound off"}
+            </button>
+          </div>
+        </div>
+
+        <img
+          src="/images/picky.png"
+          alt="Picky mascot"
+          className="absolute -bottom-32 -right-24 w-96 lg:w-[500px] h-auto opacity-90 animate-float pointer-events-none"
+          loading="lazy"
+        />
       </div>
     </section>
   );

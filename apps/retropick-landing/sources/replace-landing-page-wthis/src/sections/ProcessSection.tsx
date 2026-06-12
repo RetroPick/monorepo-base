@@ -75,22 +75,22 @@ export default function ProcessSection() {
           <SectionTitle>The process</SectionTitle>
         </div>
 
-        <div className="process-cards grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="process-cards grid grid-cols-1 md:grid-cols-2 gap-6">
           {steps.map((step) => (
-            <GlowCard key={step.number} className="process-card flex flex-col min-h-[420px]">
-              <div className="flex-1 flex items-center justify-center mb-6 min-h-[200px]">
+            <GlowCard key={step.number} className="process-card">
+              <div className="mb-6 aspect-square w-full overflow-hidden rounded-xl bg-rp-dark-blue/70">
                 <img
                   src={step.image}
                   alt={step.title}
-                  className="max-w-full max-h-[200px] object-contain rounded-lg"
+                  className="h-full w-full object-cover rounded-lg"
                   loading="lazy"
                 />
               </div>
 
-              <div className="mt-auto">
+              <div>
                 <div className="flex items-baseline gap-2 mb-2">
                   <span className="text-5xl font-bold text-rp-blue">{step.number}</span>
-                  <h3 className="text-xl md:text-2xl font-semibold text-white">{step.title}</h3>
+                  <h3 className="text-2xl font-semibold text-white mb-2">{step.title}</h3>
                 </div>
                 <p className="text-sm text-rp-text-secondary leading-relaxed">
                   {step.description}

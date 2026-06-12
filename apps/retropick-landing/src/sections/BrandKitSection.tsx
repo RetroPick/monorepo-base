@@ -1,3 +1,5 @@
+"use client"
+
 import { useRef } from "react";
 import { Download } from "lucide-react";
 import { LogoMark } from "@/components/source-landing/Logo";
@@ -35,6 +37,28 @@ function LogoVariation({ type, text }: { type: (typeof logoVariations)[number]["
   }
 
   return <LogoMark size={36} />;
+}
+
+async function downloadFile(url: string, filename: string) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Download failed: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(blobUrl);
+  } catch (error) {
+    console.error("Brand asset download failed", error);
+    window.location.href = url;
+  }
 }
 
 export default function BrandKitSection() {
@@ -82,7 +106,11 @@ export default function BrandKitSection() {
       <div className="mx-auto max-w-[1200px] px-5 md:px-10">
         <div className="brandkit-title-row mb-10 flex items-center justify-between">
           <SectionTitle>Brand Kit</SectionTitle>
-          <button className="flex items-center gap-2 rounded-lg border border-[#333] bg-rp-card px-5 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-px hover:border-rp-blue-bright">
+          <button
+            type="button"
+            onClick={() => downloadFile("/RetroPick_Brand_Assets_v1.zip", "RetroPick_Brand_Assets_v1.zip")}
+            className="inline-flex items-center gap-2 rounded-lg border border-[#333] bg-rp-card px-5 py-2.5 text-sm font-medium text-white transition-all duration-300 hover:-translate-y-px hover:border-rp-blue-bright"
+          >
             <Download size={16} />
             Download All
           </button>
@@ -116,10 +144,15 @@ export default function BrandKitSection() {
           ))}
         </div>
 
-        <button className="flex w-full items-center justify-center gap-2 rounded-xl border border-rp-border-blue bg-rp-card px-6 py-4 font-medium text-rp-blue transition-all duration-300 hover:border-rp-blue hover:bg-[rgba(126,184,255,0.08)]">
+        <a
+          href="https://drive.google.com/file/d/1mjgZViJtfiJBOhKxKPW16kUmbeV-XUwM/view?usp=sharing"
+          target="_blank"
+          rel="noreferrer noopener"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-rp-border-blue bg-rp-card px-6 py-4 font-medium text-rp-blue transition-all duration-300 hover:border-rp-blue hover:bg-[rgba(126,184,255,0.08)]"
+        >
           <Download size={18} />
           Branding Guideline PDF
-        </button>
+        </a>
       </div>
     </section>
   );

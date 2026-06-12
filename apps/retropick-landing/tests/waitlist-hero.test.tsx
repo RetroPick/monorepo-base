@@ -38,7 +38,8 @@ describe("WaitlistHero", () => {
   it("renders the qualified waitlist form without community links inside the hero", () => {
     render(<WaitlistHero />)
 
-    expect(screen.getByRole("heading", { name: "Join the RetroPick Waitlist" })).toBeInTheDocument()
+    expect(screen.getByText("Trade Markets")).toBeInTheDocument()
+    expect(screen.getByText("That Never Existed Onchain")).toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Discord" })).not.toBeInTheDocument()
     expect(screen.queryByRole("link", { name: "Telegram" })).not.toBeInTheDocument()
   })
@@ -72,15 +73,6 @@ describe("WaitlistHero", () => {
     fireEvent.change(screen.getByLabelText("Email"), {
       target: { value: "Person@Example.com" },
     })
-    fireEvent.change(screen.getByLabelText("Name"), {
-      target: { value: "RetroPick Test" },
-    })
-    fireEvent.change(screen.getByLabelText("Who are you?"), {
-      target: { value: "builder" },
-    })
-    fireEvent.change(screen.getByLabelText("What do you want RetroPick for?"), {
-      target: { value: "prediction_markets" },
-    })
     fireEvent.click(screen.getByRole("button", { name: /join waitlist/i }))
 
     await waitFor(() => {
@@ -97,11 +89,9 @@ describe("WaitlistHero", () => {
       })
     )
     expect(body.email).toBe("person@example.com")
-    expect(body.name).toBe("RetroPick Test")
-    expect(body.role).toBe("builder")
-    expect(body.primary_use_case).toBe("prediction_markets")
     expect(body.utm_source).toBe("launch-thread")
     expect(body.referred_by).toBe("alpha123")
+    expect(body.landing_path).toBe("/?utm_source=launch-thread&ref=alpha123")
     expect(screen.getByRole("status")).toHaveTextContent("You’re on the RetroPick waitlist.")
   })
 
