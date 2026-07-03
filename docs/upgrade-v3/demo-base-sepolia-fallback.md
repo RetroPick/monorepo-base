@@ -49,7 +49,7 @@ curl -sS http://127.0.0.1:8080/api/v1/config/contracts | jq .marketEngineProxy
 
 ## Rehearsal gate (RC-2.2)
 
-Record evidence in [`demo-base-sepolia-rehearsal.log`](./demo-base-sepolia-rehearsal.log):
+Record evidence in [`demo-base-sepolia-rehearsal.md`](./demo-base-sepolia-rehearsal.md) (and optional local `demo-base-sepolia-rehearsal.log`, gitignored):
 
 - `smoke-production.sh` exit 0
 - Screenshot or log line showing market list + wallet deposit
