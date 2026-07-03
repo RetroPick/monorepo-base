@@ -49,6 +49,8 @@ interface HeaderProps {
     activeVerticalId: DiscoveryVerticalId;
     onVerticalChange: (id: DiscoveryVerticalId) => void;
   };
+  /** World Cup hub: Trending link, active World Cup pill, trophy visual. */
+  worldCupHubNav?: boolean;
 }
 
 const Header = ({
@@ -58,6 +60,7 @@ const Header = ({
   marketFamilyAssetClassNav,
   indexedMarketContext,
   portfolioDiscoverNav,
+  worldCupHubNav,
 }: HeaderProps) => {
   const { isConnected } = useAccount();
   const location = useLocation();
@@ -74,6 +77,7 @@ const Header = ({
   const pathNorm = location.pathname.replace(/\/+$/, "") || "/";
   const isMarketsAllPage = pathNorm === "/app/markets/all";
   const isPortfolioPage = pathNorm === "/app/portfolio";
+  const isWorldCupPage = pathNorm.startsWith("/app/world-cup");
 
   const navItems = [
     { name: "Markets", path: "/app/markets/all" },
@@ -387,6 +391,55 @@ const Header = ({
                 );
               }
 
+              if (worldCupHubNav || isWorldCupPage) {
+                return (
+                  <div
+                    ref={railRef}
+                    onWheel={handleWheel}
+                    className="w-full min-w-0 overflow-x-auto no-scrollbar overscroll-contain"
+                    style={{ WebkitOverflowScrolling: "touch" }}
+                    data-testid="world-cup-top-rail"
+                  >
+                    <div className="flex min-h-10 min-w-max flex-nowrap items-center gap-1.5 px-0 sm:gap-2">
+                      <Link
+                        to="/app/markets/all"
+                        className={cn(
+                          "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
+                          isMarketsAllPage
+                            ? "border border-primary/25 bg-primary/15 text-primary"
+                            : "border border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        Trending
+                      </Link>
+                      <Link
+                        to="/app/world-cup/group-stage"
+                        className={cn(
+                          "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
+                          isWorldCupPage
+                            ? "border border-primary/25 bg-primary/15 text-primary"
+                            : "border border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                        )}
+                      >
+                        World Cup
+                      </Link>
+                      <span className="shrink-0 px-1 text-muted-foreground/45 select-none" aria-hidden="true">
+                        |
+                      </span>
+                      <span
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border/50 bg-card/60 px-2 py-1 text-xs font-semibold text-foreground"
+                        aria-label="FIFA World Cup"
+                      >
+                        <span className="text-base leading-none" aria-hidden="true">
+                          🏆
+                        </span>
+                        <span className="hidden sm:inline">FIFA 2026</span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+
               if (isMarketsAllPage && discoveryNav) {
                 return (
               <div
@@ -447,6 +500,27 @@ const Header = ({
                       </button>
                     );
                   })}
+                  <span className="shrink-0 px-1 text-muted-foreground/45 select-none" aria-hidden="true">
+                    |
+                  </span>
+                  <Link
+                    to="/app/world-cup/group-stage"
+                    data-testid="discover-world-cup-link"
+                    className={cn(
+                      "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold tracking-tight transition-colors sm:px-3 sm:py-1.5",
+                      isWorldCupPage
+                        ? "border border-primary/25 bg-primary/15 text-primary"
+                        : "border border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+                    )}
+                  >
+                    World Cup
+                  </Link>
+                  <span
+                    className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border/50 bg-card/60 px-2 py-1 text-xs font-semibold text-foreground"
+                    aria-hidden="true"
+                  >
+                    🏆
+                  </span>
                 </div>
               </div>
                 );
