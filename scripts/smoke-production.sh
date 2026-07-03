@@ -33,6 +33,23 @@ curl -fsS "${api_base}/api/v1/health" >/dev/null
 curl -fsS "${api_base}/api/v1/readyz" >/dev/null
 curl -fsS "${api_base}/api/v1/markets" >/dev/null
 
+contracts_json="$(curl -fsS "${api_base}/api/v1/config/contracts")"
+python3 - <<'PY' <<<"${contracts_json}"
+import json, sys
+data = json.load(sys.stdin)
+proxy = (data.get("contracts") or {}).get("marketEngineProxy", "")
+zero = "0x0000000000000000000000000000000000000000"
+if not proxy or proxy.lower() == zero:
+    raise SystemExit("config/contracts: marketEngineProxy missing or zero")
+PY
+
+gooddollar_status="$(curl -sS -o /dev/null -w '%{http_code}' \
+  "${api_base}/api/v1/gooddollar/status?wallet=0x0000000000000000000000000000000000000001")"
+if [[ "${gooddollar_status}" != "404" ]]; then
+  echo "expected GET /api/v1/gooddollar/status -> 404 feature_disabled, got ${gooddollar_status}" >&2
+  exit 1
+fi
+
 ws_url="${api_base/https:/wss:}"
 ws_url="${ws_url/http:/ws:}"
 printf 'websocket endpoint: %s/ws\n' "${ws_url}"

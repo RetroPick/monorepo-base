@@ -1,13 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// forge-config: default.isolate = true
+/// forge-config: default.threads = 1
+
 import {Test} from "forge-std/Test.sol";
 import {DeployProduction} from "../../script/production/DeployProduction.s.sol";
 import {DeployTestnet} from "../../script/test/DeployTestnet.s.sol";
 import {UpgradeProduction} from "../../script/production/UpgradeProduction.s.sol";
 import {UpgradeTestnet} from "../../script/test/UpgradeTestnet.s.sol";
+import {ScriptTestEnvReset} from "./ScriptTestEnvReset.sol";
 
 contract DeploymentScriptGuardsTest is Test {
+    function setUp() public {
+        ScriptTestEnvReset.reset(vm);
+    }
+
     function test_deployProduction_revertsOnWrongChain() external {
         uint256 expectedChainId = block.chainid;
         vm.setEnv("EXPECTED_CHAIN_ID", vm.toString(expectedChainId));

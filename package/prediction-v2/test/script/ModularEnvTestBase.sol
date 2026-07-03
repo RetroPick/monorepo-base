@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {DeployCoreModular} from "../../script/modular/10_DeployCore.s.sol";
 import {DeployModulesModular} from "../../script/modular/20_DeployModules.s.sol";
+import {ScriptTestEnvReset} from "./ScriptTestEnvReset.sol";
 
 /// @dev Shared deploy + env helpers for `script/modular` pipeline tests. Keeps one copy so
 /// `test/script/ScriptSelectorMatrix.t.sol` can run integration coverage for `ScriptSelectorMatrix.wireAll`
@@ -16,11 +17,7 @@ abstract contract ModularEnvTestBase is Test {
 
     /// @dev Forge keeps `vm.setEnv` across contracts in one process; reset hot keys so suite order is deterministic.
     function setUp() public virtual {
-        vm.setEnv("EXPECTED_CHAIN_ID", vm.toString(block.chainid));
-        vm.setEnv("MAX_OUTCOMES", "8");
-        vm.setEnv("ENGINE_PROXY", vm.toString(address(0)));
-        vm.setEnv("V2_ENGINE_PROXY", vm.toString(address(0)));
-        vm.setEnv("AAVE_ENGINE_PROXY", vm.toString(address(0)));
+        ScriptTestEnvReset.reset(vm);
     }
 
     function _setModularBaseEnv(address stakeToken) internal {

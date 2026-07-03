@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, release/demo-rc-v3]
+    branches: [main, release/demo-rc-v3, production/testnet-hardening-v1]
 
 jobs:
   ci:
@@ -27,7 +27,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: go -C apps/backend build ./...
       - run: go -C apps/backend test ./...
+      - run: bash scripts/check-graphify-freshness.sh
 
   migration-v3:
     runs-on: ubuntu-latest

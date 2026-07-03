@@ -3,7 +3,7 @@ name: Contracts
 on:
   pull_request:
   push:
-    branches: [main, release/demo-rc-v3]
+    branches: [main, release/demo-rc-v3, production/testnet-hardening-v1]
 
 jobs:
   foundry:
@@ -14,5 +14,6 @@ jobs:
           submodules: recursive
       - uses: foundry-rs/foundry-toolchain@v1
       - run: forge build --root package/prediction-v2
-      - run: forge test --root package/prediction-v2
-      - run: forge test --root package/prediction-v2 --match-path "test/treasury/*"
+      - name: Foundry test (sequential for script env isolation)
+        run: FOUNDRY_PROFILE=ci forge test --root package/prediction-v2 -j1
+      - run: bash package/prediction-v2/script/check-storage-layout.sh

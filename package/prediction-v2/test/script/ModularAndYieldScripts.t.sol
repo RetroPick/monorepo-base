@@ -36,6 +36,7 @@ contract DeployCoreModularHarness is DeployCoreModular {
     }
 }
 
+/// forge-config: default.isolate = true
 /// forge-config: default.threads = 1
 contract ModularAndYieldScriptsTest is ModularEnvTestBase {
     bytes32 private constant MODULES_WIRED_SIG = keccak256("ModulesWired(address)");

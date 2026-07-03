@@ -71,6 +71,7 @@ contract ScriptSelectorMatrixTest is Test {
     }
 }
 
+/// forge-config: default.isolate = true
 /// forge-config: default.threads = 1
 /// @dev Integration test co-located with `script/ScriptSelectorMatrix.sol` so commit hooks that pair
 /// `script/<X>.sol` → `test/script/<X>.t.sol` see `ScriptSelectorMatrix.wireAll` exercised here.

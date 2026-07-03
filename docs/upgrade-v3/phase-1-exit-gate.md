@@ -10,7 +10,7 @@ Evidence from verification audit (2026-07-02): local `go test ./...`, `forge tes
 - [x] Foundry unit tests green for treasury contracts (`8/8` in `test/treasury/*`)
 - [x] Invariant fuzz test passes for valid fee allocations (`test/treasury/invariant/FeeRouter.invariant.t.sol`)
 - [ ] MarketEngine settlement paths unchanged; dedicated MarketEngine+FeeRouter integration test not added
-- [ ] Storage-layout CI passes for new contracts
+- [x] Storage-layout CI passes for new contracts (`package/prediction-v2/script/check-storage-layout.sh`)
 
 ## Backend
 
