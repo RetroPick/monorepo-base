@@ -12,7 +12,7 @@ Close P0 gaps between Demo Day GO and production-grade testnet readiness: Foundr
 
 | ID | Task | Status | Evidence |
 |----|------|--------|----------|
-| P0.1 | Freeze demo QA + tag | Done (prior commit) | `protocol-camp-demo-go-2026-07-03`, `DEMO_DAY_QA_REPORT.md` |
+| P0.1 | Freeze demo QA + tag | Done | `protocol-camp-demo-go-2026-07-03`; hardening `1ea340269` |
 | P0.2 | Foundry script suite green | Done | `ScriptTestEnvReset.sol`, `isolate` on script contracts, CI `-j1` |
 | P0.3 | CI matrix hardening | Done | `ci.yml`: `go build`, graphify freshness; `contracts.yml`: `-j1`, storage-layout |
 | P0.4 | Storage-layout CI | Done | `script/check-storage-layout.sh`, `.storage-layout/*.json`, `storage-layout.md` |
@@ -62,13 +62,28 @@ Tracked contracts: `MarketEngineDispatcher`, `MarketEngineAdminModule`, `MarketE
 - `GET /api/v1/config/contracts` — `contracts.marketEngineProxy` must be non-zero.
 - `GET /api/v1/gooddollar/status` — expects `404 feature_disabled` when flags off.
 
-## Still open (Sprint 2+)
-
-- Alfajores registry population + E2E (`demo-alfajores.md`)
-- MarketEngine + FeeRouter integration Foundry test (phase-1 exit gate)
-- Bus extraction for remaining inline indexer projections
-- Full `FOUNDRY_PROFILE=ci forge test -j1` runtime budget in CI (long suite; monitor)
-
 ## Verdict
 
-**Sprint 1 P0: complete** — CI gates and documentation are in place for testnet hardening. Alfajores live deploy and ME+FeeRouter integration test remain operator/Sprint 2 work.
+**Sprint 1 P0: complete** — commit `1ea340269`, tag `testnet-hardening-sprint1-green-2026-07-03`.
+
+## Sprint 2 — Real Staging Integration
+
+| ID | Task | Status | Evidence |
+|----|------|--------|----------|
+| P0.1 | Alfajores real staging | Prerequisites doc | `alfajores-staging-deploy-log.md` — broadcast pending operator approval |
+| P0.2 | ME + FeeRouter integration | Done | `test/integration/MarketEngineFeeRouter.t.sol` (5 tests) |
+| P0.3 | Indexer bus strangler | Done | `FeesRouted` → bus owns `fee_route_batches` + realtime |
+| P0.4 | Oracle/lifecycle coverage | Done | `MarketEngineProductionLifecycle.t.sol`, `lifecycle-oracle-coverage.md` |
+| P0.5 | Staging smoke + observability | Done | `smoke-production.sh` readyz/metrics/fee-router checks |
+
+### Sprint 2 verification
+
+```bash
+go -C apps/backend test ./internal/indexer/... -count=1
+cd package/prediction-v2
+FOUNDRY_PROFILE=ci forge test -j1 --match-path "test/integration/*FeeRouter*"
+FOUNDRY_PROFILE=ci forge test -j1 --match-contract MarketEngineProductionLifecycleTest
+RETROPICK_API_BASE=http://127.0.0.1:8080 ./scripts/smoke-production.sh
+```
+
+**Alfajores blocker:** registry still has `0x000…` placeholders — operator must run deploy per `alfajores-staging-deploy-log.md` before claiming staging-live.

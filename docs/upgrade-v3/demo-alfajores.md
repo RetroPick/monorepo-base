@@ -2,7 +2,7 @@
 
 Prerequisites: Postgres migrated through `000015`, backend feature flags enabled, contracts deployed on Celo Alfajores.
 
-See also: [`demo-flags.md`](./demo-flags.md), [`RELEASE_DEMO_RC.md`](./RELEASE_DEMO_RC.md), [`compose.alfajores.env`](../../compose.alfajores.env).
+See also: [`demo-flags.md`](./demo-flags.md), [`RELEASE_DEMO_RC.md`](./RELEASE_DEMO_RC.md), [`alfajores-staging-deploy-log.md`](./alfajores-staging-deploy-log.md), [`compose.alfajores.env`](../../compose.alfajores.env).
 
 ## Staging stack
 

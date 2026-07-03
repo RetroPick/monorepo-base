@@ -9,7 +9,7 @@ Evidence from verification audit (2026-07-02): local `go test ./...`, `forge tes
 - [x] `FeeRouter`, `TreasuryVault`, `RewardsVault`, `CommunityPool` implemented under `package/prediction-v2/src/treasury/`
 - [x] Foundry unit tests green for treasury contracts (`8/8` in `test/treasury/*`)
 - [x] Invariant fuzz test passes for valid fee allocations (`test/treasury/invariant/FeeRouter.invariant.t.sol`)
-- [ ] MarketEngine settlement paths unchanged; dedicated MarketEngine+FeeRouter integration test not added
+- [x] MarketEngine settlement paths unchanged; dedicated MarketEngine+FeeRouter integration test (`test/integration/MarketEngineFeeRouter.t.sol`)
 - [x] Storage-layout CI passes for new contracts (`package/prediction-v2/script/check-storage-layout.sh`)
 
 ## Backend

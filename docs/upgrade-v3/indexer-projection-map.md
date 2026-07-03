@@ -14,7 +14,8 @@ This document maps on-chain events to Postgres projections and documents idempot
 | `probability_points` | inline handlers | sequence per template | `TRUNCATE` on reorg |
 | `user_position_outcomes` | inline handlers | composite upsert | `TRUNCATE` on reorg |
 | `fee_events` | referrals subscriber / sqlc | `(tx_hash, log_index)` | derived from `FeesWithdrawn` bus events |
-| `fee_route_batches` | `persistFeeRouteBatch` | `UNIQUE (tx_hash, log_index)` + `ON CONFLICT DO NOTHING` | not auto-deleted on reorg (audit trail) |
+| `fee_route_batches` | `handleFeesRoutedBus` → `persistFeeRouteBatch` | `UNIQUE (tx_hash, log_index)` + `ON CONFLICT DO NOTHING` | not auto-deleted on reorg (audit trail) |
+| `realtime_events` (fee_routed) | `handleFeesRoutedBus` → `publishFeeRoutedRealtime` | dedupe_key `fee_routed:<tx>:<log>` | bus-owned (Sprint 2 strangler) |
 
 ## Event → projection flow
 
@@ -54,5 +55,11 @@ Re-indexing replays logs; `ON CONFLICT DO NOTHING` on `chain_events` prevents du
 ## Follow-ups (Sprint 2+)
 
 - Bus-extract remaining inline projection handlers for uniform reorg replay.
-- Integration test: insert duplicate `chain_events` row and assert `recordChainEvent` returns `inserted=false`.
-- Alfajores E2E: `FeesRouted` → `fee_route_batches` → ops API.
+- Alfajores E2E: `FeesRouted` → `fee_route_batches` → ops API (see `alfajores-staging-deploy-log.md`).
+
+### FeesRouted ownership (Sprint 2)
+
+| Stage | `chain_events` | `fee_route_batches` | realtime `fee_routed` |
+|-------|----------------|---------------------|------------------------|
+| Inline indexer (`handleFeeRouterLog`) | write + bus publish | — | moved to bus |
+| Bus subscriber (`handleFeesRoutedBus`) | — | write | write |

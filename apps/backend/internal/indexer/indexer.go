@@ -197,7 +197,7 @@ WHERE id = 1
 	for _, lg := range logs {
 		var err error
 		if s.feeRouter != (common.Address{}) && lg.Address == s.feeRouter {
-			err = s.handleFeeRouterLog(ctx, tx, q, &realtimeSeqs, lg)
+			err = s.handleFeeRouterLog(ctx, tx, q, lg)
 		} else {
 			err = s.handleLog(ctx, tx, q, &realtimeSeqs, lg)
 		}

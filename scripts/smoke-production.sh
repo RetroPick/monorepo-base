@@ -30,7 +30,18 @@ fi
 
 curl -fsS "${api_base}/api/v1/livez" >/dev/null
 curl -fsS "${api_base}/api/v1/health" >/dev/null
-curl -fsS "${api_base}/api/v1/readyz" >/dev/null
+
+readyz_json="$(curl -fsS "${api_base}/api/v1/readyz")"
+python3 - <<'PY' <<<"${readyz_json}"
+import json, sys
+data = json.load(sys.stdin)
+if not data.get("db", data.get("ok")):
+    raise SystemExit("readyz: database check failed")
+checks = data.get("checks") or {}
+if "rpc" in checks and checks["rpc"] == "unavailable":
+    raise SystemExit("readyz: rpc unavailable")
+PY
+
 curl -fsS "${api_base}/api/v1/markets" >/dev/null
 
 contracts_json="$(curl -fsS "${api_base}/api/v1/config/contracts")"
@@ -50,6 +61,17 @@ if [[ "${gooddollar_status}" != "404" ]]; then
   exit 1
 fi
 
+metrics_body="$(curl -fsS "${api_base}/metrics")"
+python3 - <<'PY' <<<"${metrics_body}"
+import re, sys
+text = sys.stdin.read()
+m = re.search(r"^retropick_indexer_last_block (\d+)$", text, re.MULTILINE)
+if not m:
+    raise SystemExit("metrics: retropick_indexer_last_block missing")
+if int(m.group(1)) <= 0 and __import__("os").environ.get("RETROPICK_SMOKE_REQUIRE_INDEXER") == "1":
+    raise SystemExit("metrics: indexer last block is zero")
+PY
+
 ws_url="${api_base/https:/wss:}"
 ws_url="${ws_url/http:/ws:}"
 printf 'websocket endpoint: %s/ws\n' "${ws_url}"
@@ -60,6 +82,10 @@ if [[ -n "${ops_jwt}" ]]; then
   curl -fsS "${hdr[@]}" "${api_base}/api/v1/ops/global-state" >/dev/null
   curl -fsS "${hdr[@]}" "${api_base}/api/v1/ops/oracle/health" >/dev/null
   curl -fsS "${hdr[@]}" "${api_base}/api/v1/ops/audit" >/dev/null
+  if [[ "${RETROPICK_FEE_ROUTER_ENABLED:-0}" == "1" ]]; then
+    curl -fsS "${hdr[@]}" "${api_base}/api/v1/ops/fee-router/batches" >/dev/null
+    echo "ops fee-router batches: ok"
+  fi
   echo "ops probes: ok"
 else
   echo "note: export RETROPICK_OPS_JWT to also hit /api/v1/ops/global-state, oracle/health, audit" >&2

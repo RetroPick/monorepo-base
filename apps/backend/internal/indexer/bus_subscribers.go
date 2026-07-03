@@ -90,7 +90,39 @@ func (s *Service) handleFeesRoutedBus(ctx context.Context, e bus.Event) error {
 	if s.onFeeRouted != nil {
 		return s.onFeeRouted(ctx, ev)
 	}
-	return s.persistFeeRouteBatch(ctx, ev)
+	if err := s.persistFeeRouteBatch(ctx, ev); err != nil {
+		return err
+	}
+	return s.publishFeeRoutedRealtime(ctx, ev)
+}
+
+func (s *Service) publishFeeRoutedRealtime(ctx context.Context, ev bus.FeesRoutedEvent) error {
+	if s.pool == nil {
+		return nil
+	}
+	block := int64(ev.Log.BlockNumber)
+	logIndex := int32(ev.Log.Index)
+	_, inserted, err := realtime.Insert(ctx, s.pool, realtime.InsertEvent{
+		Channel:     "impact:gooddollar",
+		Type:        "fee_routed",
+		Scope:       "public",
+		BlockNumber: &block,
+		TxHash:      ev.Log.TxHash.Hex(),
+		LogIndex:    &logIndex,
+		Payload: map[string]any{
+			"batchId":         ev.BatchID,
+			"token":           ev.Token.Hex(),
+			"grossAmount":     ev.GrossAmount,
+			"treasuryAmount":  ev.TreasuryAmount,
+			"rewardsAmount":   ev.RewardsAmount,
+			"communityAmount": ev.CommunityAmount,
+		},
+		DedupeKey: fmt.Sprintf("fee_routed:%s:%d", ev.Log.TxHash.Hex(), ev.Log.Index),
+	})
+	if err != nil || !inserted {
+		return err
+	}
+	return nil
 }
 
 func (s *Service) persistFeeRouteBatch(ctx context.Context, ev bus.FeesRoutedEvent) error {

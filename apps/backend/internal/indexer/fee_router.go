@@ -14,7 +14,6 @@ import (
 	"retropick/apps/backend/internal/abiembed"
 	"retropick/apps/backend/internal/dbqueries"
 	"retropick/apps/backend/internal/platform/bus"
-	"retropick/apps/backend/internal/realtime"
 )
 
 // SetFeeRouterAddress configures optional FeeRouter log indexing.
@@ -34,7 +33,7 @@ func (s *Service) SetFeeRouterAddress(addr string) error {
 	return nil
 }
 
-func (s *Service) handleFeeRouterLog(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, realtimeSeqs *[]int64, lg types.Log) error {
+func (s *Service) handleFeeRouterLog(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries, lg types.Log) error {
 	if s.feeRouter == (common.Address{}) {
 		return nil
 	}
@@ -60,9 +59,11 @@ func (s *Service) handleFeeRouterLog(ctx context.Context, tx pgx.Tx, q *dbquerie
 		return err
 	}
 	if s.bus != nil {
-		_ = s.bus.Publish(ctx, routed)
+		if err := s.bus.Publish(ctx, routed); err != nil {
+			return err
+		}
 	}
-	return s.publishFeeRoutedRealtime(ctx, tx, realtimeSeqs, routed)
+	return nil
 }
 
 func decodeFeesRouted(ev *abi.Event, lg types.Log) (bus.FeesRoutedEvent, error) {
@@ -92,26 +93,4 @@ func decodeFeesRouted(ev *abi.Event, lg types.Log) (bus.FeesRoutedEvent, error) 
 		}
 	}
 	return out, nil
-}
-
-func (s *Service) publishFeeRoutedRealtime(ctx context.Context, tx pgx.Tx, realtimeSeqs *[]int64, ev bus.FeesRoutedEvent) error {
-	block := int64(ev.Log.BlockNumber)
-	logIndex := int32(ev.Log.Index)
-	return s.insertRealtimeEvent(ctx, tx, realtimeSeqs, realtime.InsertEvent{
-		Channel:     "impact:gooddollar",
-		Type:        "fee_routed",
-		Scope:       "public",
-		BlockNumber: &block,
-		TxHash:      ev.Log.TxHash.Hex(),
-		LogIndex:    &logIndex,
-		Payload: map[string]any{
-			"batchId":         ev.BatchID,
-			"token":           ev.Token.Hex(),
-			"grossAmount":     ev.GrossAmount,
-			"treasuryAmount":  ev.TreasuryAmount,
-			"rewardsAmount":   ev.RewardsAmount,
-			"communityAmount": ev.CommunityAmount,
-		},
-		DedupeKey: fmt.Sprintf("fee_routed:%s:%d", ev.Log.TxHash.Hex(), ev.Log.Index),
-	})
 }
