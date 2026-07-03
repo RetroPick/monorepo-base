@@ -1,0 +1,37 @@
+# Alfajores staging override — use with compose.alfajores.env:
+#   docker compose -f docker-compose.yml -f docker-compose.alfajores.yml \
+#     --env-file compose.alfajores.env up -d postgres migrator api indexer
+services:
+  api:
+    environment:
+      RPC_URL: ${RPC_URL:-https://alfajores-forno.celo-testnet.org}
+      CELO_CHAIN_ID: ${CELO_CHAIN_ID:-44787}
+      CELO_RPC_URL: ${CELO_RPC_URL:-https://alfajores-forno.celo-testnet.org}
+      REGISTRY_PATH: /registry/registry.celo-alfajores.json
+      GOODDOLLAR_ENABLED: ${GOODDOLLAR_ENABLED:-0}
+      REFERRALS_ENABLED: ${REFERRALS_ENABLED:-0}
+      REWARDS_ENABLED: ${REWARDS_ENABLED:-0}
+      IMPACT_ENABLED: ${IMPACT_ENABLED:-0}
+      FEE_ROUTER_ENABLED: ${FEE_ROUTER_ENABLED:-0}
+      FEE_ROUTER_ADDRESS: ${FEE_ROUTER_ADDRESS:-}
+    volumes:
+      - ./packages/contracts/registry.celo-alfajores.json:/registry/registry.celo-alfajores.json:ro
+
+  migrator:
+    environment:
+      RPC_URL: ${RPC_URL:-https://alfajores-forno.celo-testnet.org}
+
+  indexer:
+    environment:
+      RPC_URL: ${RPC_URL:-https://alfajores-forno.celo-testnet.org}
+      CELO_CHAIN_ID: ${CELO_CHAIN_ID:-44787}
+      REGISTRY_PATH: /registry/registry.celo-alfajores.json
+      FEE_ROUTER_ADDRESS: ${FEE_ROUTER_ADDRESS:-}
+      INDEXER_START_BLOCK: ${INDEXER_START_BLOCK:-0}
+      GOODDOLLAR_ENABLED: ${GOODDOLLAR_ENABLED:-0}
+      REFERRALS_ENABLED: ${REFERRALS_ENABLED:-0}
+      REWARDS_ENABLED: ${REWARDS_ENABLED:-0}
+      IMPACT_ENABLED: ${IMPACT_ENABLED:-0}
+      FEE_ROUTER_ENABLED: ${FEE_ROUTER_ENABLED:-0}
+    volumes:
+      - ./packages/contracts/registry.celo-alfajores.json:/registry/registry.celo-alfajores.json:ro

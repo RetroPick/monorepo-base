@@ -22,6 +22,7 @@ import (
 	"retropick/apps/backend/internal/abiembed"
 	"retropick/apps/backend/internal/dbqueries"
 	"retropick/apps/backend/internal/keeper"
+	"retropick/apps/backend/internal/platform/bus"
 	"retropick/apps/backend/internal/realtime"
 )
 
@@ -32,10 +33,30 @@ type Service struct {
 		HeaderByNumber(context.Context, *big.Int) (*types.Header, error)
 		FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error)
 	}
-	proxy common.Address
-	abi   abi.ABI
-	log   *slog.Logger
-	cfg   Config
+	proxy        common.Address
+	abi          abi.ABI
+	feeRouter    common.Address
+	feeRouterABI abi.ABI
+	log          *slog.Logger
+	cfg          Config
+	bus          bus.Bus
+	referrals    referralsProcessor
+	onFeeRouted  func(ctx context.Context, e bus.FeesRoutedEvent) error
+}
+
+// referralsProcessor records fee events for the referral ledger.
+type referralsProcessor interface {
+	ProcessFeeEvent(ctx context.Context, txHash []byte, logIndex int, marketID, trader, token []byte, feeAmount string, blockNumber int64) error
+}
+
+// SetReferralsProcessor wires fee-withdrawn events into the referral ledger.
+func (s *Service) SetReferralsProcessor(p referralsProcessor) {
+	s.referrals = p
+}
+
+// SetFeeRoutedHandler registers a callback for FeeRouter batch events.
+func (s *Service) SetFeeRoutedHandler(fn func(ctx context.Context, e bus.FeesRoutedEvent) error) {
+	s.onFeeRouted = fn
 }
 
 type Config struct {
@@ -158,7 +179,7 @@ WHERE id = 1
 	query := ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(from),
 		ToBlock:   new(big.Int).SetUint64(to),
-		Addresses: []common.Address{s.proxy},
+		Addresses: s.filterAddresses(),
 	}
 	logs, err := s.client.FilterLogs(ctx, query)
 	if err != nil {
@@ -174,7 +195,13 @@ WHERE id = 1
 	realtimeSeqs := make([]int64, 0, len(logs)+1)
 
 	for _, lg := range logs {
-		if err := s.handleLog(ctx, tx, q, &realtimeSeqs, lg); err != nil {
+		var err error
+		if s.feeRouter != (common.Address{}) && lg.Address == s.feeRouter {
+			err = s.handleFeeRouterLog(ctx, tx, q, lg)
+		} else {
+			err = s.handleLog(ctx, tx, q, &realtimeSeqs, lg)
+		}
+		if err != nil {
 			return fmt.Errorf("log %s:%d: %w", lg.TxHash.Hex(), lg.Index, err)
 		}
 	}
@@ -198,6 +225,9 @@ WHERE id = 1
 		return fmt.Errorf("header %d: %w", to, err)
 	}
 	hash := hdr.Hash().Hex()
+	if err := s.recordIndexerBlock(ctx, tx, to, hdr.Hash(), hdr.ParentHash); err != nil {
+		return fmt.Errorf("indexer_blocks %d: %w", to, err)
+	}
 	if err := q.UpdateIndexerState(ctx, dbqueries.UpdateIndexerStateParams{
 		LastBlock:     int64(to),
 		LastBlockHash: pgtype.Text{String: hash, Valid: true},
@@ -297,6 +327,12 @@ func (s *Service) handleLog(ctx context.Context, tx pgx.Tx, q *dbqueries.Queries
 	}
 	if !inserted {
 		return nil
+	}
+
+	s.publishChainLog(ctx, ev.Name, lg, payload)
+	if ev.Name == "FeesWithdrawn" && s.bus != nil {
+		withdrawn := decodeFeesWithdrawn(lg)
+		_ = s.bus.Publish(ctx, withdrawn)
 	}
 
 	switch ev.Name {
@@ -445,11 +481,11 @@ func (s *Service) recordChainEvent(ctx context.Context, tx pgx.Tx, lg types.Log,
 	}
 	tag, err := tx.Exec(ctx, `
 INSERT INTO chain_events (
-    block_number, tx_hash, log_index, contract_addr, event_name,
+    block_number, block_hash, tx_hash, log_index, contract_addr, event_name,
     template_id, epoch_id, user_address, payload
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 ON CONFLICT (tx_hash, log_index) DO NOTHING
-`, int64(lg.BlockNumber), lg.TxHash.Hex(), int32(lg.Index), lg.Address.Hex(), name, tid, eid, ua, string(b))
+`, int64(lg.BlockNumber), lg.BlockHash.Bytes(), lg.TxHash.Hex(), int32(lg.Index), lg.Address.Hex(), name, tid, eid, ua, string(b))
 	if err != nil {
 		return false, err
 	}

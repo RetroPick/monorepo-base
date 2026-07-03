@@ -11,6 +11,7 @@ cbor_metadata = false
 ffi = true
 # Script tests exercise real forge script env surfaces via `vm.setEnv`.
 # Foundry shares those env mutations process-wide, so parallel test contracts race.
+# CI and local script suites must pass `-j1` (see contracts.yml).
 threads = 1
 fs_permissions = [{ access = "read", path = "out" }]
 remappings = [

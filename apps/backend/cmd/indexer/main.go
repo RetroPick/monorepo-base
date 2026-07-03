@@ -11,9 +11,12 @@ import (
 
 	"retropick/apps/backend/internal/config"
 	"retropick/apps/backend/internal/db"
+	"retropick/apps/backend/internal/domain"
+	"retropick/apps/backend/internal/domain/referrals"
 	"retropick/apps/backend/internal/ethops"
 	"retropick/apps/backend/internal/indexer"
 	"retropick/apps/backend/internal/metrics"
+	"retropick/apps/backend/internal/platform/bus"
 	"retropick/apps/backend/internal/registry"
 )
 
@@ -28,7 +31,7 @@ func main() {
 		log.Error("config", "err", err)
 		os.Exit(1)
 	}
-	reg, err := registry.LoadEmbedded()
+	reg, err := registry.Load(cfg.RegistryPath)
 	if err != nil {
 		log.Error("registry", "err", err)
 		os.Exit(1)
@@ -63,6 +66,21 @@ func main() {
 		log.Error("indexer", "err", err)
 		os.Exit(1)
 	}
+	eventBus := bus.New()
+	svc.SetBus(eventBus)
+	if cfg.ReferralsEnabled {
+		refSvc := referrals.New(domain.Service{Bus: eventBus}, pool, true)
+		svc.SetReferralsProcessor(refSvc)
+	}
+	feeRouterAddr := cfg.FeeRouterAddress
+	if feeRouterAddr == "" {
+		feeRouterAddr = os.Getenv("FEE_ROUTER_ADDRESS")
+	}
+	if err := svc.SetFeeRouterAddress(feeRouterAddr); err != nil {
+		log.Error("fee router", "err", err)
+		os.Exit(1)
+	}
+	svc.RegisterDefaultSubscribers()
 	var successfulTicks atomic.Int64
 	var failedTicks atomic.Int64
 	metrics.ServeIfConfigured(ctx, "indexer", func() map[string]float64 {

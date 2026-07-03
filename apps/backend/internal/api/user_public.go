@@ -77,7 +77,7 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 		pairLimit := int32(userPositionsMaxPairs)
 		rows, err := q.ListUserTemplateEpochPairs(r.Context(), dbqueries.ListUserTemplateEpochPairsParams{
 			UserAddress: wallet,
-			Limit:       pairLimit,
+			RowLimit:    pairLimit,
 		})
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user template epochs", nil)
@@ -87,13 +87,14 @@ func UserPositionsHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.
 		pairs := make([]userTemplateEpochPair, 0, len(rows)+1)
 		seen := make(map[string]struct{}, len(rows)+1)
 		for _, row := range rows {
-			if len(row.TemplateID) != 32 {
+			if len(row.TemplateID) != 32 || !row.EpochID.Valid {
 				continue
 			}
-			seen[pairKey(row.TemplateID, row.EpochID)] = struct{}{}
+			epochID := row.EpochID.Int64
+			seen[pairKey(row.TemplateID, epochID)] = struct{}{}
 			pairs = append(pairs, userTemplateEpochPair{
 				templateID: row.TemplateID,
-				epochID:    row.EpochID,
+				epochID:    epochID,
 				source:     "rpc+indexed_keys",
 			})
 		}
@@ -318,7 +319,7 @@ func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 		rows, err := q.ListUserClaimedEvents(r.Context(), dbqueries.ListUserClaimedEventsParams{
 			UserAddress: wallet,
-			Limit:       limit,
+			RowLimit:    limit,
 		})
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load claimed events", nil)
@@ -326,13 +327,17 @@ func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 		claims := make([]map[string]any, 0, len(rows))
 		for _, row := range rows {
+			if !row.EpochID.Valid {
+				continue
+			}
+			epochID := row.EpochID.Int64
 			var payload map[string]any
 			_ = json.Unmarshal(row.Payload, &payload)
 			tplHex := "0x" + hex.EncodeToString(row.TemplateID)
 			claimM := map[string]any{
 				"id":          row.ID,
 				"templateId":  tplHex,
-				"epochId":     row.EpochID,
+				"epochId":     epochID,
 				"txHash":      row.TxHash,
 				"blockNumber": row.BlockNumber,
 			}
@@ -344,7 +349,7 @@ func UserClaimsHandler(pool *pgxpool.Pool) http.HandlerFunc {
 			}
 			ep, err := q.GetEpoch(r.Context(), dbqueries.GetEpochParams{
 				TemplateID: row.TemplateID,
-				EpochID:    row.EpochID,
+				EpochID:    epochID,
 			})
 			if err == nil {
 				claimM["epochClaimable"] = ep.Claimable

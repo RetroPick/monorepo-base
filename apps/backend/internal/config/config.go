@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"retropick/apps/backend/internal/registry"
 )
 
 type Config struct {
@@ -70,6 +72,17 @@ type Config struct {
 	AlertPollInterval       time.Duration
 	PricePollInterval       time.Duration
 	PriceHeartbeatInterval  time.Duration
+
+	// V3 feature flags (default off).
+	GoodDollarEnabled bool
+	FeeRouterEnabled  bool
+	FeeRouterAddress  string
+	ReferralsEnabled  bool
+	RewardsEnabled    bool
+	ImpactEnabled     bool
+	CeloChainID       int64
+	CeloRPCURL        string
+	RegistryPath      string
 }
 
 func Load() (*Config, error) {
@@ -295,8 +308,20 @@ func Load() (*Config, error) {
 		AlertPollInterval:       alertPollInterval,
 		PricePollInterval:       pricePollInterval,
 		PriceHeartbeatInterval:  priceHeartbeatInterval,
+		GoodDollarEnabled:       os.Getenv("GOODDOLLAR_ENABLED") == "1",
+		FeeRouterEnabled:        os.Getenv("FEE_ROUTER_ENABLED") == "1",
+		FeeRouterAddress:        strings.TrimSpace(os.Getenv("FEE_ROUTER_ADDRESS")),
+		ReferralsEnabled:        os.Getenv("REFERRALS_ENABLED") == "1",
+		RewardsEnabled:          os.Getenv("REWARDS_ENABLED") == "1",
+		ImpactEnabled:           os.Getenv("IMPACT_ENABLED") == "1",
+		CeloChainID:             int64FromEnvDefault("CELO_CHAIN_ID", 44787),
+		CeloRPCURL:              strings.TrimSpace(envDefault("CELO_RPC_URL", "https://alfajores-forno.celo-testnet.org")),
+		RegistryPath:            strings.TrimSpace(os.Getenv("REGISTRY_PATH")),
 	}
 	if err := validateProductionConfig(cfg); err != nil {
+		return nil, err
+	}
+	if err := validateV3Config(cfg); err != nil {
 		return nil, err
 	}
 	return cfg, nil
@@ -316,6 +341,18 @@ func envDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func int64FromEnvDefault(key string, fallback int64) int64 {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 func int32FromEnv(key string, fallback int32) (int32, error) {
@@ -474,4 +511,29 @@ func isPlaceholderSecret(value string) bool {
 		return true
 	}
 	return strings.Contains(normalized, "your-") || strings.Contains(normalized, "placeholder")
+}
+
+func (cfg *Config) anyV3Enabled() bool {
+	if cfg == nil {
+		return false
+	}
+	return cfg.GoodDollarEnabled || cfg.FeeRouterEnabled || cfg.ReferralsEnabled || cfg.RewardsEnabled || cfg.ImpactEnabled
+}
+
+// validateV3Config refuses V3 feature flags when the active registry still has placeholder treasury addresses.
+func validateV3Config(cfg *Config) error {
+	if cfg == nil || !cfg.anyV3Enabled() {
+		return nil
+	}
+	reg, err := registry.Load(cfg.RegistryPath)
+	if err != nil {
+		return fmt.Errorf("V3 flags enabled: load registry: %w", err)
+	}
+	if err := registry.ValidateTreasuryDeployed(reg); err != nil {
+		return fmt.Errorf("V3 flags enabled but treasury not deployed (set REGISTRY_PATH to a populated Alfajores registry after broadcast): %w", err)
+	}
+	if cfg.FeeRouterEnabled && !isNonZeroAddress(cfg.FeeRouterAddress) {
+		return fmt.Errorf("FEE_ROUTER_ENABLED=1 requires non-zero FEE_ROUTER_ADDRESS")
+	}
+	return nil
 }

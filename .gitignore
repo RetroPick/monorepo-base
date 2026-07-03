@@ -34,10 +34,15 @@ apps/retropick-landing/.tmp-img/
 apps/**/.tmp-img/
 .tmp-img/
 
-# embedded local source clone, not part of main repo
+# generated repo snapshots
+archive/generated/repomix/
+repomix-output.*
 
+# generated knowledge graphs and opensrc fetch logs
+**/graphify-out/
+.references/
 
-# local temp/image/package artifacts
-apps/retropick-landing/.tmp-img/
-apps/**/.tmp-img/
-.tmp-img/
+# upgrade-v3 generated artifacts and local design-pack copies
+docs/upgrade-v3/*.log
+package/prediction-v2/logs/
+.dev/.upgrade_v3/

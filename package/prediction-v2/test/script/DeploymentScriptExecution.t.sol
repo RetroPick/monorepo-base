@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// forge-config: default.isolate = true
+/// forge-config: default.threads = 1
+
 import {Test} from "forge-std/Test.sol";
 import {Vm} from "forge-std/Vm.sol";
 import {DeployProduction} from "../../script/production/DeployProduction.s.sol";
@@ -14,16 +17,16 @@ import {IMarketEngine} from "../../src/engine/IMarketEngine.sol";
 import {MarketEngineDispatcher} from "../../src/engine/MarketEngineDispatcher.sol";
 import {MockERC20} from "../../src/mocks/MockERC20.sol";
 import {ScriptSelectorMatrix} from "../../script/ScriptSelectorMatrix.sol";
+import {ScriptTestEnvReset} from "./ScriptTestEnvReset.sol";
 
 /// forge-config: default.threads = 1
 contract DeploymentScriptExecutionTest is Test {
     bytes32 private constant DEPLOYMENT_COMPLETED_SIG = keccak256("DeploymentCompleted(address,address)");
     bytes32 private constant UPGRADE_COMPLETED_SIG = keccak256("UpgradeCompleted(address,address)");
 
-    /// @dev `vm.setEnv` is process-global; `test_deployCoreModular_reverts_onBounds` (other files) can leave `MAX_OUTCOMES=9`.
+    /// @dev `vm.setEnv` is process-global; reset hot keys so suite order is deterministic.
     function setUp() public {
-        vm.setEnv("EXPECTED_CHAIN_ID", vm.toString(block.chainid));
-        vm.setEnv("MAX_OUTCOMES", "8");
+        ScriptTestEnvReset.reset(vm);
     }
 
     /// @dev Exact names for static test↔symbol matchers (`setUp`, contract name).
@@ -79,7 +82,7 @@ contract DeploymentScriptExecutionTest is Test {
         ScriptSelectorMatrix.requireAllDelegatedSelectorsWired(dispatcher);
     }
 
-    function test_deployTestnet_success_withoutFaucet() external {
+    function test_deployTestnet_01_success_withoutFaucet() external {
         MockERC20 stake = new MockERC20();
         _setBaseDeployEnv(address(stake));
         vm.setEnv("DEPLOY_FAUCET", "0");
@@ -94,7 +97,7 @@ contract DeploymentScriptExecutionTest is Test {
         assertEq(address(engine.stakeToken()), address(stake));
     }
 
-    function test_deployTestnet_success_withFaucet() external {
+    function test_deployTestnet_02_success_withFaucet() external {
         _setBaseDeployEnv(address(0));
         vm.setEnv("DEPLOY_FAUCET", "1");
         vm.setEnv("MAINNET_CHAIN_ID", "1");
@@ -106,9 +109,6 @@ contract DeploymentScriptExecutionTest is Test {
         Vm.Log memory log = _findLog(address(script), DEPLOYMENT_COMPLETED_SIG);
         address proxy = _topicAddress(log.topics[1]);
         assertTrue(address(IMarketEngine(proxy).stakeToken()) != address(0));
-
-        // `_setBaseDeployEnv(address(0))` intentionally leaves STAKE_TOKEN=0 for this path; later tests use `DeployProduction` / fixtures that require non-zero STAKE in env.
-        vm.setEnv("STAKE_TOKEN", vm.toString(makeAddr("post_faucet_stake")));
     }
 
     function test_deployLocal_success_emitsDeployment() external {

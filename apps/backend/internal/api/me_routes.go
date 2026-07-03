@@ -87,7 +87,7 @@ func MeRouter(pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry) ht
 		}
 		rows, err := dbqueries.New(pool).ListUserChainEvents(r.Context(), dbqueries.ListUserChainEventsParams{
 			UserAddress: principal.Wallet,
-			Limit:       limit,
+			RowLimit:    limit,
 		})
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "DB_ERROR", "could not load user events", nil)
