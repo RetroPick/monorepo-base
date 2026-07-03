@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 
-export function DailyMarketPage() {
+export default function DailyMarketPage() {
   return (
     <div className="mx-auto max-w-lg p-4 space-y-4">
       <h1 className="text-2xl font-bold">Daily Market</h1>

@@ -12,7 +12,7 @@ type ImpactSummary = {
   returningUsers: number;
 };
 
-export function ImpactDashboardPage() {
+export default function ImpactDashboardPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["impact", "gooddollar"],
     queryFn: async (): Promise<ImpactSummary> => {

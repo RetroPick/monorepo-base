@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiBaseUrl } from "@/features/gooddollar/config";
 
-export function RewardsPage() {
+export default function RewardsPage() {
   const { address } = useAccount();
   const { data, isLoading } = useQuery({
     queryKey: ["rewards", "claimable", address],

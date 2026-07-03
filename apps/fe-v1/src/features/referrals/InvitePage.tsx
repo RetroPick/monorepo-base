@@ -3,7 +3,7 @@ import { useAccount } from "wagmi";
 
 import { apiBaseUrl } from "@/features/gooddollar/config";
 
-export function InvitePage() {
+export default function InvitePage() {
   const { address } = useAccount();
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<string | null>(null);
