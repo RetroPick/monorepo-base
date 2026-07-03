@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/dbqueries"
@@ -44,7 +45,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 		pairLimit := int32(portfolioSummaryMaxPairs)
 		pairs, err := q.ListUserTemplateEpochPairs(ctx, dbqueries.ListUserTemplateEpochPairsParams{
 			UserAddress: wallet,
-			Limit:       pairLimit,
+			RowLimit:    pairLimit,
 		})
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user positions", nil)
@@ -53,7 +54,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 
 		claimsRows, err := q.ListUserClaimedEvents(ctx, dbqueries.ListUserClaimedEventsParams{
 			UserAddress: wallet,
-			Limit:       500,
+			RowLimit:    500,
 		})
 		if err != nil {
 			writeAPIError(w, http.StatusInternalServerError, "DB", "could not load claimed events", nil)
@@ -95,20 +96,21 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 			projectedByPair[strings.TrimPrefix(strings.ToLower(tid), "0x")+":"+strconv.FormatInt(eid, 10)] = p
 		}
 		for _, pair := range pairs {
-			if len(pair.TemplateID) != 32 {
+			if len(pair.TemplateID) != 32 || !pair.EpochID.Valid {
 				continue
 			}
+			epochID := pair.EpochID.Int64
 			evRows, err := q.ListUserChainEventsForTemplateEpoch(ctx, dbqueries.ListUserChainEventsForTemplateEpochParams{
 				UserAddress: wallet,
 				TemplateID:  pair.TemplateID,
-				EpochID:     pair.EpochID,
+				EpochID:     pgtype.Int8{Int64: epochID, Valid: true},
 			})
 			if err != nil {
 				writeAPIError(w, http.StatusInternalServerError, "DB", "could not load user chain events", nil)
 				return
 			}
 			costBasis := portfoliopnl.CostBasisWeiFromEvents(evRows)
-			p := projectedByPair[hex.EncodeToString(pair.TemplateID)+":"+strconv.FormatInt(pair.EpochID, 10)]
+			p := projectedByPair[hex.EncodeToString(pair.TemplateID)+":"+strconv.FormatInt(epochID, 10)]
 			totalStake := bigFromAny(p["totalStake"])
 			pendingClaim := bigFromAny(p["pendingClaimAmount"])
 			claimed, _ := p["claimed"].(bool)
@@ -118,7 +120,7 @@ func UserPortfolioSummaryHandler(pool *pgxpool.Pool, eth *ethops.Caller, reg *re
 			totalStakeAgg.Add(totalStakeAgg, totalStake)
 			positionsOut = append(positionsOut, map[string]any{
 				"templateId":        "0x" + hex.EncodeToString(pair.TemplateID),
-				"epochId":           pair.EpochID,
+				"epochId":           epochID,
 				"claimed":           claimed,
 				"costBasisWei":      costBasis.String(),
 				"markValueWei":      totalStake.String(),

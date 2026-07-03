@@ -20,6 +20,7 @@ CREATE TABLE chain_events (
     epoch_id BIGINT,
     user_address VARCHAR(42),
     payload JSONB NOT NULL DEFAULT '{}',
+    block_hash BYTEA,
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (tx_hash, log_index)
 );
@@ -527,4 +528,134 @@ CREATE TABLE user_watchlist_nonce (
     user_address VARCHAR(42) PRIMARY KEY,
     nonce BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- V3 upgrade tables (migrations 000012-000015)
+CREATE TABLE indexer_blocks (
+    block_number BIGINT PRIMARY KEY,
+    block_hash BYTEA NOT NULL,
+    parent_hash BYTEA NOT NULL,
+    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE reporter_identity (
+    id BIGSERIAL PRIMARY KEY,
+    address BYTEA NOT NULL UNIQUE,
+    pubkey BYTEA,
+    role TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE reporter_submissions (
+    id BIGSERIAL PRIMARY KEY,
+    template_id TEXT NOT NULL,
+    epoch_id BIGINT NOT NULL,
+    reporter_id BIGINT NOT NULL REFERENCES reporter_identity(id),
+    outcome JSONB NOT NULL,
+    evidence JSONB NOT NULL,
+    evidence_hash BYTEA NOT NULL,
+    signature BYTEA NOT NULL,
+    nonce BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (template_id, epoch_id, reporter_id, nonce)
+);
+
+CREATE TABLE reporter_audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    submission_id BIGINT REFERENCES reporter_submissions(id),
+    actor_id BIGINT REFERENCES reporter_identity(id),
+    action TEXT NOT NULL,
+    reason TEXT,
+    tx_hash BYTEA,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE gooddollar_user_status (
+    wallet BYTEA PRIMARY KEY,
+    goodid_verified BOOLEAN NOT NULL DEFAULT false,
+    root_wallet BYTEA,
+    last_checked_at TIMESTAMPTZ
+);
+
+CREATE TABLE referral_bindings (
+    referee_wallet BYTEA PRIMARY KEY,
+    referrer_wallet BYTEA NOT NULL,
+    referral_code TEXT NOT NULL,
+    locked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE fee_events (
+    id BIGSERIAL PRIMARY KEY,
+    tx_hash BYTEA NOT NULL,
+    log_index INT NOT NULL,
+    market_id BYTEA NOT NULL,
+    trader_wallet BYTEA NOT NULL,
+    token_address BYTEA NOT NULL,
+    fee_amount NUMERIC(78, 0) NOT NULL,
+    block_number BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (tx_hash, log_index)
+);
+
+CREATE TABLE referral_reward_events (
+    id BIGSERIAL PRIMARY KEY,
+    fee_event_id BIGINT NOT NULL REFERENCES fee_events(id),
+    referrer_wallet BYTEA NOT NULL,
+    trader_wallet BYTEA NOT NULL,
+    level INT NOT NULL,
+    amount NUMERIC(78, 0) NOT NULL,
+    status TEXT NOT NULL DEFAULT 'claimable',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (fee_event_id, referrer_wallet, level)
+);
+
+CREATE TABLE reward_ledger_events (
+    id BIGSERIAL PRIMARY KEY,
+    wallet BYTEA NOT NULL,
+    quest_id TEXT NOT NULL,
+    amount NUMERIC(78, 0) NOT NULL,
+    token_address BYTEA NOT NULL,
+    status TEXT NOT NULL DEFAULT 'claimable',
+    idempotency_key TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE reward_claims (
+    id BIGSERIAL PRIMARY KEY,
+    wallet BYTEA NOT NULL,
+    reward_ledger_event_id BIGINT REFERENCES reward_ledger_events(id),
+    claim_nonce TEXT NOT NULL UNIQUE,
+    payload_hash BYTEA NOT NULL,
+    tx_hash BYTEA,
+    status TEXT NOT NULL DEFAULT 'prepared',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE impact_daily_metrics (
+    day DATE PRIMARY KEY,
+    gusd_volume NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    gusd_fees NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    unique_users INT NOT NULL DEFAULT 0,
+    verified_users INT NOT NULL DEFAULT 0,
+    rewards_claimed NUMERIC(78, 0) NOT NULL DEFAULT 0,
+    markets_resolved INT NOT NULL DEFAULT 0
+);
+
+CREATE TABLE fee_route_batches (
+    id BIGSERIAL PRIMARY KEY,
+    batch_id BYTEA NOT NULL UNIQUE,
+    token_address BYTEA NOT NULL,
+    gross_amount NUMERIC(78, 0) NOT NULL,
+    treasury_amount NUMERIC(78, 0) NOT NULL,
+    rewards_amount NUMERIC(78, 0) NOT NULL,
+    community_amount NUMERIC(78, 0) NOT NULL,
+    allocation_hash BYTEA,
+    tx_hash BYTEA NOT NULL,
+    log_index INT NOT NULL,
+    block_number BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (tx_hash, log_index)
 );

@@ -52,7 +52,7 @@ func main() {
 		log.Error("config", "err", err)
 		os.Exit(1)
 	}
-	reg, err := registry.LoadEmbedded()
+	reg, err := registry.Load(cfg.RegistryPath)
 	if err != nil {
 		log.Error("registry", "err", err)
 		os.Exit(1)
@@ -182,7 +182,15 @@ func main() {
 		_ = json.NewEncoder(w).Encode(contractsPayload)
 	})
 
-	r.Mount("/api/v1/ops", api.RequireOperator(api.OpsRouter(pool, reg, ethCaller), cfg.AuthJWTSecret))
+	v3svc := api.NewV3Services(cfg, pool)
+	r.Mount("/api/v1/gooddollar", api.GoodDollarRouter(v3svc))
+	r.Mount("/api/v1/rewards", api.RewardsRouter(v3svc))
+	r.Mount("/api/v1/referrals", api.ReferralsRouter(v3svc))
+	r.Mount("/api/v1/impact", api.ImpactRouter(v3svc))
+	r.Mount("/api/v1/reporter", api.ReporterRouter(v3svc))
+	opsRouter := api.OpsRouter(pool, reg, ethCaller)
+	opsRouter.Mount("/fee-router", api.FeeRouterOpsRouter(v3svc))
+	r.Mount("/api/v1/ops", api.RequireOperator(opsRouter, cfg.AuthJWTSecret))
 	r.Mount("/api/v1/tx", api.TxRouter(pool, ethCaller, reg))
 	r.Mount("/api/v1/funding", api.FundingRouter(pool, reg, fundingSvc))
 	r.Mount("/api/v1/me", api.MeRouter(pool, ethCaller, reg))
@@ -628,7 +636,7 @@ func main() {
 		}
 		rows, err := dbqueries.New(pool).ListUserChainEvents(r.Context(), dbqueries.ListUserChainEventsParams{
 			UserAddress: addr,
-			Limit:       limit,
+			RowLimit:    limit,
 		})
 		if err != nil {
 			http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
@@ -956,6 +964,18 @@ func websocketChannelAllowed(ctx context.Context, pool *pgxpool.Pool, channel st
 		return err == nil && strings.EqualFold(owner, principal.Wallet)
 	case strings.HasPrefix(channel, "ops:"):
 		return isAuthed && principal != nil && principal.IsOperator
+	case strings.HasPrefix(channel, "reward:"):
+		if !isAuthed || principal == nil {
+			return false
+		}
+		return channel == "reward:"+strings.ToLower(strings.TrimSpace(principal.Wallet))
+	case strings.HasPrefix(channel, "referral:"):
+		if !isAuthed || principal == nil {
+			return false
+		}
+		return channel == "referral:"+strings.ToLower(strings.TrimSpace(principal.Wallet))
+	case channel == "impact:gooddollar":
+		return true
 	default:
 		return false
 	}
