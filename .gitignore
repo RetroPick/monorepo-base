@@ -41,3 +41,8 @@ repomix-output.*
 # generated knowledge graphs and opensrc fetch logs
 **/graphify-out/
 .references/
+
+# upgrade-v3 generated artifacts and local design-pack copies
+docs/upgrade-v3/*.log
+package/prediction-v2/logs/
+.dev/.upgrade_v3/

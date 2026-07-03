@@ -112,3 +112,9 @@ Subscribe via `wscat` or fe-v1 devtools; dedupe keys like `fee_routed:<txHash>:<
 ## Fallback rehearsal
 
 See [`demo-base-sepolia-fallback.md`](./demo-base-sepolia-fallback.md) and [`demo-base-sepolia-rehearsal.log`](./demo-base-sepolia-rehearsal.log).
+
+## Final QA
+
+Run the Protocol Camp Demo Day QA pass from a **new** Cursor chat using [`cursor-demo-day-qa-prompt.md`](./cursor-demo-day-qa-prompt.md).
+
+Expected output: [`DEMO_DAY_QA_REPORT.md`](./DEMO_DAY_QA_REPORT.md) (created by the QA agent; target verdict **GO** unless a P0 blocker is found).
