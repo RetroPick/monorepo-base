@@ -2,13 +2,13 @@
   "include": [
     "apps/**",
     "packages/**",
-    "package/prediction-v2/src/**",
-    "package/prediction-v2/script/**",
-    "package/prediction-v2/.docs/**",
-    "package/prediction-v2/.operator/**",
-    "package/prediction-v2/currentSmartContract.md",
-    "package/prediction-v2/OPERATIONS_INDEX.md",
-    "package/prediction-v2/rollingMarket.md",
+    "contracts/legacy-pool-v1/src/**",
+    "contracts/legacy-pool-v1/script/**",
+    "contracts/legacy-pool-v1/.docs/**",
+    "contracts/legacy-pool-v1/.operator/**",
+    "contracts/legacy-pool-v1/currentSmartContract.md",
+    "contracts/legacy-pool-v1/OPERATIONS_INDEX.md",
+    "contracts/legacy-pool-v1/rollingMarket.md",
     "docs/**",
     ".dev/backend/**",
     ".harness/project-context.md",
@@ -26,9 +26,9 @@
     "**/forge-std/**",
     "**/openzeppelin-contracts/**",
     "**/chainlink-brownie-contracts/**",
-    "apps/fe-v1/sources/**",
+    "apps/web/sources/**",
     "**/.turbo/**",
-    "package/prediction-v2/**"
+    "contracts/legacy-pool-v1/**"
   ],
   "sourcePriority": {
     "manifest": 1,

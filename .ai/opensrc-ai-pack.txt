@@ -1,0 +1,13 @@
+# RetroPick AI / AGENT / RESEARCH references
+vercel/ai
+vercel/chatbot
+vercel-labs/ai-sdk-persistence-db
+vercel-labs/chatgpt-apps-sdk-nextjs-starter
+modelcontextprotocol/typescript-sdk
+modelcontextprotocol/servers
+JamesANZ/prediction-market-mcp
+PolyBench/PolyBench
+Polymarket/agents
+openai/openai-node
+anthropics/anthropic-sdk-typescript
+langchain-ai/langchainjs

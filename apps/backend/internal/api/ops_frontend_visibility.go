@@ -14,7 +14,7 @@ import (
 )
 
 // registerOpsFrontendVisibilityRoutes mutates the public /api/v1/markets listing: templates
-// recorded here are hidden from GET /api/v1/markets and return 404 on market detail/epochs.
+// recorded here are hidden from GET /api/v1/legacy/markets and return 404 on market detail/epochs.
 // POST body: {"action":"hide|unhide|list","templateId":"0x..."} (templateId required for hide/unhide).
 func registerOpsFrontendVisibilityRoutes(r chi.Router, pool *pgxpool.Pool) {
 	q := dbqueries.New(pool)

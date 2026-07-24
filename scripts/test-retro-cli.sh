@@ -17,7 +17,7 @@ assert_help_from() {
 }
 
 assert_help_from "$ROOT"
-assert_help_from "$ROOT/package/prediction-v2"
+assert_help_from "$ROOT/contracts/legacy-pool-v1"
 assert_help_from "$ROOT/apps/backend"
 
 ln -s "$RETRO" "$TMP/retro"

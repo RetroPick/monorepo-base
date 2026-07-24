@@ -112,11 +112,11 @@ Pre-fix blocker (resolved): `pnpm build` / `pnpm typecheck` failed on named-expo
 
 Added `export default` to:
 
-- `apps/fe-v1/src/features/daily-market/DailyMarketPage.tsx`
-- `apps/fe-v1/src/features/rewards/RewardsPage.tsx`
-- `apps/fe-v1/src/features/referrals/InvitePage.tsx`
-- `apps/fe-v1/src/features/learn/LearnPage.tsx`
-- `apps/fe-v1/src/features/impact/ImpactDashboardPage.tsx`
+- `apps/web/src/features/daily-market/DailyMarketPage.tsx`
+- `apps/web/src/features/rewards/RewardsPage.tsx`
+- `apps/web/src/features/referrals/InvitePage.tsx`
+- `apps/web/src/features/learn/LearnPage.tsx`
+- `apps/web/src/features/impact/ImpactDashboardPage.tsx`
 
 ---
 

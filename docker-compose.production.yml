@@ -198,7 +198,7 @@ services:
     profiles: ["full-vps"]
     build:
       context: .
-      dockerfile: apps/fe-v1/Dockerfile
+      dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID}

@@ -34,6 +34,8 @@ import (
 	"retropick/apps/backend/internal/ethops"
 	"retropick/apps/backend/internal/funding"
 	"retropick/apps/backend/internal/launchboard"
+	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/marketdata"
 	"retropick/apps/backend/internal/pglisten"
 	"retropick/apps/backend/internal/realtime"
@@ -219,7 +221,13 @@ func main() {
 	r.Get("/api/v1/user/faucet-state", api.UserFaucetStateHandler(ethCaller, reg))
 	r.Post("/api/v1/user/faucet-relay", api.UserFaucetRelayHandler(cfg, faucetRelayer, reg))
 
-	r.Get("/api/v1/markets", func(w http.ResponseWriter, r *http.Request) {
+	marketsSvc := markets.NewService(markets.ServiceConfig{
+		Catalog:        gamma.NewClient(cfg.MarketsGammaAPIURL),
+		CatalogEnabled: cfg.MarketsCatalogEnabled,
+	})
+	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
+
+	r.Get("/api/v1/legacy/markets", func(w http.ResponseWriter, r *http.Request) {
 		q := dbqueries.New(pool)
 		ctx := r.Context()
 		rows, err := q.ListTemplatesWithLedger(ctx)
@@ -299,7 +307,7 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]any{"markets": out})
 	})
 
-	r.Get("/api/v1/markets/{templateId}", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/api/v1/legacy/markets/{templateId}", func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
 		b, err := hex.DecodeString(raw)
 		if err != nil || len(b) != 32 {
@@ -405,9 +413,9 @@ func main() {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 
-	r.Get("/api/v1/markets/{templateId}/chart", api.ChartHandler(pool))
+	r.Get("/api/v1/legacy/markets/{templateId}/chart", api.ChartHandler(pool))
 
-	r.Get("/api/v1/markets/{templateId}/epochs", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/api/v1/legacy/markets/{templateId}/epochs", func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
 		b, err := hex.DecodeString(raw)
 		if err != nil || len(b) != 32 {
@@ -467,7 +475,7 @@ func main() {
 		_ = json.NewEncoder(w).Encode(map[string]any{"epochs": out})
 	})
 
-	r.Get("/api/v1/markets/{templateId}/epochs/{epochId}/outcomes", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/api/v1/legacy/markets/{templateId}/epochs/{epochId}/outcomes", func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
 		b, err := hex.DecodeString(raw)
 		if err != nil || len(b) != 32 {
@@ -541,7 +549,7 @@ func main() {
 		})
 	})
 
-	r.Get("/api/v1/markets/{templateId}/probability-history", func(w http.ResponseWriter, r *http.Request) {
+	r.Get("/api/v1/legacy/markets/{templateId}/probability-history", func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(chi.URLParam(r, "templateId"), "0x")
 		b, err := hex.DecodeString(raw)
 		if err != nil || len(b) != 32 {

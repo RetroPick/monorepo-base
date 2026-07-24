@@ -24,7 +24,7 @@ Deploy or note existing proxy address. Document in registry `contracts.marketEng
 ## RC-1.2 — Treasury stack
 
 ```bash
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 export CELO_RPC_URL="https://alfajores-forno.celo-testnet.org"
 export MARKET_ENGINE_PROXY="<market_engine_proxy>"
 

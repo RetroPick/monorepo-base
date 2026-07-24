@@ -1,0 +1,18 @@
+# RetroPick PROTOCOL / PREDICTION MARKET references
+Polymarket/ctf-exchange-v2
+Polymarket/ctf-exchange
+Polymarket/clob-client-v2
+Polymarket/agents
+gnosis/conditional-tokens-contracts
+gnosis/conditional-tokens-market-makers
+gnosis/conditional-tokens-tutorial
+RealityETH/reality-eth-monorepo
+UMAprotocol/protocol
+UMAprotocol/uma-docs
+Azuro-protocol/LiquidityTree
+Azuro-protocol/Azuro-v2-public
+Azuro-protocol/Azuro-subgraphs
+Azuro-protocol/example-app
+ponder-sh/ponder
+graphprotocol/graph-node
+streamingfast/substreams

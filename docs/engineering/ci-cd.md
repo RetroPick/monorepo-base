@@ -3,7 +3,7 @@
 ## Workflows
 
 - `ci.yml`: installs pnpm dependencies, runs lint, typecheck, tests, build, and Go tests.
-- `contracts.yml`: runs Foundry build and tests from `package/prediction-v2`.
+- `contracts.yml`: runs Foundry build and tests from `contracts/legacy-pool-v1`.
 
 ## Production Notes
 

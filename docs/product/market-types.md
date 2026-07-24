@@ -14,7 +14,7 @@ RetroPick market types follow the on-chain `MarketTypes.MarketType` order:
 | 7 | Corridor | Yes / No |
 | 8 | Cascade | Yes / No |
 
-Shared labels and lifecycle helpers live in `@retropick/market-types`.
+Shared labels and lifecycle helpers should be extracted only when multiple active apps consume the same tested logic.
 
 ## Oracle / Mode Matrix
 

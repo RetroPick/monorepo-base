@@ -25,7 +25,7 @@ Production settlement correctness depends on epoch gates and oracle reads. This 
 ## Verification
 
 ```bash
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 FOUNDRY_PROFILE=ci forge test -j1 --match-contract MarketEngineProductionLifecycleTest -vv
 FOUNDRY_PROFILE=ci forge test -j1 --match-path test/integration/*FeeRouter*
 ```

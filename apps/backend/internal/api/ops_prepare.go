@@ -29,7 +29,7 @@ type prepareMeta struct {
 var opsPrepareWhitelist = map[string]prepareMeta{
 	"pauseProgram": {
 		RequiredRole:   "admin / governance (Safe)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — pause / unpause",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — pause / unpause",
 		ExpectedEvents: []string{"Paused / program pause state change (see deployment ABI)"},
 		Checklist: []string{
 			"Confirm incident or drill scope",
@@ -39,7 +39,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"upsertTemplate": {
 		RequiredRole:   "admin or workerAuthority (per deployment); Safe on mainnet",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Before a template goes live; Manual lifecycle",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Before a template goes live; Manual lifecycle",
 		ExpectedEvents: []string{"TemplateUpserted"},
 		Checklist: []string{
 			"Confirm market family approved (.operator/.marketType.md)",
@@ -50,7 +50,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"setFeedDecimals": {
 		RequiredRole:   "Chainlink adapter owner / governance",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Chainlink adapter feed bootstrap",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Chainlink adapter feed bootstrap",
 		ExpectedEvents: []string{"FeedDecimalsConfigured"},
 		Checklist: []string{
 			"Confirm adapter target matches the deployed Chainlink adapter",
@@ -60,7 +60,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"initializeMarket": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Initialize market",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Initialize market",
 		ExpectedEvents: []string{"MarketInitialized"},
 		Checklist: []string{
 			"Template upserted and active",
@@ -70,7 +70,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"openEpoch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Open epoch",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Open epoch",
 		ExpectedEvents: []string{"EpochOpened"},
 		Checklist: []string{
 			"Protocol not paused; template Manual mode, initialized, active",
@@ -80,7 +80,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"genesisStartRolling": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling lifecycle",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Rolling lifecycle",
 		ExpectedEvents: []string{"RollingGenesisStarted"},
 		Checklist: []string{
 			"Template Rolling mode, initialized; not Manual openEpoch path",
@@ -90,7 +90,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"genesisLockRolling": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling lifecycle — Genesis lock",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Rolling lifecycle — Genesis lock",
 		ExpectedEvents: []string{"RollingGenesisLocked"},
 		Checklist: []string{
 			"After genesisStartRolling; within lock window + buffer",
@@ -99,7 +99,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"executeRollingRound": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling steady state",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Rolling steady state",
 		ExpectedEvents: []string{"RollingRoundExecuted", "EpochResolved", "EpochLocked", "EpochOpened"},
 		Checklist: []string{
 			"Template in Live phase; not halted",
@@ -108,7 +108,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"executeRollingRoundBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Rolling batch",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Rolling batch",
 		ExpectedEvents: []string{"RollingRoundExecuted (per template that advances)"},
 		Checklist: []string{
 			"Each templateId is Rolling + Live; same worker batching as single tick",
@@ -116,7 +116,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"openEpochsBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Manual lifecycle — batch open",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Manual lifecycle — batch open",
 		ExpectedEvents: []string{"EpochOpened (per row)"},
 		Checklist: []string{
 			"Parallel arrays same length; each row valid openEpoch semantics",
@@ -124,7 +124,7 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"lockEpochsBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Manual lifecycle — batch lock",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Manual lifecycle — batch lock",
 		ExpectedEvents: []string{"EpochLocked / EpochLockedV2 (per row)"},
 		Checklist: []string{
 			"Each epoch in Open and past lockAt; oracle path valid for type",
@@ -132,23 +132,23 @@ var opsPrepareWhitelist = map[string]prepareMeta{
 	},
 	"resolveEpochsBatch": {
 		RequiredRole:   "admin or workerAuthority (per deployment)",
-		RunbookRef:     "package/prediction-v2/.operator/.runbook.md — Manual lifecycle — batch resolve",
+		RunbookRef:     "contracts/legacy-pool-v1/.operator/.runbook.md — Manual lifecycle — batch resolve",
 		ExpectedEvents: []string{"EpochResolved / EpochResolvedV2 (per row)"},
 		Checklist: []string{
 			"Each epoch Locked and past resolveAt",
 		},
 	},
-	"haltRollingMarket":             emergencyMeta("package/prediction-v2/.operator/.runbook.md — rolling halt", []string{"RollingMarketHalted"}),
-	"resetRollingLifecycle":         emergencyMeta("package/prediction-v2/.operator/.runbook.md — rolling recovery reset", []string{"RollingLifecycleReset"}),
-	"cancelEpoch":                   emergencyMeta("package/prediction-v2/.operator/.runbook.md — manual emergency cancel", []string{"EpochCancelled / EpochVoided"}),
-	"cancelRollingEpochWhileHalted": emergencyMeta("package/prediction-v2/.operator/.runbook.md — rolling emergency cancel while halted", []string{"EpochCancelled / EpochVoided"}),
-	"yieldEmergencyWithdraw":        emergencyMeta("package/prediction-v2/.operator/.runbook.md — yield emergency withdraw", []string{"YieldEmergencyWithdrawn"}),
-	"reconcileEpochRoutedPrincipal": emergencyMeta("package/prediction-v2/.operator/.runbook.md — routed-principal recovery", []string{"EpochRoutedPrincipalReconciled"}),
-	"recoverRoutedSettledClaims":    emergencyMeta("package/prediction-v2/.operator/.runbook.md — routed settled-claims recovery", []string{"RoutedSettledClaimsRecovered"}),
-	"reassignRecoveredBalance":      emergencyMeta("package/prediction-v2/.operator/.runbook.md — recovered-balance reassignment", []string{"EmergencyRecoveredBalanceReassigned"}),
-	"finalizeRecoveredYield":        emergencyMeta("package/prediction-v2/.operator/.runbook.md — finalize recovered yield", []string{"RecoveredYieldFinalized"}),
-	"resetYieldRouterFailures":      emergencyMeta("package/prediction-v2/.operator/.runbook.md — yield router reset", []string{"YieldRouterFailuresReset"}),
-	"withdrawFees":                  emergencyMeta("package/prediction-v2/.operator/.runbook.md — fee withdrawal", []string{"FeesWithdrawn"}),
+	"haltRollingMarket":             emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — rolling halt", []string{"RollingMarketHalted"}),
+	"resetRollingLifecycle":         emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — rolling recovery reset", []string{"RollingLifecycleReset"}),
+	"cancelEpoch":                   emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — manual emergency cancel", []string{"EpochCancelled / EpochVoided"}),
+	"cancelRollingEpochWhileHalted": emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — rolling emergency cancel while halted", []string{"EpochCancelled / EpochVoided"}),
+	"yieldEmergencyWithdraw":        emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — yield emergency withdraw", []string{"YieldEmergencyWithdrawn"}),
+	"reconcileEpochRoutedPrincipal": emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — routed-principal recovery", []string{"EpochRoutedPrincipalReconciled"}),
+	"recoverRoutedSettledClaims":    emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — routed settled-claims recovery", []string{"RoutedSettledClaimsRecovered"}),
+	"reassignRecoveredBalance":      emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — recovered-balance reassignment", []string{"EmergencyRecoveredBalanceReassigned"}),
+	"finalizeRecoveredYield":        emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — finalize recovered yield", []string{"RecoveredYieldFinalized"}),
+	"resetYieldRouterFailures":      emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — yield router reset", []string{"YieldRouterFailuresReset"}),
+	"withdrawFees":                  emergencyMeta("contracts/legacy-pool-v1/.operator/.runbook.md — fee withdrawal", []string{"FeesWithdrawn"}),
 }
 
 func emergencyMeta(runbook string, events []string) prepareMeta {

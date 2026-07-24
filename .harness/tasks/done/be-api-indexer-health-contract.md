@@ -17,4 +17,4 @@ Stabilize fields used by ops dashboards (`/api/v1/health`, `global-state`, or ad
 
 - `healthOKPayload` adds `schemaVersion`, `environment`, `chainId`, `indexedBlock` alias, nested `indexer` (same keys as `/ops/global-state`), `contracts.marketEngineProxy`.
 - DB failure path on `/health` now includes `schemaVersion`, `environment`, `chainId`.
-- Types: `apps/ops/src/lib/api.ts` (`OpsHealth`), `apps/fe-v1/src/lib/api/retropickApi.ts` (`HealthResponse`).
+- Types: `apps/ops-web/src/lib/api.ts` (`OpsHealth`), `apps/web/src/lib/api/retropickApi.ts` (`HealthResponse`).

@@ -7,7 +7,7 @@ Shared **Deploy & prepare preflight** panel on `/launch` and `/prepare` (generic
 ## Acceptance
 
 - [x] Preflight component visible on both routes; refresh invalidates query.
-- [x] `apps/ops` Vitest includes `opsPreflight` unit tests.
+- [x] `apps/ops-web` Vitest includes `opsPreflight` unit tests.
 - [x] `docs/feature/ops-admin-operator-workflow.md` references the UI strip.
 
 ## Verify

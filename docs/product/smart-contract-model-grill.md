@@ -1,6 +1,6 @@
 # Smart Contract Model Grill
 
-This review covers the current MarketEngine model in `package/prediction-v2`.
+This review covers the current MarketEngine model in `contracts/legacy-pool-v1`.
 
 ## Executive rating
 
@@ -85,7 +85,7 @@ If transferable positions become a real requirement, add them later as an opt-in
 Measured with:
 
 ```bash
-forge test --root package/prediction-v2 --match-path 'test/gas/EpochGas.t.sol'
+forge test --root contracts/legacy-pool-v1 --match-path 'test/gas/EpochGas.t.sol'
 ```
 
 Current focused gas references:

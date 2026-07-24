@@ -30,8 +30,8 @@ Baseline: V3 scaffolding + RC hardening (flags, guards, CI, runbooks).
 
 ```bash
 cd apps/backend && go build ./... && go test ./...
-cd package/prediction-v2 && forge test --match-path "test/treasury/*"
-cd apps/fe-v1 && pnpm test && pnpm typecheck
+cd contracts/legacy-pool-v1 && forge test --match-path "test/treasury/*"
+cd apps/web && pnpm test && pnpm typecheck
 ```
 
 ## Alfajores addresses
@@ -60,7 +60,7 @@ If no ME on Alfajores: deploy via `script/test/DeployTestnet.s.sol` with `EXPECT
 ### RC-1.2 Treasury broadcast
 
 ```bash
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 export MARKET_ENGINE_PROXY=<proxy>
 forge script script/DeployTreasuryAlfajores.s.sol:DeployTreasuryAlfajores \
   --rpc-url "$CELO_RPC_URL" --broadcast --account <keystore>

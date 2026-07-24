@@ -4,24 +4,24 @@ Last updated: 2026-06-03
 
 ## Executive Summary
 
-RetroPick is already a functional monorepo, but it is not yet organized like a startup-grade product platform. The core code is present across `apps/backend`, `apps/fe-v1`, `apps/ops`, `apps/docs`, and `package/prediction-v2`, while shared product logic is mostly embedded in frontend files. This audit keeps `apps/backend` canonical and repairs the contract alias before any larger directory split.
+RetroPick is already a functional monorepo, but it is not yet organized like a startup-grade product platform. The core code is present across `apps/backend`, `apps/web`, `apps/ops-web`, `apps/docs`, and `contracts/legacy-pool-v1`, while shared product logic is mostly embedded in frontend files. This audit keeps `apps/backend` canonical and repairs the contract alias before any larger directory split.
 
 ## Current Shape
 
 - `apps/backend`: canonical Go backend for API, indexer, keeper, funding, price worker, realtime, migrations, and operational entrypoints.
-- `apps/fe-v1`: canonical customer web app for market discovery, chain market detail, wallet integration, and trading flows.
-- `apps/ops`: operator dashboard.
+- `apps/web`: canonical customer web app for market discovery, chain market detail, wallet integration, and trading flows.
+- `apps/ops-web`: operator dashboard.
 - `apps/docs`: docs frontend.
-- `package/prediction-v2`: existing Foundry contract project.
-- `package/prediction-v2`: canonical contract path for new references, restored as a symlink to `package/prediction-v2`.
-- `package/prediction-v2`: compatibility alias that resolves through `package/prediction-v2`.
-- `packages/contracts` and `packages/types`: existing shared ABI/type packages.
+- `contracts/legacy-pool-v1`: existing Foundry contract project.
+- `contracts/legacy-pool-v1`: canonical contract path for new references, restored as a symlink to `contracts/legacy-pool-v1`.
+- `contracts/legacy-pool-v1`: compatibility alias that resolves through `contracts/legacy-pool-v1`.
+- `packages/contracts`: existing shared ABI registry package.
 
 ## Findings
 
 ### Contract Path
 
-`package/prediction-v2` was a dangling symlink because `package/prediction-v2` was absent. The migration restores `package/prediction-v2 -> prediction-v2` so Foundry commands and new docs can use the canonical path without moving the submodule yet.
+`contracts/legacy-pool-v1` was a dangling symlink because `contracts/legacy-pool-v1` was absent. The migration restores `contracts/legacy-pool-v1 -> prediction-v2` so Foundry commands and new docs can use the canonical path without moving the submodule yet.
 
 ### Monorepo Foundation
 
@@ -51,7 +51,7 @@ Large local runtime artifacts exist and should remain ignored:
 - `node_modules`
 - Foundry `out`, `cache`, and `broadcast`
 
-Untracked `apps/fe-v1/sources/**` is not moved or tracked in this migration.
+Untracked `apps/web/sources/**` is not moved or tracked in this migration.
 
 ## Risks
 
@@ -62,7 +62,7 @@ Untracked `apps/fe-v1/sources/**` is not moved or tracked in this migration.
 
 ## Recommended Next Steps
 
-1. Keep `package/prediction-v2` healthy and run Foundry tests before any contract path migration.
+1. Keep `contracts/legacy-pool-v1` healthy and run Foundry tests before any contract path migration.
 2. Adopt shared packages one vertical slice at a time, starting with market type labels and payout math.
 3. Keep backend entrypoint split logical inside `apps/backend/cmd/*` until CI and production process supervision are stable.
 4. Archive tracked legacy docs/generated snapshots, but leave ignored local runtime directories untouched.

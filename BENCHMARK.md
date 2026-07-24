@@ -208,7 +208,7 @@ The frontend now patches React Query caches directly for market and chart update
 Relevant implementation:
 
 - websocket hook:
-  - `apps/fe-v1/src/hooks/useIndexerWebSocket.ts`
+  - `apps/web/src/hooks/useIndexerWebSocket.ts`
 
 This is much better than broad invalidation-only behavior because cards and charts can update with lower UI churn and fewer unnecessary refetches.
 

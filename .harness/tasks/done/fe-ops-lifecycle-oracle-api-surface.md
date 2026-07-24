@@ -2,7 +2,7 @@
 
 ## Scope
 
-Extend `apps/ops` lifecycle, templates, oracle, visibility, and governance pages to use the same live ops API patterns as Monitor/Prepare (`OpsDeployPreflight` + `OpsOperatorHub`).
+Extend `apps/ops-web` lifecycle, templates, oracle, visibility, and governance pages to use the same live ops API patterns as Monitor/Prepare (`OpsDeployPreflight` + `OpsOperatorHub`).
 
 ## Acceptance
 

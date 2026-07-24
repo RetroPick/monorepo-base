@@ -4,10 +4,10 @@ RetroPick v1 is epoch-driven. Market actions are gated by on-chain `MarketEngine
 
 ## Canonical Components
 
-- `package/prediction-v2`: Foundry contracts for `MarketEngine` and modules.
+- `contracts/legacy-pool-v1`: Foundry contracts for `MarketEngine` and modules.
 - `apps/backend`: Go API, indexer, keeper, funding workers, price worker, realtime, and migrations.
-- `apps/fe-v1`: customer-facing web app.
-- `apps/ops`: operator dashboard.
+- `apps/web`: customer-facing web app.
+- `apps/ops-web`: operator dashboard.
 - `packages/*`: shared TypeScript contracts, types, and product logic.
 
 ## Backend Boundary
@@ -16,4 +16,4 @@ The backend remains one Go module with multiple `cmd/*` entrypoints. Process sep
 
 ## Contract Boundary
 
-New docs and tooling should reference `package/prediction-v2`. `package/prediction-v2` is only a compatibility alias.
+New docs and tooling should reference `contracts/legacy-pool-v1`. `contracts/legacy-pool-v1` is only a compatibility alias.

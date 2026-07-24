@@ -6,7 +6,7 @@ Measure wallet-related JS on cold load; defer AppKit / modal / SDK init behind e
 
 ## Acceptance
 
-- [x] Short note on measurement method + result in `apps/fe-v1/README.md` or task comment.
+- [x] Short note on measurement method + result in `apps/web/README.md` or task comment.
 - [x] Connect path: `openAppKitModal` awaits `ensureAppKitInitialized` then loads `modal` — no regression vs prior sync `modal.ready()` + `open()`. **Operator:** re-smoke Sign in / Google on Base Sepolia after release (not run in CI here).
 - [x] `pnpm verify` exit 0.
 

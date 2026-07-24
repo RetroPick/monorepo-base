@@ -24,5 +24,5 @@ pnpm verify
 
 - `app/[[...slug]]/loading.tsx` — server-rendered shell while `ClientApp` hydrates.
 - `app/layout.tsx` — `@fontsource` Inter / Plus Jakarta Sans / JetBrains Mono (weights used by UI).
-- `apps/fe-v1/README.md` — LCP table + Lighthouse measurement note.
+- `apps/web/README.md` — LCP table + Lighthouse measurement note.
 - `src/app.layout-fonts.test.ts` — asserts self-hosted fonts.

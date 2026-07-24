@@ -23,7 +23,7 @@ Close P0 gaps between Demo Day GO and production-grade testnet readiness: Foundr
 
 ```bash
 # Contracts (must use -j1 — vm.setEnv is process-global)
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 FOUNDRY_PROFILE=ci forge test -j1
 ./script/check-storage-layout.sh
 
@@ -49,7 +49,7 @@ Script tests call `vm.setEnv`, which Foundry shares across parallel test workers
 
 ## P0.4 — Storage layout
 
-Tracked contracts: `MarketEngineDispatcher`, `MarketEngineAdminModule`, `MarketEngineViewModule`, `FeeRouter`. Baselines live under `package/prediction-v2/.storage-layout/`.
+Tracked contracts: `MarketEngineDispatcher`, `MarketEngineAdminModule`, `MarketEngineViewModule`, `FeeRouter`. Baselines live under `contracts/legacy-pool-v1/.storage-layout/`.
 
 ## P0.5 — Indexer
 
@@ -80,7 +80,7 @@ Tracked contracts: `MarketEngineDispatcher`, `MarketEngineAdminModule`, `MarketE
 
 ```bash
 go -C apps/backend test ./internal/indexer/... -count=1
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 FOUNDRY_PROFILE=ci forge test -j1 --match-path "test/integration/*FeeRouter*"
 FOUNDRY_PROFILE=ci forge test -j1 --match-contract MarketEngineProductionLifecycleTest
 RETROPICK_API_BASE=http://127.0.0.1:8080 ./scripts/smoke-production.sh

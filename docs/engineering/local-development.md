@@ -11,12 +11,12 @@
 ## Common Commands
 
 - `pnpm dev`: run app dev tasks through Turbo.
-- `pnpm dev:fe-v1`: run customer web app.
-- `pnpm dev:ops`: run ops dashboard.
+- `pnpm dev:web`: run customer web app.
+- `pnpm dev:ops-web`: run ops dashboard.
 - `pnpm dev:docs`: run docs app.
 - `pnpm docker:up`: start local backend dependencies.
 - `pnpm smoke`: run backend Go tests.
-- `pnpm contracts:test`: run Foundry tests from `package/prediction-v2`.
+- `pnpm contracts:test`: run Foundry tests from `contracts/legacy-pool-v1`.
 
 ## Environment
 

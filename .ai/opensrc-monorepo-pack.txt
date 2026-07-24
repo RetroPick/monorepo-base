@@ -1,0 +1,14 @@
+# RetroPick MONOREPO / DEVEX references
+vercel-labs/opensrc
+vercel/turborepo
+pnpm/pnpm
+changesets/changesets
+biomejs/biome
+prettier/prettier
+eslint/eslint
+typescript-eslint/typescript-eslint
+oven-sh/bun
+nodejs/node
+actions/starter-workflows
+actions/checkout
+actions/setup-node

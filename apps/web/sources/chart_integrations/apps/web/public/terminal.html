@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>RetroPick V8 — 9 Market Types Adaptive Terminal</title>
+<style>
+:root{
+  --bg:#111516;--panel:#222728;--panel2:#202526;--card:#1f2425;--dark:#15191a;--line:#303839;
+  --text:#f4f7f7;--muted:#a9b3b5;--muted2:#697476;--green:#2dd777;--red:#ff5b57;
+  --yellow:#e8ff31;--blue:#8ab4ff;--purple:#bb86fc;--orange:#ffb86b;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:14px}
+.app{max-width:1480px;margin:auto;border-radius:13px;overflow:hidden;background:var(--panel);border:1px solid rgba(255,255,255,.05);box-shadow:0 24px 80px rgba(0,0,0,.38)}
+.market{min-height:70px;background:#202526;border-bottom:1px solid rgba(255,255,255,.04);display:flex;align-items:center;gap:22px;padding:12px 18px}
+.pair{display:flex;align-items:center;gap:10px;min-width:392px}.star{color:#3b4243;font-size:21px}.coin{width:30px;height:30px;border-radius:999px;background:#f7931a;display:grid;place-items:center;font-weight:950}.name{font-size:24px;font-weight:950;letter-spacing:-.045em}.name span{color:#aab5b7}.price{font-size:25px;font-weight:950;color:var(--red);letter-spacing:-.045em}.chg{font-size:14px;font-weight:900;color:var(--green)}
+.metrics{display:flex;gap:25px;align-items:center;flex-wrap:wrap}.mLabel{font-size:12px;color:#c2ced0;font-weight:850}.mVal{font-size:12px;margin-top:2px;font-weight:950;color:white}
+.tabsMarket{display:flex;gap:6px;background:#171b1c;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.04);overflow-x:auto}.mTab{border:1px solid rgba(255,255,255,.06);background:#202526;color:#c2ced0;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:950;white-space:nowrap;cursor:pointer}.mTab.active{background:var(--yellow);color:#111;border-color:var(--yellow)}
+.grid{display:grid;grid-template-columns:1fr 326px;background:#171b1c}
+.chartShell{background:#202526;display:grid;grid-template-rows:42px 500px 102px}.toolbar{display:flex;align-items:center;justify-content:space-between;padding:0 22px}.tools,.tabs{display:flex;align-items:center;gap:10px}.btn{border:0;border-radius:7px;background:#344143;color:white;font-size:12px;font-weight:950;padding:7px 9px;cursor:pointer}.ghost{background:transparent;color:#aeb8ba}.tab{font-size:12px;color:#b9c3c5;font-weight:900;cursor:pointer}.tab.active{color:white}.ratio{font-size:10px;color:var(--green);font-weight:950}
+.wrap{position:relative;margin:0 12px 6px 18px;background:#202526;overflow:hidden;border-radius:2px;contain:layout paint;isolation:isolate}svg{width:100%;height:100%;display:block;contain:layout paint;transform:translateZ(0)}.gridLine{stroke:rgba(174,184,186,.12);stroke-width:1}.axis{fill:#b7c0c2;font-size:12px;font-weight:700}.path{fill:none;stroke:var(--yellow);stroke-width:2.35;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px rgba(232,255,49,.18))}.path.greenPath{stroke:var(--green)}.path.redPath{stroke:var(--red)}.path2{fill:none;stroke:var(--blue);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;opacity:.95}.wm{position:absolute;inset:0;display:grid;place-items:center;font-size:52px;font-weight:950;letter-spacing:-.08em;color:rgba(255,255,255,.035);pointer-events:none}.tv{position:absolute;left:14px;bottom:22px;width:35px;height:35px;border-radius:999px;background:#111827;display:grid;place-items:center;font-weight:950}.tag,.tag2,.lockTag{position:absolute;right:66px;transform:translateY(-50%);border-radius:2px;padding:4px 7px;font-size:12px;font-weight:950;line-height:1}.tag{background:var(--red);color:white}.tag2{background:var(--blue);color:#08111f;display:none}.lockTag{background:#2c3440;color:white;display:none}.status{position:absolute;left:24px;top:16px;border:1px solid rgba(255,255,255,.08);background:rgba(20,24,25,.76);backdrop-filter:blur(8px);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:950}.toast{position:absolute;left:50%;top:72px;transform:translateX(-50%);background:rgba(15,18,19,.94);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:13px 18px;box-shadow:0 16px 60px rgba(0,0,0,.35);font-size:13px;font-weight:850;display:none;z-index:5}.toast.show{display:block}.chartLegend{position:absolute;left:24px;top:54px;display:flex;gap:8px;flex-wrap:wrap;max-width:68%;pointer-events:none}.legendPill{border:1px solid rgba(255,255,255,.08);background:rgba(15,18,19,.55);backdrop-filter:blur(6px);border-radius:999px;padding:6px 9px;font-size:11px;font-weight:900;color:#dce4e5}.legendPill.green{color:var(--green)}.legendPill.red{color:var(--red)}.legendPill.yellow{color:var(--yellow)}.sideExplain{position:sticky;top:12px;border-color:rgba(232,255,49,.18);background:linear-gradient(180deg,rgba(232,255,49,.06),rgba(31,36,37,1))}.miniNote{margin-top:8px;color:#899497;font-size:12px;line-height:1.45}.drawingLine{stroke:#fff;stroke-width:1.4;stroke-dasharray:5 5;opacity:.8}
+.rounds{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:12px;background:#171b1c;border-top:1px solid rgba(255,255,255,.04)}.card{border:1px solid rgba(255,255,255,.06);background:#1f2425;border-radius:12px;padding:12px}.rLabel{font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:#899497;font-weight:950}.rVal{margin-top:5px;font-size:18px;font-weight:950;letter-spacing:-.03em}.green{color:var(--green)}.red{color:var(--red)}.yellow{color:var(--yellow)}.blue{color:var(--blue)}.purple{color:var(--purple)}.orange{color:var(--orange)}
+.sidePanel{padding:12px;display:flex;flex-direction:column;gap:12px;border-left:1px solid rgba(255,255,255,.04)}.sideTitle{font-size:21px;font-weight:950;letter-spacing:-.045em}.sideDesc{margin-top:5px;color:#aeb8ba;font-size:13px;line-height:1.45}.outcomes{display:grid;gap:8px}.outcome{border:1px solid rgba(255,255,255,.08);background:#1f2425;border-radius:12px;padding:11px;cursor:pointer}.outcome.active{border-color:var(--yellow);background:rgba(232,255,49,.08)}.oTop{display:flex;justify-content:space-between;gap:10px;font-size:13px;font-weight:950}.oSub{color:#96a1a3;font-size:12px;margin-top:4px}.ticket input{width:100%;background:#141819;border:1px solid rgba(255,255,255,.08);border-radius:9px;color:white;font-size:20px;font-weight:950;padding:9px;outline:none}.quote{font-size:12px;color:#b9c3c5;margin-top:7px;display:flex;justify-content:space-between}.cta{width:100%;border:0;border-radius:10px;background:var(--yellow);color:#111;text-transform:uppercase;font-weight:950;padding:11px;margin-top:9px;cursor:pointer}.cta:disabled{background:#303839;color:#8d989a;cursor:not-allowed}.evidence{display:grid;gap:8px}.ev{display:flex;justify-content:space-between;gap:8px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.05);padding-bottom:8px}.ev span:first-child{color:#899497}.formula{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#dce4e5;font-size:12px;line-height:1.45;background:#15191a;border-radius:10px;padding:10px;border:1px solid rgba(255,255,255,.05)}
+@media(max-width:1050px){.grid{grid-template-columns:1fr}.sidePanel{border-left:0}.market{align-items:flex-start;flex-direction:column}.pair{min-width:0}.rounds{grid-template-columns:1fr 1fr}.tip{display:none}.chartShell{grid-template-rows:42px 430px auto}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="market">
+    <div class="pair"><div class="star">★</div><div class="coin">₿</div><div class="name">BTC<span>/USDT</span></div><div>⌄</div><div class="price" id="topPrice">—</div><div class="chg">↗ simulated live</div></div>
+    <div class="metrics"><div><div class="mLabel">Rendah 24 jam</div><div class="mVal">63.120,00</div></div><div><div class="mLabel">Tinggi 24 jam</div><div class="mVal">64.450,00</div></div><div><div class="mLabel">Volume (24 jam)</div><div class="mVal">13,09B USDT</div></div><div><div class="mLabel">Market Type</div><div class="mVal" id="headerType">Direction</div></div></div>
+  </header>
+
+  <nav class="tabsMarket" id="marketTabs"></nav>
+
+  <main class="grid">
+    <section class="chartShell">
+      <div class="toolbar"><div class="tools"><button class="btn">Original</button><button class="btn ghost" id="drawBtn">Draw line</button><button class="btn ghost" id="clearBtn">Clear</button><button class="btn ghost" id="zoomBtn">Zoom: normal</button></div><div class="tabs" id="intervalTabs"></div></div>
+      <div class="wrap">
+        <svg id="chart" viewBox="0 0 1280 500" preserveAspectRatio="none"></svg>
+        <div class="wm" id="wm">Direction</div><div class="tv">TV</div><div class="status" id="statusBox">OPEN</div><div class="chartLegend" id="chartLegend"></div><div class="toast" id="toast"></div>
+        <div class="tag" id="priceTag">—</div><div class="tag2" id="priceTag2">—</div><div class="lockTag" id="lockTag">—</div>
+      </div>
+      <section class="rounds"><div class="card"><div class="rLabel">Locks in</div><div class="rVal yellow" id="lockT">—</div></div><div class="card"><div class="rLabel">Resolves in</div><div class="rVal" id="resolveT">—</div></div><div class="card"><div class="rLabel">Live result</div><div class="rVal" id="liveResult">—</div></div><div class="card"><div class="rLabel">Evidence</div><div class="rVal blue" id="evidenceState">Pending</div></div><div class="card"><div class="rLabel">Chart scale</div><div class="rVal" id="scaleState">Normal</div></div></section>
+    </section>
+
+    <aside class="sidePanel">
+      <section class="card sideExplain"><div class="rLabel">Market guide</div><div class="sideTitle" id="sideTitle">Direction</div><div class="sideDesc" id="sideDesc">—</div><div class="miniNote" id="sideNote">Chart is fully visible. Rule details live here, not above the price action.</div></section>
+      <section class="card"><div class="rLabel">Outcomes</div><div class="outcomes" id="outcomes"></div></section>
+      <section class="card ticket"><div class="rLabel">Paper trade</div><input id="amount" value="25"/><div class="quote"><span>Est. payout</span><b id="payout">—</b></div><button class="cta" id="cta">Pick outcome</button></section>
+      <section class="card"><div class="rLabel">Formula</div><div class="formula" id="formula">—</div></section>
+      <section class="card"><div class="rLabel">Evidence snapshot</div><div class="evidence" id="evidence"></div></section>
+    </aside>
+  </main>
+</div>
+
+<script>
+const API_BASE = window.__RETROPICK_API__ || 'http://localhost:8080';
+const WS_BASE = window.__RETROPICK_WS__ || 'ws://localhost:8080';
+const USE_BACKEND = true;
+let backendLive=false;
+const seed = [63680, 63705, 63718, 63640, 63678, 63744, 63690, 63672, 63650, 63688, 63655, 63665, 63670, 63688, 63702, 63722, 63710, 63742, 63780, 63810, 63836, 63790, 63844, 63806, 63802, 63818, 63764, 63696, 63648, 63696, 63702, 63682, 63666, 63696, 63704, 63710, 63718, 63746, 63722, 63688, 63676, 63755, 63752, 63784, 63744, 63697, 63754, 63758, 63738, 63704, 63680, 63715, 63735, 63774, 63750, 63740, 63773, 63747, 63760, 63749, 63743, 63745, 63767, 63778, 63796, 63762, 63740, 63787, 63877, 63912, 63898, 64000, 63898, 63994, 64005, 63982, 63940, 63880, 63772, 63658, 63612, 63580, 63640, 63730, 63820, 63760, 63890, 63930, 64060, 63910, 63840, 63720, 63690, 63790, 63880, 63970, 63890, 63770, 63620, 63560];
+const TYPES=[
+ {id:"direction",name:"Direction",q:"Did BTC close higher or lower than lock price?",d:"Before lock, the zone follows live price. At lock, it freezes. After lock the path turns green/red based on current winning side.",outs:["UP","DOWN"],f:"winner = resolvePrice > lockPrice ? UP : DOWN"},
+ {id:"threshold",name:"Threshold",q:"Did BTC meet a fixed level?",d:"A fixed threshold is active for the whole round. At resolve, final price is compared with that line.",outs:["At / Above","Below"],f:"winner = resolvePrice >= threshold ? AT_OR_ABOVE : BELOW",threshold:63800},
+ {id:"range",name:"RangeClose",q:"Which final range did BTC close in?",d:"The chart is split into close buckets. The resolve price maps into one bucket.",outs:["< 63.2k","63.2k-63.8k","63.8k-64.4k","> 64.4k"],f:"winner = bucket(resolvePrice)"},
+ {id:"velocity",name:"Velocity",q:"How large was the move?",d:"Magnitude market. Direction is secondary; the winning bucket is based on absolute % move from lock.",outs:["0-0.25%","0.25-0.75%","0.75-1.5%","1.5%+"],f:"move = abs(resolvePrice-lockPrice)/lockPrice"},
+ {id:"ladder",name:"Ladder",q:"Which weighted tier did BTC close in?",d:"Tiered outcomes. Extreme tiers can have higher multipliers while base tier is safer.",outs:["Below 63.2k · 4x","63.2-63.8k · 2x","63.8-64.4k · 1x","Above 64.4k · 3x"],f:"winner = weightedTier(resolvePrice)"},
+ {id:"convergence",name:"Convergence",q:"Did BTC and ETH ratio converge or diverge?",d:"Two-line relative value market. It compares start spread versus end spread.",outs:["Converge","Diverge"],f:"winner = endSpread < startSpread ? CONVERGE : DIVERGE"},
+ {id:"composite",name:"Composite",q:"Did multiple conditions pass together?",d:"Multi-condition market. The visible chart is only one condition; the side card shows all logical checks.",outs:["YES","NO"],f:"YES wins if AND(BTC>=threshold, velocity<limit, ETH condition passes)"},
+ {id:"corridor",name:"Corridor",q:"Did BTC stay inside the band?",d:"Path-dependent. If the price touches outside the corridor, Outside becomes active.",outs:["Inside","Outside"],f:"inside = pathHigh < upper && pathLow > lower",lower:63200,upper:64400},
+ {id:"cascade",name:"Cascade",q:"How many levels broke?",d:"Counts how many levels were broken during the path, not just where the round closes.",outs:["0 levels","1 level","2 levels","3+ levels"],f:"winner = countBrokenLevels(pathHigh/pathLow)",levels:[63600,64000,64400]},
+];
+const W=1280,H=500,P=44;
+const LOCK=10000,RESOLVE=30000,PAYOUT=4000;
+let active=0,selected=0,interval="Tick",zoomMode="normal";
+let phase="OPEN",roundStart=performance.now(),price=seed.at(-1),target=price,idx=0,nextTick=0,lastFrame=performance.now();
+let points=[],ethPoints=[],eth=3500,ethTarget=3500,lockPrice=null,resolvePrice=null,lastToast="",payoutResult=null,payoutClass="";
+let yMin=null,yMax=null,drawMode=false,drawLines=[],pending=null,lastDrawAt=0;
+
+const $=id=>document.getElementById(id);
+const money=v=>v==null?"—":new Intl.NumberFormat("id-ID",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v);
+const num=v=>new Intl.NumberFormat("id-ID",{maximumFractionDigits:2,maximumFractionDigits:2}).format(v);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+
+async function loadHeader(){
+ try{
+  const r=await fetch(`${API_BASE}/api/v1/market/header?symbol=BTCUSDT`);
+  if(!r.ok) throw new Error("header failed");
+  const h=await r.json();
+  const p=Number(h.markPrice||h.lastPrice);
+  if(Number.isFinite(p)){ price=p; target=p; }
+  $("topPrice").textContent=money(p);
+  const ch=Number(h.priceChangePercent||0);
+  const chgEl=document.querySelector(".chg");
+  if(chgEl){ chgEl.textContent=(ch>=0?"↗ ":"↘ ")+ch.toFixed(2)+"%"; chgEl.style.color=ch>=0?"var(--green)":"var(--red)"; }
+  const metrics=document.querySelectorAll(".metrics .mVal");
+  if(metrics[0]) metrics[0].textContent=money(Number(h.low24h));
+  if(metrics[1]) metrics[1].textContent=money(Number(h.high24h));
+  if(metrics[2]) metrics[2].textContent=(Number(h.quoteVolume24h)/1_000_000_000).toFixed(2)+"B USDT";
+ }catch(e){
+  showToast("Backend not connected — running local demo mode.");
+ }
+}
+function connectBackend(){
+ try{
+  const ws=new WebSocket(`${WS_BASE}/ws/market?symbols=BTCUSDT,ETHUSDT`);
+  ws.onmessage=(ev)=>{
+   try{
+    const msg=JSON.parse(ev.data);
+    if(msg.prices&&msg.prices.BTCUSDT){
+     const p=Number(msg.prices.BTCUSDT.markPrice);
+     if(Number.isFinite(p)) target=p;
+    }
+    if(msg.prices&&msg.prices.ETHUSDT){
+     const e=Number(msg.prices.ETHUSDT.markPrice);
+     if(Number.isFinite(e)) ethTarget=e;
+    }
+   }catch(_){}
+  };
+  ws.onopen=()=>{backendLive=true;showToast("Connected to RetroPick backend — live Binance display data.");};
+  ws.onerror=()=>{};
+ }catch(e){}
+}
+
+function showToast(text){lastToast=text;$("toast").textContent=text;$("toast").classList.add("show");setTimeout(()=>{if(lastToast===text)$("toast").classList.remove("show")},2600)}
+function initTabs(){
+ $("marketTabs").innerHTML=TYPES.map((t,i)=>`<button class="mTab ${i===active?"active":""}" data-i="${i}">${i+1}. ${t.name}</button>`).join("");
+ [...$("marketTabs").children].forEach(b=>b.onclick=()=>{active=+b.dataset.i; selected=0; resetRound(false); renderMeta(); initTabs();});
+ const ints=["Tick","5s","15s","30s","1m","5m","1h","4h","1d"];
+ $("intervalTabs").innerHTML=ints.map(i=>`<span class="tab ${i===interval?"active":""}" data-i="${i}">${i}</span>`).join("")+`<span>⚙</span><span class="ratio">50%</span>`;
+ [...$("intervalTabs").querySelectorAll(".tab")].forEach(el=>el.onclick=()=>{interval=el.dataset.i; initTabs();});
+}
+function renderMeta(){
+ const t=TYPES[active];$("headerType").textContent=t.name;$("wm").textContent=t.name;$("sideTitle").textContent=t.name;$("sideDesc").textContent=t.q+" "+t.d;$("formula").textContent=t.f;$("sideNote").textContent=sideNote(t);$("chartLegend").innerHTML=legendFor(t);
+ $("outcomes").innerHTML=t.outs.map((o,i)=>`<div class="outcome ${i===selected?"active":""}" data-i="${i}"><div class="oTop"><span>${o}</span><span>${(1.45+i*.35).toFixed(2)}x</span></div><div class="oSub">${help(t.id,i)}</div></div>`).join("");
+ [...$("outcomes").children].forEach(el=>el.onclick=()=>{selected=+el.dataset.i;renderMeta();quote();});
+}
+function sideNote(t){
+ const notes={
+  direction:"Before lock the boundary follows live price. After lock the line freezes and the path color shows the active winner.",
+  threshold:"A fixed threshold line is always visible. The result is determined only at resolve.",
+  range:"Buckets are shown as background bands so users can see the current close zone without blocking the line.",
+  velocity:"Bands are symmetric around the lock/start price. Wider bands mean larger absolute moves.",
+  ladder:"Tiers communicate different payoff difficulty. Extreme tiers are visually stronger.",
+  convergence:"Two lines are shown. Users compare whether the spread narrows or widens.",
+  composite:"The chart is one condition, while the side panel explains the full logic.",
+  corridor:"The green band is safe. Any path breach into red makes Outside active.",
+  cascade:"Levels turn active as they break. The result counts broken levels."
+ };
+ return notes[t.id]||"";
+}
+function legendFor(t){
+ const map={
+  direction:[["green","UP zone"],["red","DOWN zone"],["yellow","moving/locked boundary"]],
+  threshold:[["green","above threshold"],["red","below threshold"],["yellow","fixed line"]],
+  range:[["red","lower bucket"],["yellow","middle buckets"],["green","higher bucket"]],
+  velocity:[["green","small move"],["yellow","medium move"],["red","large move"]],
+  ladder:[["red","downside tier"],["yellow","base tier"],["green","upside tier"]],
+  convergence:[["yellow","BTC"],["","ETH/spread proxy"],["green","converge"],["red","diverge"]],
+  composite:[["","condition field"],["green","YES"],["red","NO"]],
+  corridor:[["green","inside corridor"],["red","outside breach"],["yellow","band edges"]],
+  cascade:[["yellow","levels"],["green","broken level"],["red","risk expansion"]]
+ };
+ return (map[t.id]||[]).map(x=>`<span class="legendPill ${x[0]}">${x[1]}</span>`).join("");
+}
+function help(id,i){const m={direction:["Resolve above lock","Resolve below lock"],threshold:["Resolve at/above fixed level","Resolve below fixed level"],range:["Final close lands here","Final close lands here","Final close lands here","Final close lands here"],velocity:["Small move","Moderate move","Large move","Extreme move"],ladder:["Extreme downside","Lower middle","Base case","Extreme upside"],convergence:["Spread narrows","Spread widens"],composite:["Logic passes","Logic fails"],corridor:["No breach","Any breach"],cascade:["No break","One break","Two breaks","Three or more"]};return m[id]?.[i]||"";}
+function resetRound(toast=true){phase="OPEN";roundStart=performance.now();lockPrice=null;resolvePrice=null;payoutResult=null;payoutClass="";if(toast)showToast("New round started — choose an outcome before lock.");}
+function push(p,t){points.push({p,t});points=points.filter(x=>x.t>=t-180000)}
+function pushEth(p,t){ethPoints.push({p,t});ethPoints=ethPoints.filter(x=>x.t>=t-180000)}
+function nextTarget(now){
+ idx=(idx+1)%seed.length;
+ const t=TYPES[active];
+ const marketBump=t.id==="velocity"?Math.sin(now/320)*48:t.id==="cascade"?Math.sin(now/450)*70:t.id==="corridor"?Math.sin(now/390)*62:0;
+ if(!backendLive){target=seed[idx]+Math.sin(now/75)*2+Math.sin(now/210)*6+Math.sin(now/580)*13+marketBump;}
+ ethTarget=3500+Math.sin(now/620)*12+Math.sin(now/180)*4;
+}
+function smooth(c,t,dt,stiff=11.5){return c+(t-c)*(1-Math.exp(-stiff*dt))}
+function curve(ps){if(ps.length<2)return"";let d=`M ${ps[0].x.toFixed(2)} ${ps[0].y.toFixed(2)}`;for(let i=0;i<ps.length-1;i++){const p0=ps[Math.max(0,i-1)],p1=ps[i],p2=ps[i+1],p3=ps[Math.min(ps.length-1,i+2)];const c1x=p1.x+(p2.x-p0.x)/6,c1y=p1.y+(p2.y-p0.y)/6,c2x=p2.x-(p3.x-p1.x)/6,c2y=p2.y-(p3.y-p1.y)/6;d+=` C ${c1x.toFixed(2)} ${c1y.toFixed(2)}, ${c2x.toFixed(2)} ${c2y.toFixed(2)}, ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`}return d}
+function windowMs(){return interval==="Tick"?48000:interval==="5s"?90000:interval==="15s"?150000:interval==="30s"?300000:interval==="1m"?600000:interval==="5m"?900000:interval==="1h"?1800000:interval==="4h"?3600000:7200000}
+function velocity(){
+ const recent=points.slice(-30); if(recent.length<2) return 0;
+ let s=0; for(let i=1;i<recent.length;i++) s+=Math.abs(recent[i].p-recent[i-1].p);
+ return s/(recent.length-1);
+}
+function levelValues(t){let arr=[price,lockPrice||price];if(t.threshold)arr.push(t.threshold);if(t.id==="range"||t.id==="ladder")arr.push(63200,63800,64400);if(t.lower)arr.push(t.lower);if(t.upper)arr.push(t.upper);if(t.levels)arr.push(...t.levels);return arr}
+function geom(now){
+ const win=windowMs(), start=now-win, end=now+9000, visible=points.filter(x=>x.t>=start), t=TYPES[active];
+ let vals=visible.map(x=>x.p).concat(levelValues(t));
+ let rawMin=Math.min(...vals),rawMax=Math.max(...vals),rawRange=rawMax-rawMin||80;
+ const v=velocity();
+ let padFactor=zoomMode==="tight"?0.08:zoomMode==="wide"?0.34:clamp(0.12+v/160,0.12,0.30);
+ let targetMin=rawMin-rawRange*padFactor, targetMax=rawMax+rawRange*padFactor;
+ if(yMin==null||yMax==null){yMin=targetMin;yMax=targetMax}
+ // This is still viewport math, but it reacts to real velocity and smooths. It should never alter actual price data.
+ yMin=smooth(yMin,targetMin,0.016,3.5); yMax=smooth(yMax,targetMax,0.016,3.5);
+ const min=yMin,max=yMax,r=max-min||1;
+ const x=t=>P+((t-start)/(end-start))*(W-P*2-56), y=p=>P+(1-(p-min)/r)*(H-P*2-32);
+ return {start,end,x,y,min,max,visible,mapped:visible.map(q=>({x:x(q.t),y:y(q.p)})),ethMapped:ethPoints.filter(q=>q.t>=start).map(q=>({x:x(q.t),y:y(q.p*18+200)}))};
+}
+function result(t){
+ const lp=lockPrice||price, hi=Math.max(...points.map(p=>p.p),price), lo=Math.min(...points.map(p=>p.p),price);
+ if(t.id==="direction") return lockPrice?(price>=lp?"UP active":"DOWN active"):"Boundary moving";
+ if(t.id==="threshold") return price>=t.threshold?"At/Above":"Below";
+ if(t.id==="range") return price<63200?"<63.2k":price<63800?"63.2-63.8k":price<64400?"63.8-64.4k":">64.4k";
+ if(t.id==="velocity") return `${((Math.abs(price-lp)/lp)*100).toFixed(2)}% move`;
+ if(t.id==="ladder") return price<63200?"Tier 1":price<63800?"Tier 2":price<64400?"Tier 3":"Tier 4";
+ if(t.id==="convergence") return Math.sin(performance.now()/700)<0?"Converge":"Diverge";
+ if(t.id==="composite") return price>=63800 && Math.abs(price-lp)/lp<.008 && Math.sin(performance.now()/1200)>-.2?"YES":"NO";
+ if(t.id==="corridor") return hi<t.upper && lo>t.lower?"Inside":"Outside";
+ if(t.id==="cascade") return `${t.levels.filter(lv=>hi>=lv).length} levels`;
+ return "—";
+}
+function outcomeClass(t,live){
+ const s=String(live);
+ if(t.id==="direction") return s.includes("UP")?"green":s.includes("DOWN")?"red":"yellow";
+ if(t.id==="threshold") return s.includes("At/Above")?"green":"red";
+ if(t.id==="range") return s.includes(">")||s.includes("63.8")?"green":s.includes("<")?"red":"orange";
+ if(t.id==="velocity") return s.includes("1.5")?"red":s.includes("0.75")?"orange":"green";
+ if(t.id==="ladder") return s.includes("Tier 4")?"green":s.includes("Tier 1")?"red":"orange";
+ if(t.id==="convergence") return s.includes("Converge")?"green":"red";
+ if(t.id==="composite") return s==="YES"?"green":"red";
+ if(t.id==="corridor") return s==="Inside"?"green":"red";
+ if(t.id==="cascade") return s.includes("0")?"green":s.includes("1")?"orange":"red";
+ return "yellow";
+}
+function classColor(cls){
+ if(cls==="green") return "var(--green)";
+ if(cls==="red") return "var(--red)";
+ if(cls==="blue") return "var(--blue)";
+ if(cls==="purple") return "var(--purple)";
+ if(cls==="orange") return "var(--orange)";
+ return "var(--yellow)";
+}
+function pathClassFor(t,live){
+ const cls = phase==="PAYOUT" && payoutClass ? payoutClass : outcomeClass(t,live);
+ if(cls==="green") return "greenPath";
+ if(cls==="red") return "redPath";
+ return "";
+}
+function drawOverlays(t,g){
+ if(t.id==="direction"){
+  const b=lockPrice||price,y=g.y(b);
+  return `<defs>
+    <linearGradient id="dirUpper" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(45,215,119,0)"/><stop offset="34%" stop-color="rgba(45,215,119,.09)"/><stop offset="68%" stop-color="rgba(45,215,119,.28)"/><stop offset="100%" stop-color="rgba(45,215,119,.52)"/></linearGradient>
+    <linearGradient id="dirLower" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(255,91,87,.52)"/><stop offset="32%" stop-color="rgba(255,91,87,.28)"/><stop offset="66%" stop-color="rgba(255,91,87,.09)"/><stop offset="100%" stop-color="rgba(255,91,87,0)"/></linearGradient>
+  </defs><rect x="0" y="0" width="${W-62}" height="${y}" fill="url(#dirUpper)"/><rect x="0" y="${y}" width="${W-62}" height="${H-y-32}" fill="url(#dirLower)"/><line x1="0" y1="${y}" x2="${W-62}" y2="${y}" stroke="rgba(255,255,255,.55)" stroke-dasharray="${lockPrice?'6 7':'2 7'}"/>`;
+ }
+ if(t.id==="threshold"){
+  const y=g.y(t.threshold);
+  return `<defs>
+    <linearGradient id="thrGreen" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(45,215,119,.06)"/><stop offset="55%" stop-color="rgba(45,215,119,.18)"/><stop offset="100%" stop-color="rgba(45,215,119,.44)"/></linearGradient>
+    <linearGradient id="thrRed" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(255,91,87,.44)"/><stop offset="45%" stop-color="rgba(255,91,87,.18)"/><stop offset="100%" stop-color="rgba(255,91,87,.06)"/></linearGradient>
+  </defs><rect x="0" y="0" width="${W-62}" height="${y}" fill="url(#thrGreen)"/><rect x="0" y="${y}" width="${W-62}" height="${H-y-32}" fill="url(#thrRed)"/><line x1="0" y1="${y}" x2="${W-62}" y2="${y}" stroke="var(--yellow)" stroke-dasharray="7 7"/><text class="axis" x="${W-205}" y="${y-8}">THRESHOLD ${money(t.threshold)}</text>`;
+ }
+ if(t.id==="range"){
+  const levels=[63200,63800,64400],labels=["<63.2k","63.2-63.8k","63.8-64.4k",">64.4k"];
+  const colors=["rgba(255,91,87,.30)","rgba(255,184,107,.26)","rgba(45,215,119,.26)","rgba(138,180,255,.24)"];
+  let ys=[H-32,...levels.map(v=>g.y(v)).reverse(),0],out="";
+  for(let i=0;i<4;i++){let y1=ys[i+1],y2=ys[i];out+=`<rect x="0" y="${y1}" width="${W-62}" height="${y2-y1}" fill="${colors[i]}"/><text class="axis" x="22" y="${(y1+y2)/2}">${labels[3-i]}</text>`}
+  levels.forEach(v=>out+=`<line x1="0" y1="${g.y(v)}" x2="${W-62}" y2="${g.y(v)}" stroke="rgba(255,255,255,.34)" stroke-dasharray="5 7"/>`);
+  return out;
+ }
+ if(t.id==="velocity"){
+  const lp=lockPrice||price;
+  let out=`<defs><radialGradient id="velGlow" cx="50%" cy="50%" r="70%"><stop offset="0%" stop-color="rgba(232,255,49,.18)"/><stop offset="55%" stop-color="rgba(255,184,107,.10)"/><stop offset="100%" stop-color="rgba(255,91,87,.06)"/></radialGradient></defs><rect x="0" y="0" width="${W-62}" height="${H-32}" fill="url(#velGlow)"/><line x1="0" y1="${g.y(lp)}" x2="${W-62}" y2="${g.y(lp)}" stroke="var(--yellow)" stroke-dasharray="7 7"/><text class="axis" x="${W-175}" y="${g.y(lp)-8}">LOCK ${money(lp)}</text>`;
+  [.0025,.0075,.015].forEach((p,i)=>{const a=.18+i*.08;out+=`<rect x="0" y="${g.y(lp*(1+p))}" width="${W-62}" height="${Math.max(2,g.y(lp*(1-p))-g.y(lp*(1+p)))}" fill="rgba(232,255,49,${.045+i*.03})"/><line x1="0" y1="${g.y(lp*(1+p))}" x2="${W-62}" y2="${g.y(lp*(1+p))}" stroke="rgba(45,215,119,${a})" stroke-dasharray="2 7"/><line x1="0" y1="${g.y(lp*(1-p))}" x2="${W-62}" y2="${g.y(lp*(1-p))}" stroke="rgba(255,91,87,${a})" stroke-dasharray="2 7"/>`});
+  return out;
+ }
+ if(t.id==="ladder"){
+  const lv=[63200,63800,64400],names=["4x downside","2x lower","1x base","3x upside"],colors=["rgba(255,91,87,.30)","rgba(255,184,107,.26)","rgba(232,255,49,.20)","rgba(45,215,119,.30)"];
+  let prev=H-32,out="";
+  [...lv].reverse().forEach((v,i)=>{let y=g.y(v);out+=`<rect x="0" y="${y}" width="${W-62}" height="${prev-y}" fill="${colors[i]}"/><line x1="0" y1="${y}" x2="${W-62}" y2="${y}" stroke="rgba(255,255,255,.34)" stroke-dasharray="5 7"/><text class="axis" x="22" y="${(prev+y)/2}">${names[i]}</text>`;prev=y});
+  return out+`<rect x="0" y="0" width="${W-62}" height="${prev}" fill="${colors[3]}"/><text class="axis" x="22" y="${Math.max(62,prev/2)}">${names[3]}</text>`;
+ }
+ if(t.id==="convergence"){
+  return `<defs><linearGradient id="conv" x1="0" x2="1" y1="0" y2="0"><stop offset="0%" stop-color="rgba(138,180,255,.06)"/><stop offset="50%" stop-color="rgba(187,134,252,.18)"/><stop offset="100%" stop-color="rgba(45,215,119,.10)"/></linearGradient></defs><rect x="0" y="0" width="${W-62}" height="${H-32}" fill="url(#conv)"/><text class="axis" x="22" y="74">Yellow = BTC · Blue = ETH proxy / spread</text>`;
+ }
+ if(t.id==="composite"){
+  const y=g.y(63800);
+  return `<defs><linearGradient id="comp" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(187,134,252,.24)"/><stop offset="50%" stop-color="rgba(187,134,252,.08)"/><stop offset="100%" stop-color="rgba(255,91,87,.10)"/></linearGradient></defs><rect x="0" y="0" width="${W-62}" height="${H-32}" fill="url(#comp)"/><line x1="0" y1="${y}" x2="${W-62}" y2="${y}" stroke="var(--purple)" stroke-dasharray="7 7"/><text class="axis" x="${W-205}" y="${y-8}">Condition A threshold</text><text class="axis" x="22" y="76">YES requires all condition chips to pass</text>`;
+ }
+ if(t.id==="corridor"){
+  const yu=g.y(t.upper),yl=g.y(t.lower);
+  return `<defs>
+   <linearGradient id="corrTop" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(255,91,87,.22)"/><stop offset="100%" stop-color="rgba(255,91,87,.44)"/></linearGradient>
+   <linearGradient id="corrIn" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(45,215,119,.18)"/><stop offset="50%" stop-color="rgba(45,215,119,.34)"/><stop offset="100%" stop-color="rgba(45,215,119,.18)"/></linearGradient>
+   <linearGradient id="corrBot" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(255,91,87,.44)"/><stop offset="100%" stop-color="rgba(255,91,87,.18)"/></linearGradient>
+  </defs><rect x="0" y="0" width="${W-62}" height="${yu}" fill="url(#corrTop)"/><rect x="0" y="${yu}" width="${W-62}" height="${yl-yu}" fill="url(#corrIn)"/><rect x="0" y="${yl}" width="${W-62}" height="${H-yl-32}" fill="url(#corrBot)"/><line x1="0" y1="${yu}" x2="${W-62}" y2="${yu}" stroke="var(--yellow)" stroke-dasharray="7 7"/><line x1="0" y1="${yl}" x2="${W-62}" y2="${yl}" stroke="var(--yellow)" stroke-dasharray="7 7"/><text class="axis" x="${W-190}" y="${yu-8}">UPPER BAND</text><text class="axis" x="${W-190}" y="${yl+18}">LOWER BAND</text>`;
+ }
+ if(t.id==="cascade"){
+  let out=`<defs><linearGradient id="cas" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="rgba(45,215,119,.18)"/><stop offset="55%" stop-color="rgba(255,184,107,.11)"/><stop offset="100%" stop-color="rgba(255,91,87,.13)"/></linearGradient></defs><rect x="0" y="0" width="${W-62}" height="${H-32}" fill="url(#cas)"/>`;
+  return out+t.levels.map((lv,i)=>`<line x1="0" y1="${g.y(lv)}" x2="${W-62}" y2="${g.y(lv)}" stroke="${price>=lv?'var(--green)':'rgba(255,255,255,.30)'}" stroke-width="${price>=lv?2.2:1.2}" stroke-dasharray="7 7"/><text class="axis" x="${W-155}" y="${g.y(lv)-8}">L${i+1} ${money(lv)}</text>`).join("");
+ }
+ return "";
+}
+function draw(now){
+ if(now-lastDrawAt<33)return; lastDrawAt=now;
+ const t=TYPES[active],g=geom(now),path=curve(g.mapped),ethPath=curve(g.ethMapped);
+ let grid="",axis="",times="";for(let i=0;i<6;i++){let y=P+i*((H-P*2-32)/5),v=g.max-i*((g.max-g.min)/5);grid+=`<line class="gridLine" x1="0" y1="${y}" x2="${W-62}" y2="${y}"/>`;axis+=`<text class="axis" x="${W-58}" y="${y+4}">${money(v)}</text>`}
+ ["14:00","21:44:08","21:44:16","21:44:36","21:45:00","21:45:27","21:46"].forEach((v,i)=>times+=`<text class="axis" x="${30+i*((W-120)/6)}" y="${H-12}">${v}</text>`);
+ const xLock=g.x(roundStart+LOCK),xRes=g.x(roundStart+RESOLVE),xPay=g.x(roundStart+RESOLVE+PAYOUT),xNow=g.x(now),yLive=g.y(price);
+ const liveNow=result(t); const cls=pathClassFor(t,liveNow);
+ const dlines=drawLines.map(l=>`<line class="drawingLine" x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}"/>`).join("");
+ $("chart").innerHTML=`${drawOverlays(t,g)}${grid}<line x1="${xLock}" y1="${P}" x2="${xLock}" y2="${H-36}" stroke="rgba(255,255,255,.55)" stroke-width="1" stroke-dasharray="4 7"/><line x1="${xRes}" y1="${P}" x2="${xRes}" y2="${H-36}" stroke="rgba(138,180,255,.58)" stroke-width="1.3" stroke-dasharray="5 8"/><line x1="${xPay}" y1="${P}" x2="${xPay}" y2="${H-36}" stroke="rgba(255,255,255,.28)" stroke-width="1.2" stroke-dasharray="3 8"/><text class="axis" x="${xLock-25}" y="60">LOCK</text><text class="axis" x="${xRes-34}" y="60">RESOLVE</text><text class="axis" x="${xPay-30}" y="60">PAYOUT</text><path class="path ${cls}" d="${path}"/>${t.id==="convergence"?`<path class="path2" d="${ethPath}"/>`:""}<circle cx="${xNow}" cy="${yLive}" r="4.5" fill="var(--yellow)"/>${dlines}${axis}${times}`;
+ $("priceTag").style.top=yLive+"px";$("priceTag").textContent=money(price);$("topPrice").textContent=money(price);
+ $("lockTag").style.display=lockPrice?"block":"none";$("lockTag").style.top=lockPrice?g.y(lockPrice)+"px":0;$("lockTag").textContent=lockPrice?money(lockPrice):"";
+ const elapsed=now-roundStart;$("lockT").textContent=elapsed<LOCK?Math.ceil((LOCK-elapsed)/1000)+"s":"0s";$("resolveT").textContent=elapsed<RESOLVE?Math.ceil((RESOLVE-elapsed)/1000)+"s":"0s";
+ let live=phase==="PAYOUT"&&payoutResult?payoutResult:liveNow;$("liveResult").textContent=live;$("statusBox").textContent=(phase==="OPEN"?"OPEN":phase==="LOCKED"?"LOCKED":"PAYOUT")+" · "+live;
+ const liveCls=phase==="PAYOUT"&&payoutClass?payoutClass:outcomeClass(t,live);$("liveResult").className="rVal "+liveCls;
+ $("priceTag").style.background=phase==="PAYOUT"?classColor(liveCls):classColor(outcomeClass(t,liveNow));
+ $("evidenceState").textContent=phase==="PAYOUT"?"Ready":"Pending";$("scaleState").textContent=zoomMode==="normal"?`Velocity ${velocity().toFixed(1)}`:zoomMode;
+ evidence(live);
+}
+function evidence(live){$("evidence").innerHTML=`<div class="ev"><span>Source</span><b>Binance display / oracle settlement</b></div><div class="ev"><span>Rule</span><b>${TYPES[active].name}</b></div><div class="ev"><span>Lock</span><b>${money(lockPrice)}</b></div><div class="ev"><span>Resolve</span><b>${money(resolvePrice)}</b></div><div class="ev"><span>Live result</span><b>${live}</b></div>`}
+function quote(){const amt=Math.max(0,Number($("amount").value||0)),p=amt*(1.45+selected*.35);$("payout").textContent=money(p)+" USDC";$("cta").textContent=phase==="OPEN"?"Pick "+TYPES[active].outs[selected]:phase==="LOCKED"?"Market locked — entry closed":"Round resolved";$("cta").disabled=phase!=="OPEN";}
+function phaseUpdate(now){let e=now-roundStart;if(phase==="OPEN"&&e>=LOCK){phase="LOCKED";lockPrice=price;showToast("Market locked — entries are closed. Watch the resolve checkpoint.");}if(phase==="LOCKED"&&e>=RESOLVE){phase="PAYOUT";resolvePrice=price;payoutResult=result(TYPES[active]);payoutClass=outcomeClass(TYPES[active],payoutResult);showToast(`${payoutResult} — resolve captured. Payout is being distributed.`);}if(phase==="PAYOUT"&&e>=RESOLVE+PAYOUT)resetRound(true)}
+function frame(now){const dt=Math.min(.05,(now-lastFrame)/1000);lastFrame=now;if(now>=nextTick){nextTarget(now);nextTick=now+250}price=smooth(price,target,dt);eth=smooth(eth,ethTarget,dt);push(price,now);pushEth(eth,now);phaseUpdate(now);quote();draw(now);requestAnimationFrame(frame)}
+$("amount").oninput=quote;$("drawBtn").onclick=()=>{drawMode=!drawMode;$("drawBtn").textContent=drawMode?"Drawing ON":"Draw line"};$("clearBtn").onclick=()=>{drawLines=[]};$("zoomBtn").onclick=()=>{zoomMode=zoomMode==="normal"?"tight":zoomMode==="tight"?"wide":"normal";$("zoomBtn").textContent="Zoom: "+zoomMode;yMin=yMax=null};
+$("chart").onclick=e=>{if(!drawMode)return;const r=$("chart").getBoundingClientRect(),p={x:(e.clientX-r.left)/r.width*W,y:(e.clientY-r.top)/r.height*H};if(!pending)pending=p;else{drawLines.push({x1:pending.x,y1:pending.y,x2:p.x,y2:p.y});pending=null}};
+initTabs();renderMeta();loadHeader();connectBackend();const boot=performance.now();roundStart=boot;for(let i=0;i<seed.length;i++){push(seed[i],boot-(seed.length-i)*430);pushEth(3500+Math.sin(i/5)*12,boot-(seed.length-i)*430)}requestAnimationFrame(frame);
+</script>
+</body>
+</html>

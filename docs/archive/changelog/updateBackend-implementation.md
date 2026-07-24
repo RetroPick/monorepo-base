@@ -30,7 +30,7 @@ Implemented the backend-first refactor core for fast/cheap hybrid
 
   - Passed: go test ./cmd/api ./internal/indexer ./internal/pglisten ./
     internal/realtime ./internal/wshub
-  - Passed: pnpm --filter fe-v1 exec tsc --noEmit
+  - Passed: pnpm --filter web exec tsc --noEmit
   - Full go test ./... still fails on the existing faucet relay tests
     expecting non-501 responses:
     TestUserFaucetRelayHandler_wrongChain,

@@ -1,6 +1,6 @@
 # Storage layout CI
 
-Upgrade-sensitive contracts must keep a stable storage layout. CI compares `forge inspect … storage-layout` output against committed baselines in `package/prediction-v2/.storage-layout/`.
+Upgrade-sensitive contracts must keep a stable storage layout. CI compares `forge inspect … storage-layout` output against committed baselines in `contracts/legacy-pool-v1/.storage-layout/`.
 
 ## Tracked contracts
 
@@ -14,7 +14,7 @@ Upgrade-sensitive contracts must keep a stable storage layout. CI compares `forg
 ## Local commands
 
 ```bash
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 ./script/check-storage-layout.sh
 ```
 

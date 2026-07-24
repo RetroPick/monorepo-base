@@ -19,7 +19,7 @@
 3. Postgres projections + `realtime_events` are the default UX read model.
 4. No Redis, Kafka, NATS, or microservice decomposition.
 5. GoodDollar adds token utility, identity, and claim UX — not settlement.
-6. Monorepo paths stay at `apps/fe-v1`, `apps/backend`, `package/prediction-v2` until a later rename pass.
+6. Monorepo paths stay at `apps/web`, `apps/backend`, `contracts/legacy-pool-v1` until a later rename pass.
 
 ## Active reading order (as-built + runbooks)
 

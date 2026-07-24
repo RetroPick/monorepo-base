@@ -6,7 +6,7 @@
 Defines practical integration boundaries between frontend, backend, and smart contracts in the current implementation.
 
 ## Frontend <-> Backend HTTP Contracts
-Primary typed client: `apps/fe-v1/src/lib/api/retropickApi.ts`.
+Primary typed client: `apps/web/src/lib/api/retropickApi.ts`.
 
 Key endpoint groups:
 - **Markets**: `/api/v1/markets`, `/api/v1/markets/{id}`, epochs/outcomes/probability/chart.

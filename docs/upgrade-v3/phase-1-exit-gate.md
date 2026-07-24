@@ -6,11 +6,11 @@ Evidence from verification audit (2026-07-02): local `go test ./...`, `forge tes
 
 ## Contracts
 
-- [x] `FeeRouter`, `TreasuryVault`, `RewardsVault`, `CommunityPool` implemented under `package/prediction-v2/src/treasury/`
+- [x] `FeeRouter`, `TreasuryVault`, `RewardsVault`, `CommunityPool` implemented under `contracts/legacy-pool-v1/src/treasury/`
 - [x] Foundry unit tests green for treasury contracts (`8/8` in `test/treasury/*`)
 - [x] Invariant fuzz test passes for valid fee allocations (`test/treasury/invariant/FeeRouter.invariant.t.sol`)
 - [x] MarketEngine settlement paths unchanged; dedicated MarketEngine+FeeRouter integration test (`test/integration/MarketEngineFeeRouter.t.sol`)
-- [x] Storage-layout CI passes for new contracts (`package/prediction-v2/script/check-storage-layout.sh`)
+- [x] Storage-layout CI passes for new contracts (`contracts/legacy-pool-v1/script/check-storage-layout.sh`)
 
 ## Backend
 
@@ -29,7 +29,7 @@ Evidence from verification audit (2026-07-02): local `go test ./...`, `forge tes
 ## Tests
 
 - [x] `go test ./...` in `apps/backend`
-- [x] `forge test --match-path test/treasury/*` in `package/prediction-v2`
+- [x] `forge test --match-path test/treasury/*` in `contracts/legacy-pool-v1`
 - [x] `fe-v1` vitest suite (`pnpm test`)
 - [x] CI: migration V3 smoke (`TestMigrationV3`), sqlc drift check, treasury match-path in contracts workflow
 
@@ -41,6 +41,6 @@ Evidence from verification audit (2026-07-02): local `go test ./...`, `forge tes
 
 ## Deploy / demo
 
-- [x] `script/DeployTreasuryAlfajores.s.sol` added; `package/abi/FeeRouter.json` generated
+- [x] `script/DeployTreasuryAlfajores.s.sol` added; `packages/legacy/abi/FeeRouter.json` generated
 - [ ] Alfajores registry populated with live addresses (requires operator broadcast + `MARKET_ENGINE_PROXY`)
 - [ ] End-to-end Alfajores demo per `demo-alfajores.md` (wallet writes + live route tx)

@@ -1,6 +1,9 @@
 packages:
   - 'apps/*'
+  - '!apps/retropick-landing-standalone'
+  - '!apps/android'
   - 'packages/*'
+  - 'packages/legacy/*'
   - 'packages/config/*'
 ignoredBuiltDependencies:
   - sharp

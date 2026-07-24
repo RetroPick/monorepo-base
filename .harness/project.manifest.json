@@ -4,7 +4,7 @@
     "name": "retropick",
     "type": "web3-prediction",
     "root": ".",
-    "description": "RetroPick prediction markets — MarketEngine epochs, Go apps/backend API, Next.js fe-v1/ops, Foundry smart contracts in package/prediction-v2."
+    "description": "RetroPick prediction markets \u2014 MarketEngine epochs, Go apps/backend API, Next.js web/ops-web, Foundry smart contracts in contracts/legacy-pool-v1."
   },
   "harness": {
     "mode": "embedded",
@@ -16,14 +16,28 @@
     "workspace": "dir:${projectRoot}"
   },
   "paths": {
-    "product": ["apps", "packages", "package/prediction-v2"],
-    "docs": ["docs", ".dev"],
-    "scripts": ["scripts"],
+    "product": [
+      "apps",
+      "packages",
+      "contracts",
+      "schemas",
+      "deploy"
+    ],
+    "docs": [
+      "docs",
+      ".dev"
+    ],
+    "scripts": [
+      "scripts"
+    ],
     "tasks": ".harness/tasks",
-    "state": ".harness/state"
+    "state": ".harness/state",
+    "marketsDocs": [
+      ".dev/markets-v1"
+    ]
   },
   "commands": {
-    "dev": "pnpm dev:fe-v1",
+    "dev": "pnpm dev:web",
     "typecheck": "pnpm -r exec tsc --noEmit 2>/dev/null || pnpm build",
     "lint": "pnpm lint",
     "test": "pnpm test",
@@ -72,5 +86,13 @@
     "requireTaskFile": true,
     "requireVerification": true,
     "archiveBeforeDelete": true
+  },
+  "products": {
+    "marketsV1": {
+      "docsRoot": ".dev/markets-v1",
+      "manifest": ".dev/markets-v1/agent-harness/implementation-manifest.yaml",
+      "taskGraph": ".dev/markets-v1/agent-harness/task-graph.yaml",
+      "openApi": "schemas/openapi/markets-v1.yaml"
+    }
   }
 }

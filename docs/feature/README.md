@@ -4,7 +4,7 @@ Active feature documentation for v1 operations (not archived design packs).
 
 | Doc | Purpose |
 |-----|---------|
-| [ops-admin-operator-workflow.md](ops-admin-operator-workflow.md) | `apps/ops` routes, API mapping, recommended operator sequence |
+| [ops-admin-operator-workflow.md](ops-admin-operator-workflow.md) | `apps/ops-web` routes, API mapping, recommended operator sequence |
 | [operator-backend-surface/README.md](operator-backend-surface/README.md) | Operator HTTP surface ↔ ABI mapping |
 
-**Related:** [`.dev/backend/operations-runbook.md`](../../.dev/backend/operations-runbook.md), [`PRODUCTION.md`](../../PRODUCTION.md), [`package/prediction-v2/OPERATIONS_INDEX.md`](../../package/prediction-v2/OPERATIONS_INDEX.md).
+**Related:** [`.dev/backend/operations-runbook.md`](../../.dev/backend/operations-runbook.md), [`PRODUCTION.md`](../../PRODUCTION.md), [`contracts/legacy-pool-v1/OPERATIONS_INDEX.md`](../../contracts/legacy-pool-v1/OPERATIONS_INDEX.md).

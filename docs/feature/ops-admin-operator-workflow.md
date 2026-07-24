@@ -1,6 +1,6 @@
 # Ops admin dashboard — operator workflow (RetroPick)
 
-This document ties **`apps/ops`** routes to **`apps/backend`** ops APIs, on-chain actions (via prepare flows), and **harness agents** so work can be sequenced, owned, and verified without mixing “planning roles” with Hermes dispatch profiles.
+This document ties **`apps/ops-web`** routes to **`apps/backend`** ops APIs, on-chain actions (via prepare flows), and **harness agents** so work can be sequenced, owned, and verified without mixing “planning roles” with Hermes dispatch profiles.
 
 **Sources of truth (RAG / read order):**
 
@@ -9,7 +9,7 @@ This document ties **`apps/ops`** routes to **`apps/backend`** ops APIs, on-chai
 - `.dev/backend/architecture.md`, [.dev/backend/operations-runbook.md](../../.dev/backend/operations-runbook.md) — health checks, indexer lag, WS, keeper; cross-linked from [ORCHESTRATOR.md](../../ORCHESTRATOR.md) Phase 5
 - [.dev/backend/epoch-field-parity.md](../../.dev/backend/epoch-field-parity.md) — `market_snapshots.status` → `GET /api/v1/markets` (`epochStatus`) → Discover lifecycle labels
 - [PRODUCTION.md](../../PRODUCTION.md) — cost / deploy policy plus **scripted production smoke** (env: `RETROPICK_API_BASE`, optional `RETROPICK_OPS_JWT`; `scripts/smoke-production.sh` + `scripts/keeper-operator-smoke.sh`)
-- `package/prediction-v2/currentSmartContract.md`
+- `contracts/legacy-pool-v1/currentSmartContract.md`
 
 ---
 
@@ -115,8 +115,8 @@ For each agent, **plan → build → validate** should produce a short artifact 
 
 ## 4. “Super fast” product note (frontend)
 
-- **`apps/fe-v1`:** already uses `experimental.optimizePackageImports` for heavy packages.  
-- **`apps/ops`:** keep icon and chart imports tree-shaken via the same Next.js option; prefer server components for read-only aggregates where possible.  
+- **`apps/web`:** already uses `experimental.optimizePackageImports` for heavy packages.  
+- **`apps/ops-web`:** keep icon and chart imports tree-shaken via the same Next.js option; prefer server components for read-only aggregates where possible.  
 - **Backend:** projection tables + bounded `limit` query params — prefer indexed reads over ad-hoc joins in hot ops paths.
 
 ---
@@ -127,7 +127,7 @@ From repo root:
 
 ```bash
 pnpm install
-git submodule update --init --recursive package/prediction-v2
+git submodule update --init --recursive contracts/legacy-pool-v1
 pnpm lint && pnpm test && pnpm smoke
 ```
 

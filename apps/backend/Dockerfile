@@ -9,8 +9,8 @@ ENV CGO_ENABLED=0 GOTOOLCHAIN=local
 COPY apps/backend/go.mod apps/backend/go.sum ./
 RUN go mod download
 COPY apps/backend .
-# Prefer canonical ABIs from package/abi (overwrites apps/backend/internal/abis copies).
-COPY package/abi/IMarketEngine.json package/abi/MarketEngineDispatcher.json internal/abis/
+# Prefer canonical ABIs from packages/legacy/abi (overwrites apps/backend/internal/abis copies).
+COPY packages/legacy/abi/IMarketEngine.json packages/legacy/abi/MarketEngineDispatcher.json internal/abis/
 ARG SERVICE=api
 RUN GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/service ./cmd/${SERVICE}
 RUN GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/healthcheck ./cmd/healthcheck

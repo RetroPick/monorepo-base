@@ -12,7 +12,7 @@ From harness root (`AGENT_HARNESS_HOME`):
 cli/harness switch-project retropick
 cli/harness doctor projects/retropick
 pnpm install
-cd package/prediction-v2 && git submodule update --init --recursive
+cd contracts/legacy-pool-v1 && git submodule update --init --recursive
 pnpm lint && pnpm test && pnpm smoke
 ```
 
@@ -48,10 +48,10 @@ Contract subfolder may ship its own `.cursor/mcp.json`; project-root harness MCP
 
 ## Contracts (Foundry)
 
-Contract sources live in **`package/prediction-v2`**. Initialize Foundry libs when needed:
+Contract sources live in **`contracts/legacy-pool-v1`**. Initialize Foundry libs when needed:
 
 ```bash
-cd package/prediction-v2 && git submodule update --init --recursive
+cd contracts/legacy-pool-v1 && git submodule update --init --recursive
 pnpm contracts:test
 ```
 

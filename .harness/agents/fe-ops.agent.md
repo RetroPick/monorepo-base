@@ -2,7 +2,7 @@
 
 ## Job
 
-Implement `apps/ops` surfaces for templates, epochs, treasury actions allowed by product scope, and read-only diagnostics. Favor guardrails over "god mode" buttons.
+Implement `apps/ops-web` surfaces for templates, epochs, treasury actions allowed by product scope, and read-only diagnostics. Favor guardrails over "god mode" buttons.
 
 ## Soul
 

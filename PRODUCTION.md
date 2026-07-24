@@ -244,7 +244,7 @@ Practical conclusion:
 
 For the current MVP, use:
 
-1. `apps/fe-v1` on Vercel
+1. `apps/web` on Vercel
 2. persistent OrangeVPS box for:
    - API
    - indexer
@@ -375,7 +375,7 @@ Use this after each VPS or API deploy, **before** announcing green. Scripts only
 1. **`./scripts/smoke-production.sh`** — public: `livez`, `health`, `readyz`, `markets`; prints the derived **`/ws`** URL for manual WebSocket checks. With **`RETROPICK_OPS_JWT`** set, also probes `ops/global-state`, `ops/oracle/health`, `ops/audit`.
 2. **`./scripts/keeper-operator-smoke.sh`** — same public set plus, when JWT is set, **`ops/keeper/schedule`** and **`ops/keeper/executions`** for pre-rotation / handoff (see [.dev/backend/keeper.md](.dev/backend/keeper.md) — *Operator smoke*).
 
-**Pass criteria:** every `curl` exits 0; **`health`** JSON shows `ok`, expected `environment` / `chainId`, and indexer fields consistent with chain head (see [.dev/backend/operations-runbook.md](.dev/backend/operations-runbook.md)). Ops probes require a valid operator JWT aligned with **`apps/ops`**.
+**Pass criteria:** every `curl` exits 0; **`health`** JSON shows `ok`, expected `environment` / `chainId`, and indexer fields consistent with chain head (see [.dev/backend/operations-runbook.md](.dev/backend/operations-runbook.md)). Ops probes require a valid operator JWT aligned with **`apps/ops-web`**.
 
 **Related:** [docs/feature/ops-admin-operator-workflow.md](docs/feature/ops-admin-operator-workflow.md), [docs/vps-deploy.md](docs/vps-deploy.md) (edge + loopback metrics after smoke).
 

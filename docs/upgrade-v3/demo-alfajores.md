@@ -52,7 +52,7 @@ Manual:
 Update addresses in [`packages/contracts/registry.celo-alfajores.json`](../../packages/contracts/registry.celo-alfajores.json) after broadcast:
 
 ```bash
-cd package/prediction-v2
+cd contracts/legacy-pool-v1
 export CELO_RPC_URL=https://alfajores-forno.celo-testnet.org
 export MARKET_ENGINE_PROXY=<deployed_market_engine_proxy>
 forge script script/DeployTreasuryAlfajores.s.sol:DeployTreasuryAlfajores \
@@ -65,6 +65,6 @@ Set `FEE_ROUTER_ADDRESS` to the deployed FeeRouter for indexer batch ingestion.
 
 ```bash
 cd apps/backend && go test ./...
-cd package/prediction-v2 && forge test --match-path test/treasury/*
-cd apps/fe-v1 && pnpm test
+cd contracts/legacy-pool-v1 && forge test --match-path test/treasury/*
+cd apps/web && pnpm test
 ```

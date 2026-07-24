@@ -15,7 +15,7 @@ docker compose up -d --build
 ### 2. Frontend
 
 ```bash
-pnpm dev:fe-v1
+pnpm dev:web
 # Open http://localhost:3000 (or configured port)
 ```
 

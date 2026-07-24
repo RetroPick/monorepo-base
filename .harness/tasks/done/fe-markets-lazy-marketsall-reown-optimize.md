@@ -15,9 +15,9 @@
 
 ## Acceptance
 
-- [x] `MarketsAll` loaded via `React.lazy` in `apps/fe-v1/src/App.tsx`.
+- [x] `MarketsAll` loaded via `React.lazy` in `apps/web/src/App.tsx`.
 - [x] `next.config.mjs` includes `@reown/appkit`, `@reown/appkit-pay`, `@reown/appkit-adapter-wagmi`, `lightweight-charts`, `@worldcoin/idkit` in `experimental.optimizePackageImports`.
-- [x] `apps/fe-v1/README.md` + `ORCHESTRATOR.md` updated.
+- [x] `apps/web/README.md` + `ORCHESTRATOR.md` updated.
 - [x] `pnpm verify` passes.
 
 ## Notes

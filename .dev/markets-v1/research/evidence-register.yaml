@@ -1,0 +1,41 @@
+# Evidence register — machine-readable
+version: 1
+last_updated: 2026-07-24
+entries:
+  - id: EV-001
+    claim: Polymarket CLOB V2 is current trading API
+    source_url: https://docs.polymarket.com/v2-migration
+    retrieved: 2026-07-24
+    confidence: partially_verified
+    consequence: All order paths use V2 client patterns
+    revalidation_trigger: Polymarket changelog / SDK major bump
+  - id: EV-002
+    claim: Markets BFF stub serves /api/v1/markets/*
+    source_path: apps/backend/internal/markets/README.md
+    retrieved: 2026-07-24
+    confidence: verified
+    consequence: Web/Android integrate via OpenAPI not legacy
+  - id: EV-003
+    claim: Legacy epoch frozen at /api/v1/legacy/markets/*
+    source_path: docs/ARCHITECTURE.md
+    retrieved: 2026-07-24
+    confidence: verified
+    consequence: No new features on legacy handlers
+  - id: EV-004
+    claim: Android stack is Kotlin + Jetpack Compose
+    source_path: .dev/ANDROID_MARKETS.md
+    retrieved: 2026-07-24
+    confidence: verified
+    consequence: No RN/Flutter/KMP for Markets V1
+  - id: EV-005
+    claim: OpenAPI markets-v1.yaml is canonical contract
+    source_path: schemas/openapi/markets-v1.yaml
+    retrieved: 2026-07-24
+    confidence: verified
+    consequence: Codegen and conformance tests bind to this file
+  - id: EV-006
+    claim: PRISM is separate product placeholder
+    source_path: docs/ARCHITECTURE.md
+    retrieved: 2026-07-24
+    confidence: verified
+    consequence: Markets docs exclude PRISM implementation

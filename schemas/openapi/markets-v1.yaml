@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: RetroPick Markets API
+  version: 1.0.0
+  description: |
+    Polymarket-native BFF consumed by web and Android.
+    Implemented handlers live in apps/backend/internal/markets (Phase R3; events proxied from Polymarket Gamma when catalog is enabled).
+servers:
+  - url: /api/v1
+paths:
+  /markets/eligibility:
+    get:
+      operationId: getMarketsEligibility
+      summary: Jurisdiction and policy eligibility (fail-closed)
+      responses:
+        "200":
+          description: Eligibility decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EligibilityResponse"
+  /markets/capabilities:
+    get:
+      operationId: getMarketsCapabilities
+      summary: Feature flags for this build
+      responses:
+        "200":
+          description: Capability flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilitiesResponse"
+  /markets/events:
+    get:
+      operationId: listMarketsEvents
+      summary: Normalized Polymarket event catalog
+      parameters:
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Event page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventsListResponse"
+components:
+  schemas:
+    EligibilityResponse:
+      type: object
+      required: [eligible, checkedAt]
+      properties:
+        eligible:
+          type: boolean
+        reason:
+          type: string
+        checkedAt:
+          type: string
+          format: date-time
+        region:
+          type: string
+    CapabilitiesResponse:
+      type: object
+      required: [version, catalog, trading, combos, intelligence, checkedAt]
+      properties:
+        version:
+          type: string
+        catalog:
+          type: boolean
+        trading:
+          type: boolean
+        combos:
+          type: boolean
+        intelligence:
+          type: boolean
+        features:
+          type: object
+          additionalProperties:
+            type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+    EventSummary:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+    EventsListResponse:
+      type: object
+      required: [events, source, checkedAt]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventSummary"
+        cursor:
+          type: string
+          nullable: true
+        source:
+          type: string
+        checkedAt:
+          type: string
+          format: date-time

@@ -1,0 +1,15 @@
+# RetroPick CONTRACTS / SECURITY references
+foundry-rs/foundry
+OpenZeppelin/openzeppelin-contracts
+OpenZeppelin/openzeppelin-contracts-upgradeable
+OpenZeppelin/openzeppelin-upgrades
+crytic/slither
+crytic/echidna
+ethereum/solidity
+smartcontractkit/chainlink
+safe-global/safe-smart-account
+safe-global/safe-core-sdk
+transmissions11/solmate
+Vectorized/solady
+paulrberg/prb-math
+Consensys/smart-contract-best-practices

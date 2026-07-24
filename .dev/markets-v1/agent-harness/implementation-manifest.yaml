@@ -1,0 +1,132 @@
+product: retropick-markets
+version: v1
+mode: documentation_baseline
+last_updated: 2026-07-24
+current_phase: PHASE-0
+phase_order:
+  - id: PHASE-0
+    name: Discovery and Spec Freeze
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md
+    prerequisites: []
+    tasks:
+      - MKT-P0-001
+      - MKT-P0-002
+      - MKT-P0-003
+      - MKT-P0-004
+      - MKT-P0-005
+      - MKT-P0-006
+      - MKT-P0-007
+      - MKT-P0-008
+    exit_gate: []
+  - id: PHASE-1
+    name: Foundation and Read Markets
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
+    prerequisites: ['PHASE-0']
+    tasks:
+      - MKT-P1-001
+      - MKT-P1-002
+      - MKT-P1-003
+      - MKT-P1-004
+      - MKT-P1-005
+      - MKT-P1-006
+      - MKT-P1-007
+      - MKT-P1-008
+      - MKT-P1-009
+      - MKT-P1-010
+    exit_gate: []
+  - id: PHASE-2
+    name: Account Wallet and Funding
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md
+    prerequisites: ['PHASE-1']
+    tasks:
+      - MKT-P2-001
+    exit_gate: []
+  - id: PHASE-3
+    name: Web Trading Core
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-3-WEB-TRADING-CORE.md
+    prerequisites: ['PHASE-2']
+    tasks:
+      - MKT-P3-001
+    exit_gate: []
+  - id: PHASE-4
+    name: Portfolio Redemption and Withdrawal
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-4-PORTFOLIO-REDEMPTION-AND-WITHDRAWAL.md
+    prerequisites: ['PHASE-3']
+    tasks:
+      - MKT-P4-001
+    exit_gate: []
+  - id: PHASE-5
+    name: Android Compose Markets
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-5-ANDROID-COMPOSE-MARKETS.md
+    prerequisites: ['PHASE-3', 'PHASE-4']
+    tasks:
+      - MKT-P5-001
+    exit_gate: []
+  - id: PHASE-6
+    name: Hardening CI/CD and SRE
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-6-HARDENING-CI-CD-AND-SRE.md
+    prerequisites: ['PHASE-4', 'PHASE-5']
+    tasks:
+      - MKT-P6-001
+    exit_gate: []
+  - id: PHASE-7
+    name: Production Launch
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-7-PRODUCTION-LAUNCH.md
+    prerequisites: ['PHASE-6']
+    tasks:
+      - MKT-P7-001
+    exit_gate: []
+  - id: PHASE-8
+    name: Post-V1 Advanced Capabilities
+    status: planned
+    spec: .dev/markets-v1/phases/PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md
+    prerequisites: ['PHASE-7']
+    tasks:
+      - MKT-P8-001
+    exit_gate: []
+products:
+  web:
+    enabled: true
+    path: apps/web
+  backend:
+    enabled: true
+    path: apps/backend
+    markets_module: apps/backend/internal/markets
+  android:
+    enabled: true
+    ui_stack: Jetpack Compose
+    language: Kotlin
+    path: apps/android
+    note: README-only at R3 documentation baseline
+  custom_markets_contract:
+    enabled: false
+external_authorities:
+  venue: Polymarket
+  chain: Polygon
+  collateral: verify_current_pUSD_configuration
+human_approval_gates:
+  - production_wallet_creation
+  - builder_fee_configuration
+  - relayer_production_credentials
+  - real_on_chain_transaction
+  - custom_smart_contract_deploy
+  - new_jurisdiction_enablement
+  - embedded_key_recovery
+  - destructive_migration
+  - production_secret_rotation
+  - google_play_production_release
+unresolved_blockers:
+  - id: BLK-001
+    title: Geoblock eligibility upstream not wired
+    phase: PHASE-2
+  - id: BLK-002
+    title: Android app scaffold beyond README
+    phase: PHASE-5

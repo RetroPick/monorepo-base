@@ -1,6 +1,6 @@
 # 05 Frontend User And Trade Flows
 
-> **App docs:** [`apps/fe-v1/README.md`](../../../apps/fe-v1/README.md).
+> **App docs:** [`apps/web/README.md`](../../../apps/web/README.md).
 
 ## Primary User Journey
 

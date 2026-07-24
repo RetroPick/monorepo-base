@@ -152,7 +152,7 @@ services:
   ops:
     build:
       context: .
-      dockerfile: apps/ops/Dockerfile
+      dockerfile: apps/ops-web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8080
     container_name: retropick-ops
@@ -166,7 +166,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: apps/fe-v1/Dockerfile
+      dockerfile: apps/web/Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8080
         NEXT_PUBLIC_REOWN_PROJECT_ID: d2f5d76bb1b000f9443e2172d3a560ba

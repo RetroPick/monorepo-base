@@ -1,0 +1,19 @@
+# RetroPick BACKEND GO references
+go-chi/chi
+jackc/pgx
+sqlc-dev/sqlc
+golang-migrate/migrate
+riverqueue/river
+oapi-codegen/oapi-codegen
+openapi-ts/openapi-typescript
+ThreeDotsLabs/wild-workouts-go-ddd-example
+prometheus/client_golang
+open-telemetry/opentelemetry-go
+uber-go/zap
+rs/zerolog
+go-playground/validator
+gorilla/websocket
+nhooyr/websocket
+pressly/goose
+DATA-DOG/go-sqlmock
+testcontainers/testcontainers-go

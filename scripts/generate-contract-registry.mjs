@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Parses package/abi/address.md and writes registry JSON (abi-map shape)
- * to packages/contracts/ and apps/backend/internal/registrydata/
+ * Parses packages/legacy/abi/address.md and writes registry JSON (abi-map shape)
+ * to packages/legacy/contracts/ and apps/backend/internal/registrydata/
  */
 import fs from "fs";
 import path from "path";
@@ -11,14 +11,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 
 function mustMatch(label, re) {
-  const md = fs.readFileSync(path.join(root, "package/abi/address.md"), "utf8");
+  const md = fs.readFileSync(path.join(root, "packages/legacy/abi/address.md"), "utf8");
   const m = md.match(re);
   if (!m) throw new Error(`generate-contract-registry: could not find ${label}`);
   return ("0x" + m[1]).toLowerCase();
 }
 
 function mustText(label, re) {
-  const md = fs.readFileSync(path.join(root, "package/abi/address.md"), "utf8");
+  const md = fs.readFileSync(path.join(root, "packages/legacy/abi/address.md"), "utf8");
   const m = md.match(re);
   if (!m) throw new Error(`generate-contract-registry: could not find ${label}`);
   return m[1];
@@ -86,16 +86,16 @@ const registry = {
     ),
   },
   abiFiles: {
-    marketEngine: "package/abi/IMarketEngine.json",
-    dispatcher: "package/abi/MarketEngineDispatcher.json",
-    stakeToken: "package/abi/MockERC20.json",
-    faucet: "package/abi/TokenFaucet.json",
+    marketEngine: "packages/legacy/abi/IMarketEngine.json",
+    dispatcher: "packages/legacy/abi/MarketEngineDispatcher.json",
+    stakeToken: "packages/legacy/abi/MockERC20.json",
+    faucet: "packages/legacy/abi/TokenFaucet.json",
   },
 };
 
 const json = JSON.stringify(registry, null, 2) + "\n";
 
-const outTs = path.join(root, "packages/contracts/registry.base-sepolia.json");
+const outTs = path.join(root, "packages/legacy/contracts/registry.base-sepolia.json");
 const outGo = path.join(root, "apps/backend/internal/registrydata/registry.json");
 
 fs.mkdirSync(path.dirname(outTs), { recursive: true });

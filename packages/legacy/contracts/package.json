@@ -1,0 +1,11 @@
+{
+  "name": "@retropick/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "main": "registry.base-sepolia.json",
+  "types": "registry.d.ts",
+  "files": ["registry.base-sepolia.json", "registry.celo-alfajores.json", "registry.d.ts"],
+  "scripts": {
+    "registry": "node ../../scripts/generate-contract-registry.mjs"
+  }
+}

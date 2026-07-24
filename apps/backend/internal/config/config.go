@@ -82,7 +82,9 @@ type Config struct {
 	ImpactEnabled     bool
 	CeloChainID       int64
 	CeloRPCURL        string
-	RegistryPath      string
+	RegistryPath            string
+	MarketsGammaAPIURL        string
+	MarketsCatalogEnabled     bool
 }
 
 func Load() (*Config, error) {
@@ -317,6 +319,8 @@ func Load() (*Config, error) {
 		CeloChainID:             int64FromEnvDefault("CELO_CHAIN_ID", 44787),
 		CeloRPCURL:              strings.TrimSpace(envDefault("CELO_RPC_URL", "https://alfajores-forno.celo-testnet.org")),
 		RegistryPath:            strings.TrimSpace(os.Getenv("REGISTRY_PATH")),
+		MarketsGammaAPIURL:        envDefault("MARKETS_GAMMA_API_URL", "https://gamma-api.polymarket.com"),
+		MarketsCatalogEnabled:     envDefault("MARKETS_CATALOG_ENABLED", "1") != "0",
 	}
 	if err := validateProductionConfig(cfg); err != nil {
 		return nil, err

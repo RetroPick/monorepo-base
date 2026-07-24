@@ -1,6 +1,6 @@
 # Deploy the frontend (Vercel) and the API (separately)
 
-This guide walks through **why** the stack is split and **what to do**, in order, so `apps/fe-v1` on Vercel can load markets and other data from your **public** Go API—without calling `http://127.0.0.1:8080` from your users’ browsers.
+This guide walks through **why** the stack is split and **what to do**, in order, so `apps/web` on Vercel can load markets and other data from your **public** Go API—without calling `http://127.0.0.1:8080` from your users’ browsers.
 
 For a compact reference table and copy-paste env snippets, see [README.md § Production deployment](../README.md#production-deployment).
 
@@ -10,7 +10,7 @@ For a compact reference table and copy-paste env snippets, see [README.md § Pro
 
 | What Vercel runs | What Vercel does **not** run |
 |------------------|------------------------------|
-| The **Next.js** app in `apps/fe-v1` | The **Go API** in `apps/backend` |
+| The **Next.js** app in `apps/web` | The **Go API** in `apps/backend` |
 | Static pages + server runtime for that app | **Postgres**, **indexer**, or **migrations** as long-lived services |
 
 The browser loads your site from `https://*.vercel.app` (or your custom domain). Any request to **`http://127.0.0.1:8080`** is interpreted as “the user’s own computer,” not your server—so the API appears **not reachable**.
@@ -40,7 +40,7 @@ flowchart LR
 
 You will operate **two deployments**:
 
-1. **Frontend:** Vercel project with root directory `apps/fe-v1` (see [`apps/fe-v1/vercel.json`](../apps/fe-v1/vercel.json): install from monorepo root, `pnpm --filter fe-v1 build`).
+1. **Frontend:** Vercel project with root directory `apps/web` (see [`apps/web/vercel.json`](../apps/web/vercel.json): install from monorepo root, `pnpm --filter web build`).
 2. **Backend:** One **public HTTPS** URL for the HTTP API (e.g. `https://api.example.com`), running the image built from [`apps/backend/Dockerfile`](../apps/backend/Dockerfile) with **`SERVICE=api`**, plus managed **Postgres** and usually a separate **`SERVICE=indexer`** worker.
 
 Optional but common:
@@ -81,7 +81,7 @@ See also the commented **production API** block in [`.env.example`](../.env.exam
 
 ### A.3 Build and run the API container
 
-The Docker image is built from the **monorepo** context so it can copy `package/abi` as in the Dockerfile.
+The Docker image is built from the **monorepo** context so it can copy `packages/legacy/abi` as in the Dockerfile.
 
 Conceptually:
 
@@ -108,12 +108,12 @@ The **indexer** is a separate long-lived process: same `Dockerfile`, **`SERVICE=
 
 ### B.1 Open the correct project
 
-In Vercel, select the project whose **root directory** is **`apps/fe-v1`** (monorepo subdirectory).
+In Vercel, select the project whose **root directory** is **`apps/web`** (monorepo subdirectory).
 
-Confirm build settings match the repo (or rely on [`vercel.json`](../apps/fe-v1/vercel.json)):
+Confirm build settings match the repo (or rely on [`vercel.json`](../apps/web/vercel.json)):
 
 - **Install:** `cd ../.. && pnpm install`
-- **Build:** `cd ../.. && pnpm --filter fe-v1 build`
+- **Build:** `cd ../.. && pnpm --filter web build`
 
 ### B.2 Set environment variables
 
@@ -130,11 +130,11 @@ Apply to **Production** and, if you want preview deployments to work against a r
 
 After **adding or changing** any `NEXT_PUBLIC_*` variable, trigger a **new deployment** (redeploy). Next.js embeds these values at **build** time; changing the variable without rebuilding leaves old URLs in the bundle.
 
-Template names for copy-paste live in [`apps/fe-v1/.env.production.example`](../apps/fe-v1/.env.production.example).
+Template names for copy-paste live in [`apps/web/.env.production.example`](../apps/web/.env.production.example).
 
 ### B.4 Build guard (expected failures)
 
-If [`apps/fe-v1/next.config.mjs`](../apps/fe-v1/next.config.mjs) includes a check for `process.env.VERCEL`, Vercel’s build will **fail** when:
+If [`apps/web/next.config.mjs`](../apps/web/next.config.mjs) includes a check for `process.env.VERCEL`, Vercel’s build will **fail** when:
 
 - `NEXT_PUBLIC_API_URL` is missing, or  
 - It points at **localhost** / **127.0.0.1**

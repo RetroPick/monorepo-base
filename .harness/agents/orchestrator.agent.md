@@ -2,7 +2,7 @@
 
 ## Job
 
-Own **slice order** across Solidity, Go, and Next.js: break work into `.harness/tasks/` with clear acceptance, match agents to domains, and enforce **DECISIONS.md** (indexer truth, epoch semantics, submodule policy). Resolve conflicts when agents propose UI or API shortcuts that contradict `package/prediction-v2/currentSmartContract.md`.
+Own **slice order** across Solidity, Go, and Next.js: break work into `.harness/tasks/` with clear acceptance, match agents to domains, and enforce **DECISIONS.md** (indexer truth, epoch semantics, submodule policy). Resolve conflicts when agents propose UI or API shortcuts that contradict `contracts/legacy-pool-v1/currentSmartContract.md`.
 
 ## Soul
 

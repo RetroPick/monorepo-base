@@ -1,9 +1,9 @@
 # 01 Smart Contract Reference
 
-> **Canonical:** [`package/prediction-v2/currentSmartContract.md`](../../../package/prediction-v2/currentSmartContract.md).
+> **Canonical:** [`contracts/legacy-pool-v1/currentSmartContract.md`](../../../contracts/legacy-pool-v1/currentSmartContract.md).
 
 ## Scope
-Canonical reference source: `package/prediction-v2/currentSmartContract.md`.
+Canonical reference source: `contracts/legacy-pool-v1/currentSmartContract.md`.
 
 This file summarizes the current on-chain `MarketEngine` implementation model used by backend/frontend integrations.
 
@@ -55,7 +55,7 @@ This file summarizes the current on-chain `MarketEngine` implementation model us
 - Portfolio/claim views depend on understanding refund mode, winner masks, and claimability transitions.
 
 ## Primary Source Files
-- `package/prediction-v2/currentSmartContract.md`
-- `package/prediction-v2/src/engine/MarketEngineDispatcher.sol`
-- `package/prediction-v2/src/engine/modules/`
-- `package/prediction-v2/src/types/MarketTypes.sol`
+- `contracts/legacy-pool-v1/currentSmartContract.md`
+- `contracts/legacy-pool-v1/src/engine/MarketEngineDispatcher.sol`
+- `contracts/legacy-pool-v1/src/engine/modules/`
+- `contracts/legacy-pool-v1/src/types/MarketTypes.sol`

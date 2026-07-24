@@ -32,10 +32,10 @@ echo ""
 
 create_triage "retropick-v1-seed-fe-markets-bundle" \
   "[fe-markets] Shrink top chunks from bundle analyzer" \
-"Run: pnpm --filter fe-v1 analyze (writes HTML under apps/fe-v1/.next/analyze/ — e.g. client.html; set OPEN_ANALYZER=true to auto-open the treemap).
+"Run: pnpm --filter web analyze (writes HTML under apps/web/.next/analyze/ — e.g. client.html; set OPEN_ANALYZER=true to auto-open the treemap).
 Pick the 3 largest first-load chunks; apply next/dynamic or import narrowing.
 Acceptance: LCP-neutral or improved on /markets; pnpm verify green.
-Spec: apps/fe-v1/README.md (Bundle analysis)
+Spec: apps/web/README.md (Bundle analysis)
 Task file: .harness/tasks/backlog/fe-markets-bundle-analyze-followups.md
 Harness owner: fe-markets"
 
@@ -43,7 +43,7 @@ create_triage "retropick-v1-seed-fe-markets-lcp" \
   "[fe-markets] LCP pass on primary routes" \
 "Profile /markets (and next heaviest route) with Lighthouse or Web Vitals extension.
 Document baseline + one config or component fix (fonts, hero, data waterfall).
-Acceptance: numbers in ORCHESTRATOR.md or apps/fe-v1 README; pnpm verify green.
+Acceptance: numbers in ORCHESTRATOR.md or apps/web README; pnpm verify green.
 Task file: .harness/tasks/backlog/fe-markets-lcp-primary-routes.md
 Harness owner: fe-markets"
 
@@ -56,7 +56,7 @@ Harness owner: fe-wallet"
 
 create_triage "retropick-v1-seed-fe-ops-lifecycle" \
   "[fe-ops] Wire lifecycle / oracle pages to live ops APIs" \
-"Extend apps/ops routes beyond preflight: align with docs/feature/ops-admin-operator-workflow.md API column.
+"Extend apps/ops-web routes beyond preflight: align with docs/feature/ops-admin-operator-workflow.md API column.
 Acceptance: each touched route loads without 404 to documented ops endpoints; Vitest where pure helpers exist.
 Task file: .harness/tasks/backlog/fe-ops-lifecycle-oracle-api-surface.md
 Harness owner: fe-ops"
@@ -71,7 +71,7 @@ Harness owner: be-keeper"
 create_triage "retropick-v1-seed-be-api-indexer" \
   "[be-api] Expose indexer health for ops JSON consumers" \
 "Ensure /health or ops global-state fields are stable for fe-ops preflight and external monitors; version any new fields.
-Acceptance: apps/ops OpsDeployPreflight still works; Go tests for touched handlers.
+Acceptance: apps/ops-web OpsDeployPreflight still works; Go tests for touched handlers.
 Task file: .harness/tasks/backlog/be-api-indexer-health-contract.md
 Harness owner: be-api"
 

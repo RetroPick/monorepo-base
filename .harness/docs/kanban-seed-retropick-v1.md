@@ -36,10 +36,10 @@ Override board: `HERMES_KANBAN_BOARD=my-board ./scripts/seed-kanban-retropick-v1
 - **Body:**
 
 ```text
-Run: `pnpm --filter fe-v1 analyze` (writes HTML under `apps/fe-v1/.next/analyze/` — e.g. `client.html`; set `OPEN_ANALYZER=true` to auto-open the treemap).
+Run: `pnpm --filter web analyze` (writes HTML under `apps/web/.next/analyze/` — e.g. `client.html`; set `OPEN_ANALYZER=true` to auto-open the treemap).
 Pick the 3 largest first-load chunks; apply `next/dynamic` or import narrowing.
 Acceptance: LCP-neutral or improved on /markets; pnpm verify green.
-Spec: apps/fe-v1/README.md (Bundle analysis)
+Spec: apps/web/README.md (Bundle analysis)
 Task file: .harness/tasks/backlog/fe-markets-bundle-analyze-followups.md
 ```
 
@@ -54,7 +54,7 @@ Task file: .harness/tasks/backlog/fe-markets-bundle-analyze-followups.md
 ```text
 Profile /markets (and next heaviest route) with Lighthouse or Web Vitals extension.
 Document baseline + one config or component fix (fonts, hero, data waterfall).
-Acceptance: numbers in ORCHESTRATOR.md or apps/fe-v1 README; pnpm verify green.
+Acceptance: numbers in ORCHESTRATOR.md or apps/web README; pnpm verify green.
 Task file: .harness/tasks/backlog/fe-markets-lcp-primary-routes.md
 ```
 

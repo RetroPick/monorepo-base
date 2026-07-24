@@ -12,7 +12,7 @@ Confirm harness metadata, twenty agents, and Kanban board `retropick-v1` are usa
 
 - [x] `cli/harness doctor projects/retropick` passes (0 errors, 0 warnings; Kanban `retropick-v1` stats OK)
 - [x] `docs/AGENT-HARNESS.md` reviewed (dashboard on `9119`, switch/doctor/RAG commands)
-- [x] `package/prediction-v2` tree present for contract work; run `git submodule update --init --recursive package/prediction-v2` when you need a pinned submodule remote state
+- [x] `contracts/legacy-pool-v1` tree present for contract work; run `git submodule update --init --recursive contracts/legacy-pool-v1` when you need a pinned submodule remote state
 
 ## Verify
 

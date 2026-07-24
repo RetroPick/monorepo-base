@@ -4,12 +4,12 @@
 
 **Problem addressed:** Teams need a **single protocol instance** that supports **many market shapes** (direction, thresholds, ranges, composites, …), **professional ops** (templates, epochs, treasury), and **flexible automation** (manual keeper steps vs rolling rounds)—not one-off pools per market.
 
-**How it fits together (off-chain stack):** This monorepo adds Solidity (`package/prediction-v2`), shared ABIs (`package/abi`), a **Go API + indexer** (`apps/backend`), the **user app** (`apps/fe-v1`), and an **operator dashboard** (`apps/ops`). Deep contract behavior—including modular `MarketEngineDispatcher`, oracle routing, checkpoints, and gas notes—is documented in [`package/prediction-v2/currentSmartContract.md`](package/prediction-v2/currentSmartContract.md).
+**How it fits together (off-chain stack):** This monorepo adds Solidity (`contracts/legacy-pool-v1`), shared ABIs (`packages/legacy/abi`), a **Go API + indexer** (`apps/backend`), the **user app** (`apps/web`), and an **operator dashboard** (`apps/ops-web`). Deep contract behavior—including modular `MarketEngineDispatcher`, oracle routing, checkpoints, and gas notes—is documented in [`contracts/legacy-pool-v1/currentSmartContract.md`](contracts/legacy-pool-v1/currentSmartContract.md).
 
 **Differentiators**
 
-- **Modular UUPS engine:** Admin, user, and claims hot paths on the dispatcher; lifecycle and views delegated to modules; one storage layout ([`MarketEngineState`](package/prediction-v2/src/engine/MarketEngineState.sol)).
-- **Multi-adapter Chainlink routing:** Templates select oracle class (price, rate, smart data, macro, equity) per [`currentSmartContract.md`](package/prediction-v2/currentSmartContract.md) §1.2.
+- **Modular UUPS engine:** Admin, user, and claims hot paths on the dispatcher; lifecycle and views delegated to modules; one storage layout ([`MarketEngineState`](contracts/legacy-pool-v1/src/engine/MarketEngineState.sol)).
+- **Multi-adapter Chainlink routing:** Templates select oracle class (price, rate, smart data, macro, equity) per [`currentSmartContract.md`](contracts/legacy-pool-v1/currentSmartContract.md) §1.2.
 - **Epoch modes:** **Manual** epochs (discrete `openEpoch` / `lockEpoch` / `resolveEpoch`) vs **rolling** automation where a keeper advances the pipeline on an interval—see the same doc for ops narrative (§0.3).
 
 ---
@@ -41,7 +41,7 @@ At a high level:
 4. Winners claim and fees route to treasury.
 5. Optional funding abstraction lets users bridge/swap into settlement USDC balance.
 
-For full protocol internals, see [`package/prediction-v2/currentSmartContract.md`](package/prediction-v2/currentSmartContract.md).
+For full protocol internals, see [`contracts/legacy-pool-v1/currentSmartContract.md`](contracts/legacy-pool-v1/currentSmartContract.md).
 
 ---
 
@@ -63,7 +63,7 @@ retro contracts test
 retro market help
 ```
 
-`package/prediction-v2` is the canonical Foundry tree. `package/prediction-v2` remains a compatibility symlink for older links and scripts.
+`contracts/legacy-pool-v1` is the canonical Foundry tree. `contracts/legacy-pool-v1` remains a compatibility symlink for older links and scripts.
 
 ### Prerequisites
 
@@ -122,10 +122,10 @@ pnpm docker:down && pnpm docker:up
 
 ```bash
 # User app
-pnpm dev:fe-v1
+pnpm dev:web
 
 # Operator app
-pnpm dev:ops
+pnpm dev:ops-web
 
 # Docs app
 pnpm dev:docs
@@ -183,7 +183,7 @@ It covers intent creation, option selection, execution tracking, optional webhoo
 
 ## Architecture at a glance
 
-High-level protocol flow (deploy → template → epochs → settlement → treasury), aligned with §0.5 of [`currentSmartContract.md`](package/prediction-v2/currentSmartContract.md):
+High-level protocol flow (deploy → template → epochs → settlement → treasury), aligned with §0.5 of [`currentSmartContract.md`](contracts/legacy-pool-v1/currentSmartContract.md):
 
 ```mermaid
 flowchart LR
@@ -216,7 +216,7 @@ flowchart LR
   res --> feePool --> wdraw
 ```
 
-Conceptual **epoch lifecycle** (one round per template; exact rules vary by [`MarketType`](package/prediction-v2/.operator/.marketType.md)). Users typically **deposit or switch sides** while the epoch is **open** (and where allowed **before lock**); **manual** vs **rolling** differs in **how** the admin/keeper advances open/lock/resolve:
+Conceptual **epoch lifecycle** (one round per template; exact rules vary by [`MarketType`](contracts/legacy-pool-v1/.operator/.marketType.md)). Users typically **deposit or switch sides** while the epoch is **open** (and where allowed **before lock**); **manual** vs **rolling** differs in **how** the admin/keeper advances open/lock/resolve:
 
 ```mermaid
 flowchart LR
@@ -231,21 +231,21 @@ flowchart LR
 
 ## Market types
 
-The canonical **`MarketType`** set has **nine** variants: **Direction**, **Threshold**, **RangeClose**, **Velocity**, **Ladder**, **Convergence**, **Composite**, **Corridor**, **Cascade**. For guarded launches, **Direction / Threshold / RangeClose** are the lowest operator burden; **Convergence / Composite / Corridor / Cascade** need the most oracle and incident discipline. Full approval guidance is in [`package/prediction-v2/.operator/.marketType.md`](package/prediction-v2/.operator/.marketType.md).
+The canonical **`MarketType`** set has **nine** variants: **Direction**, **Threshold**, **RangeClose**, **Velocity**, **Ladder**, **Convergence**, **Composite**, **Corridor**, **Cascade**. For guarded launches, **Direction / Threshold / RangeClose** are the lowest operator burden; **Convergence / Composite / Corridor / Cascade** need the most oracle and incident discipline. Full approval guidance is in [`contracts/legacy-pool-v1/.operator/.marketType.md`](contracts/legacy-pool-v1/.operator/.marketType.md).
 
 ---
 
 ## Hackathon demo path
 
-- Fund exploration from **`TokenFaucet`** on Base Sepolia (address below; explorers in [`package/abi/address.md`](package/abi/address.md)).
-- Run **`docker compose up`** plus **`pnpm dev:fe-v1`** / **`pnpm dev:ops`** (see below) so judges see indexer-backed UI against the deployed engine.
-- Deep operator flows (`upsertTemplate`, `initializeMarket`, epoch actions): [`package/prediction-v2/.operator/.runbook.md`](package/prediction-v2/.operator/.runbook.md).
+- Fund exploration from **`TokenFaucet`** on Base Sepolia (address below; explorers in [`packages/legacy/abi/address.md`](packages/legacy/abi/address.md)).
+- Run **`docker compose up`** plus **`pnpm dev:web`** / **`pnpm dev:ops-web`** (see below) so judges see indexer-backed UI against the deployed engine.
+- Deep operator flows (`upsertTemplate`, `initializeMarket`, epoch actions): [`contracts/legacy-pool-v1/.operator/.runbook.md`](contracts/legacy-pool-v1/.operator/.runbook.md).
 
 ---
 
 ## Base Sepolia deployment (judges)
 
-**Chain id `84532`.** Use the **MarketEngine proxy** for all routine reads and writes; implementation addresses are for verification/debugging only ([`address.md`](package/abi/address.md) notes).
+**Chain id `84532`.** Use the **MarketEngine proxy** for all routine reads and writes; implementation addresses are for verification/debugging only ([`address.md`](packages/legacy/abi/address.md) notes).
 
 | Role | Address |
 |------|---------|
@@ -254,7 +254,7 @@ The canonical **`MarketType`** set has **nine** variants: **Direction**, **Thres
 | **TokenFaucet** | `0xf6c1b6bddd06972f08772de7954432e10c853231` |
 | **MockERC20 stake** (`mSTK`, 18 decimals) | `0xb7f49377af6adbef64f513cf04dbdac9d0af01b1` |
 
-**Oracle adapters** (ChainlinkAdapter, Rate, SmartData, Macro, Equity) and **lifecycle modules** (View, CoreLifecycle, RollingLifecycle, Admin, UserOpsClaims) — full list with **Basescan / Blockscout** links: [`package/abi/address.md`](package/abi/address.md).
+**Oracle adapters** (ChainlinkAdapter, Rate, SmartData, Macro, Equity) and **lifecycle modules** (View, CoreLifecycle, RollingLifecycle, Admin, UserOpsClaims) — full list with **Basescan / Blockscout** links: [`packages/legacy/abi/address.md`](packages/legacy/abi/address.md).
 
 Apps consume the same addresses via [`packages/contracts/registry.base-sepolia.json`](packages/contracts/registry.base-sepolia.json). After changing deployments, regenerate:
 
@@ -465,9 +465,9 @@ Stop containers (`docker compose down`; add `-v` to remove the Postgres volume).
 | [`.env.example`](.env.example) | Host-run Go API / indexer (`DATABASE_URL`, `PORT`, `RPC_URL`, …) |
 | [`compose.desktop-hairpin.env`](compose.desktop-hairpin.env) | `RETROPICK_COMPOSE_DATABASE_URL` → `host.docker.internal:5433` when `postgres:5432` from containers fails |
 | [`docker-compose.yml`](docker-compose.yml) | Container defaults; optional `RETROPICK_COMPOSE_DATABASE_URL` interpolation |
-| [`apps/fe-v1/.env.local.example`](apps/fe-v1/.env.local.example) | `NEXT_PUBLIC_API_URL`, optional `NEXT_PUBLIC_DOCS_URL`, and `NEXT_PUBLIC_REOWN_PROJECT_ID` (Reown / WalletConnect) for the user app |
-| [`apps/ops/.env.local.example`](apps/ops/.env.local.example) | `NEXT_PUBLIC_API_URL` for the operator UI |
-| [`package/prediction-v2/.env.example`](package/prediction-v2/.env.example) | Foundry / deployment scripts |
+| [`apps/web/.env.local.example`](apps/web/.env.local.example) | `NEXT_PUBLIC_API_URL`, optional `NEXT_PUBLIC_DOCS_URL`, and `NEXT_PUBLIC_REOWN_PROJECT_ID` (Reown / WalletConnect) for the user app |
+| [`apps/ops-web/.env.local.example`](apps/ops-web/.env.local.example) | `NEXT_PUBLIC_API_URL` for the operator UI |
+| [`contracts/legacy-pool-v1/.env.example`](contracts/legacy-pool-v1/.env.example) | Foundry / deployment scripts |
 
 Do not commit real `.env` files (see root [`.gitignore`](.gitignore)).
 
@@ -481,16 +481,16 @@ Ensure the API is reachable (default `http://127.0.0.1:8080`).
 
 ```bash
 # User app — http://localhost:3000
-pnpm dev:fe-v1
+pnpm dev:web
 
-# Operator UI — prefers port 3001 (see apps/ops/scripts/dev.mjs)
-pnpm dev:ops
+# Operator UI — prefers port 3001 (see apps/ops-web/scripts/dev.mjs)
+pnpm dev:ops-web
 
 # Docs — http://localhost:3002/docs
 pnpm dev:docs
 ```
 
-If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/fe-v1` and `apps/ops` (browser-side requests). If docs are not on `localhost:3002`, set `NEXT_PUBLIC_DOCS_URL` for `apps/fe-v1`. Set `NEXT_PUBLIC_REOWN_PROJECT_ID` to override the bundled Reown (WalletConnect Cloud) project id; in the [Reown Dashboard](https://dashboard.reown.com) enable **Google** under Email & Socials and add your app origins (e.g. `http://localhost:3000`) under allowed domains.
+If the API is not on `127.0.0.1:8080`, set `NEXT_PUBLIC_API_URL` for `apps/web` and `apps/ops-web` (browser-side requests). If docs are not on `localhost:3002`, set `NEXT_PUBLIC_DOCS_URL` for `apps/web`. Set `NEXT_PUBLIC_REOWN_PROJECT_ID` to override the bundled Reown (WalletConnect Cloud) project id; in the [Reown Dashboard](https://dashboard.reown.com) enable **Google** under Email & Socials and add your app origins (e.g. `http://localhost:3000`) under allowed domains.
 
 Use a wallet on **Base Sepolia** with test ETH/USDC per your deployment.
 
@@ -506,16 +506,16 @@ Deploy the browser apps and Go backend as separate services:
 
 | Service | Recommended target | Notes |
 |---------|--------------------|-------|
-| User app | Vercel project rooted at `apps/fe-v1` | Build command: `cd ../.. && pnpm --filter fe-v1 build` |
+| User app | Vercel project rooted at `apps/web` | Build command: `cd ../.. && pnpm --filter web build` |
 | Docs | Vercel project rooted at `apps/docs` | Build command: `cd ../.. && pnpm --filter docs build` |
 | API | Container host from [`apps/backend/Dockerfile`](apps/backend/Dockerfile) with `SERVICE=api` | Expose HTTPS at a public API domain |
 | Indexer | Container host from [`apps/backend/Dockerfile`](apps/backend/Dockerfile) with `SERVICE=indexer` | Long-running worker; no public port required |
 | Migrator | Release/predeploy job with `SERVICE=migrator` | Run before API/indexer start after schema changes |
 | Postgres | Managed Postgres | Use provider-required SSL settings, commonly `sslmode=require` |
 
-Vercel only deploys the selected root directory. A project rooted at `apps/fe-v1` will not run `apps/backend` or `apps/docs`, so production must not rely on local fallbacks like `127.0.0.1:8080` or `localhost:3002`.
+Vercel only deploys the selected root directory. A project rooted at `apps/web` will not run `apps/backend` or `apps/docs`, so production must not rely on local fallbacks like `127.0.0.1:8080` or `localhost:3002`.
 
-Set these Vercel variables on the `apps/fe-v1` project:
+Set these Vercel variables on the `apps/web` project:
 
 ```bash
 NEXT_PUBLIC_API_URL=https://api.example.com
@@ -561,7 +561,7 @@ curl -sS https://api.example.com/api/v1/markets
    GOTOOLCHAIN=auto go run ./cmd/api
    ```
 
-Live operator RPC routes (`/api/v1/ops/live/*`) need `RPC_URL` and ABIs under `apps/backend/internal/abis/` (aligned with [`package/abi`](package/abi)).
+Live operator RPC routes (`/api/v1/ops/live/*`) need `RPC_URL` and ABIs under `apps/backend/internal/abis/` (aligned with [`packages/legacy/abi`](packages/legacy/abi)).
 
 ---
 
@@ -572,7 +572,7 @@ Live operator RPC routes (`/api/v1/ops/live/*`) need `RPC_URL` and ABIs under `a
 pnpm test
 
 # Explicit targets
-pnpm --filter fe-v1 test
+pnpm --filter web test
 cd apps/backend && make test   # go test ./...
 ```
 
@@ -607,17 +607,17 @@ Bump `VERSION` periodically from [buildx releases](https://github.com/docker/bui
 
 ## RETRODEPLOYER (internal ops CLI)
 
-**`retro market`** is the operator workflow entry point. The compatibility script [`scripts/RETRODEPLOYER`](scripts/RETRODEPLOYER) builds calldata through the local API and broadcasts with Foundry `cast send`. Repository-owned helpers live under [`scripts/market`](scripts/market); contract sources remain under [`package/prediction-v2`](package/prediction-v2).
+**`retro market`** is the operator workflow entry point. The compatibility script [`scripts/RETRODEPLOYER`](scripts/RETRODEPLOYER) builds calldata through the local API and broadcasts with Foundry `cast send`. Repository-owned helpers live under [`scripts/market`](scripts/market); contract sources remain under [`contracts/legacy-pool-v1`](contracts/legacy-pool-v1).
 
 ### Requirements
 
 | Requirement | Why |
 |-------------|-----|
-| **Run from the monorepo root** | Paths assume `$V1_ROOT`; `cd package/prediction-v2` and running a different `./scripts/` will not work as documented. |
+| **Run from the monorepo root** | Paths assume `$V1_ROOT`; `cd contracts/legacy-pool-v1` and running a different `./scripts/` will not work as documented. |
 | **Go API up** | Prepare flows need **`API_URL`** (default `http://127.0.0.1:8080`). Start Docker Compose (or host API) before `prepare` / `deploy-all`. |
-| **`package/prediction-v2/.env`** | Copy from [`package/prediction-v2/.env.example`](package/prediction-v2/.env.example). At minimum set **`RPC_URL`**, **`CAST_ACCOUNT`** (Foundry keystore account name), and optionally **`ETH_PASSWORD`** or your usual Foundry password setup. **`API_URL`** overrides the default if your API is not on localhost:8080. |
+| **`contracts/legacy-pool-v1/.env`** | Copy from [`contracts/legacy-pool-v1/.env.example`](contracts/legacy-pool-v1/.env.example). At minimum set **`RPC_URL`**, **`CAST_ACCOUNT`** (Foundry keystore account name), and optionally **`ETH_PASSWORD`** or your usual Foundry password setup. **`API_URL`** overrides the default if your API is not on localhost:8080. |
 
-Upsert fixtures live under **`package/prediction-v2/.operator/upsert-params/`** (override with **`UPSERT_DIR`**). Calldata always comes from the API before on-chain broadcast. Keep `package/prediction-v2` only as a compatibility alias; use `package/prediction-v2` in new documentation.
+Upsert fixtures live under **`contracts/legacy-pool-v1/.operator/upsert-params/`** (override with **`UPSERT_DIR`**). Calldata always comes from the API before on-chain broadcast. Keep `contracts/legacy-pool-v1` only as a compatibility alias; use `contracts/legacy-pool-v1` in new documentation.
 
 ### How to invoke
 
@@ -659,7 +659,7 @@ Use **`./scripts/RETRODEPLOYER help`** for exact flags; this table is an index.
 
 ### Environment variables (common)
 
-Loaded from **`package/prediction-v2/.env`** (see **`help`** for the full set):
+Loaded from **`contracts/legacy-pool-v1/.env`** (see **`help`** for the full set):
 
 | Variable | Role |
 |----------|------|
@@ -671,13 +671,13 @@ Loaded from **`package/prediction-v2/.env`** (see **`help`** for the full set):
 
 ### When you are stuck
 
-- **On-chain errors** (e.g. `No access`, `TooEarlyToResolve`): `broadcast-prepared-ops-tx.sh` prints hints; feed gating on Base Sepolia is a common cause—follow the **`feeds discover` → `fix-adapter` → re-upsert** path in **`help`** and in the [operator runbook](package/prediction-v2/.operator/.runbook.md).
-- **Authoritative detail:** always run **`./scripts/RETRODEPLOYER help`** and keep [`.operator/runbook.md`](package/prediction-v2/.operator/.runbook.md) open for end-to-end **`upsertTemplate` → `initializeMarket` → epoch** procedures.
+- **On-chain errors** (e.g. `No access`, `TooEarlyToResolve`): `broadcast-prepared-ops-tx.sh` prints hints; feed gating on Base Sepolia is a common cause—follow the **`feeds discover` → `fix-adapter` → re-upsert** path in **`help`** and in the [operator runbook](contracts/legacy-pool-v1/.operator/.runbook.md).
+- **Authoritative detail:** always run **`./scripts/RETRODEPLOYER help`** and keep [`.operator/runbook.md`](contracts/legacy-pool-v1/.operator/.runbook.md) open for end-to-end **`upsertTemplate` → `initializeMarket` → epoch** procedures.
 
 ---
 
 ## Further reading
 
 - Documentation map: [`docs/README.md`](docs/README.md)
-- Operator flows: [`package/prediction-v2/.operator/.runbook.md`](package/prediction-v2/.operator/.runbook.md)
+- Operator flows: [`contracts/legacy-pool-v1/.operator/.runbook.md`](contracts/legacy-pool-v1/.operator/.runbook.md)
 - Integration specs and ABI mapping: [`.dev/`](.dev/)

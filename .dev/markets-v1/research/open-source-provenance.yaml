@@ -1,0 +1,16 @@
+version: 1
+last_updated: 2026-07-24
+packages:
+  - name: Polymarket ts-sdk
+    url: https://github.com/Polymarket/ts-sdk
+    license: verify_at_adoption
+    adoption: reference_only
+    clean_room: true
+  - name: clob-client-v2
+    url: https://github.com/Polymarket/clob-client-v2
+    license: verify_at_adoption
+    adoption: backend_adapter_reference
+    clean_room: true
+rules:
+  - missing_license: force_clean_room
+  - no_copy_paste_ui: true

@@ -78,7 +78,7 @@ Whenever you **upgrade** the repo and new migration files appear, run the migrat
 
 ### Monorepo note
 
-Only **`apps/backend`** is built for this project. The Next.js app in `apps/fe-v1` stays on a **separate** Vercel project (or another host).
+Only **`apps/backend`** is built for this project. The Next.js app in `apps/web` stays on a **separate** Vercel project (or another host).
 
 ---
 
@@ -140,13 +140,13 @@ If you use **WebSockets** (`/ws`), test from the browser or a WS client; behavio
 
 ## Step 7 — Point the frontend at this API
 
-On your **`apps/fe-v1`** Vercel project:
+On your **`apps/web`** Vercel project:
 
 1. **Settings** → **Environment Variables**:
    - `NEXT_PUBLIC_API_URL` = `https://YOUR-API.vercel.app` (or your custom domain).
 2. **Redeploy** `fe-v1` so Next embeds the value at build time.
 
-The frontend must **not** use `localhost` for production (see [`next.config.mjs`](../apps/fe-v1/next.config.mjs) when `VERCEL` is set).
+The frontend must **not** use `localhost` for production (see [`next.config.mjs`](../apps/web/next.config.mjs) when `VERCEL` is set).
 
 ---
 

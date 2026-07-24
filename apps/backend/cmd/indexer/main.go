@@ -11,8 +11,8 @@ import (
 
 	"retropick/apps/backend/internal/config"
 	"retropick/apps/backend/internal/db"
-	"retropick/apps/backend/internal/domain"
-	"retropick/apps/backend/internal/domain/referrals"
+	"retropick/apps/backend/internal/legacy/domain"
+	"retropick/apps/backend/internal/legacy/domain/referrals"
 	"retropick/apps/backend/internal/ethops"
 	"retropick/apps/backend/internal/indexer"
 	"retropick/apps/backend/internal/metrics"

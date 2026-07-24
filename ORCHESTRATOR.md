@@ -8,11 +8,11 @@ Ship and harden **RetroPick v1**: working **fe-v1** + **Go backend** + **MarketE
 
 ### Phase 0 — Repo and harness health
 
-- `pnpm install`; Foundry libs in `package/prediction-v2` if needed
+- `pnpm install`; Foundry libs in `contracts/legacy-pool-v1` if needed
 - `pnpm lint`, `pnpm test`, `pnpm smoke` green (`go test` under `apps/backend`)
 - `cli/harness doctor projects/retropick` clean
 - Kanban board `retropick-v1`: run **`./scripts/seed-kanban-retropick-v1.sh`** (idempotent Hermes `create --triage`) or paste cards from [`.harness/docs/kanban-seed-retropick-v1.md`](.harness/docs/kanban-seed-retropick-v1.md) (parallel **fe-markets / fe-wallet / fe-ops / be-keeper / be-api / qa / docs** slices)
-- Harness **Phase 0** task closed: [.harness/tasks/done/phase0-verify-green.md](.harness/tasks/done/phase0-verify-green.md) (`pnpm verify` + `package/prediction-v2` contracts present). **`.harness/tasks/backlog/`** is empty until new cards are filed from later phases.
+- Harness **Phase 0** task closed: [.harness/tasks/done/phase0-verify-green.md](.harness/tasks/done/phase0-verify-green.md) (`pnpm verify` + `contracts/legacy-pool-v1` contracts present). **`.harness/tasks/backlog/`** is empty until new cards are filed from later phases.
 
 ### Phase 1 — Contract truth frozen for API
 
@@ -31,7 +31,7 @@ Ship and harden **RetroPick v1**: working **fe-v1** + **Go backend** + **MarketE
 - `be-api`: stable JSON for markets, epochs, user positions
 - `be-realtime`: envelope ordering and WS subscription semantics
 - `fe-markets`: consume API + chain reads without invented states
-- **`fe-markets` perf:** `apps/fe-v1/next.config.mjs` — expanded `optimizePackageImports` (incl. `@reown/*`, `lightweight-charts`, `@worldcoin/idkit`), lazy `MarketsAll` route chunk in `src/App.tsx`, production `compiler.removeConsole`, `pnpm analyze` for bundle graphs (see `apps/fe-v1/README.md` § Analyzer follow-ups). **LCP / primary routes:** `app/[[...slug]]/loading.tsx` (instant server shell before client bundle), self-hosted `@fontsource/*` in `app/layout.tsx` (see `apps/fe-v1/README.md` § LCP). **Cold `ClientApp` graph:** lazy `OnboardingModal` until the modal is shown (`OnboardingContext.tsx`). **`fe-wallet`:** deferred AppKit init + no static `modal` import in `openAppKitModal` (`src/lib/retropickAppKit.ts`, `Web3ModalProvider.tsx`; see `apps/fe-v1/README.md` § Wallet / AppKit cold path).
+- **`fe-markets` perf:** `apps/web/next.config.mjs` — expanded `optimizePackageImports` (incl. `@reown/*`, `lightweight-charts`, `@worldcoin/idkit`), lazy `MarketsAll` route chunk in `src/App.tsx`, production `compiler.removeConsole`, `pnpm analyze` for bundle graphs (see `apps/web/README.md` § Analyzer follow-ups). **LCP / primary routes:** `app/[[...slug]]/loading.tsx` (instant server shell before client bundle), self-hosted `@fontsource/*` in `app/layout.tsx` (see `apps/web/README.md` § LCP). **Cold `ClientApp` graph:** lazy `OnboardingModal` until the modal is shown (`OnboardingContext.tsx`). **`fe-wallet`:** deferred AppKit init + no static `modal` import in `openAppKitModal` (`src/lib/retropickAppKit.ts`, `Web3ModalProvider.tsx`; see `apps/web/README.md` § Wallet / AppKit cold path).
 
 ### Phase 4 — Automation and funding
 
@@ -44,7 +44,7 @@ Ship and harden **RetroPick v1**: working **fe-v1** + **Go backend** + **MarketE
 - `devops-sre`: Compose, hairpin env, observability hooks
 - `security`: review admin/keeper/env boundaries before any prod-adjacent deploy
 
-**Operator workflow (single doc):** [docs/feature/ops-admin-operator-workflow.md](docs/feature/ops-admin-operator-workflow.md) — maps `apps/ops` routes to backend ops APIs, recommended sequencing, per-agent micro-plan table, and orchestrator report template. The ops app **Overview** includes a short in-UI playbook that mirrors this order.
+**Operator workflow (single doc):** [docs/feature/ops-admin-operator-workflow.md](docs/feature/ops-admin-operator-workflow.md) — maps `apps/ops-web` routes to backend ops APIs, recommended sequencing, per-agent micro-plan table, and orchestrator report template. The ops app **Overview** includes a short in-UI playbook that mirrors this order.
 
 **Persistent backend runbook:** [.dev/backend/operations-runbook.md](.dev/backend/operations-runbook.md) — health endpoints, indexer lag, websocket, keeper triage, and code pointers; pairs with [PRODUCTION.md](PRODUCTION.md) for supported deploy shapes and cost.
 
@@ -58,11 +58,11 @@ Ship and harden **RetroPick v1**: working **fe-v1** + **Go backend** + **MarketE
 
 ```bash
 pnpm install
-cd package/prediction-v2 && git submodule update --init --recursive
+cd contracts/legacy-pool-v1 && git submodule update --init --recursive
 pnpm lint
 pnpm test
 pnpm smoke
-pnpm dev:fe-v1
+pnpm dev:web
 ```
 
 ## Kanban
@@ -71,4 +71,4 @@ Board **`retropick-v1`** — workspace is the **absolute path** to this repo roo
 
 When columns are empty, run **`./scripts/seed-kanban-retropick-v1.sh`** (fills **Triage** with eight cards), or paste manually from **[`.harness/docs/kanban-seed-retropick-v1.md`](.harness/docs/kanban-seed-retropick-v1.md)**. Assign **Hermes worker profiles** on **Ready** tasks, then promote to **In progress**. Harness agent slugs in each card body are planning owners, not dispatch identities.
 
-**fe-v1 bundle analysis:** `pnpm --filter fe-v1 analyze` (treemap; `ANALYZE=true` only for that script).
+**fe-v1 bundle analysis:** `pnpm --filter web analyze` (treemap; `ANALYZE=true` only for that script).

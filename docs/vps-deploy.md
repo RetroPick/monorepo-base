@@ -2,7 +2,7 @@
 
 RetroPick v1 production is a split stack:
 
-- `apps/fe-v1` on Vercel
+- `apps/web` on Vercel
 - `postgres`, `migrator`, `api`, `indexer`, `price-worker`, `funding-worker`, `keeper`, `alert`, `nginx` on one OrangeVPS box
 - `reporter` disabled for Chainlink-only v1
 

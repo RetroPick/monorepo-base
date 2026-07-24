@@ -60,7 +60,7 @@ Repo-canonical Graphify orientation (preferred when graphify-out/graph.json exis
 ```bash
 graphify query "demo readiness backend frontend contracts"
 graphify explain "MarketEngine epoch lifecycle"
-graphify path "apps/fe-v1" "apps/backend"
+graphify path "apps/web" "apps/backend"
 ```
 
 Rebuild if stale or after code changes:
@@ -113,8 +113,8 @@ Primary context paths:
 * packages/contracts/registry.base-sepolia.json
 * packages/contracts/registry.celo-alfajores.json
 * apps/backend/
-* apps/fe-v1/
-* package/prediction-v2/
+* apps/web/
+* contracts/legacy-pool-v1/
 * packages/gooddollar/
 * scripts/demo-alfajores-smoke.sh
 * scripts/smoke-production.sh
@@ -211,16 +211,16 @@ grep -R "0x0000000000000000000000000000000000000000" -n \
   docs/upgrade-v3 \
   .dev/.upgrade_v3 \
   apps/backend \
-  apps/fe-v1 \
+  apps/web \
   packages/gooddollar \
-  package/prediction-v2 2>/dev/null | head -300
+  contracts/legacy-pool-v1 2>/dev/null | head -300
 
 echo "=== Feature flag scan ==="
 grep -R "GOODDOLLAR_ENABLED\|REFERRALS_ENABLED\|REWARDS_ENABLED\|IMPACT_ENABLED\|FEE_ROUTER_ENABLED\|VITE_GOODDOLLAR_ENABLED\|REGISTRY_PATH\|FEE_ROUTER_ADDRESS" -n \
   docs/upgrade-v3 \
   .dev/.upgrade_v3 \
   apps/backend \
-  apps/fe-v1 \
+  apps/web \
   docker-compose.alfajores.yml \
   compose.alfajores.env 2>/dev/null | head -300
 ```
@@ -282,13 +282,13 @@ go build ./...
 go test ./... -count=1
 
 echo "=== Contracts ==="
-cd ../../package/prediction-v2
+cd ../../contracts/legacy-pool-v1
 forge build
 forge test --match-path "test/treasury/*" -vv
 forge test -vv
 
 echo "=== Frontend ==="
-cd ../../apps/fe-v1
+cd ../../apps/web
 pnpm test -- --run
 pnpm build
 ```
@@ -354,7 +354,7 @@ Search unsafe wording:
 
 ```bash
 grep -R "betting\|gambling\|casino\|wager\|guaranteed yield\|easy money\|fully live\|GoodDollar live\|EngagementRewards live" -n \
-  apps/fe-v1/src \
+  apps/web/src \
   docs/upgrade-v3 \
   .dev/.upgrade_v3 2>/dev/null | head -200
 ```

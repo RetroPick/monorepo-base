@@ -19,7 +19,7 @@ Re-run and append output:
 
 1. Stack: postgres (internal network alias `postgres`) + migrator + `docker compose up --no-deps api indexer`
 2. `curl` health + markets via `smoke-production.sh`
-3. `pnpm dev:fe-v1` → Next.js ready on `:3000` (first route compile on demand)
+3. `pnpm dev:web` → Next.js ready on `:3000` (first route compile on demand)
 4. `pnpm build` (fe-v1) — production build green after default-export fix
 
 ### Smoke output (2026-07-03)

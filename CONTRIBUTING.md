@@ -4,7 +4,7 @@
 
 - Use pnpm from the repository root.
 - Keep `apps/backend` as the backend module unless a migration explicitly changes that boundary.
-- Prefer `package/prediction-v2` in new contract docs and scripts.
+- Prefer `contracts/legacy-pool-v1` in new contract docs and scripts.
 - Do not commit secrets, deploy keys, mnemonics, local `.env` files, or generated runtime artifacts.
 
 ## Verification

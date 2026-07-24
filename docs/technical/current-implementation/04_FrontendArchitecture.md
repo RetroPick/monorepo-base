@@ -1,9 +1,9 @@
 # 04 Frontend Architecture
 
-> **App docs:** [`apps/fe-v1/README.md`](../../../apps/fe-v1/README.md).
+> **App docs:** [`apps/web/README.md`](../../../apps/web/README.md).
 
 ## Runtime Model
-- Host shell: Next app under `apps/fe-v1/app`.
+- Host shell: Next app under `apps/web/app`.
 - App body: client-rendered React app via React Router (`src/App.tsx`).
 - This is a hybrid runtime: Next provides deployment shell, while route behavior is owned by React Router.
 

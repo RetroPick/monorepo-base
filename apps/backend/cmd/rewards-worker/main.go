@@ -12,8 +12,8 @@ import (
 
 	"retropick/apps/backend/internal/config"
 	"retropick/apps/backend/internal/db"
-	"retropick/apps/backend/internal/domain"
-	"retropick/apps/backend/internal/domain/impact"
+	"retropick/apps/backend/internal/legacy/domain"
+	"retropick/apps/backend/internal/legacy/domain/impact"
 )
 
 func main() {

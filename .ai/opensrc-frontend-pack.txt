@@ -1,0 +1,22 @@
+# RetroPick FRONTEND / WEB / OPS references
+vercel/next.js
+react
+reactjs/react.dev
+TanStack/query
+TanStack/table
+wevm/viem
+wevm/wagmi
+reown-com/appkit
+react-hook-form/react-hook-form
+colinhacks/zod
+shadcn-ui/ui
+radix-ui/primitives
+tailwindlabs/tailwindcss
+framer/motion
+microsoft/playwright
+vitest-dev/vitest
+mswjs/msw
+storybookjs/storybook
+vercel/ai
+vercel/chatbot
+vercel/platforms

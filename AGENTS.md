@@ -2,24 +2,24 @@
 
 ## Mission
 
-Build and maintain **RetroPick v1**: epoch-based prediction markets with **MarketEngine** (UUPS + modules), **Go** backend (`apps/backend`), **Next.js** frontends (`fe-v1`, `ops`), and **Foundry** contracts in `package/prediction-v2`.
+Build and maintain **RetroPick v1**: epoch-based prediction markets with **MarketEngine** (UUPS + modules), **Go** backend (`apps/backend`), **Next.js** frontends (`web`, `ops-web`), and **Foundry** contracts in `contracts/legacy-pool-v1`.
 
 ## Non-negotiable product truths
 
 1. RetroPick is **epoch-driven** — all market actions respect on-chain MarketEngine epoch state.
 2. **`apps/backend`** owns server-side indexing, API, keeper, funding workers, and realtime; **`.dev/backend/`** documents that implementation in depth.
-3. Smart contracts live in **`package/prediction-v2`**; merge only with **Foundry** tests green.
+3. Smart contracts live in **`contracts/legacy-pool-v1`**; merge only with **Foundry** tests green.
 4. Do not index entire vendored forge libs into agent context — use project sources and `currentSmartContract.md`.
 5. Harness MCP at **project root** is canonical when orchestrating via Agent Harness.
 6. **Documentation map** is [`docs/README.md`](docs/README.md); as-built backend is [`.dev/backend/`](.dev/backend/). Future/design specs live under [`docs/archive/`](docs/archive/) only — not active `docs/feature/` design packs.
-7. **`package/prediction-v2`** is the canonical contract path (DECISIONS D9); legacy `smart-contract` and `contract` aliases were removed.
+7. **`contracts/legacy-pool-v1`** is the canonical contract path (DECISIONS D9); legacy `smart-contract` and `contract` aliases were removed.
 8. **Production hosting** needs a persistent stack (Postgres, indexer, keeper, realtime). Full backend on Vercel alone is not supported; API-only on Vercel is a non-production experiment — see [`PRODUCTION.md`](PRODUCTION.md).
 
 ## Architecture summary
 
 ```mermaid
 flowchart LR
-  FE[fe-v1 / ops] --> API[Go API]
+  FE[web / ops-web] --> API[Go API]
   API --> IDX[Indexer projections]
   IDX --> DB[(Postgres)]
   API --> WS[WebSocket hub]
@@ -28,6 +28,17 @@ flowchart LR
   KEEP[Keeper] --> CHAIN
   CHAIN --> ME[MarketEngine UUPS]
 ```
+
+
+## Markets V1 (Polymarket product)
+
+When working on **RetroPick Markets** (not legacy epoch):
+
+1. Read [.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md) first.
+2. Check `current_phase` in [.dev/markets-v1/agent-harness/implementation-manifest.yaml](.dev/markets-v1/agent-harness/implementation-manifest.yaml).
+3. Use shared OpenAPI: [schemas/openapi/markets-v1.yaml](schemas/openapi/markets-v1.yaml).
+4. Greenfield backend: `apps/backend/internal/markets/` — do not extend legacy epoch routes.
+5. PRISM and legacy epoch v1 are out of scope unless explicitly tasked.
 
 ## Twenty harness agents (orchestrator-managed)
 
@@ -44,7 +55,7 @@ flowchart LR
 | `be-funding` | Funding abstraction, workers, provider adapters |
 | `be-realtime` | Durable envelopes, `pg_notify`, websocket hub |
 | `be-data` | Migrations, sqlc, pool tuning |
-| `fe-markets` | Markets UI, charts, epoch UX, trading flows |
+| `fe-markets (web Markets routes)` | Markets UI, charts, epoch UX, trading flows |
 | `fe-wallet` | wagmi/viem/AppKit, chain config, errors |
 | `fe-ops` | Operator dashboard surfaces |
 | `pkg-abi-registry` | Workspace packages, ABI generation, contract registry scripts |
@@ -66,12 +77,19 @@ Full personas: `.harness/agents/<slug>.agent.md`.
 
 1. `.harness/project.manifest.json`
 2. `.harness/project-context.md`
-3. `package/prediction-v2/currentSmartContract.md`
+3. `contracts/legacy-pool-v1/currentSmartContract.md`
 4. `README.md` → `docs/README.md` (doc map)
 5. `ORCHESTRATOR.md` and `DECISIONS.md`
 6. `.dev/backend/architecture.md` (backend map)
 
 Harness playbooks: `$AGENT_HARNESS_HOME/docs/kit/`
+
+## opensrc / Graphify references
+
+When using external opensrc repositories for architecture or refactor guidance,
+read `.ai/AGENTS-opensrc.md` first. Treat external repositories as references
+only; do not replace RetroPick's Go backend, Postgres projection model, Next
+frontends, or pool-based `MarketEngine` architecture.
 
 
 <claude-mem-context>
