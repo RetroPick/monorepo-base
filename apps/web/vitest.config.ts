@@ -22,9 +22,6 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@retropick/abi": path.resolve(__dirname, "../../packages/legacy/abi"),
-      "@retropick/contracts": path.resolve(__dirname, "../../packages/legacy/contracts"),
-    },
+      "@": path.resolve(__dirname, "./src"),    },
   },
 });

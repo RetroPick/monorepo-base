@@ -31,9 +31,9 @@ case "$MODE" in
       "apps/docs/app"
       "apps/docs/components"
       "apps/docs/contents"
-      "contracts/legacy-pool-v1/src"
-      "contracts/legacy-pool-v1/script"
-      "contracts/legacy-pool-v1/test"
+      "archive/contracts/legacy-pool-v1/src"
+      "archive/contracts/legacy-pool-v1/script"
+      "archive/contracts/legacy-pool-v1/test"
     )
     ;;
   backend)
@@ -54,12 +54,12 @@ case "$MODE" in
     ;;
   contracts)
     TARGETS=(
-      "contracts/legacy-pool-v1/src"
-      "contracts/legacy-pool-v1/script"
-      "contracts/legacy-pool-v1/test"
-      "contracts/legacy-pool-v1/treasury-vault-eth/src"
-      "contracts/legacy-pool-v1/treasury-vault-eth/script"
-      "contracts/legacy-pool-v1/treasury-vault-eth/test"
+      "archive/contracts/legacy-pool-v1/src"
+      "archive/contracts/legacy-pool-v1/script"
+      "archive/contracts/legacy-pool-v1/test"
+      "archive/contracts/legacy-pool-v1/treasury-vault-eth/src"
+      "archive/contracts/legacy-pool-v1/treasury-vault-eth/script"
+      "archive/contracts/legacy-pool-v1/treasury-vault-eth/test"
     )
     ;;
   docs)
@@ -99,12 +99,12 @@ case "$MODE" in
       "apps/landing-web-standalone/components"
       "apps/landing-web-standalone/src"
       "packages"
-      "contracts/legacy-pool-v1/src"
-      "contracts/legacy-pool-v1/script"
-      "contracts/legacy-pool-v1/test"
-      "contracts/legacy-pool-v1/treasury-vault-eth/src"
-      "contracts/legacy-pool-v1/treasury-vault-eth/script"
-      "contracts/legacy-pool-v1/treasury-vault-eth/test"
+      "archive/contracts/legacy-pool-v1/src"
+      "archive/contracts/legacy-pool-v1/script"
+      "archive/contracts/legacy-pool-v1/test"
+      "archive/contracts/legacy-pool-v1/treasury-vault-eth/src"
+      "archive/contracts/legacy-pool-v1/treasury-vault-eth/script"
+      "archive/contracts/legacy-pool-v1/treasury-vault-eth/test"
       "docs"
       ".dev"
       ".harness"
@@ -136,7 +136,7 @@ is_excluded_path() {
     */graphify-out/*|*/.references/*|*/node_modules/*|*/.next/*|*/dist/*|*/build/*|*/target/*|*/out/*|*/cache/*|*/broadcast/*|*/coverage/*|*/.turbo/*|*/.vercel/*)
       return 0
       ;;
-    */contracts/legacy-pool-v1/lib/*|*/contracts/legacy-pool-v1/treasury-vault-eth/lib/*)
+    */archive/contracts/legacy-pool-v1/lib/*|*/archive/contracts/legacy-pool-v1/treasury-vault-eth/lib/*)
       return 0
       ;;
     */apps/*/sources/*)

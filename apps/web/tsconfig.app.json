@@ -28,11 +28,7 @@
     "noFallthroughCasesInSwitch": false,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@retropick/abi/*": ["../../packages/legacy/abi/*"],
-      "@retropick/contracts": ["../../packages/legacy/contracts"],
-      "@retropick/contracts/*": ["../../packages/legacy/contracts/*"]
-    }
+      "@/*": ["./src/*"],    }
   },
   "include": [
     "src"

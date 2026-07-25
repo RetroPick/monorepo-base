@@ -6,7 +6,7 @@ V1_ROOT="$(cd "$_WRAP/../.." && pwd)"
 # shellcheck disable=SC1091
 source "$V1_ROOT/scripts/lib/load-env.sh"
 load_repo_env "$V1_ROOT/.env"
-load_repo_env "$V1_ROOT/contracts/legacy-pool-v1/.env"
+load_repo_env "$V1_ROOT/archive/contracts/legacy-pool-v1/.env"
 
 fn="${1:?usage: prepare-ops-tx.sh <function> <args.json>}"
 args_file="${2:?usage: prepare-ops-tx.sh <function> <args.json>}"

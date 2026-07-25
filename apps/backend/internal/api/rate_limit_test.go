@@ -30,7 +30,7 @@ func TestRateLimitMiddlewareFunding(t *testing.T) {
 }
 
 func TestRequestIPIgnoresForwardedHeaderByDefault(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/legacy/markets", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/events", nil)
 	req.RemoteAddr = "10.0.0.9:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9")
 	if got := requestIP(req, RateLimitOptions{}); got != "10.0.0.9" {
@@ -39,7 +39,7 @@ func TestRequestIPIgnoresForwardedHeaderByDefault(t *testing.T) {
 }
 
 func TestRequestIPUsesForwardedHeaderWhenProxyNetworkTrusted(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/legacy/markets", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/events", nil)
 	req.RemoteAddr = "10.0.0.9:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9, 10.0.0.9")
 	if got := requestIP(req, RateLimitOptions{TrustForwardedFor: true, TrustedProxyCIDRs: []string{"10.0.0.0/8"}}); got != "198.51.100.9" {
@@ -48,7 +48,7 @@ func TestRequestIPUsesForwardedHeaderWhenProxyNetworkTrusted(t *testing.T) {
 }
 
 func TestRequestIPIgnoresForwardedHeaderFromUntrustedProxy(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/legacy/markets", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/events", nil)
 	req.RemoteAddr = "203.0.113.9:1234"
 	req.Header.Set("X-Forwarded-For", "198.51.100.9")
 	if got := requestIP(req, RateLimitOptions{TrustForwardedFor: true, TrustedProxyCIDRs: []string{"10.0.0.0/8"}}); got != "203.0.113.9" {
@@ -91,7 +91,7 @@ func TestRateLimitBudgetClassifiesWSAndOpsSeparately(t *testing.T) {
 		path   string
 		want   string
 	}{
-		{method: http.MethodGet, path: "/api/v1/legacy/markets", want: "public_get"},
+		{method: http.MethodGet, path: "/api/v1/markets/events", want: "public_get"},
 		{method: http.MethodGet, path: "/ws", want: "ws_connect"},
 		{method: http.MethodPost, path: "/api/v1/user/watchlist", want: "watchlist_write"},
 		{method: http.MethodPost, path: "/api/v1/me/watchlist", want: "watchlist_write"},

@@ -10,7 +10,7 @@ Greenfield bounded context for RetroPick Markets. **Not** epoch `internal/legacy
 | GET | `/api/v1/markets/capabilities` | `markets-v1-catalog` |
 | GET | `/api/v1/markets/events` | Gamma catalog (when enabled) |
 
-Legacy epoch market APIs: `/api/v1/legacy/markets/*`
+
 
 OpenAPI: `schemas/openapi/markets-v1.yaml`
 

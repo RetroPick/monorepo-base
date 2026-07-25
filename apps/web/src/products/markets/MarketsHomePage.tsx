@@ -25,9 +25,9 @@ export default function MarketsHomePage() {
         </p>
         <h1 className="text-3xl font-semibold tracking-tight">Polymarket discovery &amp; trading</h1>
         <p className="mt-2 text-muted-foreground">
-          Connected to the Markets BFF. Legacy epoch MarketEngine routes live under
+          Connected to the Markets BFF. Epoch v1 code is archived; Markets BFF at
           {" "}
-          <code className="text-xs">/api/v1/legacy/markets</code>.
+          <code className="text-xs">/api/v1/markets/*</code>.
         </p>
       </div>
 

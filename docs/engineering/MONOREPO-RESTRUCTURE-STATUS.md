@@ -84,3 +84,10 @@ NEXT_PUBLIC_PRODUCT=markets pnpm dev:web  # /markets only
 - ADRs: [adr/](adr/)
 - Markets OpenAPI: [schemas/openapi/markets-v1.yaml](../../schemas/openapi/markets-v1.yaml)
 - Android: [apps/android](../../apps/android)
+
+### Phase R4 — legacy archived
+| Item | Status |
+|------|--------|
+| Move epoch code to `archive/` | Done |
+| Markets-only API + web default | Done |
+| ADR-R4 | Done |

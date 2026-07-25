@@ -26,7 +26,7 @@ EOF
 }
 
 run_estimator() {
-  exec python3 "$V1_ROOT/contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py" "$@"
+  exec python3 "$V1_ROOT/archive/contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py" "$@"
 }
 
 doctor() {
@@ -45,15 +45,15 @@ doctor() {
   else
     printf 'warn    tool forge (required for contract tests and deploy simulation)\n'
   fi
-  if [[ -f "$V1_ROOT/contracts/legacy-pool-v1/foundry.toml" ]]; then
-    printf 'ok      contracts contracts/legacy-pool-v1\n'
+  if [[ -f "$V1_ROOT/archive/contracts/legacy-pool-v1/foundry.toml" ]]; then
+    printf 'ok      contracts archive/contracts/legacy-pool-v1\n'
   else
-    printf 'missing contracts contracts/legacy-pool-v1\n'
+    printf 'missing contracts archive/contracts/legacy-pool-v1\n'
     failed=1
   fi
   for file in \
     scripts/lib/load-env.sh \
-    contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py \
+    archive/contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py \
     scripts/compose-production.sh \
     scripts/smoke-production.sh; do
     if [[ -f "$V1_ROOT/$file" ]]; then
@@ -123,9 +123,9 @@ case "$cmd" in
   contracts)
     sub="${1:-}"; [[ $# -eq 0 ]] || shift
     case "$sub" in
-      test) cd "$V1_ROOT/contracts/legacy-pool-v1"; exec forge test "$@" ;;
+      test) cd "$V1_ROOT/archive/contracts/legacy-pool-v1"; exec forge test "$@" ;;
       estimate) run_estimator "$@" ;;
-      verify) cd "$V1_ROOT/contracts/legacy-pool-v1"; exec ./scripts/verify-base-sepolia-contracts.sh "$@" ;;
+      verify) cd "$V1_ROOT/archive/contracts/legacy-pool-v1"; exec ./scripts/verify-base-sepolia-contracts.sh "$@" ;;
       *) usage; exit 2 ;;
     esac
     ;;

@@ -24,7 +24,7 @@ within authorized phases and tasks.
 - Remain within the authorized **phase** and **task** only.
 - Do not start cross-phase work "while you're here."
 - One owner per writable path in parallel work (see task `owned_paths`).
-- Do not edit PRISM (`contracts/prism/`) or extend legacy epoch (`/api/v1/legacy/markets/*`).
+- Do not edit PRISM (`contracts/prism/`) or extend legacy epoch (`archived epoch API (see archive/)/*`).
 
 ## 4. Evidence and honesty
 
@@ -71,7 +71,7 @@ Stop and document in [BLOCKERS_AND_HUMAN_APPROVALS.md](BLOCKERS_AND_HUMAN_APPROV
 | Area | Path | Rule |
 |------|------|------|
 | Markets BFF | `apps/backend/internal/markets/` | Greenfield Markets work |
-| Legacy epoch | `apps/backend/internal/legacy/domain/` | Quarantine; no new Markets features |
+| Legacy epoch | `apps/backend/archive/apps/backend/internal/legacy/domain/` | Quarantine; no new Markets features |
 | Web shell | `apps/web/` | Product routes under `src/products/markets` |
 | Android | `apps/android/` | README-only at R3; Compose implementation in PHASE-5 |
 | OpenAPI | `schemas/openapi/markets-v1.yaml` | Canonical web+Android contract |

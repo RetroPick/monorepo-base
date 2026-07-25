@@ -6,7 +6,7 @@ V1_ROOT="$(cd "$_WRAP/../.." && pwd)"
 # shellcheck disable=SC1091
 source "$V1_ROOT/scripts/lib/load-env.sh"
 load_repo_env "$V1_ROOT/.env"
-load_repo_env "$V1_ROOT/contracts/legacy-pool-v1/.env"
+load_repo_env "$V1_ROOT/archive/contracts/legacy-pool-v1/.env"
 
 prepared="${1:?usage: broadcast-prepared-ops-tx.sh <prepared.json>}"
 target="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["target"])' "$prepared")"

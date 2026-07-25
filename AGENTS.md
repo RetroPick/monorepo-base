@@ -2,18 +2,9 @@
 
 ## Mission
 
-Build and maintain **RetroPick v1**: epoch-based prediction markets with **MarketEngine** (UUPS + modules), **Go** backend (`apps/backend`), **Next.js** frontends (`web`, `ops-web`), and **Foundry** contracts in `contracts/legacy-pool-v1`.
+Build and maintain **RetroPick Markets V1** (Polymarket-native web + Go BFF + Android) and **PRISM** (future). Legacy epoch MarketEngine is archived under `archive/` — do not extend it for new work.
 
-## Non-negotiable product truths
-
-1. RetroPick is **epoch-driven** — all market actions respect on-chain MarketEngine epoch state.
-2. **`apps/backend`** owns server-side indexing, API, keeper, funding workers, and realtime; **`.dev/backend/`** documents that implementation in depth.
-3. Smart contracts live in **`contracts/legacy-pool-v1`**; merge only with **Foundry** tests green.
-4. Do not index entire vendored forge libs into agent context — use project sources and `currentSmartContract.md`.
-5. Harness MCP at **project root** is canonical when orchestrating via Agent Harness.
-6. **Documentation map** is [`docs/README.md`](docs/README.md); as-built backend is [`.dev/backend/`](.dev/backend/). Future/design specs live under [`docs/archive/`](docs/archive/) only — not active `docs/feature/` design packs.
-7. **`contracts/legacy-pool-v1`** is the canonical contract path (DECISIONS D9); legacy `smart-contract` and `contract` aliases were removed.
-8. **Production hosting** needs a persistent stack (Postgres, indexer, keeper, realtime). Full backend on Vercel alone is not supported; API-only on Vercel is a non-production experiment — see [`PRODUCTION.md`](PRODUCTION.md).
+**Primary docs:** [`.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md`](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md)
 
 ## Architecture summary
 

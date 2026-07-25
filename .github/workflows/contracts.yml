@@ -1,9 +1,7 @@
-name: Contracts
+name: Contracts (archived legacy)
 
 on:
-  pull_request:
-  push:
-    branches: [main, release/demo-rc-v3, production/testnet-hardening-v1]
+  workflow_dispatch:
 
 jobs:
   foundry:
@@ -13,7 +11,7 @@ jobs:
         with:
           submodules: recursive
       - uses: foundry-rs/foundry-toolchain@v1
-      - run: forge build --root contracts/legacy-pool-v1
+      - run: forge build --root archive/archive/contracts/legacy-pool-v1
       - name: Foundry test (sequential for script env isolation)
-        run: FOUNDRY_PROFILE=ci forge test --root contracts/legacy-pool-v1 -j1
-      - run: bash contracts/legacy-pool-v1/script/check-storage-layout.sh
+        run: FOUNDRY_PROFILE=ci forge test --root archive/archive/contracts/legacy-pool-v1 -j1
+      - run: bash archive/archive/contracts/legacy-pool-v1/script/check-storage-layout.sh

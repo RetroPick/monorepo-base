@@ -26,9 +26,9 @@
     "stakeTokenDecimals": 18
   },
   "abiFiles": {
-    "marketEngine": "packages/legacy/abi/IMarketEngine.json",
-    "dispatcher": "packages/legacy/abi/MarketEngineDispatcher.json",
-    "stakeToken": "packages/legacy/abi/MockERC20.json",
-    "faucet": "packages/legacy/abi/TokenFaucet.json"
+    "marketEngine": "archive/packages/legacy/abi/IMarketEngine.json",
+    "dispatcher": "archive/packages/legacy/abi/MarketEngineDispatcher.json",
+    "stakeToken": "archive/packages/legacy/abi/MockERC20.json",
+    "faucet": "archive/packages/legacy/abi/TokenFaucet.json"
   }
 }

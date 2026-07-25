@@ -133,9 +133,7 @@ const nextConfig = {
     });
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@": path.resolve(__dirname, "src"),
-      "@retropick/abi": path.resolve(__dirname, "../../packages/legacy/abi"),
-      "@retropick/contracts": path.resolve(__dirname, "../../packages/contracts"),
+      "@": path.resolve(__dirname, "src"),      "@retropick/contracts": path.resolve(__dirname, "../../packages/contracts"),
     };
     return config;
   },

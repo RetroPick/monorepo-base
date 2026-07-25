@@ -21,4 +21,6 @@
 | D18 | **Phase R3 legacy API + Gamma catalog** — epoch routes at `/api/v1/legacy/markets/*`; BFF `ListEvents` proxies Gamma | Route collision resolved; catalog via BFF | be-api |
 | D17 | **Markets BFF stub (R2)** — `internal/markets`, `/api/v1/markets/eligibility|capabilities|events`, `@retropick/polymarket` | Web Markets shell wired to BFF | be-api |
 
+| D19 | **Legacy epoch v1 archived** — code/docs under `archive/`; active tree is Markets/PRISM/Android | Greenfield Markets platform; no route collision with epoch | orchestrator |
+
 When a decision conflicts with a shortcut, **orchestrator** blocks the task until this table is updated or the shortcut is withdrawn.

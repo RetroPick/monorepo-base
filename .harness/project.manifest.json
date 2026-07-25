@@ -4,7 +4,7 @@
     "name": "retropick",
     "type": "web3-prediction",
     "root": ".",
-    "description": "RetroPick prediction markets \u2014 MarketEngine epochs, Go apps/backend API, Next.js web/ops-web, Foundry smart contracts in contracts/legacy-pool-v1."
+    "description": "RetroPick Markets + PRISM \u2014 Polymarket-native web, Go BFF, Android (epoch v1 archived under archive/)."
   },
   "harness": {
     "mode": "embedded",
@@ -37,7 +37,7 @@
     ]
   },
   "commands": {
-    "dev": "pnpm dev:web",
+    "dev": "NEXT_PUBLIC_PRODUCT=markets pnpm dev:web",
     "typecheck": "pnpm -r exec tsc --noEmit 2>/dev/null || pnpm build",
     "lint": "pnpm lint",
     "test": "pnpm test",
@@ -47,19 +47,13 @@
   "agents": {
     "enabled": [
       "orchestrator",
-      "sc-market-engine",
-      "sc-oracles",
-      "sc-deploy-upgrades",
       "sc-testing",
       "be-api",
-      "be-indexer",
-      "be-keeper",
       "be-funding",
       "be-realtime",
       "be-data",
       "fe-markets",
       "fe-wallet",
-      "fe-ops",
       "pkg-abi-registry",
       "security",
       "qa-integration",

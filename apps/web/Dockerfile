@@ -16,7 +16,7 @@ RUN --mount=type=cache,target=/pnpm/store,id=pnpm-fe-v1 \
 
 COPY apps/web apps/web
 COPY packages/contracts packages/contracts
-COPY packages/legacy/abi packages/legacy/abi
+COPY archive/packages/legacy/abi archive/packages/legacy/abi
 COPY archive/legacy/dot-docs-production archive/legacy/dot-docs-production
 
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080

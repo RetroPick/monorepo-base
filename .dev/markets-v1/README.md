@@ -40,6 +40,10 @@ This tree is **documentation only**. Product code lives under `apps/`, `packages
 - **PRISM** is a separate product; out of scope except boundary statements.
 - **Legacy epoch v1** is frozen at `/api/v1/legacy/markets/*`.
 
+## Android build prompt
+
+- [apps/android/.dev/BUILD_SESSION_PROMPT.md](../../apps/android/.dev/BUILD_SESSION_PROMPT.md) — copy into next Cursor session to scaffold the app
+
 ## Related repo docs
 
 - [.dev/MARKETS.md](../MARKETS.md) — product architecture baseline
