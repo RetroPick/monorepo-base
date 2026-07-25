@@ -1,0 +1,1 @@
+export { MarketTypeDemoAnimation } from "./MarketTypeDemoParts";

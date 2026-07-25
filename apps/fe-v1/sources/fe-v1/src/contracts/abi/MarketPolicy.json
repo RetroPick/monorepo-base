@@ -1,0 +1,645 @@
+[
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [],
+    "name": "DurationTooLong",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DurationTooShort",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidMarketType",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableInvalidOwner",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "OwnableUnauthorizedAccount",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ResolveSpecNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SeedTooLow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TooManyOutcomes",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "previous",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "current",
+        "type": "uint256"
+      }
+    ],
+    "name": "AllowedMarketTypesUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "previous",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "current",
+        "type": "uint48"
+      }
+    ],
+    "name": "MaxDurationUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "previous",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "current",
+        "type": "uint8"
+      }
+    ],
+    "name": "MaxOutcomesUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "previous",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "current",
+        "type": "uint256"
+      }
+    ],
+    "name": "MinCreatorSeedUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "previous",
+        "type": "uint48"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint48",
+        "name": "current",
+        "type": "uint48"
+      }
+    ],
+    "name": "MinDurationUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "ResolveSpecAllowlistEnabledUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "hash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "allowed",
+        "type": "bool"
+      }
+    ],
+    "name": "ResolveSpecAllowlistUpdated",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "MARKET_TYPE_BINARY",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MARKET_TYPE_CATEGORICAL",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MARKET_TYPE_TIMELINE",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "allowedMarketTypes",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "allowedResolveSpecHashes",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxDuration",
+    "outputs": [
+      {
+        "internalType": "uint48",
+        "name": "",
+        "type": "uint48"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxOutcomes",
+    "outputs": [
+      {
+        "internalType": "uint8",
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minCreatorSeed",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minDuration",
+    "outputs": [
+      {
+        "internalType": "uint48",
+        "name": "",
+        "type": "uint48"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "resolveSpecAllowlistEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "bitmap",
+        "type": "uint256"
+      }
+    ],
+    "name": "setAllowedMarketTypes",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint48",
+        "name": "duration",
+        "type": "uint48"
+      }
+    ],
+    "name": "setMaxDuration",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint8",
+        "name": "max",
+        "type": "uint8"
+      }
+    ],
+    "name": "setMaxOutcomes",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "minSeed",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinCreatorSeed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint48",
+        "name": "duration",
+        "type": "uint48"
+      }
+    ],
+    "name": "setMinDuration",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "hash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "allowed",
+        "type": "bool"
+      }
+    ],
+    "name": "setResolveSpecAllowed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setResolveSpecAllowlistEnabled",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "questionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "questionUriHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "outcomesHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "outcomesUriHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "resolveSpecHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint48",
+            "name": "tradingOpen",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "tradingClose",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "resolveTime",
+            "type": "uint48"
+          },
+          {
+            "internalType": "enum MarketDraftBoard.MarketType",
+            "name": "marketType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum MarketDraftBoard.DraftStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "settlementAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint96",
+            "name": "minSeed",
+            "type": "uint96"
+          },
+          {
+            "internalType": "address",
+            "name": "creator",
+            "type": "address"
+          },
+          {
+            "internalType": "uint48",
+            "name": "proposedAt",
+            "type": "uint48"
+          }
+        ],
+        "internalType": "struct MarketDraftBoard.Draft",
+        "name": "draft",
+        "type": "tuple"
+      }
+    ],
+    "name": "validateDraft",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "questionHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "questionUriHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "outcomesHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "outcomesUriHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "resolveSpecHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint48",
+            "name": "tradingOpen",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "tradingClose",
+            "type": "uint48"
+          },
+          {
+            "internalType": "uint48",
+            "name": "resolveTime",
+            "type": "uint48"
+          },
+          {
+            "internalType": "enum MarketDraftBoard.MarketType",
+            "name": "marketType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "enum MarketDraftBoard.DraftStatus",
+            "name": "status",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "settlementAsset",
+            "type": "address"
+          },
+          {
+            "internalType": "uint96",
+            "name": "minSeed",
+            "type": "uint96"
+          },
+          {
+            "internalType": "address",
+            "name": "creator",
+            "type": "address"
+          },
+          {
+            "internalType": "uint48",
+            "name": "proposedAt",
+            "type": "uint48"
+          }
+        ],
+        "internalType": "struct MarketDraftBoard.Draft",
+        "name": "draft",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint8",
+        "name": "outcomesCount",
+        "type": "uint8"
+      }
+    ],
+    "name": "validateDraftWithOutcomesCount",
+    "outputs": [],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

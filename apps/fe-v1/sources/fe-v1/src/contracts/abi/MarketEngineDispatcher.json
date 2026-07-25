@@ -1,0 +1,241 @@
+[
+  {
+    "type": "event",
+    "name": "PositionDeposited",
+    "inputs": [
+      { "name": "templateId",    "type": "bytes32", "indexed": true  },
+      { "name": "epochId",       "type": "uint64",  "indexed": true  },
+      { "name": "user",          "type": "address", "indexed": true  },
+      { "name": "outcomeIndex",  "type": "uint8",   "indexed": false },
+      { "name": "amount",        "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "EpochOpened",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32", "indexed": true  },
+      { "name": "epochId",    "type": "uint64",  "indexed": true  },
+      { "name": "openAt",     "type": "uint64",  "indexed": false },
+      { "name": "lockAt",     "type": "uint64",  "indexed": false },
+      { "name": "resolveAt",  "type": "uint64",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "EpochLocked",
+    "inputs": [
+      { "name": "templateId",    "type": "bytes32", "indexed": true  },
+      { "name": "epochId",       "type": "uint64",  "indexed": true  },
+      { "name": "checkpointA",   "type": "int256",  "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "EpochResolved",
+    "inputs": [
+      { "name": "templateId",    "type": "bytes32", "indexed": true  },
+      { "name": "epochId",       "type": "uint64",  "indexed": true  },
+      { "name": "winningOutcome","type": "uint8",   "indexed": false },
+      { "name": "checkpointB",   "type": "int256",  "indexed": false },
+      { "name": "totalPool",     "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "EpochCancelled",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32", "indexed": true },
+      { "name": "epochId",    "type": "uint64",  "indexed": true }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Claimed",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32", "indexed": true  },
+      { "name": "epochId",    "type": "uint64",  "indexed": true  },
+      { "name": "user",       "type": "address", "indexed": true  },
+      { "name": "amount",     "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "SwitchedSide",
+    "inputs": [
+      { "name": "templateId",   "type": "bytes32", "indexed": true  },
+      { "name": "epochId",      "type": "uint64",  "indexed": true  },
+      { "name": "user",         "type": "address", "indexed": true  },
+      { "name": "fromOutcome",  "type": "uint8",   "indexed": false },
+      { "name": "toOutcome",    "type": "uint8",   "indexed": false },
+      { "name": "amount",       "type": "uint256", "indexed": false }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "DepositExecutorSet",
+    "inputs": [
+      { "name": "account",  "type": "address", "indexed": true  },
+      { "name": "allowed",  "type": "bool",    "indexed": false }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "depositToSide",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "templateId",   "type": "bytes32" },
+      { "name": "epochId",      "type": "uint64"  },
+      { "name": "outcomeIndex", "type": "uint8"   },
+      { "name": "amount",       "type": "uint256" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "depositToSideFor",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "beneficiary",  "type": "address" },
+      { "name": "templateId",   "type": "bytes32" },
+      { "name": "epochId",      "type": "uint64"  },
+      { "name": "outcomeIndex", "type": "uint8"   },
+      { "name": "amount",       "type": "uint256" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "switchSide",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "templateId",      "type": "bytes32" },
+      { "name": "epochId",         "type": "uint64"  },
+      { "name": "fromOutcomeIndex","type": "uint8"   },
+      { "name": "toOutcomeIndex",  "type": "uint8"   },
+      { "name": "amount",          "type": "uint256" }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "claim",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32" },
+      { "name": "epochId",    "type": "uint64"  }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "claimMany",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "templateIds", "type": "bytes32[]" },
+      { "name": "epochIds",    "type": "uint64[]"  }
+    ],
+    "outputs": []
+  },
+  {
+    "type": "function",
+    "name": "getUserEpochs",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "user",       "type": "address" },
+      { "name": "templateId", "type": "bytes32" }
+    ],
+    "outputs": [{ "name": "", "type": "uint64[]" }]
+  },
+  {
+    "type": "function",
+    "name": "getVaultBalances",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32" }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          { "name": "active", "type": "uint256" },
+          { "name": "claims", "type": "uint256" },
+          { "name": "fees",   "type": "uint256" }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "getRollingLifecycle",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32" }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          { "name": "phase",          "type": "uint8"  },
+          { "name": "currentEpochId", "type": "uint64" },
+          { "name": "nextEpochId",    "type": "uint64" },
+          { "name": "lastTickAt",     "type": "uint64" }
+        ]
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "getEpoch",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "templateId", "type": "bytes32" },
+      { "name": "epochId",    "type": "uint64"  }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "components": [
+          { "name": "state",         "type": "uint8"    },
+          { "name": "totalPool",     "type": "uint256"  },
+          { "name": "winningOutcome","type": "uint8"    },
+          { "name": "openAt",        "type": "uint64"   },
+          { "name": "lockAt",        "type": "uint64"   },
+          { "name": "resolveAt",     "type": "uint64"   },
+          { "name": "outcomePools",  "type": "uint256[]"}
+        ]
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "stakeToken",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }]
+  },
+  {
+    "type": "function",
+    "name": "isDepositExecutor",
+    "stateMutability": "view",
+    "inputs": [{ "name": "account", "type": "address" }],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "paused",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "treasury",
+    "stateMutability": "view",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address" }]
+  }
+]
