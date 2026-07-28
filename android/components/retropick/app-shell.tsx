@@ -266,52 +266,68 @@ export function AppShell() {
 
             {splash ? (
               <SplashScreen />
-            ) : detail ? (
-              <MarketDetail
-                market={detail}
-                balance={balance}
-                onBack={() => setDetail(null)}
-                onTrade={(side) => setTrade({ market: detail, side })}
-                onExecuteTrade={(outcomeLabel, percentage, amount) => {
-                  executeTrade(detail.id, detail.question, outcomeLabel, percentage, amount)
-                }}
-                onSetAlert={handleSetAlert}
-              />
-            ) : categoryDetail ? (
-              <CategoryDetailScreen
-                categoryValue={categoryDetail}
-                onBack={() => setCategoryDetail(null)}
-                onOpenMarket={openMarket}
-              />
             ) : (
-              <>
-                <TopBar 
-                  title={TITLES[tab]} 
-                  onMenu={() => setDrawer(true)} 
-                  walletConnected={walletConnected}
-                  walletAddress={walletAddress}
-                  onConnect={() => setShowConnectModal(true)}
-                  onNotifications={() => setShowAlertsDrawer(true)}
-                />
-                <main className="no-scrollbar flex-1 overflow-y-auto">
-                  {tab === 'explore' && (
-                    <ExploreScreen onOpenMarket={openMarket} markets={markets} />
-                  )}
-                  {tab === 'markets' && (
-                    <MarketsScreen onOpenMarket={openMarket} markets={markets} />
-                  )}
-                  {tab === 'portfolio' && (
-                    <PortfolioScreen 
-                      balance={balance} 
-                      positions={positions} 
-                      activity={activity} 
-                      walletConnected={walletConnected}
-                      onConnect={() => setShowConnectModal(true)}
+              <div className="flex h-full flex-col bg-background">
+                {/* Main content area */}
+                <div className="flex-1 min-h-0 relative flex flex-col">
+                  {detail ? (
+                    <MarketDetail
+                      market={detail}
+                      balance={balance}
+                      onBack={() => setDetail(null)}
+                      onTrade={(side) => setTrade({ market: detail, side })}
+                      onExecuteTrade={(outcomeLabel, percentage, amount) => {
+                        executeTrade(detail.id, detail.question, outcomeLabel, percentage, amount)
+                      }}
+                      onSetAlert={handleSetAlert}
                     />
+                  ) : categoryDetail ? (
+                    <CategoryDetailScreen
+                      categoryValue={categoryDetail}
+                      onBack={() => setCategoryDetail(null)}
+                      onOpenMarket={openMarket}
+                    />
+                  ) : (
+                    <>
+                      <TopBar 
+                        title={TITLES[tab]} 
+                        onMenu={() => setDrawer(true)} 
+                        walletConnected={walletConnected}
+                        walletAddress={walletAddress}
+                        onConnect={() => setShowConnectModal(true)}
+                        onNotifications={() => setShowAlertsDrawer(true)}
+                      />
+                      <main className="no-scrollbar flex-1 overflow-y-auto">
+                        {tab === 'explore' && (
+                          <ExploreScreen onOpenMarket={openMarket} markets={markets} />
+                        )}
+                        {tab === 'markets' && (
+                          <MarketsScreen onOpenMarket={openMarket} markets={markets} />
+                        )}
+                        {tab === 'portfolio' && (
+                          <PortfolioScreen 
+                            balance={balance} 
+                            positions={positions} 
+                            activity={activity} 
+                            walletConnected={walletConnected}
+                            onConnect={() => setShowConnectModal(true)}
+                          />
+                        )}
+                      </main>
+                    </>
                   )}
-                </main>
-                <BottomNav active={tab} onChange={setTab} />
-              </>
+                </div>
+
+                {/* Persistently visible Bottom Navigation */}
+                <BottomNav 
+                  active={tab} 
+                  onChange={(newTab) => {
+                    setTab(newTab)
+                    setDetail(null)
+                    setCategoryDetail(null)
+                  }} 
+                />
+              </div>
             )}
 
             {/* Overlays */}
