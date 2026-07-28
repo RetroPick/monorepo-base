@@ -23,12 +23,14 @@ export function PortfolioScreen({
   activity,
   walletConnected,
   onConnect,
+  onOpenAddFunds,
 }: {
   balance: number
   positions: any[]
   activity: any[]
   walletConnected: boolean
   onConnect: () => void
+  onOpenAddFunds?: () => void
 }) {
   // 1. Locked state when no wallet is connected
   if (!walletConnected) {
@@ -37,16 +39,16 @@ export function PortfolioScreen({
         <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-3xl animate-pulse mb-6">
           🔒
         </div>
-        <h2 className="text-lg font-black text-foreground">Connect Wallet</h2>
+        <h2 className="text-lg font-black text-foreground">Sign In Required</h2>
         <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-[280px]">
-          Please connect your Web3 wallet (MetaMask, Trust Wallet, etc.) to access your balances, active positions, and recent activities.
+          Please sign in using your Google, Telegram, Twitter, Apple accounts, or email to access your trading portfolio and load funds.
         </p>
         <button
           onClick={onConnect}
           className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
         >
           <Wallet className="h-4 w-4 shrink-0" />
-          Connect Wallet
+          Connect & Sign In
         </button>
       </div>
     )
@@ -89,11 +91,14 @@ export function PortfolioScreen({
         />
 
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <button className="flex items-center justify-center gap-1.5 rounded-[10px] bg-primary py-2.5 text-sm font-bold text-primary-foreground">
+          <button 
+            onClick={onOpenAddFunds}
+            className="flex items-center justify-center gap-1.5 rounded-[10px] bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:scale-[1.01] active:scale-[0.99] transition-all"
+          >
             <ArrowDownToLine className="h-4 w-4" />
             Deposit
           </button>
-          <button className="flex items-center justify-center gap-1.5 rounded-[10px] border border-border bg-card py-2.5 text-sm font-semibold text-foreground">
+          <button className="flex items-center justify-center gap-1.5 rounded-[10px] border border-border bg-card py-2.5 text-sm font-semibold text-foreground active:scale-[0.99] transition-all">
             <ArrowUpFromLine className="h-4 w-4" />
             Withdraw
           </button>

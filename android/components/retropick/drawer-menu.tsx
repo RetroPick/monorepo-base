@@ -112,6 +112,7 @@ export function DrawerMenu({
   walletConnected,
   walletAddress,
   walletProvider,
+  userEmail,
   onConnect,
   onDisconnect,
 }: {
@@ -124,6 +125,7 @@ export function DrawerMenu({
   walletConnected: boolean
   walletAddress: string
   walletProvider: string
+  userEmail?: string
   onConnect: () => void
   onDisconnect: () => void
 }) {
@@ -189,20 +191,35 @@ export function DrawerMenu({
               User Profile
             </p>
             {walletConnected ? (
-              <div className="rounded-[10px] border border-border bg-secondary/10 p-2.5 mx-3 space-y-1.5">
+              <div className="rounded-[12px] border border-border bg-secondary/15 p-3.5 mx-3 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Wallet</span>
-                  <span className="text-[9px] uppercase font-mono bg-primary/15 text-primary px-1.5 py-0.5 rounded font-black">{walletProvider}</span>
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Identity</span>
+                  <span className="text-[9px] uppercase font-mono bg-primary/15 text-primary px-2 py-0.5 rounded font-black tracking-wide">
+                    {walletProvider === 'google' ? 'Google 🔑' : 
+                     walletProvider === 'telegram' ? 'Telegram ✉️' :
+                     walletProvider === 'twitter' ? 'Twitter 𝕏' :
+                     walletProvider === 'apple' ? 'Apple 🍏' :
+                     walletProvider === 'email' ? 'Email ✉️' : walletProvider}
+                  </span>
                 </div>
-                <p className="text-[11px] font-mono text-foreground font-semibold truncate">{walletAddress}</p>
+                
+                {userEmail && userEmail !== 'external-wallet' && (
+                  <p className="text-xs font-bold text-foreground truncate select-all">{userEmail}</p>
+                )}
+                
+                <div className="space-y-0.5">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground">Embedded Wallet</span>
+                  <p className="text-[10px] font-mono text-muted-foreground truncate select-all">{walletAddress}</p>
+                </div>
+
                 <button
                   onClick={() => {
                     onDisconnect()
                     onClose()
                   }}
-                  className="w-full text-center rounded-[8px] bg-no/10 border border-no/20 py-1 text-[10px] font-bold text-no transition-colors active:bg-no/20"
+                  className="w-full text-center rounded-[8px] bg-no-soft border border-no/20 py-1.5 text-[10px] font-bold text-no hover:bg-no/20 active:scale-[0.98] transition-all"
                 >
-                  Disconnect
+                  Disconnect Wallet
                 </button>
               </div>
             ) : (
