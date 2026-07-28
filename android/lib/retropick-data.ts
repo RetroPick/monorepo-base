@@ -9,7 +9,21 @@ export type Category =
   | 'AI'
   | 'Climate'
 
-export type MarketType = 'UP_OR_DOWN' | 'MULTIPLE_CHOICE' | 'RANGE' | 'THRESHOLD' | 'DATE'
+export type MarketType =
+  | 'UP_OR_DOWN'
+  | 'MULTIPLE_CHOICE'
+  | 'RANGE'
+  | 'THRESHOLD'
+  | 'LADDER'
+  | 'VELOCITY'
+  | 'DATE'
+  | 'CONVERGENCE'
+
+export type MarketOption = {
+  label: string
+  percentage: number
+  icon?: string
+}
 
 export type Market = {
   id: string
@@ -24,8 +38,10 @@ export type Market = {
   trend: 'up' | 'down'
   chart: number[]
   verified: boolean
-  icon: string // emoji-free short token label shown in the colored chip
-  accent: string // hex color for the icon chip
+  icon?: string // emoji-free short token label shown in the colored chip
+  image?: string // Real image URL from Polymarket API
+  accent?: string // hex color for the icon chip
+  options?: MarketOption[]
 }
 
 export const CATEGORIES: Category[] = [
@@ -52,6 +68,174 @@ function series(seed: number, up: boolean): number[] {
 }
 
 export const MARKETS: Market[] = [
+  {
+    id: 'fed-decision-july',
+    question: 'Fed Decision in July?',
+    category: 'Economics',
+    marketType: 'MULTIPLE_CHOICE',
+    yes: 71,
+    volume: '$91.7m',
+    liquidity: '$28.2m',
+    participants: '8.3K',
+    timeLeft: 'Ends Jul 29, 07:00',
+    trend: 'up',
+    chart: series(8, true),
+    verified: true,
+    icon: 'FED',
+    accent: '#20c997',
+    options: [
+      { label: 'No change', percentage: 71 },
+      { label: '25 bps increase', percentage: 22 },
+      { label: '50+ bps increase', percentage: 7 }
+    ]
+  },
+  {
+    id: 'btc-up-down-direction',
+    question: 'Bitcoin Up or Down',
+    category: 'Crypto',
+    marketType: 'UP_OR_DOWN',
+    yes: 51,
+    volume: '$28.4m',
+    liquidity: '$9.2m',
+    participants: '12.1K',
+    timeLeft: 'Ends in 2h 45m',
+    trend: 'up',
+    chart: series(3, true),
+    verified: true,
+    icon: 'BTC',
+    accent: '#f7931a',
+  },
+  {
+    id: 'eth-exceed-5000',
+    question: 'Will ETH exceed $5,000 before Dec 31, 2026?',
+    category: 'Crypto',
+    marketType: 'THRESHOLD',
+    yes: 47,
+    volume: '$15.6m',
+    liquidity: '$5.2m',
+    participants: '7.2K',
+    timeLeft: '31 Dec 2026',
+    trend: 'up',
+    chart: series(15, true),
+    verified: true,
+    icon: 'ETH',
+    accent: '#627eea',
+  },
+  {
+    id: 'btc-close-range',
+    question: 'Where will BTC price close on Jul 31, 2026?',
+    category: 'Crypto',
+    marketType: 'RANGE',
+    yes: 36,
+    volume: '$12.3m',
+    liquidity: '$4.1m',
+    participants: '6.1K',
+    timeLeft: '31 Jul 2026',
+    trend: 'up',
+    chart: series(22, true),
+    verified: true,
+    icon: 'BTC',
+    accent: '#f7931a',
+    options: [
+      { label: 'Below $110,000', percentage: 14 },
+      { label: '$110K - $120K', percentage: 31 },
+      { label: '$120K - $130K', percentage: 36 },
+      { label: 'Above $130,000', percentage: 19 }
+    ]
+  },
+  {
+    id: 'btc-highest-ladder',
+    question: 'Highest price of BTC in 2026?',
+    category: 'Crypto',
+    marketType: 'LADDER',
+    yes: 60,
+    volume: '$18.9m',
+    liquidity: '$6.3m',
+    participants: '4.4K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(29, true),
+    verified: true,
+    icon: 'BTC',
+    accent: '#f7931a',
+    options: [
+      { label: '>= $100,000', percentage: 95 },
+      { label: '>= $120,000', percentage: 82 },
+      { label: '>= $140,000', percentage: 60 },
+      { label: '>= $160,000', percentage: 38 },
+      { label: '>= $180,000', percentage: 21 },
+      { label: '>= $200,000', percentage: 10 }
+    ]
+  },
+  {
+    id: 'sol-move-velocity',
+    question: 'How much will SOL move in the next 24 hours?',
+    category: 'Crypto',
+    marketType: 'VELOCITY',
+    yes: 32,
+    volume: '$6.7m',
+    liquidity: '$2.2m',
+    participants: '3.1K',
+    timeLeft: '24h Market',
+    trend: 'down',
+    chart: series(34, false),
+    verified: true,
+    icon: 'SOL',
+    accent: '#00ffad',
+    options: [
+      { label: '0% - 3%', percentage: 20 },
+      { label: '3% - 5%', percentage: 32 },
+      { label: '5% - 10%', percentage: 28 },
+      { label: '10% - 20%', percentage: 15 },
+      { label: 'Above 20%', percentage: 2 }
+    ]
+  },
+  {
+    id: 'openai-gpt6-date',
+    question: 'When will OpenAI release GPT-6?',
+    category: 'Tech',
+    marketType: 'DATE',
+    yes: 61,
+    volume: '$10.2m',
+    liquidity: '$3.4m',
+    participants: '2.7K',
+    timeLeft: 'Dec 31, 2027',
+    trend: 'up',
+    chart: series(42, true),
+    verified: true,
+    icon: 'GPT',
+    accent: '#10a37f',
+    options: [
+      { label: 'July - Sep 2026', percentage: 12 },
+      { label: 'Oct - Dec 2026', percentage: 48 },
+      { label: 'Jan - Mar 2027', percentage: 26 },
+      { label: 'Apr - Jun 2027', percentage: 61 },
+      { label: 'After Jun 2027', percentage: 2 }
+    ]
+  },
+  {
+    id: 'ai-model-convergence',
+    question: 'Which AI model will reach 100M users first?',
+    category: 'AI',
+    marketType: 'CONVERGENCE',
+    yes: 54,
+    volume: '$8.5m',
+    liquidity: '$2.8m',
+    participants: '2.0K',
+    timeLeft: 'May 31, 2027',
+    trend: 'up',
+    chart: series(49, true),
+    verified: true,
+    icon: 'AI',
+    accent: '#8b5cf6',
+    options: [
+      { label: 'ChatGPT (OpenAI)', percentage: 54, icon: 'openai' },
+      { label: 'Gemini (Google)', percentage: 44, icon: 'google' },
+      { label: 'Claude (Anthropic)', percentage: 14, icon: 'claude' },
+      { label: 'Grok (xAI)', percentage: 6, icon: 'grok' },
+      { label: 'Other', percentage: 2, icon: 'other' }
+    ]
+  },
   {
     id: 'btc-200k',
     question: 'Bitcoin above $70,000 on July 24?',

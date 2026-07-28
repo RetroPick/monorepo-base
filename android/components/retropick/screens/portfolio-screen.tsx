@@ -7,8 +7,8 @@ import {
   Gift,
   Star,
   ChevronRight,
+  Wallet,
 } from 'lucide-react'
-import { OPEN_POSITIONS, RECENT_ACTIVITY } from '@/lib/retropick-data'
 import { MiniChart } from '../mini-chart'
 import { SectionHeader } from '../ui-bits'
 
@@ -17,21 +17,67 @@ const PERF = [
   74, 78, 82, 88, 92,
 ]
 
-export function PortfolioScreen() {
+export function PortfolioScreen({
+  balance,
+  positions,
+  activity,
+  walletConnected,
+  onConnect,
+}: {
+  balance: number
+  positions: any[]
+  activity: any[]
+  walletConnected: boolean
+  onConnect: () => void
+}) {
+  // 1. Locked state when no wallet is connected
+  if (!walletConnected) {
+    return (
+      <div className="animate-fade-up flex flex-col justify-center items-center px-6 text-center h-[70vh]">
+        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-3xl animate-pulse mb-6">
+          🔒
+        </div>
+        <h2 className="text-lg font-black text-foreground">Connect Wallet</h2>
+        <p className="mt-2 text-xs text-muted-foreground leading-relaxed max-w-[280px]">
+          Please connect your Web3 wallet (MetaMask, Trust Wallet, etc.) to access your balances, active positions, and recent activities.
+        </p>
+        <button
+          onClick={onConnect}
+          className="mt-6 flex items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-xs font-bold text-primary-foreground shadow-md shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all"
+        >
+          <Wallet className="h-4 w-4 shrink-0" />
+          Connect Wallet
+        </button>
+      </div>
+    )
+  }
+
+  // Calculate total portfolio net worth dynamically
+  const positionsValue = positions.reduce((acc, pos) => {
+    const val = parseFloat(pos.value.replace(/[^0-9.]/g, '')) || 0
+    return acc + val
+  }, 0)
+  const totalValue = balance + positionsValue
+
   return (
     <div className="animate-fade-up space-y-6 px-5 pb-28 pt-4">
       {/* Balance card */}
       <section className="overflow-hidden rounded-[12px] border border-border bg-gradient-to-br from-blue/20 via-card to-card p-4">
-        <p className="text-xs text-muted-foreground">Total Balance</p>
+        <p className="text-xs text-muted-foreground">Total Net Worth</p>
         <div className="mt-1 flex items-baseline gap-2">
           <span className="font-display text-3xl font-bold text-foreground">
-            $1,240.50
+            ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
           <span className="text-sm font-medium text-muted-foreground">
             USDC
           </span>
         </div>
-        <p className="mt-1 text-xs font-semibold text-yes">+12.45% (24h)</p>
+        <div className="flex justify-between items-center mt-1">
+          <p className="text-xs font-semibold text-yes">+12.45% (24h)</p>
+          <p className="text-[10px] text-muted-foreground">
+            Wallet Cash: <strong className="text-foreground">${balance.toFixed(2)} USDC</strong>
+          </p>
+        </div>
 
         <MiniChart
           data={PERF}
@@ -58,7 +104,7 @@ export function PortfolioScreen() {
       <button className="flex w-full items-center justify-between rounded-[12px] border border-border bg-card p-3.5">
         <div>
           <p className="text-[11px] text-muted-foreground">Wallet Address</p>
-          <p className="mt-0.5 text-[13px] font-medium text-foreground">
+          <p className="mt-0.5 text-[13px] font-medium text-foreground truncate max-w-[200px] font-mono">
             0x8f2a...c41b
           </p>
         </div>
@@ -70,7 +116,7 @@ export function PortfolioScreen() {
         {[
           { label: 'Total P&L', value: '+$138.20' },
           { label: 'Win Rate', value: '64%' },
-          { label: 'Positions', value: '7' },
+          { label: 'Positions', value: positions.length.toString() },
         ].map((s) => (
           <div
             key={s.label}
@@ -88,34 +134,40 @@ export function PortfolioScreen() {
       <section className="space-y-3">
         <SectionHeader title="Open Positions" action="See all" />
         <div className="space-y-2.5">
-          {OPEN_POSITIONS.map((p) => (
-            <div
-              key={p.id}
-              className="rounded-[12px] border border-border bg-card p-3.5"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <p className="text-[13px] font-medium leading-snug text-foreground">
-                  {p.question}
-                </p>
-                <span className="shrink-0 text-sm font-semibold text-foreground">
-                  {p.value}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-[11px] text-muted-foreground">
-                  {p.meta}
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="rounded bg-yes-soft px-1.5 py-0.5 text-[10px] font-semibold text-yes">
-                    {p.side} {p.prob}%
-                  </span>
-                  <span className="text-[11px] font-semibold text-yes">
-                    {p.pnl}
+          {positions.length > 0 ? (
+            positions.map((p) => (
+              <div
+                key={`${p.id}-${p.side}`}
+                className="rounded-[12px] border border-border bg-card p-3.5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-[13px] font-medium leading-snug text-foreground">
+                    {p.question}
+                  </p>
+                  <span className="shrink-0 text-sm font-semibold text-foreground">
+                    {p.value}
                   </span>
                 </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="text-[11px] text-muted-foreground">
+                    {p.meta}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded bg-yes-soft px-1.5 py-0.5 text-[10px] font-semibold text-yes">
+                      {p.side} {p.prob}%
+                    </span>
+                    <span className="text-[11px] font-semibold text-yes">
+                      {p.pnl}
+                    </span>
+                  </div>
+                </div>
               </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-muted-foreground text-sm border border-dashed border-border rounded-xl">
+              No open positions. Select a market and place a trade to start!
             </div>
-          ))}
+          )}
         </div>
       </section>
 
@@ -123,28 +175,34 @@ export function PortfolioScreen() {
       <section className="space-y-3">
         <SectionHeader title="Recent Activity" action="See all" />
         <div className="rounded-[12px] border border-border bg-card">
-          {RECENT_ACTIVITY.map((a, i) => (
-            <div
-              key={a.label}
-              className={`flex items-center justify-between p-3.5 ${
-                i !== RECENT_ACTIVITY.length - 1 ? 'border-b border-border' : ''
-              }`}
-            >
-              <div>
-                <p className="text-[13px] font-medium text-foreground">
-                  {a.label}
-                </p>
-                <p className="text-[11px] text-muted-foreground">{a.time}</p>
-              </div>
-              <span
-                className={`text-[13px] font-semibold ${
-                  a.up ? 'text-yes' : 'text-no'
+          {activity.length > 0 ? (
+            activity.map((a, i) => (
+              <div
+                key={`${a.label}-${i}`}
+                className={`flex items-center justify-between p-3.5 ${
+                  i !== activity.length - 1 ? 'border-b border-border' : ''
                 }`}
               >
-                {a.amount}
-              </span>
+                <div className="min-w-0 flex-1 pr-3">
+                  <p className="text-[13px] font-medium text-foreground truncate">
+                    {a.label}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">{a.time}</p>
+                </div>
+                <span
+                  className={`text-[13px] font-semibold shrink-0 ${
+                    a.up ? 'text-yes' : 'text-no'
+                  }`}
+                >
+                  {a.amount}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-6 text-muted-foreground text-xs">
+              No transactions logged yet.
             </div>
-          ))}
+          )}
         </div>
       </section>
 

@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronRight,
   Briefcase,
+  Wallet,
 } from 'lucide-react'
 import { Logo } from './logo'
 import { SearchBar } from './ui-bits'
@@ -108,6 +109,11 @@ export function DrawerMenu({
   onToggleTheme,
   onSubCategoryClick,
   onNavigatePortfolio,
+  walletConnected,
+  walletAddress,
+  walletProvider,
+  onConnect,
+  onDisconnect,
 }: {
   open: boolean
   onClose: () => void
@@ -115,6 +121,11 @@ export function DrawerMenu({
   onToggleTheme: () => void
   onSubCategoryClick?: (value: string) => void
   onNavigatePortfolio?: () => void
+  walletConnected: boolean
+  walletAddress: string
+  walletProvider: string
+  onConnect: () => void
+  onDisconnect: () => void
 }) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
 
@@ -173,18 +184,47 @@ export function DrawerMenu({
 
         <div className="no-scrollbar flex-1 overflow-y-auto px-3 pb-4">
           {/* User Profile Section */}
-          <div className="space-y-1">
-            <p className="px-3 pb-1.5 pt-4 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="space-y-1.5">
+            <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               User Profile
             </p>
+            {walletConnected ? (
+              <div className="rounded-[10px] border border-border bg-secondary/10 p-2.5 mx-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Wallet</span>
+                  <span className="text-[9px] uppercase font-mono bg-primary/15 text-primary px-1.5 py-0.5 rounded font-black">{walletProvider}</span>
+                </div>
+                <p className="text-[11px] font-mono text-foreground font-semibold truncate">{walletAddress}</p>
+                <button
+                  onClick={() => {
+                    onDisconnect()
+                    onClose()
+                  }}
+                  className="w-full text-center rounded-[8px] bg-no/10 border border-no/20 py-1 text-[10px] font-bold text-no transition-colors active:bg-no/20"
+                >
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  onConnect()
+                  onClose()
+                }}
+                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-primary font-bold transition-colors active:bg-accent hover:bg-accent/50"
+              >
+                <Wallet className="h-5 w-5 shrink-0" />
+                <span className="text-sm">Connect Wallet</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 onNavigatePortfolio?.()
                 onClose()
               }}
-              className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 transition-colors active:bg-accent hover:bg-accent/50"
+              className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 transition-colors active:bg-accent hover:bg-accent/50"
             >
-              <Briefcase className="h-5 w-5 text-muted-foreground" />
+              <Briefcase className="h-5 w-5 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium text-foreground">Portfolio</span>
             </button>
           </div>

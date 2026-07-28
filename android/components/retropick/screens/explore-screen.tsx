@@ -45,13 +45,15 @@ const NEWS = [
 
 export function ExploreScreen({
   onOpenMarket,
+  markets = MARKETS,
 }: {
   onOpenMarket: (m: Market) => void
+  markets?: Market[]
 }) {
   // Get trending markets (highest volume)
-  const trendingMarkets = [...MARKETS].sort((a, b) => {
-    const aVol = parseInt(a.volume.replace(/[^\d]/g, ''))
-    const bVol = parseInt(b.volume.replace(/[^\d]/g, ''))
+  const trendingMarkets = [...markets].sort((a, b) => {
+    const aVol = parseInt((a.volume || '0').replace(/[^\d]/g, '')) || 0
+    const bVol = parseInt((b.volume || '0').replace(/[^\d]/g, '')) || 0
     return bVol - aVol
   }).slice(0, 3)
 
@@ -138,7 +140,6 @@ export function ExploreScreen({
             <MarketCard
               key={m.id}
               market={m}
-              variant="compact"
               onClick={() => onOpenMarket(m)}
             />
           ))}
@@ -182,11 +183,10 @@ export function ExploreScreen({
           <SectionHeader title="Ending Soon" />
         </div>
         <div className="space-y-3">
-          {MARKETS.slice(3, 5).map((m) => (
+          {markets.slice(3, 6).map((m) => (
             <MarketCard
               key={m.id}
               market={m}
-              variant="compact"
               onClick={() => onOpenMarket(m)}
             />
           ))}
@@ -197,11 +197,10 @@ export function ExploreScreen({
       <section className="space-y-3.5">
         <SectionHeader title="Popular This Week" action="See all" />
         <div className="space-y-3">
-          {MARKETS.slice(5).map((m) => (
+          {markets.slice(6).map((m) => (
             <MarketCard
               key={m.id}
               market={m}
-              variant="compact"
               onClick={() => onOpenMarket(m)}
             />
           ))}
