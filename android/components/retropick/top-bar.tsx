@@ -5,6 +5,7 @@ import { Menu, Bell, Wallet } from 'lucide-react'
 export function TopBar({
   title,
   onMenu,
+  authenticated = false,
   walletConnected,
   walletAddress,
   userEmail,
@@ -14,6 +15,7 @@ export function TopBar({
 }: {
   title: string
   onMenu: () => void
+  authenticated?: boolean
   walletConnected: boolean
   walletAddress: string
   userEmail?: string
@@ -60,13 +62,26 @@ export function TopBar({
               +
             </button>
           </div>
+        ) : authenticated ? (
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 rounded-full border border-border bg-secondary/30 px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground max-w-[120px] truncate">
+              <span className="h-1.5 w-1.5 rounded-full bg-muted shrink-0 animate-pulse" />
+              <span className="truncate">{displayProfile}</span>
+            </div>
+            <button
+              onClick={onConnect}
+              className="rounded-full bg-primary/15 border border-primary/30 px-2.5 py-1 text-[10px] font-bold text-primary active:scale-95 transition-all hover:bg-primary/25"
+            >
+              Link Wallet
+            </button>
+          </div>
         ) : (
           <button
             onClick={onConnect}
             className="flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-[11px] font-bold text-primary-foreground shadow-sm shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <Wallet className="h-3 w-3" />
-            Connect
+            Sign In
           </button>
         )}
 

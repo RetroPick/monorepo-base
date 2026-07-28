@@ -65,6 +65,7 @@ export function AppShell() {
   const [activity, setActivity] = useState<Activity[]>(RECENT_ACTIVITY)
 
   // Web3 Connection Simulated States
+  const [authenticated, setAuthenticated] = useState(false)
   const [walletConnected, setWalletConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState('')
   const [walletProvider, setWalletProvider] = useState('')
@@ -131,39 +132,45 @@ export function AppShell() {
 
   const openMarket = (m: Market) => setDetail(m)
 
-  // Trigger Simulated Social / Web3 Connection via Privy
+  // Trigger Simulated Social Connection via Privy (Authentication only)
   const handleSocialLogin = (provider: string, emailVal?: string) => {
     setConnectingProvider(provider)
     setTimeout(() => {
       let email = 'fatcurrahman125@gmail.com'
-      let address = '0x23C5b64c76E0DE86981E297A4c93561a002EE300' // Deterministic address matching image
       
       if (provider === 'google') {
         email = emailVal || 'fatcurrahman125@gmail.com'
       } else if (provider === 'telegram') {
         email = '@fatcurrahman'
-        address = '0x8bF4932C2b2DE51a66C93561A002EE300'
       } else if (provider === 'twitter') {
         email = '@fatcurrahman'
-        address = '0x7eF4932C2b2DE51a66C93561A002EE300'
       } else if (provider === 'apple') {
         email = 'fatcur.apple@icloud.com'
-        address = '0x4eF4932C2b2DE51a66C93561A002EE300'
       } else if (provider === 'email') {
         email = emailVal || 'user@example.com'
-        address = '0x3eF4932C2b2DE51a66C93561A002EE300'
       } else {
-        // MetaMask / External wallets
+        // MetaMask / External wallets directly authenticates too
         email = 'external-wallet'
-        const randomIdx = Math.floor(Math.random() * WALLET_ADDRESSES.length)
-        address = WALLET_ADDRESSES[randomIdx] || WALLET_ADDRESSES[0]
       }
 
-      setWalletConnected(true)
-      setWalletAddress(address)
+      setAuthenticated(true)
       setWalletProvider(provider)
       setUserEmail(email)
-      setBalance(2500.00)
+      
+      // If directly connecting Web3 wallet from sign in, provision it instantly
+      if (provider !== 'google' && provider !== 'telegram' && provider !== 'twitter' && provider !== 'apple' && provider !== 'email') {
+        const randomIdx = Math.floor(Math.random() * WALLET_ADDRESSES.length)
+        const address = WALLET_ADDRESSES[randomIdx] || WALLET_ADDRESSES[0]
+        setWalletAddress(address)
+        setWalletConnected(true)
+        setBalance(2500.00) // Imports balance of $2500
+      } else {
+        // Social logins start with NO wallet and NO balance
+        setWalletAddress('')
+        setWalletConnected(false)
+        setBalance(0.00)
+      }
+
       setConnectingProvider('')
       setShowConnectModal(false)
       setEmailInput('')
@@ -171,8 +178,34 @@ export function AppShell() {
     }, 1800)
   }
 
+  // Provision an embedded wallet or connect an external Web3 wallet on-demand
+  const handleProvisionWallet = (type: 'embedded' | 'external', extProvider?: string) => {
+    if (type === 'embedded') {
+      let address = '0x23C5b64c76E0DE86981E297A4c93561a002EE300'
+      if (userEmail.startsWith('@')) {
+        address = '0x8bF4932C2b2DE51a66C93561A002EE300'
+      } else if (walletProvider === 'apple') {
+        address = '0x4eF4932C2b2DE51a66C93561A002EE300'
+      } else if (walletProvider === 'email') {
+        address = '0x3eF4932C2b2DE51a66C93561A002EE300'
+      }
+      setWalletAddress(address)
+      setWalletConnected(true)
+      setBalance(0.00) // Starts at 0, ready to buy with card or transfer!
+    } else {
+      const label = extProvider || 'MetaMask'
+      setWalletProvider(label)
+      const randomIdx = Math.floor(Math.random() * WALLET_ADDRESSES.length)
+      const address = WALLET_ADDRESSES[randomIdx] || WALLET_ADDRESSES[0]
+      setWalletAddress(address)
+      setWalletConnected(true)
+      setBalance(2500.00) // MetaMask imports $2500
+    }
+  }
+
   // Trigger simulated disconnection
   const handleDisconnect = () => {
+    setAuthenticated(false)
     setWalletConnected(false)
     setWalletAddress('')
     setWalletProvider('')
@@ -322,6 +355,7 @@ export function AppShell() {
                       <TopBar 
                         title={TITLES[tab]} 
                         onMenu={() => setDrawer(true)} 
+                        authenticated={authenticated}
                         walletConnected={walletConnected}
                         walletAddress={walletAddress}
                         userEmail={userEmail}
@@ -341,9 +375,11 @@ export function AppShell() {
                             balance={balance} 
                             positions={positions} 
                             activity={activity} 
+                            authenticated={authenticated}
                             walletConnected={walletConnected}
                             onConnect={() => setShowConnectModal(true)}
                             onOpenAddFunds={() => setShowAddFundsModal(true)}
+                            onProvisionWallet={handleProvisionWallet}
                           />
                         )}
                       </main>
@@ -371,12 +407,14 @@ export function AppShell() {
               onToggleTheme={() => setDark((d) => !d)}
               onSubCategoryClick={(value) => setCategoryDetail(value)}
               onNavigatePortfolio={() => setTab('portfolio')}
+              authenticated={authenticated}
               walletConnected={walletConnected}
               walletAddress={walletAddress}
               walletProvider={walletProvider}
               userEmail={userEmail}
               onConnect={() => setShowConnectModal(true)}
               onDisconnect={handleDisconnect}
+              onProvisionWallet={handleProvisionWallet}
             />
             {trade && (
               <TradeSheet
