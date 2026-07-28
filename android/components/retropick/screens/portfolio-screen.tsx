@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -27,6 +27,7 @@ export function PortfolioScreen({
   onConnect,
   onOpenAddFunds,
   onProvisionWallet,
+  walletAddress,
 }: {
   balance: number
   positions: any[]
@@ -36,8 +37,20 @@ export function PortfolioScreen({
   onConnect: () => void
   onOpenAddFunds?: () => void
   onProvisionWallet?: (type: 'embedded' | 'external', extProvider?: string) => void
+  walletAddress?: string
 }) {
   const [provisioning, setProvisioning] = useState(false)
+  const [showLinkPrompt, setShowLinkPrompt] = useState(false)
+  const [autoOpenDeposit, setAutoOpenDeposit] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  // Auto-open AddFunds deposit sheet after wallet gets linked
+  useEffect(() => {
+    if (walletConnected && autoOpenDeposit) {
+      setAutoOpenDeposit(false)
+      onOpenAddFunds?.()
+    }
+  }, [walletConnected, autoOpenDeposit, onOpenAddFunds])
 
   // 1. Locked state when not logged in
   if (!authenticated) {
@@ -61,70 +74,22 @@ export function PortfolioScreen({
     )
   }
 
-  // 2. Logged in but wallet not connected/created
-  if (authenticated && !walletConnected) {
-    if (provisioning) {
-      return (
-        <div className="animate-fade-up flex flex-col justify-center items-center px-6 text-center h-[70vh]">
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-            <h2 className="text-sm font-bold text-foreground">Provisioning secure wallet...</h2>
-            <p className="text-[10px] text-muted-foreground max-w-[240px] leading-relaxed">
-              Generating secure cryptographic key pairs and deploying your self-custodial wallet on Base...
-            </p>
-          </div>
-        </div>
-      )
+  // Handle deposit click (decoupled wallet validation)
+  const handleDepositClick = () => {
+    if (walletConnected) {
+      onOpenAddFunds?.()
+    } else {
+      setAutoOpenDeposit(true)
+      setShowLinkPrompt(true)
     }
+  }
 
-    return (
-      <div className="animate-fade-up flex flex-col justify-center items-center px-6 py-8 text-center h-full min-h-[70vh]">
-        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl mb-4">
-          ✨
-        </div>
-        <h2 className="text-base font-black text-foreground">Activate Web3 Account</h2>
-        <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed max-w-[280px]">
-          Identity verified. Link a wallet to unlock trading positions, deposits, and odds forecasting.
-        </p>
-
-        {/* Option Cards */}
-        <div className="mt-6 w-full max-w-[320px] space-y-3">
-          {/* Card 1: Create Embedded Wallet */}
-          <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 via-card to-card p-4 text-left shadow-sm">
-            <h3 className="text-xs font-black text-foreground">Create Secure Privy Wallet</h3>
-            <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed">
-              Generate a local self-custodial wallet instantly. No browser extension required.
-            </p>
-            <button
-              onClick={() => {
-                setProvisioning(true)
-                setTimeout(() => {
-                  setProvisioning(false)
-                  onProvisionWallet?.('embedded')
-                }, 1500)
-              }}
-              className="mt-3.5 w-full rounded-lg bg-primary py-2 text-center text-[10px] font-bold text-primary-foreground shadow shadow-primary/10 hover:scale-[1.01] active:scale-[0.99] transition-all"
-            >
-              Provision Secure Wallet
-            </button>
-          </div>
-
-          {/* Card 2: Link External Wallet */}
-          <div className="rounded-xl border border-border bg-card p-4 text-left shadow-sm">
-            <h3 className="text-xs font-black text-foreground">Link External Wallet</h3>
-            <p className="mt-1 text-[10px] text-muted-foreground leading-relaxed">
-              Connect MetaMask, Trust Wallet, Coinbase, or any WalletConnect client.
-            </p>
-            <button
-              onClick={onConnect}
-              className="mt-3.5 w-full rounded-lg border border-border bg-secondary/35 py-2 text-center text-[10px] font-bold text-foreground hover:bg-secondary/60 active:scale-[0.99] transition-all"
-            >
-              Connect MetaMask or Trust
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  const handleCopyAddress = () => {
+    if (walletConnected && walletAddress) {
+      navigator.clipboard.writeText(walletAddress)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
   }
 
   // Calculate total portfolio net worth dynamically
@@ -150,7 +115,7 @@ export function PortfolioScreen({
         <div className="flex justify-between items-center mt-1">
           <p className="text-xs font-semibold text-yes">+12.45% (24h)</p>
           <p className="text-[10px] text-muted-foreground">
-            Wallet Cash: <strong className="text-foreground">${balance.toFixed(2)} USDC</strong>
+            Wallet Cash: <strong className="text-foreground">${walletConnected ? balance.toFixed(2) : '0.00'} USDC</strong>
           </p>
         </div>
 
@@ -165,7 +130,7 @@ export function PortfolioScreen({
 
         <div className="mt-4 grid grid-cols-2 gap-3">
           <button 
-            onClick={onOpenAddFunds}
+            onClick={handleDepositClick}
             className="flex items-center justify-center gap-1.5 rounded-[10px] bg-primary py-2.5 text-sm font-bold text-primary-foreground hover:scale-[1.01] active:scale-[0.99] transition-all"
           >
             <ArrowDownToLine className="h-4 w-4" />
@@ -178,16 +143,97 @@ export function PortfolioScreen({
         </div>
       </section>
 
-      {/* Wallet address */}
-      <button className="flex w-full items-center justify-between rounded-[12px] border border-border bg-card p-3.5">
-        <div>
+      {/* Wallet address copy row */}
+      <button 
+        onClick={() => {
+          if (!walletConnected) {
+            setShowLinkPrompt(true)
+          } else {
+            handleCopyAddress()
+          }
+        }}
+        className="flex w-full items-center justify-between rounded-[12px] border border-border bg-card p-3.5 hover:bg-card/75 active:scale-[0.99] transition-all"
+      >
+        <div className="text-left">
           <p className="text-[11px] text-muted-foreground">Wallet Address</p>
           <p className="mt-0.5 text-[13px] font-medium text-foreground truncate max-w-[200px] font-mono">
-            0x8f2a...c41b
+            {walletConnected && walletAddress 
+              ? `${walletAddress.substring(0, 8)}...${walletAddress.substring(walletAddress.length - 4)}` 
+              : 'Not Linked (Tap to Activate) ❌'}
           </p>
         </div>
-        <Copy className="h-4 w-4 text-muted-foreground" />
+        <Copy className="h-4 w-4 text-muted-foreground shrink-0" />
       </button>
+
+      {/* Wallet Activation Sheet Popover */}
+      {showLinkPrompt && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="absolute inset-0" onClick={() => setShowLinkPrompt(false)} />
+          
+          <div className="relative w-full max-w-md rounded-t-2xl border-t border-border bg-card p-6 shadow-2xl animate-slide-up space-y-4 pb-10">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-foreground">Activate Web3 Account</h3>
+              <button 
+                onClick={() => setShowLinkPrompt(false)}
+                className="text-xs font-bold text-muted-foreground hover:text-foreground shrink-0"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {provisioning ? (
+              <div className="flex flex-col items-center justify-center py-6 space-y-4">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="text-[10px] text-muted-foreground leading-relaxed text-center">
+                  Provisioning secure cryptographic keys via Privy...
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  A Web3 wallet is required to deposit funds and execute automated forecasting trades.
+                </p>
+                
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 text-left">
+                  <h4 className="text-[11px] font-bold text-foreground">Create Privy Embedded Wallet</h4>
+                  <p className="text-[9px] text-muted-foreground mt-0.5 leading-normal">
+                    Instant secure activation. No browser extension needed.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setProvisioning(true)
+                      setTimeout(() => {
+                        setProvisioning(false)
+                        setShowLinkPrompt(false)
+                        onProvisionWallet?.('embedded')
+                      }, 1500)
+                    }}
+                    className="mt-2.5 w-full rounded-md bg-primary py-1.5 text-center text-[10px] font-bold text-primary-foreground hover:scale-[1.01] transition-all"
+                  >
+                    Activate Privy Wallet
+                  </button>
+                </div>
+
+                <div className="rounded-lg border border-border bg-secondary/20 p-3.5 text-left">
+                  <h4 className="text-[11px] font-bold text-foreground">Connect External Web3 Wallet</h4>
+                  <p className="text-[9px] text-muted-foreground mt-0.5 leading-normal">
+                    Link MetaMask, Coinbase Wallet, or Trust Wallet.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowLinkPrompt(false)
+                      onConnect()
+                    }}
+                    className="mt-2.5 w-full rounded-md border border-border bg-card py-1.5 text-center text-[10px] font-bold text-foreground hover:bg-secondary/40 transition-all"
+                  >
+                    Connect Web3 Client
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Performance stats */}
       <div className="grid grid-cols-3 gap-3">

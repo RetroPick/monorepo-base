@@ -358,9 +358,11 @@ export function AppShell() {
                         authenticated={authenticated}
                         walletConnected={walletConnected}
                         walletAddress={walletAddress}
+                        walletProvider={walletProvider}
                         userEmail={userEmail}
                         onConnect={() => setShowConnectModal(true)}
-                        onOpenAddFunds={() => setShowAddFundsModal(true)}
+                        onDisconnect={handleDisconnect}
+                        onProvisionWallet={handleProvisionWallet}
                         onNotifications={() => setShowAlertsDrawer(true)}
                       />
                       <main className="no-scrollbar flex-1 overflow-y-auto">
@@ -380,6 +382,7 @@ export function AppShell() {
                             onConnect={() => setShowConnectModal(true)}
                             onOpenAddFunds={() => setShowAddFundsModal(true)}
                             onProvisionWallet={handleProvisionWallet}
+                            walletAddress={walletAddress}
                           />
                         )}
                       </main>
@@ -407,14 +410,6 @@ export function AppShell() {
               onToggleTheme={() => setDark((d) => !d)}
               onSubCategoryClick={(value) => setCategoryDetail(value)}
               onNavigatePortfolio={() => setTab('portfolio')}
-              authenticated={authenticated}
-              walletConnected={walletConnected}
-              walletAddress={walletAddress}
-              walletProvider={walletProvider}
-              userEmail={userEmail}
-              onConnect={() => setShowConnectModal(true)}
-              onDisconnect={handleDisconnect}
-              onProvisionWallet={handleProvisionWallet}
             />
             {trade && (
               <TradeSheet

@@ -109,14 +109,6 @@ export function DrawerMenu({
   onToggleTheme,
   onSubCategoryClick,
   onNavigatePortfolio,
-  authenticated = false,
-  walletConnected,
-  walletAddress,
-  walletProvider,
-  userEmail,
-  onConnect,
-  onDisconnect,
-  onProvisionWallet,
 }: {
   open: boolean
   onClose: () => void
@@ -124,14 +116,6 @@ export function DrawerMenu({
   onToggleTheme: () => void
   onSubCategoryClick?: (value: string) => void
   onNavigatePortfolio?: () => void
-  authenticated?: boolean
-  walletConnected: boolean
-  walletAddress: string
-  walletProvider: string
-  userEmail?: string
-  onConnect: () => void
-  onDisconnect: () => void
-  onProvisionWallet?: (type: 'embedded' | 'external', extProvider?: string) => void
 }) {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
 
@@ -189,103 +173,7 @@ export function DrawerMenu({
         </div>
 
         <div className="no-scrollbar flex-1 overflow-y-auto px-3 pb-4">
-          {/* User Profile Section */}
-          <div className="space-y-1.5">
-            <p className="px-3 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              User Profile
-            </p>
-            {walletConnected ? (
-              <div className="rounded-[12px] border border-border bg-secondary/15 p-3.5 mx-3 space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Identity</span>
-                  <span className="text-[9px] uppercase font-mono bg-primary/15 text-primary px-2 py-0.5 rounded font-black tracking-wide">
-                    {walletProvider === 'google' ? 'Google 🔑' : 
-                     walletProvider === 'telegram' ? 'Telegram ✉️' :
-                     walletProvider === 'twitter' ? 'Twitter 𝕏' :
-                     walletProvider === 'apple' ? 'Apple 🍏' :
-                     walletProvider === 'email' ? 'Email ✉️' : walletProvider}
-                  </span>
-                </div>
-                
-                {userEmail && userEmail !== 'external-wallet' && (
-                  <p className="text-xs font-bold text-foreground truncate select-all">{userEmail}</p>
-                )}
-                
-                <div className="space-y-0.5">
-                  <span className="text-[9px] uppercase font-bold text-muted-foreground">Embedded Wallet</span>
-                  <p className="text-[10px] font-mono text-muted-foreground truncate select-all">{walletAddress}</p>
-                </div>
-
-                <button
-                  onClick={() => {
-                    onDisconnect()
-                    onClose()
-                  }}
-                  className="w-full text-center rounded-[8px] bg-no-soft border border-no/20 py-1.5 text-[10px] font-bold text-no hover:bg-no/20 active:scale-[0.98] transition-all"
-                >
-                  Disconnect Wallet
-                </button>
-              </div>
-            ) : authenticated ? (
-              <div className="rounded-[12px] border border-border bg-secondary/15 p-3.5 mx-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground">Identity</span>
-                  <span className="text-[9px] uppercase font-mono bg-secondary/40 text-muted-foreground px-2 py-0.5 rounded font-black tracking-wide">
-                    {walletProvider === 'google' ? 'Google 🔑' : 
-                     walletProvider === 'telegram' ? 'Telegram ✉️' :
-                     walletProvider === 'twitter' ? 'Twitter 𝕏' :
-                     walletProvider === 'apple' ? 'Apple 🍏' :
-                     walletProvider === 'email' ? 'Email ✉️' : walletProvider}
-                  </span>
-                </div>
-                
-                {userEmail && userEmail !== 'external-wallet' && (
-                  <p className="text-xs font-bold text-foreground truncate select-all">{userEmail}</p>
-                )}
-                
-                <div className="pt-1.5 space-y-1.5">
-                  <button
-                    onClick={() => {
-                      onProvisionWallet?.('embedded')
-                      onClose()
-                    }}
-                    className="w-full text-center rounded-[8px] bg-primary py-1.5 text-[10px] font-bold text-primary-foreground shadow hover:scale-[1.01] active:scale-[0.98] transition-all"
-                  >
-                    Create Embedded Wallet
-                  </button>
-                  <button
-                    onClick={() => {
-                      onConnect()
-                      onClose()
-                    }}
-                    className="w-full text-center rounded-[8px] border border-border bg-secondary/20 py-1.5 text-[10px] font-bold text-foreground hover:bg-secondary/45 active:scale-[0.98] transition-all"
-                  >
-                    Link External Web3 Wallet
-                  </button>
-                </div>
-
-                <button
-                  onClick={() => {
-                    onDisconnect()
-                    onClose()
-                  }}
-                  className="w-full text-center rounded-[8px] bg-no-soft/30 border border-no/10 py-1 text-[9px] font-bold text-no hover:bg-no/20 transition-all mt-1"
-                >
-                  Sign Out
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  onConnect()
-                  onClose()
-                }}
-                className="flex w-full items-center gap-3 rounded-[10px] px-3 py-2 text-primary font-bold transition-colors active:bg-accent hover:bg-accent/50"
-              >
-                <Wallet className="h-5 w-5 shrink-0" />
-                <span className="text-sm">Sign In</span>
-              </button>
-            )}
+          <div className="space-y-1.5 pt-3">
             <button
               onClick={() => {
                 onNavigatePortfolio?.()
