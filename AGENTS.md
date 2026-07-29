@@ -130,3 +130,35 @@ Stats: 32 obs (15,208t read) | 740,608t work | 98% savings
 
 Access 741k tokens of past work via get_observations([IDs]) or mem-search skill.
 </claude-mem-context>
+
+## Cursor Cloud specific instructions
+
+Environment already prepared in the VM snapshot; the startup update script only refreshes
+project deps (`pnpm install --no-frozen-lockfile`, `go -C apps/backend mod download`).
+
+- **Toolchain baked into the snapshot (not the update script):** Go 1.26 at `/usr/local/go`
+  (`go.mod` needs ≥1.24; the distro's Go 1.22 is too old) and PostgreSQL 16. **Docker is not
+  installed** — use the native dev path (README "Quick start"), not `docker compose up`. The
+  compose files are also partly stale (they reference `cmd/indexer`, `cmd/price-worker`, and
+  `apps/ops-web`, none of which exist in the current tree).
+- **Postgres is not auto-started** (no systemd/docker here). Start it each session with
+  `sudo pg_ctlcluster 16 main start`. It listens on **port 5433** (matches `.env.example` and
+  the compose host port). Role/DB `retropick`/`retropick`; DSN:
+  `postgres://retropick:retropick@127.0.0.1:5433/retropick?sslmode=disable`.
+- **Lockfile is stale** vs `apps/web/package.json`, so `pnpm install --frozen-lockfile` fails;
+  use `--no-frozen-lockfile`. Do not commit the resulting `pnpm-lock.yaml` churn.
+- **Backend build/test** require `GOFLAGS=-buildvcs=false` (see `apps/backend/Makefile`).
+- **Run order** (each in its own shell, from repo root unless noted):
+  - migrate: `DATABASE_URL=... GOFLAGS=-buildvcs=false go -C apps/backend run ./cmd/migrator`
+  - API (markets-bff, :8080): same env + `MARKETS_CATALOG_ENABLED=1`, then
+    `go -C apps/backend run ./cmd/api`. Health: `/api/v1/livez`, `/api/v1/readyz`.
+  - Web (:3000): `NEXT_PUBLIC_API_URL=http://127.0.0.1:8080 pnpm dev:web`. The web app is a
+    react-router SPA mounted inside Next; it reads the API base from `NEXT_PUBLIC_API_URL`.
+  - The catalog (`/api/v1/markets/events`) proxies Polymarket's Gamma API, so outbound
+    internet is required for live data (set `MARKETS_CATALOG_ENABLED=0` for an empty stub).
+- **Known pre-existing failures on `main` (NOT environment issues):** `go -C apps/backend test
+  ./...` fails only in `internal/registry` (legacy Celo/Alfajores test points at
+  `packages/contracts/registry.celo-alfajores.json`, which was moved to `archive/`); and
+  `pnpm typecheck`/`pnpm build` fail in `@retropick/polymarket` (`src/index.ts` needs an
+  explicit `./types.js` extension under `node16` module resolution). The active Markets V1
+  packages (`apps/backend/internal/markets`, `apps/web`) build, lint, typecheck, and test clean.
