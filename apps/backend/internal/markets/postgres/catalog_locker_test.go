@@ -93,6 +93,48 @@ func TestCatalogLockerConcurrentWorkersNeverOverlap(t *testing.T) {
 	wg.Wait()
 }
 
+func TestCatalogLockerRepeatedReleaseIsSafe(t *testing.T) {
+	pool := integrationPool(t)
+	locker, err := NewCatalogLocker(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	lease, acquired, err := locker.TryAcquire(ctx)
+	if err != nil || !acquired {
+		t.Fatalf("acquire acquired=%v err=%v", acquired, err)
+	}
+	if err := lease.Release(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := lease.Release(ctx); err != nil {
+		t.Fatalf("second release should be idempotent: %v", err)
+	}
+}
+
+func TestCatalogLockerPoolStableAfterManyAcquireReleaseCycles(t *testing.T) {
+	pool := integrationPool(t)
+	locker, err := NewCatalogLocker(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	before := pool.Stat().TotalConns()
+	for i := 0; i < 25; i++ {
+		lease, acquired, err := locker.TryAcquire(ctx)
+		if err != nil || !acquired {
+			t.Fatalf("cycle %d acquire acquired=%v err=%v", i, acquired, err)
+		}
+		if err := lease.Release(ctx); err != nil {
+			t.Fatalf("cycle %d release: %v", i, err)
+		}
+	}
+	after := pool.Stat().TotalConns()
+	if after > before+1 {
+		t.Fatalf("connection count grew unexpectedly before=%d after=%d", before, after)
+	}
+}
+
 func integrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	databaseURL := os.Getenv("DATABASE_URL")

@@ -105,7 +105,7 @@ func TestApplyPageEmitsRuleChangedOnce(t *testing.T) {
 				ConditionID:   "0xsignal-rule",
 				Question:      "Rule market?",
 				Status:        markets.MarketStatusOpen,
-				Outcomes:      []markets.Outcome{{ID: "polymarket:token:rule", UpstreamID: "token", Name: "Yes"}},
+				Outcomes:      []markets.Outcome{{ID: "polymarket:token:rule", UpstreamID: "token-signal-rule", Name: "Yes"}},
 				Resolution:    markets.ResolutionRule{Description: "Rule", ContentHash: ruleHash},
 				Freshness:     markets.MarketFreshness{State: markets.FreshnessFresh, ObservedAt: observed},
 				Provenance:    markets.UpstreamProvenance{Source: "polymarket_gamma", ObservedAt: observed, ContentHash: "market-hash"},
