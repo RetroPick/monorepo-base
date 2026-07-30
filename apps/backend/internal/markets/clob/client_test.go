@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -137,6 +138,21 @@ func TestCLOBClassifiesRateLimit(t *testing.T) {
 
 	_, err := NewClient(srv.URL).GetOrderBook(context.Background(), "token-yes")
 	if !errors.Is(err, ErrRateLimited) {
+		t.Fatalf("error %v", err)
+	}
+}
+
+func TestCLOBRejectsOversizedPayload(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Repeat("x", maxResponseBytes+1)))
+	}))
+	defer srv.Close()
+
+	_, err := NewClient(srv.URL).GetOrderBook(context.Background(), "token-yes")
+	if !errors.Is(err, ErrInvalidPayload) {
 		t.Fatalf("error %v", err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -139,6 +140,21 @@ func TestGammaClassifiesNotFound(t *testing.T) {
 
 	_, err := NewClient(srv.URL).GetEvent(context.Background(), "missing")
 	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("error %v", err)
+	}
+}
+
+func TestGammaRejectsOversizedPayload(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Repeat("x", maxResponseBytes+1)))
+	}))
+	defer srv.Close()
+
+	_, err := NewClient(srv.URL).ListEvents(context.Background(), 1, 0)
+	if !errors.Is(err, ErrInvalidPayload) {
 		t.Fatalf("error %v", err)
 	}
 }

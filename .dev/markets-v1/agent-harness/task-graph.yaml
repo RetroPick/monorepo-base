@@ -485,7 +485,7 @@ tasks:
     phase: "PHASE-1"
     title: "Deterministic basic signal foundation"
     goal: "Generate versioned evidence-linked new-market, price-move, liquidity-change, and rule-change signals."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-004"
       - "MKT-P1-005"
@@ -508,7 +508,8 @@ tasks:
       - "go -C apps/backend test ./internal/markets/signals -count=1"
     acceptance_criteria:
       - "Same evidence and rule version produce the same idempotency key"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-008.yaml"
     rollback: "Disable intelligence capability without affecting catalog."
     human_approval_required: false
     handoff_to:
@@ -517,7 +518,7 @@ tasks:
     phase: "PHASE-1"
     title: "Observability, security controls, CI, and runbooks"
     goal: "Expose bounded metrics and enforce upstream, API, schema, and resource controls."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-006"
       - "MKT-P1-008"
