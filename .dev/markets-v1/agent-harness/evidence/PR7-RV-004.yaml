@@ -2,20 +2,26 @@ id: PR7-RV-004
 title: pnpm lockfile churn audit
 severity: P2
 status: resolved
-decision: revert_lockfile_to_main
+decision: sync_lockfile_to_package_json
 manifest_changes:
-  - packages/polymarket/src/index.ts (NodeNext .js extension only)
+  - packages/polymarket/src/index.ts (NodeNext .js extension)
+  - apps/web/package.json unchanged vs main; lockfile importers were stale
 lockfile_audit:
+  - importer: apps/web
+    previous: lockfile listed @retropick/contracts and @retropick/polymarket
+    new: lockfile lists @retropick/polymarket only
+    manifest: apps/web/package.json (unchanged)
+    keep: sync required for pnpm install --frozen-lockfile
   - importer: packages/polymarket
     previous: "./types" import
     new: "./types.js" import
     manifest: packages/polymarket/src/index.ts
     keep: true
-  - importer: pnpm-lock.yaml
-    previous: branch-regenerated resolutions
-    new: origin/main lockfile restored
-    manifest: none (no package.json diff vs main)
-    keep: revert
+  - package: transitive resolutions
+    previous: main lockfile resolution tree
+    new: pnpm install normalized tree after importer fix
+    manifest: derived from workspace graph
+    keep: required; no package.json version bumps
 verification:
   - corepack enable && pnpm install --frozen-lockfile
   - pnpm typecheck
