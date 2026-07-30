@@ -453,7 +453,7 @@ tasks:
     phase: "PHASE-1"
     title: "Realtime client envelope"
     goal: "Publish versioned normalized snapshot/delta/update envelopes without claiming sequence guarantees."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-005"
       - "MKT-P1-006"
@@ -475,7 +475,8 @@ tasks:
       - "go -C apps/backend test ./internal/markets/realtime -count=1"
     acceptance_criteria:
       - "No undocumented monotonic sequence is exposed"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-007.yaml"
     rollback: "Disable realtime capability; REST snapshots remain authoritative."
     human_approval_required: false
     handoff_to:
@@ -484,7 +485,7 @@ tasks:
     phase: "PHASE-1"
     title: "Deterministic basic signal foundation"
     goal: "Generate versioned evidence-linked new-market, price-move, liquidity-change, and rule-change signals."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-004"
       - "MKT-P1-005"
