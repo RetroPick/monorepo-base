@@ -3,6 +3,7 @@
 - **Branch:** `cursor/markets-v1-backend-phase1-5b74`
 - **PR:** https://github.com/RetroPick/monorepo-base/pull/7 (draft)
 - **Base SHA:** `05d85e1e0c95e8507a2b62dc316b00768b532d7a`
+- **Final HEAD:** `14725abd3312889f253410835ec4ad653416ed98`
 - **Closure task set:** `P1C-001` … `P1C-009` (Phase 1.1 runtime + CI closure)
 - **Status:** `backend_runtime_closure_ready_for_independent_review` — draft PR; human review before merge
 
