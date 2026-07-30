@@ -1,0 +1,11 @@
+id: PR7-RV-002
+title: Gitlink gate exact allowlist
+severity: P1
+status: resolved
+finding: scripts/check-gitlinks.sh used broad archive/* bypass
+resolution: Explicit ALLOWLISTED_UNREGISTERED_GITLINKS array with reviewed paths only
+tests:
+  - scripts/check-gitlinks_test.sh
+commands:
+  - bash scripts/check-gitlinks.sh
+  - bash scripts/check-gitlinks_test.sh

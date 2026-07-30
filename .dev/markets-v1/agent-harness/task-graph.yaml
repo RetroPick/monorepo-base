@@ -681,4 +681,49 @@ tasks:
     owned_paths:
       - ".dev/markets-v1/agent-harness/"
       - "apps/backend/internal/markets/README.md"
+  - id: PR7-RV-001
+    phase: "PHASE-1"
+    title: "Advisory lock hijack session leak"
+    status: "done"
+    depends_on: ["P1C-003"]
+    owned_paths:
+      - "apps/backend/internal/markets/postgres/catalog_locker.go"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-001.yaml"
+  - id: PR7-RV-002
+    phase: "PHASE-1"
+    title: "Exact gitlink allowlist"
+    status: "done"
+    depends_on: ["P1C-007"]
+    owned_paths:
+      - "scripts/check-gitlinks.sh"
+      - "scripts/check-gitlinks_test.sh"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-002.yaml"
+  - id: PR7-RV-003
+    phase: "PHASE-1"
+    title: "Landing standalone gitlink ownership"
+    status: "done"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-003.yaml"
+  - id: PR7-RV-004
+    phase: "PHASE-1"
+    title: "pnpm lockfile churn audit"
+    status: "done"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-004.yaml"
+  - id: PR7-RV-005
+    phase: "PHASE-1"
+    title: "Projection freshness vs worker health"
+    status: "done"
+    owned_paths:
+      - "apps/backend/internal/markets/health_catalog.go"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-005.yaml"
+  - id: PR7-RV-006
+    phase: "PHASE-1"
+    title: "Traceability and evidence hygiene"
+    status: "done"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-006.yaml"
 

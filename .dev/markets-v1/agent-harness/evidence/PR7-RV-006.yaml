@@ -1,0 +1,9 @@
+id: PR7-RV-006
+title: Traceability and evidence hygiene
+severity: P2
+status: resolved
+finding: Tracked CURRENT_IMPLEMENTATION_STATE contained self-referential Final HEAD
+resolution: Use evidence baseline SHA, latest CI run URL in PR description; Graphify marked SKIPPED_NOT_ENFORCED when CLI absent
+files:
+  - .dev/markets-v1/agent-harness/CURRENT_IMPLEMENTATION_STATE.md
+  - .dev/markets-v1/agent-harness/evidence/PR7-RV-*.yaml
