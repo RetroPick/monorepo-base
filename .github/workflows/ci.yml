@@ -28,6 +28,8 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: go -C apps/backend build ./...
+      - name: Markets OpenAPI contract
+        run: go -C apps/backend test ./internal/markets -run TestMarketsOpenAPIContainsPhaseOneReadContract -count=1
       - run: go -C apps/backend test ./...
       - run: bash scripts/check-graphify-freshness.sh
 
@@ -52,10 +54,13 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - name: Migration V3 smoke
+      - name: Migration and Markets V1 smoke
         env:
           DATABASE_URL: postgres://retropick:retropick@localhost:5432/retropick?sslmode=disable
-        run: go -C apps/backend test ./internal/db/... -run TestMigrationV3 -count=1
+        run: |
+          go -C apps/backend test ./internal/db/... -run TestMigrationV3 -count=1
+          go -C apps/backend test ./internal/markets/postgres -count=1
+          go -C apps/backend test ./migrations -run TestMarketsV1Migration -count=1
 
   sqlc-drift:
     runs-on: ubuntu-latest

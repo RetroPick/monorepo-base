@@ -102,3 +102,27 @@ flowchart LR
 ## 16. Acceptance criteria
 
 - Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+
+## Phase 1 backend implementation baseline
+
+The API `/metrics` surface includes bounded-label Markets metrics:
+
+- `retropick_markets_upstream_requests_total{upstream,result}`;
+- `retropick_markets_upstream_request_duration_seconds_{sum,count}{upstream}`;
+- `retropick_markets_catalog_records_processed_total`;
+- `retropick_markets_catalog_last_success_timestamp_seconds`;
+- `retropick_markets_books_total{state}`;
+- `retropick_markets_signals_total{result}`.
+
+Allowed labels are compile-time enums. Market IDs, token IDs, request IDs, URLs,
+and upstream error text are not metric labels.
+
+`/api/v1/health/live` reports process liveness without calling Polymarket.
+`/api/v1/health/ready` checks required local dependencies and may report
+upstream degradation separately. Catalog, market-data, realtime, and signal
+failures remain isolated as defined by ADR-010.
+
+Initial alert inputs are catalog checkpoint age, Gamma/CLOB error ratio,
+stale/resyncing/invalid book count, and signal replay backlog. Threshold tuning
+requires observed staging traffic; no composite market-health score is invented
+in Phase 1.

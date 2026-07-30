@@ -30,6 +30,18 @@ func TestMigrationV3(t *testing.T) {
 		"fee_route_batches",
 		"reporter_submissions",
 		"referral_bindings",
+		"markets_catalog_events",
+		"markets_catalog_markets",
+		"markets_catalog_outcomes",
+		"markets_catalog_rules",
+		"markets_market_data_latest",
+		"markets_market_data_history",
+		"markets_market_health_snapshots",
+		"markets_raw_upstream_events",
+		"markets_sync_checkpoints",
+		"markets_market_signals",
+		"markets_signal_evidence",
+		"markets_signal_retractions",
 	}
 	for _, table := range required {
 		var exists bool
