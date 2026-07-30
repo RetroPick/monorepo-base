@@ -195,37 +195,84 @@ tasks:
     rollback: ""
     human_approval_required: true
     handoff_to: []
+  - id: MKT-P1-000
+    phase: "PHASE-1"
+    title: "Implementation preflight and reconciliation gate"
+    goal: "Reconcile the backend-first assignment with repository state and official read interfaces."
+    status: "done"
+    depends_on: []
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - ".dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md"
+      - ".dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md"
+    read_only_inputs:
+      - "apps/backend/"
+      - "schemas/openapi/markets-v1.yaml"
+    deliverables:
+      - "PASS_WITH_FOCUSED_ADR reconciliation result"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "No production write, credential, signing, or fund movement"
+    tests: []
+    commands:
+      - "git status --short"
+      - "go -C apps/backend test ./internal/markets/..."
+    acceptance_criteria:
+      - "Repository-to-design matrix recorded"
+      - "Official read interfaces and undocumented sequence limitation recorded"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md"
+    rollback: "Revert reconciliation commit; no runtime state changed."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P1-001"
   - id: MKT-P1-001
     phase: "PHASE-1"
-    title: "OpenAPI markets-v1 expansion"
-    goal: "Extend schemas/openapi/markets-v1.yaml for catalog read models."
-    status: "planned"
+    title: "Canonical domain and schema contracts"
+    goal: "Define versioned public read, freshness, health, realtime, error, and signal contracts."
+    status: "ready"
     depends_on:
-      - "MKT-P0-008"
+      - "MKT-P1-000"
     may_run_in_parallel_with: []
     must_not_overlap_with: []
     owned_paths:
       - "schemas/openapi/markets-v1.yaml"
-    read_only_inputs: []
-    deliverables: []
+      - "apps/backend/internal/markets/types.go"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md"
+    deliverables:
+      - "OpenAPI 3.1 contract and matching Go domain types"
     schema_changes:
       - "EventDetail"
-      - "MarketSummary"
+      - "MarketDetail"
+      - "OrderBookSnapshot"
+      - "PricePoint"
+      - "MarketHealthSnapshot"
+      - "SignalEnvelope"
+      - "RealtimeEnvelope"
     migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
+    security_requirements:
+      - "Decimal strings only for prices and sizes"
+      - "Every upstream-derived response includes provenance and freshness"
+    tests:
+      - "OpenAPI parses and required schema names exist"
+      - "Fixed-point and enum validation unit tests pass"
+    commands:
+      - "go -C apps/backend test ./internal/markets/... -count=1"
     acceptance_criteria:
       - "OpenAPI validates"
-      - "Web and Android codegen path documented"
+      - "No upstream SDK or database type leaks into public models"
     verification_evidence: []
-    rollback: ""
+    rollback: "Revert contract commit before any client consumes version 1.1.0."
     human_approval_required: false
-    handoff_to: []
+    handoff_to:
+      - "MKT-P1-002"
   - id: MKT-P1-002
     phase: "PHASE-1"
-    title: "Gamma catalog client hardening"
-    goal: "Normalize Polymarket Gamma responses in internal/markets/gamma."
+    title: "Polymarket public-read anti-corruption clients"
+    goal: "Validate and normalize official Gamma and CLOB public responses behind RetroPick interfaces."
     status: "planned"
     depends_on:
       - "MKT-P1-001"
@@ -233,25 +280,31 @@ tasks:
     must_not_overlap_with: []
     owned_paths:
       - "apps/backend/internal/markets/gamma/"
-      - "apps/backend/internal/markets/service.go"
-    read_only_inputs: []
-    deliverables: []
+      - "apps/backend/internal/markets/clob/"
+    read_only_inputs:
+      - "schemas/openapi/markets-v1.yaml"
+    deliverables:
+      - "Bounded HTTP clients and sanitized fixtures"
     schema_changes: []
     migrations: []
-    security_requirements: []
+    security_requirements:
+      - "Allowlisted HTTPS production hosts"
+      - "Bounded response size, timeout, retries, and redacted errors"
     tests:
-      - "go test ./apps/backend/internal/markets/..."
+      - "Golden mapping and upstream error classification tests"
     commands:
-      - "go test ./apps/backend/internal/markets/..."
-    acceptance_criteria: []
+      - "go -C apps/backend test ./internal/markets/gamma ./internal/markets/clob -count=1"
+    acceptance_criteria:
+      - "No direct upstream DTO is exposed by a public handler"
     verification_evidence: []
-    rollback: ""
+    rollback: "Revert clients and retain disabled catalog capability."
     human_approval_required: false
-    handoff_to: []
+    handoff_to:
+      - "MKT-P1-003"
   - id: MKT-P1-003
     phase: "PHASE-1"
-    title: "Markets database schema v1"
-    goal: "Migrations for catalog cache and watchlist foundation."
+    title: "Markets database migrations and repositories"
+    goal: "Persist idempotent catalog, market-data, health, checkpoint, and signal projections."
     status: "planned"
     depends_on:
       - "MKT-P1-001"
@@ -259,187 +312,266 @@ tasks:
     must_not_overlap_with: []
     owned_paths:
       - "apps/backend/migrations/"
-    read_only_inputs: []
-    deliverables: []
+      - "apps/backend/sql/"
+      - "apps/backend/internal/markets/postgres/"
+    read_only_inputs:
+      - "apps/backend/sqlc.yaml"
+    deliverables:
+      - "Migration 000016 and repository implementations"
     schema_changes: []
     migrations:
       - "markets_catalog_events"
-      - "markets_watchlists"
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
+      - "markets_catalog_markets"
+      - "markets_catalog_outcomes"
+      - "markets_catalog_rules"
+      - "markets_market_data_latest"
+      - "markets_market_data_history"
+      - "markets_market_health_snapshots"
+      - "markets_raw_upstream_events"
+      - "markets_sync_checkpoints"
+      - "markets_market_signals"
+      - "markets_signal_evidence"
+      - "markets_signal_retractions"
+    security_requirements:
+      - "Raw payload retention is bounded and contains no secrets"
+      - "Checkpoint advances only with durable projection writes"
+    tests:
+      - "Migration forward and rollback verification"
+      - "Repository idempotency tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/postgres ./internal/db -count=1"
+    acceptance_criteria:
+      - "Duplicate upserts are safe"
+      - "Closed and resolved markets remain queryable"
     verification_evidence: []
-    rollback: ""
+    rollback: "Run migration 000016 down only before production data exists."
     human_approval_required: false
-    handoff_to: []
+    handoff_to:
+      - "MKT-P1-004"
   - id: MKT-P1-004
     phase: "PHASE-1"
-    title: "Web markets read routes"
-    goal: "Product shell routes under apps/web/src/products/markets for event list and detail."
+    title: "Catalog synchronization and checkpointing"
+    goal: "Ingest bounded Gamma pages with validated relationships, rule hashes, and durable checkpoints."
     status: "planned"
     depends_on:
       - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/web/src/products/markets/"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "Same canonical market ID as OpenAPI"
-      - "Stale state visible"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-005
-    phase: "PHASE-1"
-    title: "Signal schema foundation"
-    goal: "Shared signal envelope for alerts (ADR-008)."
-    status: "planned"
-    depends_on:
       - "MKT-P1-003"
     may_run_in_parallel_with: []
     must_not_overlap_with: []
     owned_paths:
-      - ".dev/markets-v1/intelligence/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md"
-    read_only_inputs: []
-    deliverables: []
+      - "apps/backend/internal/markets/catalog/"
+    read_only_inputs:
+      - "apps/backend/internal/markets/gamma/"
+    deliverables:
+      - "Replayable idempotent catalog sync use case"
     schema_changes: []
     migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
+    security_requirements:
+      - "Bounded pages and backfill"
+    tests:
+      - "Duplicate, tombstone, rule-change, and checkpoint tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/catalog -count=1"
+    acceptance_criteria:
+      - "Checkpoint does not advance on projection failure"
     verification_evidence: []
-    rollback: ""
+    rollback: "Disable catalog sync and serve last durable projection."
     human_approval_required: false
-    handoff_to: []
+    handoff_to:
+      - "MKT-P1-005"
+  - id: MKT-P1-005
+    phase: "PHASE-1"
+    title: "Market-data ingest, freshness, and resynchronization"
+    goal: "Normalize CLOB snapshots/history and implement hash/time-based degraded states."
+    status: "planned"
+    depends_on:
+      - "MKT-P1-002"
+      - "MKT-P1-003"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/marketdata/"
+    read_only_inputs:
+      - "apps/backend/internal/markets/clob/"
+    deliverables:
+      - "Validated book, history, health, and forced-resnapshot state machine"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Invalid or stale books are never labeled live"
+    tests:
+      - "Decimal, ordering, crossed-book, hash-gap, age, and sparse-history tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/marketdata -count=1"
+    acceptance_criteria:
+      - "Fresh, stale, resyncing, unavailable, and invalid states are deterministic"
+    verification_evidence: []
+    rollback: "Disable market-data capability and retain catalog reads."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P1-006"
   - id: MKT-P1-006
     phase: "PHASE-1"
-    title: "Realtime snapshot and gap recovery design"
-    goal: "Document WS snapshot/gap protocol per ADR-005."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/backend/API_AND_REALTIME_CONTRACTS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-007
-    phase: "PHASE-1"
-    title: "Android module scaffold plan"
-    goal: "Gradle module graph and README alignment (implementation in PHASE-5)."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-001"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/android/README.md"
-      - ".dev/markets-v1/android/GRADLE_MODULE_GRAPH.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "Documented Compose-only stack"
-      - "No hidden Polymarket adapter in app"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-008
-    phase: "PHASE-1"
-    title: "Contract conformance tests"
-    goal: "OpenAPI conformance tests for markets handlers."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/backend/internal/markets/handler_test.go"
-      - ".dev/markets-v1/testing/CONTRACT_AND_CONFORMANCE_TESTS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests:
-      - "contract tests pass"
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-009
-    phase: "PHASE-1"
-    title: "Observability baseline"
-    goal: "Metrics for catalog freshness and Gamma error rate."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/platform/OBSERVABILITY_SLOS_AND_ALERTS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-010
-    phase: "PHASE-1"
-    title: "PHASE-1 exit gate verification"
-    goal: "Web renders canonical market; no signing or fund movement."
+    title: "Public read API handlers and error contract"
+    goal: "Serve all authorized read endpoints with deterministic errors and degraded states."
     status: "planned"
     depends_on:
       - "MKT-P1-004"
+      - "MKT-P1-005"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/handler.go"
+      - "apps/backend/internal/markets/router.go"
+      - "apps/backend/internal/markets/service.go"
+    read_only_inputs:
+      - "schemas/openapi/markets-v1.yaml"
+    deliverables:
+      - "Contract-conformant public read routes"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Public rate limits and safe error redaction"
+    tests:
+      - "API integration and contract conformance tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/... -count=1"
+    acceptance_criteria:
+      - "Invalid input is 400/404, upstream failure is 502/503, and stale fallback is explicit"
+    verification_evidence: []
+    rollback: "Disable Markets catalog and market-data capabilities."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P1-007"
+  - id: MKT-P1-007
+    phase: "PHASE-1"
+    title: "Realtime client envelope"
+    goal: "Publish versioned normalized snapshot/delta/update envelopes without claiming sequence guarantees."
+    status: "planned"
+    depends_on:
+      - "MKT-P1-005"
+      - "MKT-P1-006"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/realtime/"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md"
+    deliverables:
+      - "Versioned envelope and gap/reconnect tests"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Unknown schema versions fail closed"
+    tests:
+      - "Snapshot, hash-gap, disconnect, and resync tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/realtime -count=1"
+    acceptance_criteria:
+      - "No undocumented monotonic sequence is exposed"
+    verification_evidence: []
+    rollback: "Disable realtime capability; REST snapshots remain authoritative."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P1-008"
+  - id: MKT-P1-008
+    phase: "PHASE-1"
+    title: "Deterministic basic signal foundation"
+    goal: "Generate versioned evidence-linked new-market, price-move, liquidity-change, and rule-change signals."
+    status: "planned"
+    depends_on:
+      - "MKT-P1-004"
+      - "MKT-P1-005"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/signals/"
+    read_only_inputs:
+      - "apps/backend/internal/markets/catalog/"
+      - "apps/backend/internal/markets/marketdata/"
+    deliverables:
+      - "Replayable signal evaluator with dedupe and retraction"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "No LLM, trader classification, or unsupported claim"
+    tests:
+      - "Replay, dedupe, expiry, and retraction tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/signals -count=1"
+    acceptance_criteria:
+      - "Same evidence and rule version produce the same idempotency key"
+    verification_evidence: []
+    rollback: "Disable intelligence capability without affecting catalog."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P1-009"
+  - id: MKT-P1-009
+    phase: "PHASE-1"
+    title: "Observability, security controls, CI, and runbooks"
+    goal: "Expose bounded metrics and enforce upstream, API, schema, and resource controls."
+    status: "planned"
+    depends_on:
+      - "MKT-P1-006"
       - "MKT-P1-008"
     may_run_in_parallel_with: []
     must_not_overlap_with: []
-    owned_paths: []
-    read_only_inputs: []
-    deliverables: []
+    owned_paths:
+      - "apps/backend/internal/markets/metrics.go"
+      - "apps/backend/internal/config/config.go"
+      - ".github/workflows/ci.yml"
+      - ".dev/markets-v1/platform/"
+    read_only_inputs:
+      - ".dev/markets-v1/security/"
+    deliverables:
+      - "Metrics, production host validation, CI gates, and operator notes"
     schema_changes: []
     migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
+    security_requirements:
+      - "SSRF allowlist, size limits, bounded pagination, and log redaction"
+    tests:
+      - "Malformed, oversized, invalid-host, and resource-bound tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/... ./internal/config -count=1"
+      - "go -C apps/backend build ./..."
     acceptance_criteria:
-      - "Schema conformance SLOs pass"
-      - "Signal reproducible from evidence"
+      - "Liveness is upstream-independent and readiness reports degraded dependencies"
     verification_evidence: []
-    rollback: ""
+    rollback: "Revert metrics/config gates with application changes."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P1-010"
+  - id: MKT-P1-010
+    phase: "PHASE-1"
+    title: "Verification, traceability, and handoff"
+    goal: "Run CI-equivalent backend verification and record exact evidence for reviewed client integration."
+    status: "planned"
+    depends_on:
+      - "MKT-P1-007"
+      - "MKT-P1-009"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - ".dev/markets-v1/agent-harness/"
+    read_only_inputs:
+      - "apps/backend/"
+      - "schemas/openapi/markets-v1.yaml"
+    deliverables:
+      - "Verification evidence, requirement traceability, and current handoff"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "No secrets or mutable production actions in evidence"
+    tests:
+      - "All relevant deterministic, integration, migration, schema, and build gates"
+    commands:
+      - "go -C apps/backend test ./internal/markets/... -count=1"
+      - "go -C apps/backend test ./... -count=1"
+      - "go -C apps/backend build ./..."
+    acceptance_criteria:
+      - "Every completed task links exact verification evidence"
+      - "No frontend, Android, trading, PRISM, signing, or fund movement"
+    verification_evidence: []
+    rollback: "Revert Phase 1 commits and migration before deployment."
     human_approval_required: false
     handoff_to: []

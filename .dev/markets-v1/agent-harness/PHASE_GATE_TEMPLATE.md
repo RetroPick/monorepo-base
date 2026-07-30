@@ -9,6 +9,9 @@
 | Phase ID | PHASE-N |
 | Reviewer | |
 | Date | |
+| Reconciliation report | |
+| Focused ADR | |
+| Evidence last revalidated | |
 
 ## Entry criteria
 
@@ -35,6 +38,7 @@
 ## Decision
 
 - [ ] APPROVED — advance `current_phase`
+- [ ] PASS_WITH_FOCUSED_ADR — advance with the named scope qualifier
 - [ ] REJECTED — list remediations
 
 

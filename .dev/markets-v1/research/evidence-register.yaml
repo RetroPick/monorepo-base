@@ -1,6 +1,6 @@
 # Evidence register — machine-readable
 version: 1
-last_updated: 2026-07-24
+last_updated: 2026-07-30
 entries:
   - id: EV-001
     claim: Polymarket CLOB V2 is current trading API
@@ -10,11 +10,11 @@ entries:
     consequence: All order paths use V2 client patterns
     revalidation_trigger: Polymarket changelog / SDK major bump
   - id: EV-002
-    claim: Markets BFF stub serves /api/v1/markets/*
+    claim: Markets BFF partially serves eligibility, capabilities, and event listing under /api/v1/markets/*
     source_path: apps/backend/internal/markets/README.md
-    retrieved: 2026-07-24
+    retrieved: 2026-07-30
     confidence: verified
-    consequence: Web/Android integrate via OpenAPI not legacy
+    consequence: Phase 1 extends this bounded context instead of legacy handlers
   - id: EV-003
     claim: Legacy epoch frozen at /api/v1/legacy/markets/*
     source_path: docs/ARCHITECTURE.md
@@ -39,3 +39,37 @@ entries:
     retrieved: 2026-07-24
     confidence: verified
     consequence: Markets docs exclude PRISM implementation
+  - id: EV-007
+    claim: Gamma is the official public event and market metadata surface
+    source_url: https://docs.polymarket.com/getting-started/api
+    retrieved: 2026-07-30
+    confidence: verified
+    consequence: Catalog calls are isolated behind the Gamma anti-corruption client
+    revalidation_trigger: Gamma API reference or changelog change
+  - id: EV-008
+    claim: CLOB exposes public order-book snapshots and price history at /book and /prices-history
+    source_url: https://docs.polymarket.com/market-data/prices-order-books
+    retrieved: 2026-07-30
+    confidence: verified
+    consequence: Market data uses decimal strings and authoritative snapshots
+    revalidation_trigger: CLOB API reference or V2 migration change
+  - id: EV-009
+    claim: Public market WebSocket payloads expose hashes and timestamps but no documented monotonic sequence
+    source_url: https://docs.polymarket.com/api-reference/wss/market
+    retrieved: 2026-07-30
+    confidence: verified
+    consequence: Gap recovery uses snapshot hash, timestamp bounds, and forced resnapshot
+    revalidation_trigger: WebSocket schema documents a sequence field
+  - id: EV-010
+    claim: Gamma and CLOB public endpoints use documented IP-based throttling
+    source_url: https://docs.polymarket.com/api-reference/rate-limits
+    retrieved: 2026-07-30
+    confidence: verified
+    consequence: Clients use bounded concurrency, retries, and local rate limits
+    revalidation_trigger: Rate-limit reference change
+  - id: EV-011
+    claim: This public-read slice requires no contract address, collateral address, signer, credential, or production write
+    source_path: .dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md
+    retrieved: 2026-07-30
+    confidence: verified
+    consequence: Transactional and custody facts remain gated for later phases

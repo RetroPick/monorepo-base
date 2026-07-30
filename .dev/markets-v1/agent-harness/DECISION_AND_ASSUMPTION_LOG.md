@@ -2,7 +2,7 @@
 
 **Status:** draft
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-30
 **Product:** RetroPick Markets V1
 
 ## 1. Purpose
@@ -110,10 +110,12 @@ flowchart LR
 | 2026-07-24 | D-001 | No custom exchange | ADR-001 |
 | 2026-07-24 | D-002 | BFF at internal/markets | ADR-002 |
 | 2026-07-24 | D-003 | Shared OpenAPI for web/Android | ADR-004 |
+| 2026-07-30 | D-010 | Implement Phase 1 as a backend-first public-read slice; defer client UI and transactional scope | ADR-010 |
 
 ## Assumptions (expiring)
 
 | ID | Assumption | Expires | Revalidation |
 |----|------------|---------|--------------|
 | A-001 | pUSD collateral config | before PHASE-3 | Polymarket docs |
-| A-002 | Gamma API shape stable | PHASE-1 exit | integration tests |
+| A-002 | Gamma API shape remains compatible with captured fixtures | PHASE-1 exit | contract fixtures and official changelog |
+| A-003 | CLOB market WebSocket has no authoritative monotonic sequence | PHASE-1 exit | official WSS schema |
