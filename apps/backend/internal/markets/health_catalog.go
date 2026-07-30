@@ -22,6 +22,7 @@ func evaluateCatalogHealth(
 		}
 	}
 
+	projectionCheck := projectionReadinessLabel(projection.LatestObserved, now, maxStale)
 	readiness := EvaluateProjectionReadiness(
 		projection.LatestObserved,
 		now,
@@ -29,7 +30,6 @@ func evaluateCatalogHealth(
 		projection.HasProjection,
 		worker.WorkerDegraded(),
 	)
-	projectionCheck := projectionReadinessLabel(projection.LatestObserved, now, maxStale)
 
 	if !projection.HasProjection {
 		if worker.WorkerDegraded() {
@@ -46,27 +46,30 @@ func evaluateCatalogHealth(
 
 	if !readiness.Ready {
 		return catalogHealthEvaluation{
-			workerCheck:     "syncing",
+			workerCheck:     workerSyncLabel(worker),
 			projectionCheck: projectionCheck,
 		}
 	}
 
-	// Degraded takes precedence over a fully healthy worker label.
-	if worker.WorkerDegraded() || readiness.Degraded {
-		if projectionCheck == "ok" && worker.WorkerDegraded() {
-			projectionCheck = "stale"
-		}
-		return catalogHealthEvaluation{
-			workerCheck:     "degraded",
-			projectionCheck: projectionCheck,
-			ok:              true,
-			degraded:        true,
-		}
+	workerCheck := "ok"
+	if worker.WorkerDegraded() {
+		workerCheck = "degraded"
 	}
+
+	// Service degraded when sync is unhealthy or projection age exceeds the fresh window.
+	degraded := worker.WorkerDegraded() || projectionCheck == "stale"
 
 	return catalogHealthEvaluation{
-		workerCheck:     "ok",
+		workerCheck:     workerCheck,
 		projectionCheck: projectionCheck,
 		ok:              true,
+		degraded:        degraded,
 	}
+}
+
+func workerSyncLabel(worker CatalogWorkerState) string {
+	if worker.WorkerDegraded() {
+		return "degraded"
+	}
+	return "syncing"
 }

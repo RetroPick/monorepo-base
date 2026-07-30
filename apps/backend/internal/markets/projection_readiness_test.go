@@ -56,4 +56,7 @@ func TestEvaluateCatalogHealthDegradedPrecedence(t *testing.T) {
 	if eval.workerCheck != "degraded" || !eval.ok || !eval.degraded {
 		t.Fatalf("eval %+v", eval)
 	}
+	if eval.projectionCheck != "ok" {
+		t.Fatalf("fresh projection must remain ok while worker is degraded, got %q", eval.projectionCheck)
+	}
 }
