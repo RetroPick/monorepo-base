@@ -1,0 +1,26 @@
+task_id: MKT-P1-001
+date: 2026-07-30
+result: pass
+commands:
+  - command: go test ./internal/markets/... -count=1
+    working_directory: apps/backend
+    exit_code: 0
+    output:
+      - ok retropick/apps/backend/internal/markets
+      - ok retropick/apps/backend/internal/markets/gamma
+tests:
+  - canonical decimal strings accept fixed-point values and reject floats/exponents/signs
+  - canonical status and freshness enums reject unknown values
+  - public market detail serializes prices as decimal strings
+  - OpenAPI parses and includes all Phase 1 public paths and schemas
+requirements:
+  - MKT-FR-001
+  - MKT-FR-002
+  - MKT-FR-010
+  - MKT-NFR-060
+artifacts:
+  - schemas/openapi/markets-v1.yaml
+  - apps/backend/internal/markets/types.go
+limitations:
+  - full OpenAPI semantic lint runs at the Phase 1 verification gate
+human_approval_required: false

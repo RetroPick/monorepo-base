@@ -232,7 +232,7 @@ tasks:
     phase: "PHASE-1"
     title: "Canonical domain and schema contracts"
     goal: "Define versioned public read, freshness, health, realtime, error, and signal contracts."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-000"
     may_run_in_parallel_with: []
@@ -264,7 +264,8 @@ tasks:
     acceptance_criteria:
       - "OpenAPI validates"
       - "No upstream SDK or database type leaks into public models"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-001.yaml"
     rollback: "Revert contract commit before any client consumes version 1.1.0."
     human_approval_required: false
     handoff_to:
@@ -273,7 +274,7 @@ tasks:
     phase: "PHASE-1"
     title: "Polymarket public-read anti-corruption clients"
     goal: "Validate and normalize official Gamma and CLOB public responses behind RetroPick interfaces."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-001"
     may_run_in_parallel_with: []
