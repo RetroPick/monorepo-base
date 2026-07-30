@@ -36,6 +36,7 @@ func mapGammaEvent(row gamma.Event, observedAt time.Time) (EventDetail, []Market
 		Status:        mapGammaStatus(row.Active, row.Closed, row.Archived),
 		StartAt:       utcPointer(row.StartDate),
 		EndAt:         utcPointer(row.EndDate),
+		MarketCount:   len(summaries),
 		Markets:       summaries,
 		Freshness:     freshness,
 		Provenance:    provenance,
@@ -170,4 +171,12 @@ func utcPointer(value *time.Time) *time.Time {
 	}
 	utc := value.UTC()
 	return &utc
+}
+
+// NormalizeEventDetail fills derived EventDetail fields required by the public contract.
+func NormalizeEventDetail(event EventDetail) EventDetail {
+	if event.MarketCount <= 0 && len(event.Markets) > 0 {
+		event.MarketCount = len(event.Markets)
+	}
+	return event
 }

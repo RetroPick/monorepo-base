@@ -295,6 +295,7 @@ func MapEvent(row gamma.Event, observedAt time.Time) MappedEvent {
 			Status:        mapStatus(row.Active, row.Closed, row.Archived),
 			StartAt:       utcTime(row.StartDate),
 			EndAt:         utcTime(row.EndDate),
+			MarketCount:   len(summaries),
 			Markets:       summaries,
 			Freshness:     freshness,
 			Provenance:    provenance,

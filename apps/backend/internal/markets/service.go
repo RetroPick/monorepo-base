@@ -251,7 +251,7 @@ func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, er
 		return EventDetail{}, classifyCatalogError(err)
 	}
 	event.Freshness = freshness
-	return event, nil
+	return NormalizeEventDetail(event), nil
 }
 
 func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail, error) {

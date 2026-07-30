@@ -122,6 +122,7 @@ func (r *CatalogReader) GetEvent(ctx context.Context, eventID string) (markets.E
 		Status:        markets.MarketStatus(row.Status),
 		StartAt:       timePointer(timestamptzValue(row.StartAt)),
 		EndAt:         timePointer(timestamptzValue(row.EndAt)),
+		MarketCount:   len(summaries),
 		Markets:       summaries,
 		Freshness:     projectionFreshness(observedAt),
 		Provenance: markets.UpstreamProvenance{

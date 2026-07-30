@@ -398,7 +398,6 @@ components:
           const: false
     EventSummary:
       type: object
-      additionalProperties: false
       required: [schemaVersion, id, upstreamId, title, status, marketCount, freshness, provenance]
       properties:
         schemaVersion:
@@ -428,7 +427,6 @@ components:
           $ref: "#/components/schemas/UpstreamProvenance"
     MarketSummary:
       type: object
-      additionalProperties: false
       required: [schemaVersion, id, upstreamId, conditionId, question, status, outcomes, capabilities, freshness, provenance]
       properties:
         schemaVersion:
@@ -436,6 +434,8 @@ components:
         id:
           type: string
         upstreamId:
+          type: string
+        eventId:
           type: string
         conditionId:
           type: string

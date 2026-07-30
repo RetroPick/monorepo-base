@@ -142,6 +142,7 @@ type EventDetail struct {
 	Status        MarketStatus       `json:"status"`
 	StartAt       *time.Time         `json:"startAt,omitempty"`
 	EndAt         *time.Time         `json:"endAt,omitempty"`
+	MarketCount   int                `json:"marketCount"`
 	Markets       []MarketSummary    `json:"markets"`
 	Freshness     MarketFreshness    `json:"freshness"`
 	Provenance    UpstreamProvenance `json:"provenance"`
