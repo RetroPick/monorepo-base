@@ -518,7 +518,7 @@ tasks:
     phase: "PHASE-1"
     title: "Observability, security controls, CI, and runbooks"
     goal: "Expose bounded metrics and enforce upstream, API, schema, and resource controls."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-006"
       - "MKT-P1-008"
@@ -544,7 +544,8 @@ tasks:
       - "go -C apps/backend build ./..."
     acceptance_criteria:
       - "Liveness is upstream-independent and readiness reports degraded dependencies"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-009.yaml"
     rollback: "Revert metrics/config gates with application changes."
     human_approval_required: false
     handoff_to:
@@ -553,7 +554,7 @@ tasks:
     phase: "PHASE-1"
     title: "Verification, traceability, and handoff"
     goal: "Run CI-equivalent backend verification and record exact evidence for reviewed client integration."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-007"
       - "MKT-P1-009"

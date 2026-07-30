@@ -1,6 +1,6 @@
 # PHASE-1 — Foundation and Read Markets
 
-**Status:** draft
+**Status:** backend-first implementation in progress (ADR-010)
 **Owner:** platform-orchestrator
 **Last updated:** 2026-07-24
 **Product:** RetroPick Markets V1
@@ -13,11 +13,17 @@ Phase specification for **PHASE-1**: Monorepo boundaries, schemas, public catalo
 
 ### In scope
 
-- Tasks and deliverables assigned to PHASE-1 in [implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+- Backend-first tasks and deliverables assigned to PHASE-1 in
+  [implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+- Canonical contracts, public Gamma/CLOB adapters, PostgreSQL projections,
+  catalog and market-data ingest foundations, public read handlers, deterministic
+  signals, observability, security controls, and verification.
 
 ### Out of scope
 
 - Work belonging to other phases unless explicitly pulled forward with ADR.
+- Web and Android UI/modules, wallet identity, funding, trading, portfolio,
+  notification delivery, PRISM, custom contracts, and production deployment.
 
 ## 3. Prerequisites
 
@@ -52,6 +58,10 @@ Monorepo boundaries, schemas, public catalog, read UX without trading.
 ## 8. Decisions
 
 - Phase ID `PHASE-1` is locked per master prompt §15.
+- ADR-010 narrows this run to the backend-first public-read slice. ADR-004 still
+  governs future shared web and Android integration.
+- Public realtime uses snapshot hash, timestamp bounds, and forced resnapshot;
+  it does not claim an undocumented monotonic upstream sequence.
 
 ## 9. Data and control flows
 
@@ -91,20 +101,28 @@ flowchart TB
 
 ## 16. Acceptance criteria
 
-- web and Android render same canonical market
-- no signing yet
+- OpenAPI and Go contracts are versioned and conformant.
+- Event/market detail, order-book, history, health, capability, and signal read
+  surfaces are implemented and tested.
+- Catalog writes and checkpoint advancement are atomic.
+- Stale, invalid, unavailable, and resynchronizing books are never labeled live.
+- Deterministic fixtures, migrations, generated-code drift, and build gates pass
+  or limitations are recorded.
+- No signing, custody, fund movement, frontend, Android, PRISM, custom contract,
+  or production mutation occurs.
 
             ## Deliverables
 
     - OpenAPI expansion
-- Gamma ingest
-- web read routes
-- signal schema foundation
+- Gamma and CLOB public-read adapters
+- PostgreSQL read projections and checkpointing
+- backend read routes
+- realtime and deterministic signal foundations
 
     ## Exit gate
 
-    - web and Android render same canonical market
-- no signing yet
+    - backend contract and deterministic verification evidence complete
+- no signing or fund movement
 
     ## Rollback
 

@@ -102,15 +102,20 @@ flowchart LR
 
 - Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 
-## Traceability matrix (excerpt)
+## Traceability matrix
 
 | Requirement | Component | Phase | Task | Test | Metric |
 |-------------|-----------|-------|------|------|--------|
-| MKT-FR-001 | BFF catalog | PHASE-1 | MKT-P1-002 | handler_test | catalog_freshness_p95 |
+| MKT-FR-001 | BFF catalog | PHASE-1 | MKT-P1-001, P1-002, P1-004, P1-006 | OpenAPI, Gamma, catalog, handler tests | catalog freshness and records processed |
+| MKT-FR-002 | rules/provenance | PHASE-1 | MKT-P1-001, P1-004, P1-006 | mapping, rule hash, handler tests | rule-change signal count |
+| MKT-FR-010 | market data | PHASE-1 | MKT-P1-002, P1-005, P1-006, P1-007 | CLOB, book, API, realtime tests | book state and resync count |
+| MKT-FR-050 | deterministic signals | PHASE-1 | MKT-P1-008 | replay, threshold, expiry, retraction tests | signal result count |
+| MKT-NFR-001 | catalog freshness | PHASE-1 | MKT-P1-004, P1-009 | bounded sync and metrics tests | last successful sync timestamp |
+| MKT-NFR-002 | no invalid book labeled live | PHASE-1 | MKT-P1-005, P1-007 | crossed, stale, hash-gap, disconnect tests | books by state |
+| MKT-NFR-060 | fixed-point values | PHASE-1 | MKT-P1-001, P1-002, P1-005, P1-008 | decimal boundary and exact threshold tests | validation errors |
 | MKT-FR-021 | eligibility | PHASE-2 | MKT-P2-002 | contract | eligibility_fail_closed |
 | MKT-FR-030 | order preview | PHASE-3 | MKT-P3-001 | golden vector | preview_sign_match |
 | MKT-SEC-001 | wallet | PHASE-2 | MKT-P2-001 | security review | key_custody_incidents |
-| MKT-NFR-001 | Gamma ingest | PHASE-1 | MKT-P1-002 | load test | freshness_p95 |
 
 ## Rules
 
