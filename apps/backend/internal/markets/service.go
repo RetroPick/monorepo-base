@@ -54,6 +54,7 @@ type ServiceConfig struct {
 	MarketProcessor   MarketDataProcessor
 	MarketDataEnabled bool
 	Signals           SignalReader
+	Metrics           *Metrics
 	BookMaxAge        time.Duration
 	Now               func() time.Time
 }
@@ -148,7 +149,9 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 		}, nil
 	}
 
+	started := time.Now()
 	rows, err := s.cfg.Catalog.ListEvents(ctx, limit, offset)
+	s.observeUpstream("gamma", err == nil, time.Since(started))
 	if err != nil {
 		return EventsListResponse{}, classifyCatalogError(err)
 	}
@@ -198,7 +201,9 @@ func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, er
 	if err != nil {
 		return EventDetail{}, err
 	}
+	started := time.Now()
 	row, err := s.cfg.Catalog.GetEvent(ctx, upstream)
+	s.observeUpstream("gamma", err == nil, time.Since(started))
 	if err != nil {
 		return EventDetail{}, classifyCatalogError(err)
 	}
@@ -214,7 +219,9 @@ func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail,
 	if err != nil {
 		return MarketDetail{}, err
 	}
+	started := time.Now()
 	row, err := s.cfg.Catalog.GetMarket(ctx, upstream)
+	s.observeUpstream("gamma", err == nil, time.Since(started))
 	if err != nil {
 		return MarketDetail{}, classifyCatalogError(err)
 	}
@@ -229,13 +236,18 @@ func (s *Service) GetOrderBook(ctx context.Context, marketID, tokenID string) (O
 	if strings.TrimSpace(marketID) == "" || len(marketID) > 256 || strings.TrimSpace(tokenID) == "" || len(tokenID) > 256 {
 		return OrderBookSnapshot{}, ErrInvalidArgument
 	}
+	started := time.Now()
 	book, err := s.cfg.MarketData.GetOrderBook(ctx, tokenID)
+	s.observeUpstream("clob", err == nil, time.Since(started))
 	if err != nil {
 		return OrderBookSnapshot{}, classifyMarketDataError(err)
 	}
 	snapshot, err := s.cfg.MarketProcessor.BuildSnapshot(marketID, book, s.nowUTC(), s.bookMaxAge)
 	if err != nil {
 		return OrderBookSnapshot{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
+	}
+	if s.cfg.Metrics != nil {
+		s.cfg.Metrics.RecordBookState(snapshot.Freshness.State)
 	}
 	return snapshot, nil
 }
@@ -250,11 +262,13 @@ func (s *Service) GetHistory(ctx context.Context, marketID, tokenID, interval st
 	if !validHistoryInterval(interval) || fidelity < 1 || fidelity > 1440 {
 		return PriceHistoryResponse{}, ErrInvalidArgument
 	}
+	started := time.Now()
 	rows, err := s.cfg.MarketData.GetPriceHistory(ctx, clob.PriceHistoryRequest{
 		TokenID:  tokenID,
 		Interval: interval,
 		Fidelity: fidelity,
 	})
+	s.observeUpstream("clob", err == nil, time.Since(started))
 	if err != nil {
 		return PriceHistoryResponse{}, classifyMarketDataError(err)
 	}
@@ -355,5 +369,11 @@ func validHistoryInterval(value string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func (s *Service) observeUpstream(upstream string, succeeded bool, duration time.Duration) {
+	if s.cfg.Metrics != nil {
+		s.cfg.Metrics.ObserveUpstream(upstream, succeeded, duration)
 	}
 }

@@ -96,12 +96,13 @@ func main() {
 		})
 	})
 
+	marketsMetrics := markets.NewMetrics()
 	api.RegisterHealthRoutes(r, pool, ethCaller, reg, api.BuildInfo{
 		Version: cfg.BuildVersion,
 		Commit:  cfg.BuildCommit,
 		Time:    cfg.BuildTime,
 		ABIHash: api.ABIHash(),
-	}, false)
+	}, false, marketsMetrics)
 
 	r.Mount("/api/v1/auth", api.AuthRouter())
 
@@ -111,6 +112,7 @@ func main() {
 		MarketData:        clob.NewClient(cfg.MarketsCLOBAPIURL),
 		MarketProcessor:   marketdata.Processor{},
 		MarketDataEnabled: cfg.MarketsMarketDataEnabled,
+		Metrics:           marketsMetrics,
 		BookMaxAge:        cfg.MarketsBookMaxAge,
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))

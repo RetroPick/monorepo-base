@@ -25,6 +25,10 @@ type BuildInfo struct {
 	ABIHash string `json:"abiHash"`
 }
 
+type MetricsProvider interface {
+	Prometheus() string
+}
+
 // healthOKPayload builds GET /api/v1/health JSON on success.
 // Top-level lastIndexedBlock / lastBlockHash / lastSyncAt stay stable for older clients.
 // environment, chainId, contracts, and indexer mirror /api/v1/ops/global-state for probes and dashboards.
@@ -66,8 +70,8 @@ func healthOKPayload(reg *registry.Registry, st dbqueries.IndexerState, build Bu
 
 func RegisterHealthRoutes(r interface {
 	Get(pattern string, h http.HandlerFunc)
-}, pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry, build BuildInfo, faucetRelayEnabled bool) {
-	r.Get("/api/v1/livez", func(w http.ResponseWriter, req *http.Request) {
+}, pool *pgxpool.Pool, eth *ethops.Caller, reg *registry.Registry, build BuildInfo, faucetRelayEnabled bool, extraMetrics MetricsProvider) {
+	liveHandler := func(w http.ResponseWriter, req *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok":                 true,
 			"service":            "retropick-api",
@@ -76,7 +80,9 @@ func RegisterHealthRoutes(r interface {
 			"faucetRelayEnabled": faucetRelayEnabled,
 			"build":              build,
 		})
-	})
+	}
+	r.Get("/api/v1/livez", liveHandler)
+	r.Get("/api/v1/health/live", liveHandler)
 
 	r.Get("/api/v1/health", func(w http.ResponseWriter, req *http.Request) {
 		st, err := dbqueries.New(pool).GetIndexerState(req.Context())
@@ -94,7 +100,7 @@ func RegisterHealthRoutes(r interface {
 		writeJSON(w, http.StatusOK, healthOKPayload(reg, st, build))
 	})
 
-	r.Get("/api/v1/readyz", func(w http.ResponseWriter, req *http.Request) {
+	readyHandler := func(w http.ResponseWriter, req *http.Request) {
 		ctx, cancel := context.WithTimeout(req.Context(), 3*time.Second)
 		defer cancel()
 
@@ -130,7 +136,9 @@ func RegisterHealthRoutes(r interface {
 			"checks": checks,
 			"build":  build,
 		})
-	})
+	}
+	r.Get("/api/v1/readyz", readyHandler)
+	r.Get("/api/v1/health/ready", readyHandler)
 
 	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
 		q := dbqueries.New(pool)
@@ -144,6 +152,9 @@ func RegisterHealthRoutes(r interface {
 		_, _ = fmt.Fprintf(w, "retropick_templates_rolling_halted_total %d\n", halted)
 		_, _ = fmt.Fprintf(w, "retropick_open_incidents_total %d\n", openIncidents)
 		_, _ = fmt.Fprintf(w, "retropick_indexer_last_block %d\n", state.LastBlock)
+		if extraMetrics != nil {
+			_, _ = fmt.Fprint(w, extraMetrics.Prometheus())
+		}
 	})
 }
 
