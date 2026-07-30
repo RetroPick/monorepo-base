@@ -2,82 +2,57 @@
 
 ## Summary
 
-Backend-first Phase 1 public-read slice is implemented and verified. The Go BFF
-exposes versioned Markets V1 read APIs backed by Polymarket Gamma and CLOB
-anti-corruption clients, PostgreSQL projections, deterministic signals,
-realtime envelope contracts, and bounded observability. Scope is limited by
-ADR-010: no web/Android UI, trading, custody, signing, or PRISM.
+Backend-first Phase 1 public-read slice is implemented with Phase 1.1 runtime closure
+(P1C-001 … P1C-009) on PR #7. The Go BFF exposes versioned Markets V1 read APIs
+backed by Polymarket Gamma and CLOB anti-corruption clients, PostgreSQL
+projections, deterministic catalog signals (`new_market`, `rule_changed`),
+realtime envelope contracts (deferred public bridge), and bounded observability.
+Scope is limited by ADR-010: no web/Android UI, trading, custody, signing, or PRISM.
 
-## Task ID
+**Draft PR:** https://github.com/RetroPick/monorepo-base/pull/7  
+**Status:** `backend_runtime_closure_ready_for_independent_review` — not merge-ready until independent senior review.
 
-MKT-P1-010 — Verification, traceability, and handoff (completes MKT-P1-000
-through MKT-P1-009).
+## Phase 1.1 closure tasks
 
-## Changes
+| ID | Title |
+|----|-------|
+| P1C-001 | Degraded worker state precedence in health reporting |
+| P1C-002 | Bootstrap from existing PostgreSQL projection |
+| P1C-003 | Advisory lock release hardening (hijack on unlock failure) |
+| P1C-004 | Checkpoint error classification and scan-cycle safety |
+| P1C-005 | Readiness HTTP integration tests (PostgreSQL 16) |
+| P1C-006 | OpenAPI 3.1 runtime conformance (`TestOpenAPIRuntimeConformancePhaseOne`) |
+| P1C-007 | CI checkout scoped; `scripts/check-gitlinks.sh` |
+| P1C-008 | Signal transaction boundary verification |
+| P1C-009 | Harness and evidence reconciliation |
 
-| Path | Summary |
-|------|---------|
-| `schemas/openapi/markets-v1.yaml` | Phase 1 read contract (events, markets, orderbook, history, health, signals) |
-| `apps/backend/internal/markets/` | Canonical types, service, handlers, gamma/clob adapters, catalog sync, marketdata, realtime, signals, metrics |
-| `apps/backend/migrations/000016_markets_v1_foundation.*.sql` | Catalog, market-data, health, signals, checkpoints, raw upstream evidence |
-| `apps/backend/sql/queries/markets_queries.sql` | sqlc queries for Markets projections |
-| `apps/backend/internal/config/config.go` | Official upstream host validation in production |
-| `apps/backend/internal/api/health.go` | Canonical `/api/v1/health/live` and `/ready` aliases |
-| `.github/workflows/ci.yml` | OpenAPI, migration, and Markets package gates |
-| `.dev/markets-v1/agent-harness/` | Reconciliation, evidence, traceability, task graph, manifest |
-
-## Verification run
+## Verification run (closure)
 
 | Command | Result |
 |---------|--------|
-| `go -C apps/backend test ./internal/markets/... -count=1` | pass (exit 0) |
-| `go -C apps/backend test ./internal/config ./internal/api ./migrations -count=1` | pass (exit 0) |
-| `go -C apps/backend test ./internal/markets -run TestMarketsOpenAPIContainsPhaseOneReadContract -count=1` | pass (exit 0) |
-| `go -C apps/backend test ./migrations -run TestMarketsV1Migration -count=1` | pass (exit 0) |
-| `go -C apps/backend build ./...` | pass (exit 0) |
-| `sqlc generate && git diff --exit-code internal/dbqueries` | pass (exit 0) |
-| `go -C apps/backend test ./... -count=1` | fail (exit 1) — pre-existing `internal/registry` missing fixture on `main` |
+| `go -C apps/backend test ./internal/markets/... -count=1` | pass |
+| `go -C apps/backend test -race ./internal/markets/... -count=1` | pass |
+| `go -C apps/backend test ./... -count=1` | pass |
+| `go -C apps/backend test ./internal/markets -run TestOpenAPIRuntimeConformancePhaseOne -count=1` | pass |
+| `go -C apps/backend build ./... && go vet ./...` | pass |
+| `sqlc v1.28.0 generate && git diff --exit-code internal/dbqueries` | pass |
+| `bash scripts/check-gitlinks.sh` | pass (archived gitlink documented) |
 
-## Evidence
-
-- Task evidence: `.dev/markets-v1/agent-harness/evidence/MKT-P1-001.yaml` through `MKT-P1-010.yaml`
-- Reconciliation: `.dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md`
-- Focused ADR: `.dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md`
-- Traceability: `.dev/markets-v1/agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md`
-
-## Public API surface (read-only)
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/v1/markets/capabilities` | Feature flags and version |
-| GET | `/api/v1/markets/events` | Paginated event catalog |
-| GET | `/api/v1/markets/events/{eventId}` | Event detail |
-| GET | `/api/v1/markets/markets/{marketId}` | Market detail |
-| GET | `/api/v1/markets/markets/{marketId}/orderbook` | Order book snapshot (`tokenId` query required) |
-| GET | `/api/v1/markets/markets/{marketId}/history` | Price history |
-| GET | `/api/v1/markets/markets/{marketId}/health` | Market health |
-| GET | `/api/v1/markets/intelligence/signals` | Deterministic signals list |
-| GET | `/api/v1/health/live` | Liveness (upstream-independent) |
-| GET | `/api/v1/health/ready` | Readiness (degraded dependencies reported) |
-
-Operator notes: `apps/backend/internal/markets/README.md`
+PostgreSQL integration (`DATABASE_URL`): locker, signals, readiness — CI `migration-v3` job.
 
 ## Open issues / blockers
 
 | Issue | Severity | Notes |
 |-------|----------|-------|
-| `internal/registry` test expects missing `packages/contracts/registry.celo-alfajores.json` | low | Present on `main`; unrelated to Markets V1 |
-| Postgres repository tests require `DATABASE_URL` | low | Skipped in CI-less local runs; migration smoke covers DDL |
-| Graphify CLI unavailable | low | Run `graphify update .` locally after merge |
-| Catalog sync worker not wired to API process yet | medium | Persistence and syncer implemented; background job wiring is Phase 1.5 / ops follow-up |
-| CLOB WebSocket ingest not connected to HTTP hub | medium | Realtime session contract and envelope types ready; WS bridge is next integration step |
+| Independent senior runtime review | high | Required before merge; PR remains draft |
+| Vercel preview quota | external | Not a code blocker |
+| Archived gitlink `archive/contracts/legacy-pool-v1/treasury-vault-eth` | low | No `.gitmodules`; documented; non-blocking for Markets CI |
+| `price_move` / `liquidity_change` signals | deferred | Phase 1.2+; requires durable market-data observation pipeline |
+| CLOB WebSocket public realtime bridge | deferred | `capabilities.realtime=false` |
 
-## Suggested next task
+## Suggested next step
 
-1. **Client integration (web)**: consume `schemas/openapi/markets-v1.yaml` for event list and market detail against the BFF.
-2. **Background catalog sync**: schedule `catalog.Syncer` with checkpoint persistence and degraded-mode metrics.
-3. **Realtime bridge**: connect CLOB market WebSocket to `realtime.Session` and existing websocket hub with hash-based resync.
-4. **Registry fixture**: restore or skip `packages/contracts/registry.celo-alfajores.json` so `go test ./...` is green on `main`.
+Request **independent senior review** of PR #7 while keeping it draft. Do not start web/Android/wallet/trading until review completes and PR merges.
 
 ## Implementation notes
 

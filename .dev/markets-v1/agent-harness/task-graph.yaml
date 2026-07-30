@@ -586,3 +586,144 @@ tasks:
     rollback: "Revert Phase 1 commits and migration before deployment."
     human_approval_required: false
     handoff_to: []
+  - id: P1C-001
+    phase: "PHASE-1"
+    title: "Degraded worker state precedence"
+    goal: "Health reporting checks degraded before healthy; bounded projection + upstream failure returns 200 degraded."
+    status: "done"
+    depends_on: ["MKT-P1-010"]
+    owned_paths:
+      - "apps/backend/internal/markets/projection_readiness.go"
+      - "apps/backend/internal/markets/health_catalog.go"
+      - "apps/backend/internal/markets/health.go"
+    verification_evidence:
+      - "apps/backend/internal/markets/projection_readiness_test.go"
+      - "apps/backend/internal/markets/health_test.go"
+  - id: P1C-002
+    phase: "PHASE-1"
+    title: "Bootstrap from existing projection"
+    goal: "Worker initializes from durable projection/checkpoint before Gamma sync; passive replicas serve persisted data."
+    status: "done"
+    depends_on: ["P1C-001"]
+    owned_paths:
+      - "apps/backend/internal/markets/syncworker/worker.go"
+      - "apps/backend/cmd/markets-api/main.go"
+    verification_evidence:
+      - "apps/backend/internal/markets/syncworker/worker_bootstrap_test.go"
+      - "apps/backend/internal/markets/readiness_integration_test.go"
+  - id: P1C-003
+    phase: "PHASE-1"
+    title: "Advisory lock release hardening"
+    goal: "Unlock failure hijacks poisoned connection; Release is idempotent."
+    status: "done"
+    depends_on: ["P1C-002"]
+    owned_paths:
+      - "apps/backend/internal/markets/postgres/catalog_locker.go"
+    verification_evidence:
+      - "apps/backend/internal/markets/postgres/catalog_locker_test.go"
+  - id: P1C-004
+    phase: "PHASE-1"
+    title: "Checkpoint error classification"
+    goal: "ErrNoRows starts at offset zero; DB errors propagate; invalid cursor rejected."
+    status: "done"
+    depends_on: ["P1C-002"]
+    owned_paths:
+      - "apps/backend/internal/markets/postgres/repository.go"
+      - "apps/backend/internal/markets/syncworker/worker.go"
+  - id: P1C-005
+    phase: "PHASE-1"
+    title: "Readiness integration tests"
+    goal: "HTTP 503/200 transitions with disposable PostgreSQL 16."
+    status: "done"
+    depends_on: ["P1C-001", "P1C-002"]
+    owned_paths:
+      - "apps/backend/internal/markets/readiness_integration_test.go"
+  - id: P1C-006
+    phase: "PHASE-1"
+    title: "OpenAPI 3.1 runtime conformance"
+    goal: "kin-openapi validates all Phase 1 public endpoints against live handlers."
+    status: "done"
+    depends_on: ["MKT-P1-007"]
+    owned_paths:
+      - "apps/backend/internal/markets/openapi_conformance_test.go"
+      - "schemas/openapi/markets-v1.yaml"
+  - id: P1C-007
+    phase: "PHASE-1"
+    title: "CI checkout and gitlink audit"
+    goal: "Main CI no longer recursively initializes archived gitlinks; audit script prevents silent regressions."
+    status: "done"
+    depends_on: ["MKT-P1-009"]
+    owned_paths:
+      - ".github/workflows/ci.yml"
+      - "scripts/check-gitlinks.sh"
+  - id: P1C-008
+    phase: "PHASE-1"
+    title: "Signal transaction boundary review"
+    goal: "Verify new_market and rule_changed idempotency inside ApplyPage transaction."
+    status: "done"
+    depends_on: ["MKT-P1-004"]
+    verification_evidence:
+      - "apps/backend/internal/markets/postgres/catalog_signals_test.go"
+  - id: P1C-009
+    phase: "PHASE-1"
+    title: "Harness and status consistency"
+    goal: "Update manifest, task graph, handoff, and PR evidence for Phase 1.1 closure."
+    status: "done"
+    depends_on:
+      - "P1C-001"
+      - "P1C-002"
+      - "P1C-003"
+      - "P1C-004"
+      - "P1C-005"
+      - "P1C-006"
+      - "P1C-007"
+      - "P1C-008"
+    owned_paths:
+      - ".dev/markets-v1/agent-harness/"
+      - "apps/backend/internal/markets/README.md"
+  - id: PR7-RV-001
+    phase: "PHASE-1"
+    title: "Advisory lock hijack session leak"
+    status: "done"
+    depends_on: ["P1C-003"]
+    owned_paths:
+      - "apps/backend/internal/markets/postgres/catalog_locker.go"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-001.yaml"
+  - id: PR7-RV-002
+    phase: "PHASE-1"
+    title: "Exact gitlink allowlist"
+    status: "done"
+    depends_on: ["P1C-007"]
+    owned_paths:
+      - "scripts/check-gitlinks.sh"
+      - "scripts/check-gitlinks_test.sh"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-002.yaml"
+  - id: PR7-RV-003
+    phase: "PHASE-1"
+    title: "Landing standalone gitlink ownership"
+    status: "done"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-003.yaml"
+  - id: PR7-RV-004
+    phase: "PHASE-1"
+    title: "pnpm lockfile churn audit"
+    status: "done"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-004.yaml"
+  - id: PR7-RV-005
+    phase: "PHASE-1"
+    title: "Projection freshness vs worker health"
+    status: "done"
+    owned_paths:
+      - "apps/backend/internal/markets/health_catalog.go"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-005.yaml"
+  - id: PR7-RV-006
+    phase: "PHASE-1"
+    title: "Traceability and evidence hygiene"
+    status: "done"
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/PR7-RV-006.yaml"
+

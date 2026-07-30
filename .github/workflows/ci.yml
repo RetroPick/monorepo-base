@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - run: bash scripts/check-gitlinks.sh
+      - run: bash scripts/check-gitlinks_test.sh
       - uses: pnpm/action-setup@v4
         with:
           version: 10.0.0
@@ -28,8 +28,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: go -C apps/backend build ./...
-      - name: Markets OpenAPI contract
-        run: go -C apps/backend test ./internal/markets -run TestMarketsOpenAPIContainsPhaseOneReadContract -count=1
+      - run: go -C apps/backend test ./internal/markets -run 'TestMarketsOpenAPIContainsPhaseOneReadContract|TestOpenAPIRuntimeConformancePhaseOne' -count=1
       - run: go -C apps/backend test ./...
       - run: bash scripts/check-graphify-freshness.sh
 

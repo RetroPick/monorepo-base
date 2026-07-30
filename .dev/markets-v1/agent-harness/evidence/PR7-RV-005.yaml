@@ -1,0 +1,9 @@
+id: PR7-RV-005
+title: Projection freshness vs worker health semantics
+severity: P2
+status: resolved
+finding: Fresh projection labeled stale when worker sync degraded
+resolution: projectionCheck uses age-only label; workerCheck reports sync health separately
+tests:
+  - apps/backend/internal/markets/health_catalog_test.go::TestEvaluateCatalogHealthStateMatrix
+  - apps/backend/internal/markets/projection_readiness_test.go::TestEvaluateCatalogHealthDegradedPrecedence

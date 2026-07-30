@@ -44,6 +44,13 @@ func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, r, err)
 		return
 	}
+	etag := computeEventsETag(body)
+	w.Header().Set("ETag", etag)
+	if etagMatches(r.Header.Get("If-None-Match"), etag) {
+		setReadCacheHeaders(w)
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
 	setReadCacheHeaders(w)
 	httpx.JSON(w, http.StatusOK, body)
 }

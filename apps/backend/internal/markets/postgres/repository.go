@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,9 +16,13 @@ import (
 	"retropick/apps/backend/internal/markets/catalog"
 )
 
+var ErrCheckpointNotFound = errors.New("markets checkpoint not found")
+
 type Store struct {
-	database dbqueries.DBTX
-	queries  *dbqueries.Queries
+	database       dbqueries.DBTX
+	queries        *dbqueries.Queries
+	signalProducer *CatalogSignalProducer
+	signalsEnabled bool
 }
 
 type Checkpoint struct {
@@ -60,6 +65,15 @@ func New(database dbqueries.DBTX) (*Store, error) {
 		return nil, fmt.Errorf("markets postgres: database is required")
 	}
 	return &Store{database: database, queries: dbqueries.New(database)}, nil
+}
+
+func (s *Store) ConfigureSignals(enabled bool, producer *CatalogSignalProducer) {
+	s.signalsEnabled = enabled
+	s.signalProducer = producer
+}
+
+func (s *Store) SignalsOperational() bool {
+	return s.signalsEnabled && s.signalProducer != nil
 }
 
 type transactionStarter interface {
@@ -108,6 +122,14 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 	}
 
 	for _, market := range page.Markets {
+		var prior MarketSignalPriorState
+		if s.signalsEnabled && s.signalProducer != nil {
+			var err error
+			prior, err = s.signalProducer.PriorState(ctx, queries, market.ID)
+			if err != nil {
+				return fmt.Errorf("apply markets catalog page: prior state for %s: %w", market.ID, err)
+			}
+		}
 		payload, err := json.Marshal(market)
 		if err != nil {
 			return fmt.Errorf("apply markets catalog page: marshal market %s: %w", market.ID, err)
@@ -169,6 +191,11 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 		}); err != nil {
 			return fmt.Errorf("apply markets catalog page: rule %s: %w", market.ID, err)
 		}
+		if s.signalsEnabled && s.signalProducer != nil {
+			if err := s.signalProducer.EmitAfterUpsert(ctx, queries, market, market.Provenance.ObservedAt, prior); err != nil {
+				return fmt.Errorf("apply markets catalog page: signals for %s: %w", market.ID, err)
+			}
+		}
 	}
 
 	for _, raw := range page.RawEvents {
@@ -192,7 +219,7 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 		Cursor:        page.Checkpoint.Cursor,
 		HighWatermark: optionalTimestamptz(page.Checkpoint.HighWatermark),
 		LastSuccessAt: requiredTimestamptz(page.Checkpoint.LastSuccessAt),
-		Metadata:      []byte(`{}`),
+		Metadata:      checkpointMetadata(ctx, queries, page.Checkpoint.Source, page.Checkpoint.Stream),
 	}); err != nil {
 		return fmt.Errorf("apply markets catalog page: checkpoint: %w", err)
 	}
@@ -200,6 +227,17 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 		return fmt.Errorf("apply markets catalog page: commit: %w", err)
 	}
 	return nil
+}
+
+func checkpointMetadata(ctx context.Context, queries *dbqueries.Queries, source, stream string) json.RawMessage {
+	existing, err := queries.GetMarketsSyncCheckpoint(ctx, dbqueries.GetMarketsSyncCheckpointParams{
+		Source: source,
+		Stream: stream,
+	})
+	if err != nil || len(existing.Metadata) == 0 {
+		return json.RawMessage(`{}`)
+	}
+	return append(json.RawMessage(nil), existing.Metadata...)
 }
 
 func (s *Store) UpsertCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
@@ -230,6 +268,9 @@ func (s *Store) GetCheckpoint(ctx context.Context, source, stream string) (Check
 		Stream: stream,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Checkpoint{}, ErrCheckpointNotFound
+		}
 		return Checkpoint{}, fmt.Errorf("get markets checkpoint: %w", err)
 	}
 	return Checkpoint{

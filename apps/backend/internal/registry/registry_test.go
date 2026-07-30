@@ -7,8 +7,7 @@ import (
 
 func TestValidateTreasuryDeployed_rejectsPlaceholders(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join("..", "..", "..", "..")
-	path := filepath.Join(root, "packages", "contracts", "registry.celo-alfajores.json")
+	path := filepath.Join("testdata", "placeholder-alfajores.json")
 	reg, err := LoadFromFile(path)
 	if err != nil {
 		t.Fatalf("LoadFromFile: %v", err)

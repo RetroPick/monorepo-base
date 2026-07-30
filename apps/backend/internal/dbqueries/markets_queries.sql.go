@@ -11,6 +11,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countMarketsCatalogEvents = `-- name: CountMarketsCatalogEvents :one
+SELECT COUNT(*)::BIGINT AS count
+FROM markets_catalog_events
+`
+
+func (q *Queries) CountMarketsCatalogEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countMarketsCatalogEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteExpiredMarketsRawUpstreamEvents = `-- name: DeleteExpiredMarketsRawUpstreamEvents :execrows
 DELETE FROM markets_raw_upstream_events
 WHERE expires_at < $1
@@ -22,6 +34,18 @@ func (q *Queries) DeleteExpiredMarketsRawUpstreamEvents(ctx context.Context, exp
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getLatestCatalogProjectionObservedAt = `-- name: GetLatestCatalogProjectionObservedAt :one
+SELECT COALESCE(MAX(observed_at), TIMESTAMPTZ '1970-01-01 00:00:00+00')::TIMESTAMPTZ AS observed_at
+FROM markets_catalog_events
+`
+
+func (q *Queries) GetLatestCatalogProjectionObservedAt(ctx context.Context) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, getLatestCatalogProjectionObservedAt)
+	var observed_at pgtype.Timestamptz
+	err := row.Scan(&observed_at)
+	return observed_at, err
 }
 
 const getLatestMarketsHealth = `-- name: GetLatestMarketsHealth :one
@@ -313,6 +337,95 @@ func (q *Queries) InsertMarketsSignalEvidence(ctx context.Context, arg InsertMar
 	return err
 }
 
+const listMarketsCatalogEventSummaries = `-- name: ListMarketsCatalogEventSummaries :many
+SELECT
+    e.event_id,
+    e.slug,
+    e.title,
+    e.description,
+    e.status,
+    e.start_at,
+    e.end_at,
+    e.source,
+    e.upstream_updated_at,
+    e.content_hash,
+    e.payload,
+    e.observed_at,
+    e.created_at,
+    e.updated_at,
+    COALESCE(m.market_count, 0)::INT AS market_count
+FROM markets_catalog_events e
+LEFT JOIN (
+    SELECT event_id, COUNT(*)::INT AS market_count
+    FROM markets_catalog_markets
+    WHERE event_id IS NOT NULL AND event_id <> ''
+    GROUP BY event_id
+) m ON m.event_id = e.event_id
+WHERE ($1::TEXT = '' OR e.status = $1)
+ORDER BY COALESCE(e.end_at, 'infinity'::TIMESTAMPTZ), e.event_id
+LIMIT $2 OFFSET $3
+`
+
+type ListMarketsCatalogEventSummariesParams struct {
+	Column1 string `json:"column_1"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
+}
+
+type ListMarketsCatalogEventSummariesRow struct {
+	EventID           string             `json:"event_id"`
+	Slug              string             `json:"slug"`
+	Title             string             `json:"title"`
+	Description       string             `json:"description"`
+	Status            string             `json:"status"`
+	StartAt           pgtype.Timestamptz `json:"start_at"`
+	EndAt             pgtype.Timestamptz `json:"end_at"`
+	Source            string             `json:"source"`
+	UpstreamUpdatedAt pgtype.Timestamptz `json:"upstream_updated_at"`
+	ContentHash       string             `json:"content_hash"`
+	Payload           []byte             `json:"payload"`
+	ObservedAt        pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	MarketCount       int32              `json:"market_count"`
+}
+
+func (q *Queries) ListMarketsCatalogEventSummaries(ctx context.Context, arg ListMarketsCatalogEventSummariesParams) ([]ListMarketsCatalogEventSummariesRow, error) {
+	rows, err := q.db.Query(ctx, listMarketsCatalogEventSummaries, arg.Column1, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMarketsCatalogEventSummariesRow{}
+	for rows.Next() {
+		var i ListMarketsCatalogEventSummariesRow
+		if err := rows.Scan(
+			&i.EventID,
+			&i.Slug,
+			&i.Title,
+			&i.Description,
+			&i.Status,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Source,
+			&i.UpstreamUpdatedAt,
+			&i.ContentHash,
+			&i.Payload,
+			&i.ObservedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MarketCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMarketsCatalogEvents = `-- name: ListMarketsCatalogEvents :many
 SELECT event_id, slug, title, description, status, start_at, end_at, source, upstream_updated_at, content_hash, payload, observed_at, created_at, updated_at
 FROM markets_catalog_events
@@ -493,6 +606,41 @@ func (q *Queries) ListMarketsOutcomes(ctx context.Context, marketID string) ([]M
 	return items, nil
 }
 
+const listMarketsSignalEvidenceForSignal = `-- name: ListMarketsSignalEvidenceForSignal :many
+SELECT signal_id, evidence_index, kind, reference_id, observed_at, content_hash, created_at
+FROM markets_signal_evidence
+WHERE signal_id = $1
+ORDER BY evidence_index
+`
+
+func (q *Queries) ListMarketsSignalEvidenceForSignal(ctx context.Context, signalID string) ([]MarketsSignalEvidence, error) {
+	rows, err := q.db.Query(ctx, listMarketsSignalEvidenceForSignal, signalID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MarketsSignalEvidence{}
+	for rows.Next() {
+		var i MarketsSignalEvidence
+		if err := rows.Scan(
+			&i.SignalID,
+			&i.EvidenceIndex,
+			&i.Kind,
+			&i.ReferenceID,
+			&i.ObservedAt,
+			&i.ContentHash,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMarketsSignals = `-- name: ListMarketsSignals :many
 SELECT signal_id, signal_type, market_id, state, rule_version, reason_codes, idempotency_key, created_at, expires_at, retracted_at, updated_at
 FROM markets_market_signals
@@ -539,6 +687,17 @@ func (q *Queries) ListMarketsSignals(ctx context.Context, arg ListMarketsSignals
 	return items, nil
 }
 
+const releaseMarketsAdvisoryLock = `-- name: ReleaseMarketsAdvisoryLock :one
+SELECT pg_advisory_unlock($1::BIGINT) AS released
+`
+
+func (q *Queries) ReleaseMarketsAdvisoryLock(ctx context.Context, dollar_1 int64) (bool, error) {
+	row := q.db.QueryRow(ctx, releaseMarketsAdvisoryLock, dollar_1)
+	var released bool
+	err := row.Scan(&released)
+	return released, err
+}
+
 const retractMarketsSignal = `-- name: RetractMarketsSignal :exec
 WITH updated AS (
     UPDATE markets_market_signals
@@ -571,6 +730,17 @@ func (q *Queries) RetractMarketsSignal(ctx context.Context, arg RetractMarketsSi
 		arg.EvidenceReferenceID,
 	)
 	return err
+}
+
+const tryMarketsAdvisoryLock = `-- name: TryMarketsAdvisoryLock :one
+SELECT pg_try_advisory_lock($1::BIGINT) AS acquired
+`
+
+func (q *Queries) TryMarketsAdvisoryLock(ctx context.Context, dollar_1 int64) (bool, error) {
+	row := q.db.QueryRow(ctx, tryMarketsAdvisoryLock, dollar_1)
+	var acquired bool
+	err := row.Scan(&acquired)
+	return acquired, err
 }
 
 const upsertMarketsCatalogEvent = `-- name: UpsertMarketsCatalogEvent :one

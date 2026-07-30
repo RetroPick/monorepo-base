@@ -27,6 +27,34 @@ WHERE ($1::TEXT = '' OR status = $1)
 ORDER BY COALESCE(end_at, 'infinity'::TIMESTAMPTZ), event_id
 LIMIT $2 OFFSET $3;
 
+-- name: ListMarketsCatalogEventSummaries :many
+SELECT
+    e.event_id,
+    e.slug,
+    e.title,
+    e.description,
+    e.status,
+    e.start_at,
+    e.end_at,
+    e.source,
+    e.upstream_updated_at,
+    e.content_hash,
+    e.payload,
+    e.observed_at,
+    e.created_at,
+    e.updated_at,
+    COALESCE(m.market_count, 0)::INT AS market_count
+FROM markets_catalog_events e
+LEFT JOIN (
+    SELECT event_id, COUNT(*)::INT AS market_count
+    FROM markets_catalog_markets
+    WHERE event_id IS NOT NULL AND event_id <> ''
+    GROUP BY event_id
+) m ON m.event_id = e.event_id
+WHERE ($1::TEXT = '' OR e.status = $1)
+ORDER BY COALESCE(e.end_at, 'infinity'::TIMESTAMPTZ), e.event_id
+LIMIT $2 OFFSET $3;
+
 -- name: GetMarketsCatalogEvent :one
 SELECT *
 FROM markets_catalog_events
@@ -249,3 +277,23 @@ FROM markets_market_signals
 WHERE ($1::TEXT = '' OR market_id = $1)
 ORDER BY created_at DESC, signal_id DESC
 LIMIT $2 OFFSET $3;
+
+-- name: CountMarketsCatalogEvents :one
+SELECT COUNT(*)::BIGINT AS count
+FROM markets_catalog_events;
+
+-- name: GetLatestCatalogProjectionObservedAt :one
+SELECT COALESCE(MAX(observed_at), TIMESTAMPTZ '1970-01-01 00:00:00+00')::TIMESTAMPTZ AS observed_at
+FROM markets_catalog_events;
+
+-- name: ListMarketsSignalEvidenceForSignal :many
+SELECT *
+FROM markets_signal_evidence
+WHERE signal_id = $1
+ORDER BY evidence_index;
+
+-- name: TryMarketsAdvisoryLock :one
+SELECT pg_try_advisory_lock($1::BIGINT) AS acquired;
+
+-- name: ReleaseMarketsAdvisoryLock :one
+SELECT pg_advisory_unlock($1::BIGINT) AS released;
