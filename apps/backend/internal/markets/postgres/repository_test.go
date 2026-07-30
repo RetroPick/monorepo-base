@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/db"
+	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/catalog"
 )
 
 func TestNewRejectsNilDatabase(t *testing.T) {
@@ -89,6 +91,90 @@ func TestRawEventDeduplicatesBySourceAndUpstreamID(t *testing.T) {
 	}
 	if err := store.SaveRawEvent(context.Background(), record); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestApplyPageCommitsProjectionAndCheckpointTogether(t *testing.T) {
+	store := integrationStore(t)
+	observed := time.Date(2026, 7, 30, 4, 0, 0, 0, time.UTC)
+	eventID := "polymarket:event:apply-page"
+	marketID := "polymarket:market:apply-page"
+	page := catalog.Page{
+		Events: []markets.EventDetail{{
+			SchemaVersion: markets.SchemaVersion,
+			ID:            eventID,
+			UpstreamID:    "apply-page",
+			Title:         "Apply page event",
+			Status:        markets.MarketStatusOpen,
+			Markets: []markets.MarketSummary{{
+				SchemaVersion: markets.SchemaVersion,
+				ID:            marketID,
+				UpstreamID:    "apply-page-market",
+				ConditionID:   "0xapplypage",
+				Question:      "Apply page?",
+				Status:        markets.MarketStatusOpen,
+				Outcomes: []markets.Outcome{{
+					ID:         "polymarket:token:apply-page",
+					UpstreamID: "apply-page-token",
+					Name:       "Yes",
+				}},
+				Freshness:  markets.MarketFreshness{State: markets.FreshnessFresh, ObservedAt: observed},
+				Provenance: markets.UpstreamProvenance{Source: "polymarket_gamma", ObservedAt: observed},
+			}},
+			Freshness:  markets.MarketFreshness{State: markets.FreshnessFresh, ObservedAt: observed},
+			Provenance: markets.UpstreamProvenance{Source: "polymarket_gamma", ObservedAt: observed},
+		}},
+		Markets: []markets.MarketDetail{{
+			SchemaVersion: markets.SchemaVersion,
+			ID:            marketID,
+			UpstreamID:    "apply-page-market",
+			EventID:       eventID,
+			ConditionID:   "0xapplypage",
+			Question:      "Apply page?",
+			Status:        markets.MarketStatusOpen,
+			Outcomes: []markets.Outcome{{
+				ID:         "polymarket:token:apply-page",
+				UpstreamID: "apply-page-token",
+				Name:       "Yes",
+			}},
+			Resolution: markets.ResolutionRule{
+				Description: "Test rule",
+				ContentHash: "rule-hash",
+			},
+			Freshness:  markets.MarketFreshness{State: markets.FreshnessFresh, ObservedAt: observed},
+			Provenance: markets.UpstreamProvenance{Source: "polymarket_gamma", ObservedAt: observed},
+		}},
+		RawEvents: []catalog.RawEvent{{
+			Source:          "polymarket_gamma",
+			UpstreamEventID: "apply-page:hash",
+			EntityType:      "event",
+			EntityID:        eventID,
+			SchemaVersion:   markets.SchemaVersion,
+			Payload:         json.RawMessage(`{"id":"apply-page"}`),
+			ObservedAt:      observed,
+			ExpiresAt:       observed.Add(24 * time.Hour),
+		}},
+		Checkpoint: catalog.Checkpoint{
+			Source:        "polymarket_gamma",
+			Stream:        "events",
+			Cursor:        "1",
+			HighWatermark: observed,
+			LastSuccessAt: observed,
+		},
+	}
+
+	if err := store.ApplyPage(context.Background(), page); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetEvent(context.Background(), eventID); err != nil {
+		t.Fatal(err)
+	}
+	checkpoint, err := store.GetCheckpoint(context.Background(), "polymarket_gamma", "events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checkpoint.Cursor != "1" {
+		t.Fatalf("checkpoint %+v", checkpoint)
 	}
 }
 
