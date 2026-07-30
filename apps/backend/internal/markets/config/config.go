@@ -87,7 +87,7 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		HTTPPort:              envInt("MARKETS_HTTP_PORT", defaultHTTPPort),
+		HTTPPort:              defaultHTTPPort,
 		DatabaseURL:           strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		BuildVersion:          strings.TrimSpace(os.Getenv("BUILD_VERSION")),
 		BuildCommit:           strings.TrimSpace(os.Getenv("BUILD_COMMIT")),
@@ -98,15 +98,35 @@ func Load() (Config, error) {
 		MarketDataEnabled:     envDefault("MARKETS_MARKET_DATA_ENABLED", "1") != "0",
 		BookMaxAge:            bookMaxAge,
 		CatalogSyncInterval:   syncInterval,
-		CatalogPageSize:       envInt("MARKETS_CATALOG_PAGE_SIZE", defaultCatalogPageSize),
-		CatalogMaxPagesPerRun: envInt("MARKETS_CATALOG_MAX_PAGES", defaultCatalogMaxPages),
+		CatalogPageSize:       defaultCatalogPageSize,
+		CatalogMaxPagesPerRun: defaultCatalogMaxPages,
 		CatalogMaxStaleAge:    maxStale,
 		CatalogBackoff:        backoff,
 		ShutdownTimeout:       shutdown,
 		SignalsEnabled:        envDefault("MARKETS_SIGNALS_ENABLED", "1") != "0",
 		RealtimeEnabled:       envDefault("MARKETS_REALTIME_ENABLED", "0") == "1",
-		DBMaxConns:            int32(envInt("DB_MAX_CONNS", 8)),
-		DBMinConns:            int32(envInt("DB_MIN_CONNS", 1)),
+		DBMaxConns:            8,
+		DBMinConns:            1,
+	}
+	var err error
+	if cfg.HTTPPort, err = parseEnvInt("MARKETS_HTTP_PORT", defaultHTTPPort); err != nil {
+		return Config{}, err
+	}
+	if cfg.CatalogPageSize, err = parseEnvInt("MARKETS_CATALOG_PAGE_SIZE", defaultCatalogPageSize); err != nil {
+		return Config{}, err
+	}
+	if cfg.CatalogMaxPagesPerRun, err = parseEnvInt("MARKETS_CATALOG_MAX_PAGES", defaultCatalogMaxPages); err != nil {
+		return Config{}, err
+	}
+	if maxConns, err := parseEnvInt("DB_MAX_CONNS", 8); err != nil {
+		return Config{}, err
+	} else {
+		cfg.DBMaxConns = int32(maxConns)
+	}
+	if minConns, err := parseEnvInt("DB_MIN_CONNS", 1); err != nil {
+		return Config{}, err
+	} else {
+		cfg.DBMinConns = int32(minConns)
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")
@@ -116,6 +136,18 @@ func Load() (Config, error) {
 	}
 	if cfg.CatalogMaxPagesPerRun < 1 || cfg.CatalogMaxPagesPerRun > 1000 {
 		return Config{}, fmt.Errorf("MARKETS_CATALOG_MAX_PAGES must be between 1 and 1000")
+	}
+	if cfg.DBMinConns < 1 {
+		return Config{}, fmt.Errorf("DB_MIN_CONNS must be at least 1")
+	}
+	if cfg.DBMaxConns < cfg.DBMinConns {
+		return Config{}, fmt.Errorf("DB_MIN_CONNS must be <= DB_MAX_CONNS")
+	}
+	if cfg.HTTPPort < 1 || cfg.HTTPPort > 65535 {
+		return Config{}, fmt.Errorf("MARKETS_HTTP_PORT must be between 1 and 65535")
+	}
+	if cfg.RealtimeEnabled {
+		return Config{}, fmt.Errorf("MARKETS_REALTIME_ENABLED is not supported in phase 1.1")
 	}
 	return cfg, nil
 }
@@ -127,14 +159,14 @@ func envDefault(key, fallback string) string {
 	return fallback
 }
 
-func envInt(key string, fallback int) int {
+func parseEnvInt(key string, fallback int) (int, error) {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {
-		return fallback
+		return fallback, nil
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return fallback
+		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	return value
+	return value, nil
 }

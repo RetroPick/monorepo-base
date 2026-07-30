@@ -2,6 +2,7 @@ package syncworker
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -18,10 +19,8 @@ const (
 	workerStream = "events"
 )
 
-// Status reports catalog sync lifecycle for readiness probes.
-type Status struct {
-	mu sync.RWMutex
-
+// WorkerSnapshot reports catalog sync lifecycle for observability only.
+type WorkerSnapshot struct {
 	Ready         bool
 	Degraded      bool
 	Running       bool
@@ -33,43 +32,65 @@ type Status struct {
 	HasProjection bool
 }
 
-func (s *Status) snapshot(now time.Time) Status {
+type workerStatus struct {
+	mu sync.RWMutex
+
+	ready         bool
+	degraded      bool
+	running       bool
+	lastSuccessAt time.Time
+	lastError     string
+	lastPages     int
+	backoffUntil  time.Time
+	hasProjection bool
+}
+
+func (s *workerStatus) snapshot(now time.Time) WorkerSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	copy := *s
-	if !s.LastSuccessAt.IsZero() {
-		copy.CheckpointAge = now.Sub(s.LastSuccessAt)
+	copy := WorkerSnapshot{
+		Ready:         s.ready,
+		Degraded:      s.degraded,
+		Running:       s.running,
+		LastSuccessAt: s.lastSuccessAt,
+		LastError:     s.lastError,
+		LastPages:     s.lastPages,
+		BackoffUntil:  s.backoffUntil,
+		HasProjection: s.hasProjection,
+	}
+	if !s.lastSuccessAt.IsZero() {
+		copy.CheckpointAge = now.Sub(s.lastSuccessAt)
 	}
 	return copy
 }
 
-func (s *Status) setRunning(running bool) {
+func (s *workerStatus) setRunning(running bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Running = running
+	s.running = running
 }
 
-func (s *Status) setSuccess(at time.Time, pages int, hasProjection bool) {
+func (s *workerStatus) setSuccess(at time.Time, pages int, hasProjection bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Ready = hasProjection
-	s.Degraded = false
-	s.Running = false
-	s.LastSuccessAt = at
-	s.LastPages = pages
-	s.LastError = ""
-	s.BackoffUntil = time.Time{}
-	s.HasProjection = hasProjection
+	s.ready = hasProjection
+	s.degraded = false
+	s.running = false
+	s.lastSuccessAt = at
+	s.lastPages = pages
+	s.lastError = ""
+	s.backoffUntil = time.Time{}
+	s.hasProjection = hasProjection
 }
 
-func (s *Status) setBackoff(until time.Time, err error) {
+func (s *workerStatus) setBackoff(until time.Time, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.Running = false
-	s.Degraded = s.HasProjection
-	s.BackoffUntil = until
+	s.running = false
+	s.degraded = s.hasProjection
+	s.backoffUntil = until
 	if err != nil {
-		s.LastError = err.Error()
+		s.lastError = err.Error()
 	}
 }
 
@@ -78,6 +99,7 @@ type Config struct {
 	Syncer        *catalog.Syncer
 	Reader        *postgres.CatalogReader
 	Store         *postgres.Store
+	Locker        *postgres.CatalogLocker
 	Logger        *slog.Logger
 	Interval      time.Duration
 	PageSize      int
@@ -85,18 +107,18 @@ type Config struct {
 	Backoff       time.Duration
 	ShutdownGrace time.Duration
 	Now           func() time.Time
-	OnPageApplied func(ctx context.Context) error
 }
 
 // CatalogWorker runs periodic catalog sync with advisory-lock single-flight semantics.
+// It implements markets.CatalogWorkerState with live mutex-protected reads.
 type CatalogWorker struct {
 	cfg    Config
-	status Status
+	status workerStatus
 }
 
 func NewCatalogWorker(cfg Config) (*CatalogWorker, error) {
-	if cfg.Syncer == nil || cfg.Reader == nil || cfg.Store == nil {
-		return nil, fmt.Errorf("catalog worker: syncer, reader, and store are required")
+	if cfg.Syncer == nil || cfg.Reader == nil || cfg.Store == nil || cfg.Locker == nil {
+		return nil, fmt.Errorf("catalog worker: syncer, reader, store, and locker are required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -122,13 +144,27 @@ func NewCatalogWorker(cfg Config) (*CatalogWorker, error) {
 	return &CatalogWorker{cfg: cfg}, nil
 }
 
-func (w *CatalogWorker) Status() Status {
+// StatusSnapshot returns a point-in-time copy for observability only.
+func (w *CatalogWorker) StatusSnapshot() WorkerSnapshot {
 	return w.status.snapshot(w.cfg.Now())
 }
 
-func (w *CatalogWorker) WorkerState() markets.CatalogWorkerState {
-	status := w.Status()
-	return markets.CatalogWorkerSnapshotFrom(status.Ready, status.Degraded, status.HasProjection)
+func (w *CatalogWorker) WorkerReady() bool {
+	w.status.mu.RLock()
+	defer w.status.mu.RUnlock()
+	return w.status.ready
+}
+
+func (w *CatalogWorker) WorkerDegraded() bool {
+	w.status.mu.RLock()
+	defer w.status.mu.RUnlock()
+	return w.status.degraded
+}
+
+func (w *CatalogWorker) ProjectionAvailable() bool {
+	w.status.mu.RLock()
+	defer w.status.mu.RUnlock()
+	return w.status.hasProjection
 }
 
 func (w *CatalogWorker) Run(ctx context.Context) error {
@@ -151,10 +187,14 @@ func (w *CatalogWorker) Run(ctx context.Context) error {
 
 func (w *CatalogWorker) runOnce(ctx context.Context) error {
 	now := w.cfg.Now().UTC()
-	if until := w.status.snapshot(now).BackoffUntil; !until.IsZero() && now.Before(until) {
+	w.status.mu.RLock()
+	backoffUntil := w.status.backoffUntil
+	w.status.mu.RUnlock()
+	if !backoffUntil.IsZero() && now.Before(backoffUntil) {
 		return nil
 	}
-	acquired, err := w.cfg.Reader.TryAdvisoryLock(ctx)
+
+	lease, acquired, err := w.cfg.Locker.TryAcquire(ctx)
 	if err != nil {
 		return err
 	}
@@ -162,29 +202,32 @@ func (w *CatalogWorker) runOnce(ctx context.Context) error {
 		return nil
 	}
 	defer func() {
-		_ = w.cfg.Reader.ReleaseAdvisoryLock(context.Background())
+		releaseCtx, cancel := context.WithTimeout(context.Background(), w.cfg.ShutdownGrace)
+		defer cancel()
+		if releaseErr := lease.Release(releaseCtx); releaseErr != nil {
+			w.cfg.Logger.Warn("catalog advisory lock release failed", "err", releaseErr)
+		}
 	}()
 
 	w.status.setRunning(true)
-	startOffset := 0
-	checkpoint, err := w.cfg.Store.GetCheckpoint(ctx, workerSource, workerStream)
-	if err == nil && checkpoint.Cursor != "" {
-		if parsed, parseErr := strconv.Atoi(checkpoint.Cursor); parseErr == nil {
-			startOffset = parsed
-		}
+	startOffset, cycle, err := w.loadScanState(ctx)
+	if err != nil {
+		w.status.setBackoff(now.Add(w.cfg.Backoff), err)
+		return err
 	}
 
 	result, err := w.cfg.Syncer.Run(ctx, catalog.RunOptions{
 		PageSize:    w.cfg.PageSize,
 		MaxPages:    w.cfg.MaxPages,
 		StartOffset: startOffset,
+		Cycle:       cycle,
 	})
 	if err != nil {
 		w.status.setBackoff(now.Add(w.cfg.Backoff), err)
 		return err
 	}
-	if w.cfg.OnPageApplied != nil {
-		if err := w.cfg.OnPageApplied(ctx); err != nil {
+	if result.CycleComplete {
+		if err := w.resetScanCycle(ctx, now, result); err != nil {
 			w.status.setBackoff(now.Add(w.cfg.Backoff), err)
 			return err
 		}
@@ -203,6 +246,58 @@ func (w *CatalogWorker) runOnce(ctx context.Context) error {
 		"events", result.Events,
 		"markets", result.Markets,
 		"projection_count", projection.EventCount,
+		"cycle_complete", result.CycleComplete,
 	)
 	return nil
 }
+
+type scanCheckpointMetadata struct {
+	Cycle int `json:"cycle"`
+}
+
+func (w *CatalogWorker) loadScanState(ctx context.Context) (offset int, cycle int, err error) {
+	checkpoint, err := w.cfg.Store.GetCheckpoint(ctx, workerSource, workerStream)
+	if err != nil {
+		return 0, 0, nil
+	}
+	if checkpoint.Cursor != "" {
+		if parsed, parseErr := strconv.Atoi(checkpoint.Cursor); parseErr == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+	if len(checkpoint.Metadata) > 0 {
+		var metadata scanCheckpointMetadata
+		if decodeErr := json.Unmarshal(checkpoint.Metadata, &metadata); decodeErr == nil && metadata.Cycle > 0 {
+			cycle = metadata.Cycle
+		}
+	}
+	return offset, cycle, nil
+}
+
+func (w *CatalogWorker) resetScanCycle(ctx context.Context, now time.Time, result catalog.Result) error {
+	checkpoint, err := w.cfg.Store.GetCheckpoint(ctx, workerSource, workerStream)
+	if err != nil {
+		checkpoint = postgres.Checkpoint{Source: workerSource, Stream: workerStream}
+	}
+	cycle := 1
+	if len(checkpoint.Metadata) > 0 {
+		var metadata scanCheckpointMetadata
+		if decodeErr := json.Unmarshal(checkpoint.Metadata, &metadata); decodeErr == nil {
+			cycle = metadata.Cycle + 1
+		}
+	}
+	metadata, err := json.Marshal(scanCheckpointMetadata{Cycle: cycle})
+	if err != nil {
+		return fmt.Errorf("catalog worker: marshal cycle metadata: %w", err)
+	}
+	return w.cfg.Store.UpsertCheckpoint(ctx, postgres.Checkpoint{
+		Source:        workerSource,
+		Stream:        workerStream,
+		Cursor:        "0",
+		HighWatermark: checkpoint.HighWatermark,
+		LastSuccessAt: now,
+		Metadata:      metadata,
+	})
+}
+
+var _ markets.CatalogWorkerState = (*CatalogWorker)(nil)

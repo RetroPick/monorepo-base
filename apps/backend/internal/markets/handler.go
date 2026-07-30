@@ -39,17 +39,16 @@ func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if etag, err := h.svc.EventsListETag(r.Context(), cursor, limit); err == nil && etag != "" {
-		w.Header().Set("ETag", etag)
-		if match := r.Header.Get("If-None-Match"); match != "" && match == etag {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-	}
-
 	body, err := h.svc.ListEvents(r.Context(), cursor, limit)
 	if err != nil {
 		writeServiceError(w, r, err)
+		return
+	}
+	etag := computeEventsETag(body)
+	w.Header().Set("ETag", etag)
+	if etagMatches(r.Header.Get("If-None-Match"), etag) {
+		setReadCacheHeaders(w)
+		w.WriteHeader(http.StatusNotModified)
 		return
 	}
 	setReadCacheHeaders(w)

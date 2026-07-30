@@ -46,13 +46,15 @@ type RunOptions struct {
 	PageSize    int
 	MaxPages    int
 	StartOffset int
+	Cycle       int
 }
 
 type Result struct {
-	Pages        int
-	Events       int
-	Markets      int
-	LimitReached bool
+	Pages         int
+	Events        int
+	Markets       int
+	LimitReached  bool
+	CycleComplete bool
 }
 
 type Checkpoint struct {
@@ -125,6 +127,7 @@ func (s *Syncer) Run(ctx context.Context, options RunOptions) (Result, error) {
 			return result, fmt.Errorf("catalog syncer: list events: %w", err)
 		}
 		if len(rows) == 0 {
+			result.CycleComplete = true
 			return result, nil
 		}
 
@@ -161,10 +164,15 @@ func (s *Syncer) Run(ctx context.Context, options RunOptions) (Result, error) {
 		}
 
 		offset += len(rows)
+		nextCursor := strconv.Itoa(offset)
+		cycleComplete := len(rows) < options.PageSize
+		if cycleComplete {
+			nextCursor = "0"
+		}
 		page.Checkpoint = Checkpoint{
 			Source:        "polymarket_gamma",
 			Stream:        "events",
-			Cursor:        strconv.Itoa(offset),
+			Cursor:        nextCursor,
 			HighWatermark: highWatermark,
 			LastSuccessAt: observedAt,
 		}
@@ -175,7 +183,8 @@ func (s *Syncer) Run(ctx context.Context, options RunOptions) (Result, error) {
 		result.Pages++
 		result.Events += len(page.Events)
 		result.Markets += len(page.Markets)
-		if len(rows) < options.PageSize {
+		if cycleComplete {
+			result.CycleComplete = true
 			return result, nil
 		}
 	}

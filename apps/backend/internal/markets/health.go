@@ -13,9 +13,10 @@ import (
 type HealthChecker struct {
 	Pool          *pgxpool.Pool
 	Service       *Service
-	Worker        CatalogWorkerState
-	SignalsReady  bool
-	RealtimeState string
+	Worker                CatalogWorkerState
+	SignalsOperational    bool
+	MarketDataOperational bool
+	RealtimeState         string
 	ServiceName   string
 	Now           func() time.Time
 }
@@ -104,7 +105,7 @@ func (h HealthChecker) Ready(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if h.SignalsReady {
+	if h.SignalsOperational {
 		checks["signals"] = "ok"
 	} else {
 		checks["signals"] = "disabled"
@@ -115,7 +116,11 @@ func (h HealthChecker) Ready(w http.ResponseWriter, r *http.Request) {
 	} else if checks["realtime"] != "ok" {
 		degraded = true
 	}
-	checks["marketData"] = "ok"
+	if h.MarketDataOperational {
+		checks["marketData"] = "ok"
+	} else {
+		checks["marketData"] = "disabled"
+	}
 
 	statusCode := http.StatusOK
 	if !ok {

@@ -54,6 +54,53 @@ func (s *storeStub) ApplyPage(_ context.Context, page Page) error {
 	return nil
 }
 
+func TestSyncerCompletesCycleOnShortPage(t *testing.T) {
+	t.Parallel()
+
+	source := &sourceStub{rows: []gamma.Event{catalogFixture()}}
+	store := &storeStub{}
+	syncer, err := NewSyncer(SyncerConfig{Source: source, Store: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := syncer.Run(context.Background(), RunOptions{PageSize: 10, MaxPages: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.CycleComplete || result.LimitReached {
+		t.Fatalf("result %+v", result)
+	}
+	if len(store.pages) != 1 {
+		t.Fatalf("pages %d", len(store.pages))
+	}
+	if store.pages[0].Checkpoint.Cursor != "0" {
+		t.Fatalf("checkpoint cursor %q", store.pages[0].Checkpoint.Cursor)
+	}
+}
+
+func TestSyncerEmptyPageCompletesCycleWithoutApply(t *testing.T) {
+	t.Parallel()
+
+	source := &sourceStub{rows: []gamma.Event{}}
+	store := &storeStub{}
+	syncer, err := NewSyncer(SyncerConfig{Source: source, Store: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := syncer.Run(context.Background(), RunOptions{PageSize: 10, MaxPages: 1, StartOffset: 50})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.CycleComplete || result.Pages != 0 {
+		t.Fatalf("result %+v pages %d", result, len(store.pages))
+	}
+	if len(store.pages) != 0 {
+		t.Fatal("empty terminal page must not apply projection")
+	}
+}
+
 func TestSyncerMapsCatalogAndAdvancesCheckpointAtomically(t *testing.T) {
 	t.Parallel()
 
@@ -73,14 +120,14 @@ func TestSyncerMapsCatalogAndAdvancesCheckpointAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Events != 1 || result.Markets != 1 || result.Pages != 1 {
+	if result.Events != 1 || result.Markets != 1 || result.Pages != 1 || !result.CycleComplete {
 		t.Fatalf("result %+v", result)
 	}
 	if len(store.pages) != 1 {
 		t.Fatalf("pages %d", len(store.pages))
 	}
 	page := store.pages[0]
-	if page.Checkpoint.Cursor != "1" || !page.Checkpoint.LastSuccessAt.Equal(now) {
+	if page.Checkpoint.Cursor != "0" || !page.Checkpoint.LastSuccessAt.Equal(now) {
 		t.Fatalf("checkpoint %+v", page.Checkpoint)
 	}
 	event := page.Events[0]

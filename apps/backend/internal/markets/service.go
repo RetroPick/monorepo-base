@@ -91,9 +91,9 @@ type ServiceConfig struct {
 	MarketData        MarketDataClient
 	MarketProcessor   MarketDataProcessor
 	MarketDataEnabled bool
-	Signals           SignalReader
-	SignalsEnabled    bool
-	Metrics           *Metrics
+	Signals              SignalReader
+	SignalsOperational   bool
+	Metrics              *Metrics
 	BookMaxAge        time.Duration
 	Now               func() time.Time
 }
@@ -134,8 +134,8 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 	if s.cfg.CatalogProjection == nil {
 		source = "stub"
 	}
-	marketDataEnabled := s.cfg.MarketDataEnabled && s.cfg.MarketData != nil && s.cfg.MarketProcessor != nil
-	intelligenceEnabled := s.cfg.SignalsEnabled && s.cfg.Signals != nil
+	marketDataEnabled := s.MarketDataOperational()
+	intelligenceEnabled := s.cfg.SignalsOperational && s.cfg.Signals != nil
 	return CapabilitiesResponse{
 		Version: APIVersion,
 		Catalog: s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
@@ -222,13 +222,8 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 	}, nil
 }
 
-// EventsListETag returns a deterministic ETag for a projection-backed events page.
-func (s *Service) EventsListETag(ctx context.Context, cursor string, limit int) (string, error) {
-	body, err := s.ListEvents(ctx, cursor, limit)
-	if err != nil {
-		return "", err
-	}
-	return computeEventsETag(body.Events, body.Provenance.ObservedAt), nil
+func (s *Service) MarketDataOperational() bool {
+	return s.cfg.MarketDataEnabled && s.cfg.MarketData != nil && s.cfg.MarketProcessor != nil
 }
 
 func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, error) {
@@ -367,7 +362,7 @@ func (s *Service) ListSignals(ctx context.Context, marketID, cursor string, limi
 	if _, err := parseCursor(cursor); err != nil {
 		return SignalsListResponse{}, err
 	}
-	if s.cfg.Signals == nil || !s.cfg.SignalsEnabled {
+	if s.cfg.Signals == nil || !s.cfg.SignalsOperational {
 		return SignalsListResponse{
 			SchemaVersion: SchemaVersion,
 			Signals:       []SignalEnvelope{},

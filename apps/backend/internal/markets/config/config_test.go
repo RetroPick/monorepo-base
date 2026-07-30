@@ -8,6 +8,34 @@ import (
 	marketsconfig "retropick/apps/backend/internal/markets/config"
 )
 
+func TestLoad_RejectsInvalidIntegerEnv(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("MARKETS_HTTP_PORT", "not-a-port")
+	_, err := marketsconfig.Load()
+	if err == nil {
+		t.Fatal("expected invalid port error")
+	}
+}
+
+func TestLoad_RejectsRealtimeEnabled(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("MARKETS_REALTIME_ENABLED", "1")
+	_, err := marketsconfig.Load()
+	if err == nil {
+		t.Fatal("expected realtime unsupported error")
+	}
+}
+
+func TestLoad_RejectsPoolMinGreaterThanMax(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("DB_MIN_CONNS", "10")
+	t.Setenv("DB_MAX_CONNS", "2")
+	_, err := marketsconfig.Load()
+	if err == nil {
+		t.Fatal("expected pool bounds error")
+	}
+}
+
 func TestLoad_MarketsAPIRequiresDatabase(t *testing.T) {
 	t.Setenv("DATABASE_URL", "")
 	_, err := marketsconfig.Load()

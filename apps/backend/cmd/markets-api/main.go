@@ -71,7 +71,14 @@ func main() {
 		os.Exit(1)
 	}
 	signalEngine := signals.NewEngine(signals.EngineConfig{})
-	signalProcessor := postgres.NewSignalProcessor(signalEngine, signalStore)
+	signalProducer := postgres.NewCatalogSignalProducer(signalEngine)
+	store.ConfigureSignals(cfg.SignalsEnabled, signalProducer)
+
+	locker, err := postgres.NewCatalogLocker(pool)
+	if err != nil {
+		log.Error("catalog locker", "err", err)
+		os.Exit(1)
+	}
 
 	syncer, err := catalog.NewSyncer(catalog.SyncerConfig{
 		Source: gamma.NewClient(cfg.GammaAPIURL),
@@ -86,17 +93,13 @@ func main() {
 		Syncer:        syncer,
 		Reader:        reader,
 		Store:         store,
+		Locker:        locker,
 		Logger:        log,
 		Interval:      cfg.CatalogSyncInterval,
 		PageSize:      cfg.CatalogPageSize,
 		MaxPages:      cfg.CatalogMaxPagesPerRun,
 		Backoff:       cfg.CatalogBackoff,
 		ShutdownGrace: cfg.ShutdownTimeout,
-		OnPageApplied: func(ctx context.Context) error {
-			// Phase 1.1: signal production hooks run after durable projection writes.
-			_ = signalProcessor
-			return nil
-		},
 	})
 	if err != nil {
 		log.Error("catalog worker", "err", err)
@@ -105,17 +108,17 @@ func main() {
 
 	metrics := markets.NewMetrics()
 	marketsSvc := markets.NewService(markets.ServiceConfig{
-		CatalogProjection: projection,
-		CatalogWorker:     worker.WorkerState(),
-		CatalogEnabled:    cfg.CatalogEnabled,
-		CatalogMaxStale:   cfg.CatalogMaxStaleAge,
-		MarketData:        clob.NewClient(cfg.CLOBAPIURL),
-		MarketProcessor:   marketdata.Processor{},
-		MarketDataEnabled: cfg.MarketDataEnabled,
-		Signals:           signalStore,
-		SignalsEnabled:    cfg.SignalsEnabled,
-		Metrics:           metrics,
-		BookMaxAge:        cfg.BookMaxAge,
+		CatalogProjection:   projection,
+		CatalogWorker:       worker,
+		CatalogEnabled:      cfg.CatalogEnabled,
+		CatalogMaxStale:     cfg.CatalogMaxStaleAge,
+		MarketData:          clob.NewClient(cfg.CLOBAPIURL),
+		MarketProcessor:     marketdata.Processor{},
+		MarketDataEnabled:   cfg.MarketDataEnabled,
+		Signals:             signalStore,
+		SignalsOperational:  store.SignalsOperational(),
+		Metrics:             metrics,
+		BookMaxAge:          cfg.BookMaxAge,
 	})
 
 	r := chi.NewRouter()
@@ -128,12 +131,13 @@ func main() {
 	}))
 
 	markets.RegisterHealthRoutes(r, markets.HealthChecker{
-		Pool:          pool,
-		Service:       marketsSvc,
-		Worker:        worker.WorkerState(),
-		SignalsReady:  cfg.SignalsEnabled,
-		RealtimeState: "disabled",
-		ServiceName:   "retropick-markets-api",
+		Pool:                  pool,
+		Service:               marketsSvc,
+		Worker:                worker,
+		SignalsOperational:    store.SignalsOperational(),
+		MarketDataOperational: marketsSvc.MarketDataOperational(),
+		RealtimeState:         "disabled",
+		ServiceName:           "retropick-markets-api",
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
 

@@ -76,7 +76,7 @@ func (r *CatalogReader) ProjectionStatus(ctx context.Context) (ProjectionStatus,
 }
 
 func (r *CatalogReader) ListEvents(ctx context.Context, statusFilter string, limit, offset int) ([]markets.EventSummary, error) {
-	rows, err := r.queries.ListMarketsCatalogEvents(ctx, dbqueries.ListMarketsCatalogEventsParams{
+	rows, err := r.queries.ListMarketsCatalogEventSummaries(ctx, dbqueries.ListMarketsCatalogEventSummariesParams{
 		Column1: statusFilter,
 		Limit:   int32(limit),
 		Offset:  int32(offset),
@@ -86,11 +86,7 @@ func (r *CatalogReader) ListEvents(ctx context.Context, statusFilter string, lim
 	}
 	summaries := make([]markets.EventSummary, 0, len(rows))
 	for _, row := range rows {
-		marketsForEvent, err := r.queries.ListMarketsForEvent(ctx, pgtype.Text{String: row.EventID, Valid: true})
-		if err != nil {
-			return nil, fmt.Errorf("list catalog events: markets for %s: %w", row.EventID, err)
-		}
-		summaries = append(summaries, mapEventRow(row, len(marketsForEvent)))
+		summaries = append(summaries, mapEventSummaryRow(row))
 	}
 	return summaries, nil
 }
@@ -185,21 +181,6 @@ func (r *CatalogReader) GetMarket(ctx context.Context, marketID string) (markets
 	}, nil
 }
 
-func (r *CatalogReader) TryAdvisoryLock(ctx context.Context) (bool, error) {
-	acquired, err := r.queries.TryMarketsAdvisoryLock(ctx, catalogAdvisoryLockKey)
-	if err != nil {
-		return false, fmt.Errorf("catalog advisory lock: %w", err)
-	}
-	return acquired, nil
-}
-
-func (r *CatalogReader) ReleaseAdvisoryLock(ctx context.Context) error {
-	if _, err := r.queries.ReleaseMarketsAdvisoryLock(ctx, catalogAdvisoryLockKey); err != nil {
-		return fmt.Errorf("catalog advisory unlock: %w", err)
-	}
-	return nil
-}
-
 func (r *CatalogReader) mapMarketSummary(ctx context.Context, row dbqueries.MarketsCatalogMarket) (markets.MarketSummary, error) {
 	outcomeRows, err := r.queries.ListMarketsOutcomes(ctx, row.MarketID)
 	if err != nil {
@@ -252,6 +233,29 @@ func (r *CatalogReader) mapMarketSummary(ctx context.Context, row dbqueries.Mark
 			ContentHash:     row.ContentHash,
 		},
 	}, nil
+}
+
+func mapEventSummaryRow(row dbqueries.ListMarketsCatalogEventSummariesRow) markets.EventSummary {
+	observedAt := timestamptzValue(row.ObservedAt)
+	return markets.EventSummary{
+		SchemaVersion: markets.SchemaVersion,
+		ID:            row.EventID,
+		UpstreamID:    upstreamFromCanonicalID(row.EventID),
+		Slug:          row.Slug,
+		Title:         row.Title,
+		Status:        markets.MarketStatus(row.Status),
+		StartAt:       timePointer(timestamptzValue(row.StartAt)),
+		EndAt:         timePointer(timestamptzValue(row.EndAt)),
+		MarketCount:   int(row.MarketCount),
+		Freshness:     projectionFreshness(observedAt),
+		Provenance: markets.UpstreamProvenance{
+			Source:          row.Source,
+			UpstreamID:      upstreamFromCanonicalID(row.EventID),
+			ObservedAt:      observedAt,
+			UpstreamUpdated: timePointer(timestamptzValue(row.UpstreamUpdatedAt)),
+			ContentHash:     row.ContentHash,
+		},
+	}
 }
 
 func mapEventRow(row dbqueries.MarketsCatalogEvent, marketCount int) markets.EventSummary {

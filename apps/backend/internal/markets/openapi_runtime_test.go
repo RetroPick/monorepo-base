@@ -1,3 +1,5 @@
+// Package markets runtime smoke tests exercise handlers without full OpenAPI schema validation.
+// Full OpenAPI 3.1 conformance remains a follow-up gate (MKT-P1R-FIX-006).
 package markets
 
 import (
@@ -47,7 +49,7 @@ func TestOpenAPIRuntimeCapabilitiesResponse(t *testing.T) {
 	}
 }
 
-func TestOpenAPIRuntimeEventsListETag(t *testing.T) {
+func TestRuntimeSmokeEventsListWeakETag(t *testing.T) {
 	t.Parallel()
 	fixed := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	svc := NewService(ServiceConfig{
@@ -73,6 +75,9 @@ func TestOpenAPIRuntimeEventsListETag(t *testing.T) {
 	etag := rec.Header().Get("ETag")
 	if etag == "" {
 		t.Fatal("missing ETag")
+	}
+	if etag[:3] != `W/"` {
+		t.Fatalf("expected weak etag, got %q", etag)
 	}
 	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/markets/events", nil)
 	req2.Header.Set("If-None-Match", etag)
