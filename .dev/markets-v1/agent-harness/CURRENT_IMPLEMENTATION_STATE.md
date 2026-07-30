@@ -5,7 +5,7 @@
 - **Base SHA:** `05d85e1e0c95e8507a2b62dc316b00768b532d7a`
 - **Evidence baseline SHA:** `adb0b1049ddc21a588587be21af7a7dcf43ef7d3`
 - **Review task set:** `PR7-RV-001` … `PR7-RV-006` (independent review remediation)
-- **Status:** `independent_review_remediation_in_progress` — draft PR; human review before merge
+- **Status:** `independent_review_remediation_complete` — draft PR; human merge approval required
 
 ## Independent review remediation (PR7-RV)
 
