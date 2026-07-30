@@ -2,36 +2,60 @@ package markets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"retropick/apps/backend/internal/markets/clob"
 	"retropick/apps/backend/internal/markets/gamma"
+	"retropick/apps/backend/internal/markets/marketdata"
 )
 
 const (
-	APIVersion      = "markets-v1-catalog"
+	APIVersion      = "markets-v1-read-1.1.0"
 	defaultPageSize = 50
 	maxPageSize     = 100
+	defaultBookAge  = 10 * time.Second
 )
 
-// CatalogClient fetches normalized Polymarket events from upstream.
+var (
+	ErrInvalidArgument     = errors.New("invalid argument")
+	ErrNotFound            = errors.New("resource not found")
+	ErrUpstreamUnavailable = errors.New("upstream unavailable")
+	ErrDataUnavailable     = errors.New("market data unavailable")
+)
+
 type CatalogClient interface {
 	ListEvents(ctx context.Context, limit, offset int) ([]gamma.Event, error)
+	GetEvent(ctx context.Context, eventID string) (gamma.Event, error)
+	GetMarket(ctx context.Context, marketID string) (gamma.Market, error)
 }
 
-// ServiceConfig wires optional upstream catalog dependencies.
+type MarketDataClient interface {
+	GetOrderBook(ctx context.Context, tokenID string) (clob.OrderBook, error)
+	GetPriceHistory(ctx context.Context, request clob.PriceHistoryRequest) ([]clob.PricePoint, error)
+}
+
+type SignalReader interface {
+	ListSignals(ctx context.Context, marketID, cursor string, limit int) ([]SignalEnvelope, *string, error)
+}
+
 type ServiceConfig struct {
-	Catalog        CatalogClient
-	CatalogEnabled bool
-	Now            func() time.Time
+	Catalog           CatalogClient
+	CatalogEnabled    bool
+	MarketData        MarketDataClient
+	MarketDataEnabled bool
+	Signals           SignalReader
+	BookMaxAge        time.Duration
+	Now               func() time.Time
 }
 
-// Service implements the Polymarket Markets BFF read surface.
 type Service struct {
-	cfg ServiceConfig
-	now func() time.Time
+	cfg        ServiceConfig
+	now        func() time.Time
+	bookMaxAge time.Duration
 }
 
 func NewService(cfg ServiceConfig) *Service {
@@ -39,7 +63,11 @@ func NewService(cfg ServiceConfig) *Service {
 	if cfg.Now != nil {
 		now = cfg.Now
 	}
-	return &Service{cfg: cfg, now: now}
+	bookMaxAge := cfg.BookMaxAge
+	if bookMaxAge <= 0 {
+		bookMaxAge = defaultBookAge
+	}
+	return &Service{cfg: cfg, now: now, bookMaxAge: bookMaxAge}
 }
 
 func (s *Service) nowUTC() time.Time {
@@ -60,15 +88,23 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 	if s.cfg.CatalogEnabled && s.cfg.Catalog != nil {
 		source = "gamma"
 	}
+	marketDataEnabled := s.cfg.MarketDataEnabled && s.cfg.MarketData != nil
+	intelligenceEnabled := s.cfg.Signals != nil
 	return CapabilitiesResponse{
 		Version: APIVersion,
-		Catalog: s.cfg.CatalogEnabled,
+		Catalog: s.cfg.CatalogEnabled && s.cfg.Catalog != nil,
 		Trading: false,
 		Combos:  false,
-		Intel:   false,
+		Intel:   intelligenceEnabled,
 		Features: map[string]bool{
-			"catalog_read": s.cfg.CatalogEnabled,
-			"order_submit": false,
+			"catalog_read":   s.cfg.CatalogEnabled && s.cfg.Catalog != nil,
+			"market_detail":  s.cfg.CatalogEnabled && s.cfg.Catalog != nil,
+			"orderbook_read": marketDataEnabled,
+			"price_history":  marketDataEnabled,
+			"market_health":  marketDataEnabled,
+			"realtime":       false,
+			"signals":        intelligenceEnabled,
+			"order_submit":   false,
 		},
 		CheckedAt: s.nowUTC(),
 		Source:    source,
@@ -89,25 +125,44 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 	}
 
 	if !s.cfg.CatalogEnabled || s.cfg.Catalog == nil {
+		now := s.nowUTC()
 		return EventsListResponse{
-			Events:    []EventSummary{},
-			Cursor:    nil,
-			Source:    "stub",
-			CheckedAt: s.nowUTC(),
+			SchemaVersion: SchemaVersion,
+			Events:        []EventSummary{},
+			Cursor:        nil,
+			Page:          PageInfo{Limit: limit},
+			Source:        "stub",
+			CheckedAt:     now,
+			Freshness: MarketFreshness{
+				State:      FreshnessUnavailable,
+				ObservedAt: now,
+				Reason:     "catalog_disabled",
+			},
+			Provenance: UpstreamProvenance{Source: "retropick_projection", ObservedAt: now},
 		}, nil
 	}
 
 	rows, err := s.cfg.Catalog.ListEvents(ctx, limit, offset)
 	if err != nil {
-		return EventsListResponse{}, err
+		return EventsListResponse{}, classifyCatalogError(err)
 	}
 
+	now := s.nowUTC()
 	events := make([]EventSummary, 0, len(rows))
 	for _, row := range rows {
+		detail, _ := mapGammaEvent(row, now)
 		events = append(events, EventSummary{
-			ID:    row.ID,
-			Slug:  row.Slug,
-			Title: row.Title,
+			SchemaVersion: detail.SchemaVersion,
+			ID:            detail.ID,
+			UpstreamID:    detail.UpstreamID,
+			Slug:          detail.Slug,
+			Title:         detail.Title,
+			Status:        detail.Status,
+			StartAt:       detail.StartAt,
+			EndAt:         detail.EndAt,
+			MarketCount:   len(detail.Markets),
+			Freshness:     detail.Freshness,
+			Provenance:    detail.Provenance,
 		})
 	}
 
@@ -118,10 +173,137 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 	}
 
 	return EventsListResponse{
-		Events:    events,
-		Cursor:    next,
-		Source:    "gamma",
-		CheckedAt: s.nowUTC(),
+		SchemaVersion: SchemaVersion,
+		Events:        events,
+		Cursor:        next,
+		Page:          PageInfo{NextCursor: next, Limit: limit},
+		Source:        "gamma",
+		CheckedAt:     now,
+		Freshness:     MarketFreshness{State: FreshnessFresh, ObservedAt: now},
+		Provenance:    UpstreamProvenance{Source: "polymarket_gamma", ObservedAt: now},
+	}, nil
+}
+
+func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, error) {
+	if !s.cfg.CatalogEnabled || s.cfg.Catalog == nil {
+		return EventDetail{}, ErrDataUnavailable
+	}
+	upstream, err := upstreamID(eventID, "event")
+	if err != nil {
+		return EventDetail{}, err
+	}
+	row, err := s.cfg.Catalog.GetEvent(ctx, upstream)
+	if err != nil {
+		return EventDetail{}, classifyCatalogError(err)
+	}
+	event, _ := mapGammaEvent(row, s.nowUTC())
+	return event, nil
+}
+
+func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail, error) {
+	if !s.cfg.CatalogEnabled || s.cfg.Catalog == nil {
+		return MarketDetail{}, ErrDataUnavailable
+	}
+	upstream, err := upstreamID(marketID, "market")
+	if err != nil {
+		return MarketDetail{}, err
+	}
+	row, err := s.cfg.Catalog.GetMarket(ctx, upstream)
+	if err != nil {
+		return MarketDetail{}, classifyCatalogError(err)
+	}
+	_, market := mapGammaMarket(row, "", s.nowUTC())
+	return market, nil
+}
+
+func (s *Service) GetOrderBook(ctx context.Context, marketID, tokenID string) (OrderBookSnapshot, error) {
+	if !s.cfg.MarketDataEnabled || s.cfg.MarketData == nil {
+		return OrderBookSnapshot{}, ErrDataUnavailable
+	}
+	if strings.TrimSpace(marketID) == "" || len(marketID) > 256 || strings.TrimSpace(tokenID) == "" || len(tokenID) > 256 {
+		return OrderBookSnapshot{}, ErrInvalidArgument
+	}
+	book, err := s.cfg.MarketData.GetOrderBook(ctx, tokenID)
+	if err != nil {
+		return OrderBookSnapshot{}, classifyMarketDataError(err)
+	}
+	snapshot, err := marketdata.BuildSnapshot(marketID, book, s.nowUTC(), s.bookMaxAge)
+	if err != nil {
+		return OrderBookSnapshot{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
+	}
+	return snapshot, nil
+}
+
+func (s *Service) GetHistory(ctx context.Context, marketID, tokenID, interval string, fidelity int) (PriceHistoryResponse, error) {
+	if !s.cfg.MarketDataEnabled || s.cfg.MarketData == nil {
+		return PriceHistoryResponse{}, ErrDataUnavailable
+	}
+	if strings.TrimSpace(marketID) == "" || len(marketID) > 256 || strings.TrimSpace(tokenID) == "" || len(tokenID) > 256 {
+		return PriceHistoryResponse{}, ErrInvalidArgument
+	}
+	if !validHistoryInterval(interval) || fidelity < 1 || fidelity > 1440 {
+		return PriceHistoryResponse{}, ErrInvalidArgument
+	}
+	rows, err := s.cfg.MarketData.GetPriceHistory(ctx, clob.PriceHistoryRequest{
+		TokenID:  tokenID,
+		Interval: interval,
+		Fidelity: fidelity,
+	})
+	if err != nil {
+		return PriceHistoryResponse{}, classifyMarketDataError(err)
+	}
+	points, err := marketdata.NormalizeHistory(rows)
+	if err != nil {
+		return PriceHistoryResponse{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
+	}
+	now := s.nowUTC()
+	return PriceHistoryResponse{
+		SchemaVersion: SchemaVersion,
+		MarketID:      marketID,
+		TokenID:       tokenID,
+		Points:        points,
+		Freshness:     MarketFreshness{State: FreshnessFresh, ObservedAt: now},
+		Provenance:    UpstreamProvenance{Source: "polymarket_clob", UpstreamID: tokenID, ObservedAt: now},
+	}, nil
+}
+
+func (s *Service) GetHealth(ctx context.Context, marketID, tokenID string) (MarketHealthSnapshot, error) {
+	snapshot, err := s.GetOrderBook(ctx, marketID, tokenID)
+	if err != nil {
+		return MarketHealthSnapshot{}, err
+	}
+	health, err := marketdata.Health(snapshot, s.nowUTC())
+	if err != nil {
+		return MarketHealthSnapshot{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
+	}
+	return health, nil
+}
+
+func (s *Service) ListSignals(ctx context.Context, marketID, cursor string, limit int) (SignalsListResponse, error) {
+	if limit <= 0 {
+		limit = defaultPageSize
+	}
+	if limit > maxPageSize {
+		limit = maxPageSize
+	}
+	if _, err := parseCursor(cursor); err != nil {
+		return SignalsListResponse{}, err
+	}
+	if s.cfg.Signals == nil {
+		return SignalsListResponse{
+			SchemaVersion: SchemaVersion,
+			Signals:       []SignalEnvelope{},
+			Page:          PageInfo{Limit: limit},
+		}, nil
+	}
+	rows, next, err := s.cfg.Signals.ListSignals(ctx, marketID, cursor, limit)
+	if err != nil {
+		return SignalsListResponse{}, fmt.Errorf("%w: signals", ErrDataUnavailable)
+	}
+	return SignalsListResponse{
+		SchemaVersion: SchemaVersion,
+		Signals:       rows,
+		Page:          PageInfo{NextCursor: next, Limit: limit},
 	}, nil
 }
 
@@ -132,7 +314,40 @@ func parseCursor(cursor string) (int, error) {
 	}
 	offset, err := strconv.Atoi(cursor)
 	if err != nil || offset < 0 {
-		return 0, fmt.Errorf("invalid cursor")
+		return 0, fmt.Errorf("%w: invalid cursor", ErrInvalidArgument)
 	}
 	return offset, nil
+}
+
+func classifyCatalogError(err error) error {
+	switch {
+	case errors.Is(err, gamma.ErrNotFound):
+		return ErrNotFound
+	case errors.Is(err, gamma.ErrRateLimited), errors.Is(err, gamma.ErrUpstream), errors.Is(err, gamma.ErrInvalidPayload):
+		return fmt.Errorf("%w: catalog", ErrUpstreamUnavailable)
+	default:
+		return fmt.Errorf("%w: catalog", ErrUpstreamUnavailable)
+	}
+}
+
+func classifyMarketDataError(err error) error {
+	switch {
+	case errors.Is(err, clob.ErrNotFound):
+		return ErrNotFound
+	case errors.Is(err, clob.ErrInvalidRequest):
+		return ErrInvalidArgument
+	case errors.Is(err, clob.ErrRateLimited), errors.Is(err, clob.ErrUpstream), errors.Is(err, clob.ErrInvalidPayload):
+		return fmt.Errorf("%w: clob", ErrUpstreamUnavailable)
+	default:
+		return fmt.Errorf("%w: clob", ErrUpstreamUnavailable)
+	}
+}
+
+func validHistoryInterval(value string) bool {
+	switch value {
+	case "1h", "6h", "1d", "1w", "max":
+		return true
+	default:
+		return false
+	}
 }
