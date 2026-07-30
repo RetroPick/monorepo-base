@@ -2,17 +2,22 @@ package postgres
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"retropick/apps/backend/internal/dbqueries"
+	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/catalog"
 )
 
 type Store struct {
-	queries *dbqueries.Queries
+	database dbqueries.DBTX
+	queries  *dbqueries.Queries
 }
 
 type Checkpoint struct {
@@ -54,7 +59,147 @@ func New(database dbqueries.DBTX) (*Store, error) {
 	if database == nil {
 		return nil, fmt.Errorf("markets postgres: database is required")
 	}
-	return &Store{queries: dbqueries.New(database)}, nil
+	return &Store{database: database, queries: dbqueries.New(database)}, nil
+}
+
+type transactionStarter interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
+func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
+	starter, ok := s.database.(transactionStarter)
+	if !ok {
+		return fmt.Errorf("apply markets catalog page: database does not support transactions")
+	}
+	tx, err := starter.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("apply markets catalog page: begin: %w", err)
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+	queries := dbqueries.New(tx)
+
+	for _, event := range page.Events {
+		payload, err := json.Marshal(event)
+		if err != nil {
+			return fmt.Errorf("apply markets catalog page: marshal event %s: %w", event.ID, err)
+		}
+		contentHash := event.Provenance.ContentHash
+		if contentHash == "" {
+			contentHash = hashPayload(payload)
+		}
+		if _, err := queries.UpsertMarketsCatalogEvent(ctx, dbqueries.UpsertMarketsCatalogEventParams{
+			EventID:           event.ID,
+			Slug:              event.Slug,
+			Title:             event.Title,
+			Description:       event.Description,
+			Status:            string(event.Status),
+			StartAt:           optionalTimePointer(event.StartAt),
+			EndAt:             optionalTimePointer(event.EndAt),
+			Source:            event.Provenance.Source,
+			UpstreamUpdatedAt: optionalTimePointer(event.Provenance.UpstreamUpdated),
+			ContentHash:       contentHash,
+			Payload:           payload,
+			ObservedAt:        requiredTimestamptz(event.Provenance.ObservedAt),
+		}); err != nil {
+			return fmt.Errorf("apply markets catalog page: event %s: %w", event.ID, err)
+		}
+	}
+
+	for _, market := range page.Markets {
+		payload, err := json.Marshal(market)
+		if err != nil {
+			return fmt.Errorf("apply markets catalog page: marshal market %s: %w", market.ID, err)
+		}
+		contentHash := market.Provenance.ContentHash
+		if contentHash == "" {
+			contentHash = hashPayload(payload)
+		}
+		if _, err := queries.UpsertMarketsCatalogMarket(ctx, dbqueries.UpsertMarketsCatalogMarketParams{
+			MarketID:          market.ID,
+			EventID:           optionalText(market.EventID),
+			ConditionID:       market.ConditionID,
+			Slug:              market.Slug,
+			Question:          market.Question,
+			Description:       market.Description,
+			Status:            string(market.Status),
+			EndAt:             optionalTimePointer(market.EndAt),
+			EnableOrderBook:   market.Capabilities.OrderBook,
+			NegRisk:           market.Capabilities.NegRisk,
+			Source:            market.Provenance.Source,
+			UpstreamUpdatedAt: optionalTimePointer(market.Provenance.UpstreamUpdated),
+			ContentHash:       contentHash,
+			Payload:           payload,
+			ObservedAt:        requiredTimestamptz(market.Provenance.ObservedAt),
+		}); err != nil {
+			return fmt.Errorf("apply markets catalog page: market %s: %w", market.ID, err)
+		}
+		for index, outcome := range market.Outcomes {
+			tokenID := outcome.UpstreamID
+			if tokenID == "" {
+				tokenID = outcome.ID
+			}
+			if _, err := queries.UpsertMarketsCatalogOutcome(ctx, dbqueries.UpsertMarketsCatalogOutcomeParams{
+				OutcomeID:       outcome.ID,
+				MarketID:        market.ID,
+				UpstreamTokenID: tokenID,
+				OutcomeIndex:    int32(index),
+				Name:            outcome.Name,
+				Price:           optionalDecimal(outcome.Price),
+				Winner:          optionalBool(outcome.Winner),
+				ObservedAt:      requiredTimestamptz(market.Provenance.ObservedAt),
+			}); err != nil {
+				return fmt.Errorf("apply markets catalog page: outcome %s: %w", outcome.ID, err)
+			}
+		}
+		sourceName, sourceURL := firstResolutionSource(market.Resolution.Sources)
+		ruleHash := market.Resolution.ContentHash
+		if ruleHash == "" {
+			ruleHash = hashPayload([]byte(market.Resolution.Description + "\x00" + sourceURL))
+		}
+		if _, err := queries.UpsertMarketsCatalogRule(ctx, dbqueries.UpsertMarketsCatalogRuleParams{
+			MarketID:             market.ID,
+			Description:          market.Resolution.Description,
+			ResolutionSourceName: sourceName,
+			ResolutionSourceUrl:  sourceURL,
+			ContentHash:          ruleHash,
+			UpstreamUpdatedAt:    optionalTimePointer(market.Resolution.UpdatedAt),
+			ObservedAt:           requiredTimestamptz(market.Provenance.ObservedAt),
+		}); err != nil {
+			return fmt.Errorf("apply markets catalog page: rule %s: %w", market.ID, err)
+		}
+	}
+
+	for _, raw := range page.RawEvents {
+		if err := queries.InsertMarketsRawUpstreamEvent(ctx, dbqueries.InsertMarketsRawUpstreamEventParams{
+			Source:          raw.Source,
+			UpstreamEventID: raw.UpstreamEventID,
+			EntityType:      raw.EntityType,
+			EntityID:        raw.EntityID,
+			SchemaVersion:   raw.SchemaVersion,
+			Payload:         raw.Payload,
+			ObservedAt:      requiredTimestamptz(raw.ObservedAt),
+			ExpiresAt:       requiredTimestamptz(raw.ExpiresAt),
+		}); err != nil {
+			return fmt.Errorf("apply markets catalog page: raw event %s: %w", raw.UpstreamEventID, err)
+		}
+	}
+
+	if _, err := queries.UpsertMarketsSyncCheckpoint(ctx, dbqueries.UpsertMarketsSyncCheckpointParams{
+		Source:        page.Checkpoint.Source,
+		Stream:        page.Checkpoint.Stream,
+		Cursor:        page.Checkpoint.Cursor,
+		HighWatermark: optionalTimestamptz(page.Checkpoint.HighWatermark),
+		LastSuccessAt: requiredTimestamptz(page.Checkpoint.LastSuccessAt),
+		Metadata:      []byte(`{}`),
+	}); err != nil {
+		return fmt.Errorf("apply markets catalog page: checkpoint: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("apply markets catalog page: commit: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) UpsertCheckpoint(ctx context.Context, checkpoint Checkpoint) error {
@@ -192,4 +337,44 @@ func timestamptzValue(value pgtype.Timestamptz) time.Time {
 		return time.Time{}
 	}
 	return value.Time.UTC()
+}
+
+func optionalTimePointer(value *time.Time) pgtype.Timestamptz {
+	if value == nil {
+		return pgtype.Timestamptz{}
+	}
+	return requiredTimestamptz(*value)
+}
+
+func optionalText(value string) pgtype.Text {
+	if value == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: value, Valid: true}
+}
+
+func optionalDecimal(value *markets.DecimalString) pgtype.Text {
+	if value == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: string(*value), Valid: true}
+}
+
+func optionalBool(value *bool) pgtype.Bool {
+	if value == nil {
+		return pgtype.Bool{}
+	}
+	return pgtype.Bool{Bool: *value, Valid: true}
+}
+
+func firstResolutionSource(sources []markets.ResolutionSource) (string, string) {
+	if len(sources) == 0 {
+		return "", ""
+	}
+	return sources[0].Name, sources[0].URL
+}
+
+func hashPayload(payload []byte) string {
+	sum := sha256.Sum256(payload)
+	return fmt.Sprintf("%x", sum[:])
 }
