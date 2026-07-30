@@ -9,10 +9,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "generate": "openapi-typescript ../../schemas/openapi/markets-v1.yaml -o ./src/generated/api.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@retropick/config-tsconfig": "workspace:*",
-    "typescript": "^5.8.3"
+    "openapi-typescript": "^7.8.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

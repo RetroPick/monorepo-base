@@ -123,6 +123,8 @@ const nextConfig = {
       { protocol: "https", hostname: "cdn.jsdelivr.net" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
+      { protocol: "https", hostname: "**.polymarket.com" },
+      { protocol: "https", hostname: "polymarket-upload.s3.us-east-2.amazonaws.com" },
     ],
   },
   webpack(config) {

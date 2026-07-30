@@ -1,0 +1,13 @@
+{
+  "version": "1.1.0",
+  "catalog": true,
+  "trading": false,
+  "combos": false,
+  "intelligence": true,
+  "features": {
+    "catalog_read": true,
+    "realtime": false
+  },
+  "source": "retropick-markets-bff",
+  "checkedAt": "2026-07-30T12:00:00.000Z"
+}
