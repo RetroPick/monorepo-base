@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -27,6 +28,7 @@ func NewCatalogLocker(pool *pgxpool.Pool) (*CatalogLocker, error) {
 }
 
 type catalogLease struct {
+	mu   sync.Mutex
 	conn *pgxpool.Conn
 }
 
@@ -49,13 +51,19 @@ func (l *CatalogLocker) TryAcquire(ctx context.Context) (CatalogLease, bool, err
 }
 
 func (l *catalogLease) Release(ctx context.Context) error {
-	if l == nil || l.conn == nil {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.conn == nil {
 		return nil
 	}
-	defer l.conn.Release()
-	queries := dbqueries.New(l.conn)
+	conn := l.conn
+	l.conn = nil
+
+	queries := dbqueries.New(conn)
 	if _, err := queries.ReleaseMarketsAdvisoryLock(ctx, catalogAdvisoryLockKey); err != nil {
+		conn.Hijack()
 		return fmt.Errorf("catalog locker: release advisory lock: %w", err)
 	}
+	conn.Release()
 	return nil
 }

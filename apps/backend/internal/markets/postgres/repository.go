@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"retropick/apps/backend/internal/markets"
 	"retropick/apps/backend/internal/markets/catalog"
 )
+
+var ErrCheckpointNotFound = errors.New("markets checkpoint not found")
 
 type Store struct {
 	database       dbqueries.DBTX
@@ -265,6 +268,9 @@ func (s *Store) GetCheckpoint(ctx context.Context, source, stream string) (Check
 		Stream: stream,
 	})
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Checkpoint{}, ErrCheckpointNotFound
+		}
 		return Checkpoint{}, fmt.Errorf("get markets checkpoint: %w", err)
 	}
 	return Checkpoint{
