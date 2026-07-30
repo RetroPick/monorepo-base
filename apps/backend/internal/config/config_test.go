@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestLoad_ProductionRequiresExplicitRPCURL(t *testing.T) {
@@ -54,6 +55,45 @@ func TestLoad_ProductionAcceptsValidConfig(t *testing.T) {
 	}
 	if cfg.IndexerStartBlock != 123456 {
 		t.Fatalf("IndexerStartBlock = %d, want 123456", cfg.IndexerStartBlock)
+	}
+}
+
+func TestLoad_MarketsReadDefaults(t *testing.T) {
+	t.Setenv("ENVIRONMENT", "development")
+	t.Setenv("DATABASE_URL", "postgres://localhost/retropick")
+	t.Setenv("RPC_URL", "https://sepolia.base.org")
+	t.Setenv("MARKETS_GAMMA_API_URL", "")
+	t.Setenv("MARKETS_CLOB_API_URL", "")
+	t.Setenv("MARKETS_CATALOG_ENABLED", "")
+	t.Setenv("MARKETS_MARKET_DATA_ENABLED", "")
+	t.Setenv("MARKETS_BOOK_MAX_AGE", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.MarketsGammaAPIURL != "https://gamma-api.polymarket.com" {
+		t.Fatalf("Gamma URL %q", cfg.MarketsGammaAPIURL)
+	}
+	if cfg.MarketsCLOBAPIURL != "https://clob.polymarket.com" {
+		t.Fatalf("CLOB URL %q", cfg.MarketsCLOBAPIURL)
+	}
+	if !cfg.MarketsCatalogEnabled || !cfg.MarketsMarketDataEnabled {
+		t.Fatalf("markets flags catalog=%v data=%v", cfg.MarketsCatalogEnabled, cfg.MarketsMarketDataEnabled)
+	}
+	if cfg.MarketsBookMaxAge != 10*time.Second {
+		t.Fatalf("book max age %s", cfg.MarketsBookMaxAge)
+	}
+}
+
+func TestLoad_ProductionRejectsUntrustedMarketsHost(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("MARKETS_GAMMA_API_URL", "http://127.0.0.1:9000")
+
+	_, err := Load()
+	if err == nil || !strings.Contains(err.Error(), "MARKETS_GAMMA_API_URL must use official HTTPS host") {
+		t.Fatalf("expected Markets host validation error, got %v", err)
 	}
 }
 

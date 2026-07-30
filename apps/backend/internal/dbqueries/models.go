@@ -354,6 +354,156 @@ type MarketSnapshot struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type MarketsCatalogEvent struct {
+	EventID           string             `json:"event_id"`
+	Slug              string             `json:"slug"`
+	Title             string             `json:"title"`
+	Description       string             `json:"description"`
+	Status            string             `json:"status"`
+	StartAt           pgtype.Timestamptz `json:"start_at"`
+	EndAt             pgtype.Timestamptz `json:"end_at"`
+	Source            string             `json:"source"`
+	UpstreamUpdatedAt pgtype.Timestamptz `json:"upstream_updated_at"`
+	ContentHash       string             `json:"content_hash"`
+	Payload           []byte             `json:"payload"`
+	ObservedAt        pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MarketsCatalogMarket struct {
+	MarketID          string             `json:"market_id"`
+	EventID           pgtype.Text        `json:"event_id"`
+	ConditionID       string             `json:"condition_id"`
+	Slug              string             `json:"slug"`
+	Question          string             `json:"question"`
+	Description       string             `json:"description"`
+	Status            string             `json:"status"`
+	EndAt             pgtype.Timestamptz `json:"end_at"`
+	EnableOrderBook   bool               `json:"enable_order_book"`
+	NegRisk           bool               `json:"neg_risk"`
+	Source            string             `json:"source"`
+	UpstreamUpdatedAt pgtype.Timestamptz `json:"upstream_updated_at"`
+	ContentHash       string             `json:"content_hash"`
+	Payload           []byte             `json:"payload"`
+	ObservedAt        pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MarketsCatalogOutcome struct {
+	OutcomeID       string             `json:"outcome_id"`
+	MarketID        string             `json:"market_id"`
+	UpstreamTokenID string             `json:"upstream_token_id"`
+	OutcomeIndex    int32              `json:"outcome_index"`
+	Name            string             `json:"name"`
+	Price           pgtype.Text        `json:"price"`
+	Winner          pgtype.Bool        `json:"winner"`
+	ObservedAt      pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MarketsCatalogRule struct {
+	MarketID             string             `json:"market_id"`
+	Description          string             `json:"description"`
+	ResolutionSourceName string             `json:"resolution_source_name"`
+	ResolutionSourceUrl  string             `json:"resolution_source_url"`
+	ContentHash          string             `json:"content_hash"`
+	UpstreamUpdatedAt    pgtype.Timestamptz `json:"upstream_updated_at"`
+	ObservedAt           pgtype.Timestamptz `json:"observed_at"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MarketsMarketDataHistory struct {
+	TokenID    string             `json:"token_id"`
+	MarketID   string             `json:"market_id"`
+	ObservedAt pgtype.Timestamptz `json:"observed_at"`
+	Price      string             `json:"price"`
+	Derived    bool               `json:"derived"`
+	Source     string             `json:"source"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketsMarketDataLatest struct {
+	TokenID           string             `json:"token_id"`
+	MarketID          string             `json:"market_id"`
+	ConditionID       string             `json:"condition_id"`
+	FreshnessState    string             `json:"freshness_state"`
+	FreshnessReason   string             `json:"freshness_reason"`
+	BookHash          string             `json:"book_hash"`
+	UpstreamTimestamp pgtype.Timestamptz `json:"upstream_timestamp"`
+	ObservedAt        pgtype.Timestamptz `json:"observed_at"`
+	Snapshot          []byte             `json:"snapshot"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MarketsMarketHealthSnapshot struct {
+	MarketID         string             `json:"market_id"`
+	TokenID          string             `json:"token_id"`
+	AlgorithmVersion string             `json:"algorithm_version"`
+	ObservedAt       pgtype.Timestamptz `json:"observed_at"`
+	FreshnessState   string             `json:"freshness_state"`
+	Components       []byte             `json:"components"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketsMarketSignal struct {
+	SignalID       string             `json:"signal_id"`
+	SignalType     string             `json:"signal_type"`
+	MarketID       string             `json:"market_id"`
+	State          string             `json:"state"`
+	RuleVersion    string             `json:"rule_version"`
+	ReasonCodes    []byte             `json:"reason_codes"`
+	IdempotencyKey string             `json:"idempotency_key"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	RetractedAt    pgtype.Timestamptz `json:"retracted_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type MarketsRawUpstreamEvent struct {
+	ID              int64              `json:"id"`
+	Source          string             `json:"source"`
+	UpstreamEventID string             `json:"upstream_event_id"`
+	EntityType      string             `json:"entity_type"`
+	EntityID        string             `json:"entity_id"`
+	SchemaVersion   string             `json:"schema_version"`
+	Payload         []byte             `json:"payload"`
+	ObservedAt      pgtype.Timestamptz `json:"observed_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketsSignalEvidence struct {
+	SignalID      string             `json:"signal_id"`
+	EvidenceIndex int32              `json:"evidence_index"`
+	Kind          string             `json:"kind"`
+	ReferenceID   string             `json:"reference_id"`
+	ObservedAt    pgtype.Timestamptz `json:"observed_at"`
+	ContentHash   string             `json:"content_hash"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketsSignalRetraction struct {
+	SignalID            string             `json:"signal_id"`
+	ReasonCode          string             `json:"reason_code"`
+	EvidenceReferenceID string             `json:"evidence_reference_id"`
+	RetractedAt         pgtype.Timestamptz `json:"retracted_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketsSyncCheckpoint struct {
+	Source        string             `json:"source"`
+	Stream        string             `json:"stream"`
+	Cursor        string             `json:"cursor"`
+	HighWatermark pgtype.Timestamptz `json:"high_watermark"`
+	LastSuccessAt pgtype.Timestamptz `json:"last_success_at"`
+	Metadata      []byte             `json:"metadata"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type OracleFeedHealth struct {
 	FeedID        string             `json:"feed_id"`
 	Label         string             `json:"label"`

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
 	"time"
 
@@ -10,6 +11,18 @@ import (
 	"retropick/apps/backend/internal/dbqueries"
 	"retropick/apps/backend/internal/registry"
 )
+
+type routeRecorder map[string]http.HandlerFunc
+
+func (r routeRecorder) Get(pattern string, handler http.HandlerFunc) {
+	r[pattern] = handler
+}
+
+type metricsStub string
+
+func (m metricsStub) Prometheus() string {
+	return string(m)
+}
 
 func TestHealthOKPayloadBackwardCompatibleTopLevel(t *testing.T) {
 	reg := &registry.Registry{
@@ -108,5 +121,31 @@ func TestHealthOKPayloadJSONStableKeys(t *testing.T) {
 	}
 	if keys.LastIndexedBlock != keys.IndexedBlock || keys.LastIndexedBlock != keys.Indexer.LastIndexedBlock {
 		t.Fatalf("block mismatch %+v", keys)
+	}
+}
+
+func TestRegisterHealthRoutesIncludesCanonicalAliases(t *testing.T) {
+	t.Parallel()
+
+	routes := routeRecorder{}
+	RegisterHealthRoutes(
+		routes,
+		nil,
+		nil,
+		&registry.Registry{},
+		BuildInfo{},
+		false,
+		metricsStub("retropick_markets_test_metric 1\n"),
+	)
+	for _, path := range []string{
+		"/api/v1/livez",
+		"/api/v1/readyz",
+		"/api/v1/health/live",
+		"/api/v1/health/ready",
+		"/metrics",
+	} {
+		if routes[path] == nil {
+			t.Errorf("missing route %s", path)
+		}
 	}
 }

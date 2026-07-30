@@ -1,12 +1,19 @@
 product: retropick-markets
 version: v1
-mode: documentation_baseline
-last_updated: 2026-07-24
-current_phase: PHASE-0
+mode: implementation_reconciled
+last_updated: 2026-07-30
+current_phase: PHASE-1
+reconciliation:
+  date: 2026-07-30
+  outcome: PASS_WITH_FOCUSED_ADR
+  focused_adr: .dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md
+  report: .dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md
+  assignment_slice: phase1_backend_read_only
+  authorization: user_uploaded_implementation_assignment
 phase_order:
   - id: PHASE-0
     name: Discovery and Spec Freeze
-    status: planned
+    status: superseded_by_reconciliation
     spec: .dev/markets-v1/phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md
     prerequisites: []
     tasks:
@@ -18,12 +25,16 @@ phase_order:
       - MKT-P0-006
       - MKT-P0-007
       - MKT-P0-008
-    exit_gate: []
+    exit_gate:
+      - repository_and_upstream_reconciled
+      - backend_first_scope_authorized
+      - focused_adr_accepted
   - id: PHASE-1
     name: Foundation and Read Markets
-    status: planned
+    status: backend_read_slice_complete
     spec: .dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
     prerequisites: ['PHASE-0']
+    implementation_slice: backend_read_only
     tasks:
       - MKT-P1-001
       - MKT-P1-002
@@ -35,7 +46,12 @@ phase_order:
       - MKT-P1-008
       - MKT-P1-009
       - MKT-P1-010
-    exit_gate: []
+    exit_gate:
+      - openapi_conformance_pass
+      - migrations_and_repositories_verified
+      - deterministic_fixtures_pass
+      - freshness_and_degraded_states_verified
+      - no_signing_or_fund_movement
   - id: PHASE-2
     name: Account Wallet and Funding
     status: planned
@@ -96,16 +112,19 @@ products:
   web:
     enabled: true
     path: apps/web
+    phase1_implementation: false
   backend:
     enabled: true
     path: apps/backend
     markets_module: apps/backend/internal/markets
+    phase1_implementation: true
   android:
     enabled: true
     ui_stack: Jetpack Compose
     language: Kotlin
     path: apps/android
     note: README-only at R3 documentation baseline
+    phase1_implementation: false
   custom_markets_contract:
     enabled: false
 external_authorities:

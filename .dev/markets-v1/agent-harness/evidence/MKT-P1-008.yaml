@@ -1,0 +1,23 @@
+task_id: MKT-P1-008
+date: 2026-07-30
+result: pass
+commands:
+  - command: go test ./internal/markets/signals -count=1
+    working_directory: apps/backend
+    exit_code: 0
+tests:
+  - deterministic new-market IDs and idempotency keys
+  - exact fixed-point price-move threshold behavior
+  - liquidity increases and decreases receive explicit reason codes
+  - unchanged rules do not emit and changed content hashes do
+  - retractions preserve original evidence and append correction evidence
+  - expiry occurs only after the configured deadline
+requirements:
+  - MKT-FR-050
+artifacts:
+  - apps/backend/internal/markets/signals/engine.go
+  - apps/backend/migrations/000016_markets_v1_foundation.up.sql
+limitations:
+  - Phase 1 exposes the deterministic engine and persistence contract but does not implement user notification delivery
+  - no trader profiling, smart-money, insider, copy-trading, or LLM behavior is present
+human_approval_required: false

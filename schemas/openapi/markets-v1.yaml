@@ -1,28 +1,32 @@
 openapi: 3.1.0
 info:
   title: RetroPick Markets API
-  version: 1.0.0
+  version: 1.1.0
   description: |
-    Polymarket-native BFF consumed by web and Android.
-    Implemented handlers live in apps/backend/internal/markets (Phase R3; events proxied from Polymarket Gamma when catalog is enabled).
+    Public, Polymarket-native read BFF shared by future web and Android clients.
+    Polymarket remains the venue and settlement authority. Prices and sizes are
+    decimal strings; every upstream-derived response carries provenance and
+    freshness metadata.
 servers:
   - url: /api/v1
+tags:
+  - name: Markets
+  - name: Intelligence
+  - name: Health
 paths:
   /markets/eligibility:
     get:
+      tags: [Markets]
       operationId: getMarketsEligibility
-      summary: Jurisdiction and policy eligibility (fail-closed)
+      summary: Fail-closed future transactional eligibility state
       responses:
         "200":
-          description: Eligibility decision
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/EligibilityResponse"
+          $ref: "#/components/responses/Eligibility"
   /markets/capabilities:
     get:
+      tags: [Markets]
       operationId: getMarketsCapabilities
-      summary: Feature flags for this build
+      summary: Build and upstream capability metadata
       responses:
         "200":
           description: Capability flags
@@ -32,30 +36,725 @@ paths:
                 $ref: "#/components/schemas/CapabilitiesResponse"
   /markets/events:
     get:
+      tags: [Markets]
       operationId: listMarketsEvents
-      summary: Normalized Polymarket event catalog
+      summary: List normalized public events
       parameters:
-        - name: cursor
-          in: query
-          schema:
-            type: string
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
       responses:
         "200":
           description: Event page
+          headers:
+            ETag:
+              schema:
+                type: string
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/EventsListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "502":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /markets/events/{eventId}:
+    get:
+      tags: [Markets]
+      operationId: getMarketsEvent
+      summary: Get an event and its normalized markets
+      parameters:
+        - $ref: "#/components/parameters/EventID"
+      responses:
+        "200":
+          description: Event detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /markets/markets/{marketId}:
+    get:
+      tags: [Markets]
+      operationId: getMarketsMarket
+      summary: Get market detail and resolution provenance
+      parameters:
+        - $ref: "#/components/parameters/MarketID"
+      responses:
+        "200":
+          description: Market detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "502":
+          $ref: "#/components/responses/UpstreamUnavailable"
+  /markets/markets/{marketId}/orderbook:
+    get:
+      tags: [Markets]
+      operationId: getMarketsOrderBook
+      summary: Get an authoritative outcome-token order-book snapshot
+      parameters:
+        - $ref: "#/components/parameters/MarketID"
+        - $ref: "#/components/parameters/TokenID"
+      responses:
+        "200":
+          description: Order-book snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderBookSnapshot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/DataUnavailable"
+  /markets/markets/{marketId}/history:
+    get:
+      tags: [Markets]
+      operationId: getMarketsHistory
+      summary: Get sparse public price history without forward filling
+      parameters:
+        - $ref: "#/components/parameters/MarketID"
+        - $ref: "#/components/parameters/TokenID"
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1h, 6h, 1d, 1w, max]
+            default: 1d
+        - name: fidelity
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1440
+            default: 60
+      responses:
+        "200":
+          description: Price history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceHistoryResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "503":
+          $ref: "#/components/responses/DataUnavailable"
+  /markets/markets/{marketId}/health:
+    get:
+      tags: [Markets]
+      operationId: getMarketsMarketHealth
+      summary: Get deterministic market-liquidity health components
+      parameters:
+        - $ref: "#/components/parameters/MarketID"
+        - $ref: "#/components/parameters/TokenID"
+      responses:
+        "200":
+          description: Health components
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketHealthSnapshot"
+        "503":
+          $ref: "#/components/responses/DataUnavailable"
+  /markets/intelligence/signals:
+    get:
+      tags: [Intelligence]
+      operationId: listMarketsSignals
+      summary: List deterministic public signal envelopes
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+            maxLength: 256
+      responses:
+        "200":
+          description: Signal page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignalsListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getMarketsLiveness
+      summary: Process liveness independent of upstream availability
+      responses:
+        "200":
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getMarketsReadiness
+      summary: Ability to safely serve the configured responsibility
+      responses:
+        "200":
+          description: Ready or safely degraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: Required dependency unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
 components:
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+        maxLength: 256
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    EventID:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    MarketID:
+      name: marketId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    TokenID:
+      name: tokenId
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+  responses:
+    Eligibility:
+      description: Eligibility decision
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/EligibilityResponse"
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    UpstreamUnavailable:
+      description: Upstream unavailable and no bounded stale projection exists
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
+    DataUnavailable:
+      description: Data is unavailable, invalid, stale beyond policy, or resynchronizing
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiError"
   schemas:
+    SchemaVersion:
+      type: string
+      const: "1"
+    DecimalString:
+      type: string
+      pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$'
+      examples: ["0.42"]
+    MarketStatus:
+      type: string
+      enum: [unknown, open, closed, resolved, archived]
+    FreshnessState:
+      type: string
+      enum: [fresh, stale, resyncing, unavailable, invalid]
+    UpstreamProvenance:
+      type: object
+      additionalProperties: false
+      required: [source, observedAt]
+      properties:
+        source:
+          type: string
+          enum: [polymarket_gamma, polymarket_clob, polymarket_clob_ws, retropick_projection]
+        upstreamId:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        upstreamUpdatedAt:
+          type: [string, "null"]
+          format: date-time
+        contentHash:
+          type: string
+    MarketFreshness:
+      type: object
+      additionalProperties: false
+      required: [state, observedAt]
+      properties:
+        state:
+          $ref: "#/components/schemas/FreshnessState"
+        observedAt:
+          type: string
+          format: date-time
+        ageMillis:
+          type: integer
+          minimum: 0
+        reason:
+          type: string
+        bookHash:
+          type: string
+    ResolutionSource:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri
+    ResolutionRule:
+      type: object
+      additionalProperties: false
+      required: [description, sources, contentHash]
+      properties:
+        description:
+          type: string
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResolutionSource"
+        contentHash:
+          type: string
+        updatedAt:
+          type: [string, "null"]
+          format: date-time
+    Outcome:
+      type: object
+      additionalProperties: false
+      required: [id, upstreamId, name]
+      properties:
+        id:
+          type: string
+          description: Stable RetroPick ID
+        upstreamId:
+          type: string
+          description: Immutable Polymarket token ID
+        name:
+          type: string
+        price:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        winner:
+          type: [boolean, "null"]
+    MarketCapability:
+      type: object
+      additionalProperties: false
+      required: [orderBook, history, realtime, negRisk, trading]
+      properties:
+        orderBook:
+          type: boolean
+        history:
+          type: boolean
+        realtime:
+          type: boolean
+        negRisk:
+          type: boolean
+        trading:
+          type: boolean
+          const: false
+    EventSummary:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, id, upstreamId, title, status, marketCount, freshness, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        id:
+          type: string
+        upstreamId:
+          type: string
+        slug:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: "#/components/schemas/MarketStatus"
+        startAt:
+          type: [string, "null"]
+          format: date-time
+        endAt:
+          type: [string, "null"]
+          format: date-time
+        marketCount:
+          type: integer
+          minimum: 0
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    MarketSummary:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, id, upstreamId, conditionId, question, status, outcomes, capabilities, freshness, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        id:
+          type: string
+        upstreamId:
+          type: string
+        conditionId:
+          type: string
+        slug:
+          type: string
+        question:
+          type: string
+        status:
+          $ref: "#/components/schemas/MarketStatus"
+        endAt:
+          type: [string, "null"]
+          format: date-time
+        outcomes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Outcome"
+        capabilities:
+          $ref: "#/components/schemas/MarketCapability"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    EventDetail:
+      allOf:
+        - $ref: "#/components/schemas/EventSummary"
+        - type: object
+          required: [markets]
+          properties:
+            description:
+              type: string
+            markets:
+              type: array
+              items:
+                $ref: "#/components/schemas/MarketSummary"
+    MarketDetail:
+      allOf:
+        - $ref: "#/components/schemas/MarketSummary"
+        - type: object
+          required: [resolution]
+          properties:
+            eventId:
+              type: string
+            description:
+              type: string
+            resolution:
+              $ref: "#/components/schemas/ResolutionRule"
+    OrderBookLevel:
+      type: object
+      additionalProperties: false
+      required: [price, size]
+      properties:
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        size:
+          $ref: "#/components/schemas/DecimalString"
+    OrderBookSnapshot:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, marketId, conditionId, tokenId, hash, timestamp, bids, asks, minOrderSize, tickSize, negRisk, freshness, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        marketId:
+          type: string
+        conditionId:
+          type: string
+        tokenId:
+          type: string
+        hash:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        bids:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        asks:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrderBookLevel"
+        bestBid:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        bestAsk:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        midpoint:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        spread:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        minOrderSize:
+          $ref: "#/components/schemas/DecimalString"
+        tickSize:
+          $ref: "#/components/schemas/DecimalString"
+        negRisk:
+          type: boolean
+        lastTradePrice:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    PricePoint:
+      type: object
+      additionalProperties: false
+      required: [timestamp, price, derived, source]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        derived:
+          type: boolean
+        source:
+          type: string
+    PriceHistoryResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, marketId, tokenId, points, freshness, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        marketId:
+          type: string
+        tokenId:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricePoint"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    MarketHealthSnapshot:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, marketId, algorithm, observedAt, bidDepth, askDepth, snapshotAgeMs, crossed, freshness, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        marketId:
+          type: string
+        algorithm:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        spread:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        bestBid:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        bestAsk:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        bidDepth:
+          $ref: "#/components/schemas/DecimalString"
+        askDepth:
+          $ref: "#/components/schemas/DecimalString"
+        snapshotAgeMs:
+          type: integer
+          minimum: 0
+        crossed:
+          type: boolean
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    SignalEvidence:
+      type: object
+      additionalProperties: false
+      required: [kind, referenceId, observedAt, contentHash]
+      properties:
+        kind:
+          type: string
+        referenceId:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        contentHash:
+          type: string
+    SignalEnvelope:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, id, type, marketId, state, ruleVersion, reasonCodes, createdAt, idempotencyKey, evidence]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        id:
+          type: string
+        type:
+          type: string
+          enum: [new_market, price_move, liquidity_change, rule_changed]
+        marketId:
+          type: string
+        state:
+          type: string
+          enum: [observed, processed, confirmed, expired, retracted]
+        ruleVersion:
+          type: string
+        reasonCodes:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: [string, "null"]
+          format: date-time
+        retractedAt:
+          type: [string, "null"]
+          format: date-time
+        idempotencyKey:
+          type: string
+        evidence:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SignalEvidence"
+    RealtimeEnvelope:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, eventId, type, source, marketId, upstreamId, sequence, observedAt, publishedAt, payload]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        eventId:
+          type: string
+        type:
+          type: string
+          enum: [orderbook.snapshot, orderbook.delta, market.updated, signal.created, signal.retracted]
+        source:
+          type: string
+          const: polymarket
+        marketId:
+          type: string
+        upstreamId:
+          type: string
+        sequence:
+          type: [string, "null"]
+          description: Null until an authoritative upstream sequence is documented.
+        snapshotHash:
+          type: string
+        observedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required: [nextCursor, limit]
+      properties:
+        nextCursor:
+          type: [string, "null"]
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+    EventsListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, events, cursor, page, source, checkedAt, freshness, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/EventSummary"
+        cursor:
+          type: [string, "null"]
+        page:
+          $ref: "#/components/schemas/PageInfo"
+        source:
+          type: string
+        checkedAt:
+          type: string
+          format: date-time
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    SignalsListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, signals, page]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        signals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SignalEnvelope"
+        page:
+          $ref: "#/components/schemas/PageInfo"
     EligibilityResponse:
       type: object
+      additionalProperties: false
       required: [eligible, checkedAt]
       properties:
         eligible:
@@ -69,7 +768,8 @@ components:
           type: string
     CapabilitiesResponse:
       type: object
-      required: [version, catalog, trading, combos, intelligence, checkedAt]
+      additionalProperties: false
+      required: [version, catalog, trading, combos, intelligence, source, checkedAt]
       properties:
         version:
           type: string
@@ -77,40 +777,48 @@ components:
           type: boolean
         trading:
           type: boolean
+          const: false
         combos:
           type: boolean
+          const: false
         intelligence:
           type: boolean
         features:
           type: object
           additionalProperties:
             type: boolean
-        checkedAt:
-          type: string
-          format: date-time
-    EventSummary:
-      type: object
-      required: [id, title]
-      properties:
-        id:
-          type: string
-        slug:
-          type: string
-        title:
-          type: string
-    EventsListResponse:
-      type: object
-      required: [events, source, checkedAt]
-      properties:
-        events:
-          type: array
-          items:
-            $ref: "#/components/schemas/EventSummary"
-        cursor:
-          type: string
-          nullable: true
         source:
           type: string
         checkedAt:
           type: string
           format: date-time
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            requestId:
+              type: string
+    HealthResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        degraded:
+          type: boolean
+        checks:
+          type: object
+          additionalProperties: true

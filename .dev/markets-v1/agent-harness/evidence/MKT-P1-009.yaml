@@ -1,0 +1,32 @@
+task_id: MKT-P1-009
+date: 2026-07-30
+result: pass
+commands:
+  - command: go test ./internal/markets/... ./internal/config ./internal/api -count=1
+    working_directory: apps/backend
+    exit_code: 0
+  - command: go test ./migrations -run TestMarketsV1Migration -count=1
+    working_directory: apps/backend
+    exit_code: 0
+  - command: go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate && git diff --exit-code internal/dbqueries
+    working_directory: apps/backend
+    exit_code: 0
+tests:
+  - bounded-label upstream, catalog, book-state, and signal metrics
+  - attacker-controlled metric labels are ignored
+  - production rejects non-official or non-HTTPS Markets upstream URLs
+  - Gamma and CLOB reject responses larger than eight MiB
+  - canonical liveness/readiness aliases are registered
+  - OpenAPI and migration gates are explicit in CI
+requirements:
+  - MKT-NFR-001
+  - MKT-NFR-010
+artifacts:
+  - apps/backend/internal/markets/metrics.go
+  - apps/backend/internal/config/config.go
+  - apps/backend/internal/api/health.go
+  - .github/workflows/ci.yml
+  - .dev/markets-v1/platform/OBSERVABILITY_SLOS_AND_ALERTS.md
+limitations:
+  - production SLO thresholds require staging traffic before alert tuning
+human_approval_required: false

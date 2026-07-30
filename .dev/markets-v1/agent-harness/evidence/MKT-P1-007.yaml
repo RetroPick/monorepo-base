@@ -1,0 +1,23 @@
+task_id: MKT-P1-007
+date: 2026-07-30
+result: pass_with_upstream_limitation
+commands:
+  - command: go test ./internal/markets/realtime -count=1
+    working_directory: apps/backend
+    exit_code: 0
+tests:
+  - snapshot and delta envelopes always expose a null sequence
+  - deterministic event IDs exclude publication retry time
+  - snapshot hash mismatch and backward timestamps require authoritative resnapshot
+  - disconnect marks the session resynchronizing
+  - unknown schema versions and event types fail closed
+requirements:
+  - MKT-FR-010
+artifacts:
+  - apps/backend/internal/markets/realtime/session.go
+  - apps/backend/internal/markets/marketdata/book.go
+  - schemas/openapi/markets-v1.yaml
+limitations:
+  - official upstream payloads do not document a monotonic sequence
+  - client-facing live streaming remains capability-disabled; REST snapshots are authoritative until a gap-safe upstream stream worker is reviewed
+human_approval_required: false
