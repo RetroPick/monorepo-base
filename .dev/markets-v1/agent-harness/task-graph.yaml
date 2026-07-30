@@ -307,7 +307,7 @@ tasks:
     phase: "PHASE-1"
     title: "Markets database migrations and repositories"
     goal: "Persist idempotent catalog, market-data, health, checkpoint, and signal projections."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-001"
     may_run_in_parallel_with: []
@@ -345,7 +345,8 @@ tasks:
     acceptance_criteria:
       - "Duplicate upserts are safe"
       - "Closed and resolved markets remain queryable"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-003.yaml"
     rollback: "Run migration 000016 down only before production data exists."
     human_approval_required: false
     handoff_to:
@@ -354,7 +355,7 @@ tasks:
     phase: "PHASE-1"
     title: "Catalog synchronization and checkpointing"
     goal: "Ingest bounded Gamma pages with validated relationships, rule hashes, and durable checkpoints."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-002"
       - "MKT-P1-003"
