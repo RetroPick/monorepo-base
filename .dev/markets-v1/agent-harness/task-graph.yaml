@@ -387,7 +387,7 @@ tasks:
     phase: "PHASE-1"
     title: "Market-data ingest, freshness, and resynchronization"
     goal: "Normalize CLOB snapshots/history and implement hash/time-based degraded states."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-002"
       - "MKT-P1-003"
@@ -409,7 +409,8 @@ tasks:
       - "go -C apps/backend test ./internal/markets/marketdata -count=1"
     acceptance_criteria:
       - "Fresh, stale, resyncing, unavailable, and invalid states are deterministic"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-005.yaml"
     rollback: "Disable market-data capability and retain catalog reads."
     human_approval_required: false
     handoff_to:
@@ -418,7 +419,7 @@ tasks:
     phase: "PHASE-1"
     title: "Public read API handlers and error contract"
     goal: "Serve all authorized read endpoints with deterministic errors and degraded states."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-004"
       - "MKT-P1-005"
