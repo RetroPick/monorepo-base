@@ -274,7 +274,7 @@ tasks:
     phase: "PHASE-1"
     title: "Polymarket public-read anti-corruption clients"
     goal: "Validate and normalize official Gamma and CLOB public responses behind RetroPick interfaces."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-001"
     may_run_in_parallel_with: []
@@ -297,7 +297,8 @@ tasks:
       - "go -C apps/backend test ./internal/markets/gamma ./internal/markets/clob -count=1"
     acceptance_criteria:
       - "No direct upstream DTO is exposed by a public handler"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-002.yaml"
     rollback: "Revert clients and retain disabled catalog capability."
     human_approval_required: false
     handoff_to:
@@ -306,7 +307,7 @@ tasks:
     phase: "PHASE-1"
     title: "Markets database migrations and repositories"
     goal: "Persist idempotent catalog, market-data, health, checkpoint, and signal projections."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-001"
     may_run_in_parallel_with: []
