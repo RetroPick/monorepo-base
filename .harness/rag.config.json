@@ -26,7 +26,7 @@
     "**/forge-std/**",
     "**/openzeppelin-contracts/**",
     "**/chainlink-brownie-contracts/**",
-    "apps/web/sources/**",
+    "apps/fe-v1/sources/**",
     "**/.turbo/**",
     "contracts/legacy-pool-v1/**"
   ],

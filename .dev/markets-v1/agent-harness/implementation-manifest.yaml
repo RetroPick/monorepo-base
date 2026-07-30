@@ -110,9 +110,10 @@ phase_order:
       - MKT-P8-001
     exit_gate: []
 products:
-  web:
+  fe-v1:
     enabled: true
-    path: apps/web
+    path: apps/fe-v1
+    package: "@retropick/markets-v1"
     phase1_implementation: true
     phase1_2_read_terminal: true
   backend:
