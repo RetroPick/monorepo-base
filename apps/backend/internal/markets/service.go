@@ -47,13 +47,52 @@ type SignalReader interface {
 	ListSignals(ctx context.Context, marketID, cursor string, limit int) ([]SignalEnvelope, *string, error)
 }
 
+type CatalogProjection interface {
+	ListEvents(ctx context.Context, statusFilter string, limit, offset int) ([]EventSummary, error)
+	GetEvent(ctx context.Context, eventID string) (EventDetail, error)
+	GetMarket(ctx context.Context, marketID string) (MarketDetail, error)
+	ProjectionStatus(ctx context.Context) (CatalogProjectionStatus, error)
+}
+
+type CatalogWorkerState interface {
+	WorkerReady() bool
+	WorkerDegraded() bool
+	ProjectionAvailable() bool
+}
+
+type CatalogProjectionStatus struct {
+	EventCount     int64
+	LatestObserved time.Time
+	HasProjection  bool
+	CheckpointAge  time.Duration
+}
+
+type catalogWorkerSnapshot struct {
+	ready         bool
+	degraded      bool
+	hasProjection bool
+}
+
+func (s catalogWorkerSnapshot) WorkerReady() bool         { return s.ready }
+func (s catalogWorkerSnapshot) WorkerDegraded() bool      { return s.degraded }
+func (s catalogWorkerSnapshot) ProjectionAvailable() bool { return s.hasProjection }
+
+// CatalogWorkerSnapshotFrom returns a CatalogWorkerState adapter.
+func CatalogWorkerSnapshotFrom(ready, degraded, hasProjection bool) CatalogWorkerState {
+	return catalogWorkerSnapshot{ready: ready, degraded: degraded, hasProjection: hasProjection}
+}
+
 type ServiceConfig struct {
 	Catalog           CatalogClient
+	CatalogProjection CatalogProjection
+	CatalogWorker     CatalogWorkerState
 	CatalogEnabled    bool
+	CatalogMaxStale   time.Duration
 	MarketData        MarketDataClient
 	MarketProcessor   MarketDataProcessor
 	MarketDataEnabled bool
 	Signals           SignalReader
+	SignalsEnabled    bool
 	Metrics           *Metrics
 	BookMaxAge        time.Duration
 	Now               func() time.Time
@@ -91,21 +130,21 @@ func (s *Service) Eligibility(_ context.Context) EligibilityResponse {
 }
 
 func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
-	source := "stub"
-	if s.cfg.CatalogEnabled && s.cfg.Catalog != nil {
-		source = "gamma"
+	source := "retropick_projection"
+	if s.cfg.CatalogProjection == nil {
+		source = "stub"
 	}
 	marketDataEnabled := s.cfg.MarketDataEnabled && s.cfg.MarketData != nil && s.cfg.MarketProcessor != nil
-	intelligenceEnabled := s.cfg.Signals != nil
+	intelligenceEnabled := s.cfg.SignalsEnabled && s.cfg.Signals != nil
 	return CapabilitiesResponse{
 		Version: APIVersion,
-		Catalog: s.cfg.CatalogEnabled && s.cfg.Catalog != nil,
+		Catalog: s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
 		Trading: false,
 		Combos:  false,
 		Intel:   intelligenceEnabled,
 		Features: map[string]bool{
-			"catalog_read":   s.cfg.CatalogEnabled && s.cfg.Catalog != nil,
-			"market_detail":  s.cfg.CatalogEnabled && s.cfg.Catalog != nil,
+			"catalog_read":   s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
+			"market_detail":  s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
 			"orderbook_read": marketDataEnabled,
 			"price_history":  marketDataEnabled,
 			"market_health":  marketDataEnabled,
@@ -131,12 +170,11 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 		return EventsListResponse{}, err
 	}
 
-	if !s.cfg.CatalogEnabled || s.cfg.Catalog == nil {
-		now := s.nowUTC()
+	now := s.nowUTC()
+	if !s.cfg.CatalogEnabled || s.cfg.CatalogProjection == nil {
 		return EventsListResponse{
 			SchemaVersion: SchemaVersion,
 			Events:        []EventSummary{},
-			Cursor:        nil,
 			Page:          PageInfo{Limit: limit},
 			Source:        "stub",
 			CheckedAt:     now,
@@ -149,30 +187,21 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 		}, nil
 	}
 
-	started := time.Now()
-	rows, err := s.cfg.Catalog.ListEvents(ctx, limit, offset)
-	s.observeUpstream("gamma", err == nil, time.Since(started))
+	status, err := s.cfg.CatalogProjection.ProjectionStatus(ctx)
 	if err != nil {
 		return EventsListResponse{}, classifyCatalogError(err)
 	}
+	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
+	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
+		return EventsListResponse{}, freshnessErr
+	}
 
-	now := s.nowUTC()
-	events := make([]EventSummary, 0, len(rows))
-	for _, row := range rows {
-		detail, _ := mapGammaEvent(row, now)
-		events = append(events, EventSummary{
-			SchemaVersion: detail.SchemaVersion,
-			ID:            detail.ID,
-			UpstreamID:    detail.UpstreamID,
-			Slug:          detail.Slug,
-			Title:         detail.Title,
-			Status:        detail.Status,
-			StartAt:       detail.StartAt,
-			EndAt:         detail.EndAt,
-			MarketCount:   len(detail.Markets),
-			Freshness:     detail.Freshness,
-			Provenance:    detail.Provenance,
-		})
+	events, err := s.cfg.CatalogProjection.ListEvents(ctx, "", limit, offset)
+	if err != nil {
+		return EventsListResponse{}, classifyCatalogError(err)
+	}
+	for i := range events {
+		events[i].Freshness = freshness
 	}
 
 	var next *string
@@ -186,46 +215,75 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 		Events:        events,
 		Cursor:        next,
 		Page:          PageInfo{NextCursor: next, Limit: limit},
-		Source:        "gamma",
+		Source:        "retropick_projection",
 		CheckedAt:     now,
-		Freshness:     MarketFreshness{State: FreshnessFresh, ObservedAt: now},
-		Provenance:    UpstreamProvenance{Source: "polymarket_gamma", ObservedAt: now},
+		Freshness:     freshness,
+		Provenance:    UpstreamProvenance{Source: "retropick_projection", ObservedAt: status.LatestObserved},
 	}, nil
 }
 
+// EventsListETag returns a deterministic ETag for a projection-backed events page.
+func (s *Service) EventsListETag(ctx context.Context, cursor string, limit int) (string, error) {
+	body, err := s.ListEvents(ctx, cursor, limit)
+	if err != nil {
+		return "", err
+	}
+	return computeEventsETag(body.Events, body.Provenance.ObservedAt), nil
+}
+
 func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, error) {
-	if !s.cfg.CatalogEnabled || s.cfg.Catalog == nil {
+	if !s.cfg.CatalogEnabled || s.cfg.CatalogProjection == nil {
 		return EventDetail{}, ErrDataUnavailable
 	}
-	upstream, err := upstreamID(eventID, "event")
-	if err != nil {
-		return EventDetail{}, err
-	}
-	started := time.Now()
-	row, err := s.cfg.Catalog.GetEvent(ctx, upstream)
-	s.observeUpstream("gamma", err == nil, time.Since(started))
+	now := s.nowUTC()
+	status, err := s.cfg.CatalogProjection.ProjectionStatus(ctx)
 	if err != nil {
 		return EventDetail{}, classifyCatalogError(err)
 	}
-	event, _ := mapGammaEvent(row, s.nowUTC())
+	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
+	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
+		return EventDetail{}, freshnessErr
+	}
+	event, err := s.cfg.CatalogProjection.GetEvent(ctx, eventID)
+	if errors.Is(err, ErrNotFound) {
+		if upstream, convErr := upstreamID(eventID, "event"); convErr == nil {
+			if canonical := canonicalID("event", upstream); canonical != eventID {
+				event, err = s.cfg.CatalogProjection.GetEvent(ctx, canonical)
+			}
+		}
+	}
+	if err != nil {
+		return EventDetail{}, classifyCatalogError(err)
+	}
+	event.Freshness = freshness
 	return event, nil
 }
 
 func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail, error) {
-	if !s.cfg.CatalogEnabled || s.cfg.Catalog == nil {
+	if !s.cfg.CatalogEnabled || s.cfg.CatalogProjection == nil {
 		return MarketDetail{}, ErrDataUnavailable
 	}
-	upstream, err := upstreamID(marketID, "market")
-	if err != nil {
-		return MarketDetail{}, err
-	}
-	started := time.Now()
-	row, err := s.cfg.Catalog.GetMarket(ctx, upstream)
-	s.observeUpstream("gamma", err == nil, time.Since(started))
+	now := s.nowUTC()
+	status, err := s.cfg.CatalogProjection.ProjectionStatus(ctx)
 	if err != nil {
 		return MarketDetail{}, classifyCatalogError(err)
 	}
-	_, market := mapGammaMarket(row, "", s.nowUTC())
+	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
+	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
+		return MarketDetail{}, freshnessErr
+	}
+	market, err := s.cfg.CatalogProjection.GetMarket(ctx, marketID)
+	if errors.Is(err, ErrNotFound) {
+		if upstream, convErr := upstreamID(marketID, "market"); convErr == nil {
+			if canonical := canonicalID("market", upstream); canonical != marketID {
+				market, err = s.cfg.CatalogProjection.GetMarket(ctx, canonical)
+			}
+		}
+	}
+	if err != nil {
+		return MarketDetail{}, classifyCatalogError(err)
+	}
+	market.Freshness = freshness
 	return market, nil
 }
 
@@ -309,7 +367,7 @@ func (s *Service) ListSignals(ctx context.Context, marketID, cursor string, limi
 	if _, err := parseCursor(cursor); err != nil {
 		return SignalsListResponse{}, err
 	}
-	if s.cfg.Signals == nil {
+	if s.cfg.Signals == nil || !s.cfg.SignalsEnabled {
 		return SignalsListResponse{
 			SchemaVersion: SchemaVersion,
 			Signals:       []SignalEnvelope{},
@@ -341,6 +399,8 @@ func parseCursor(cursor string) (int, error) {
 
 func classifyCatalogError(err error) error {
 	switch {
+	case errors.Is(err, ErrNotFound):
+		return ErrNotFound
 	case errors.Is(err, gamma.ErrNotFound):
 		return ErrNotFound
 	case errors.Is(err, gamma.ErrRateLimited), errors.Is(err, gamma.ErrUpstream), errors.Is(err, gamma.ErrInvalidPayload):
@@ -376,4 +436,18 @@ func (s *Service) observeUpstream(upstream string, succeeded bool, duration time
 	if s.cfg.Metrics != nil {
 		s.cfg.Metrics.ObserveUpstream(upstream, succeeded, duration)
 	}
+}
+
+func (s *Service) catalogMaxStale() time.Duration {
+	if s.cfg.CatalogMaxStale > 0 {
+		return s.cfg.CatalogMaxStale
+	}
+	return 15 * time.Minute
+}
+
+func (s *Service) ProjectionStatus(ctx context.Context) (CatalogProjectionStatus, error) {
+	if s.cfg.CatalogProjection == nil {
+		return CatalogProjectionStatus{}, ErrDataUnavailable
+	}
+	return s.cfg.CatalogProjection.ProjectionStatus(ctx)
 }

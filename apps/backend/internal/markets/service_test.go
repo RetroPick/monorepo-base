@@ -156,36 +156,43 @@ func TestCapabilitiesStub(t *testing.T) {
 func TestListEventsGamma(t *testing.T) {
 	fixed := time.Date(2026, 7, 24, 12, 0, 0, 0, time.UTC)
 	svc := NewService(ServiceConfig{
-		CatalogEnabled: true,
-		Catalog: stubCatalog{rows: []gamma.Event{
-			{ID: "1", Slug: "a", Title: "Alpha"},
-			{ID: "2", Slug: "b", Title: "Beta"},
-		}},
-		Now: func() time.Time { return fixed },
+		CatalogEnabled:    true,
+		CatalogProjection: stubProjection{
+			observed: fixed,
+			events: []EventSummary{
+				{ID: "polymarket:event:1", Title: "Alpha", Provenance: UpstreamProvenance{ContentHash: "a"}},
+				{ID: "polymarket:event:2", Title: "Beta", Provenance: UpstreamProvenance{ContentHash: "b"}},
+			},
+		},
+		CatalogWorker: projectionTestWorker(),
+		Now:           func() time.Time { return fixed },
 	})
 
 	got, err := svc.ListEvents(context.Background(), "", 50)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Source != "gamma" || len(got.Events) != 2 {
+	if got.Source != "retropick_projection" || len(got.Events) != 2 {
 		t.Fatalf("got %+v", got)
 	}
 	if got.Events[0].Title != "Alpha" {
 		t.Fatalf("event %+v", got.Events[0])
 	}
-	if got.Events[0].ID != "polymarket:event:1" || got.Events[0].Provenance.Source != "polymarket_gamma" {
-		t.Fatalf("event %+v", got.Events[0])
-	}
 }
 
 func TestListEventsPaginationCursor(t *testing.T) {
+	fixed := time.Date(2026, 7, 24, 12, 0, 0, 0, time.UTC)
 	svc := NewService(ServiceConfig{
 		CatalogEnabled: true,
-		Catalog: stubCatalog{rows: []gamma.Event{
-			{ID: "1", Title: "One"},
-			{ID: "2", Title: "Two"},
-		}},
+		CatalogProjection: stubProjection{
+			observed: fixed,
+			events: []EventSummary{
+				{ID: "polymarket:event:1", Title: "One"},
+				{ID: "polymarket:event:2", Title: "Two"},
+			},
+		},
+		CatalogWorker: projectionTestWorker(),
+		Now:           func() time.Time { return fixed },
 	})
 
 	got, err := svc.ListEvents(context.Background(), "", 1)
@@ -200,7 +207,11 @@ func TestListEventsPaginationCursor(t *testing.T) {
 func TestListEventsRejectsInvalidCursor(t *testing.T) {
 	t.Parallel()
 
-	svc := NewService(ServiceConfig{CatalogEnabled: true, Catalog: stubCatalog{}})
+	svc := NewService(ServiceConfig{
+		CatalogEnabled:    true,
+		CatalogProjection: stubProjection{observed: time.Now().UTC()},
+		CatalogWorker:     projectionTestWorker(),
+	})
 	_, err := svc.ListEvents(context.Background(), "not-a-cursor", 10)
 	if !errors.Is(err, ErrInvalidArgument) {
 		t.Fatalf("error %v", err)
@@ -211,28 +222,22 @@ func TestGetEventMapsRuleProvenance(t *testing.T) {
 	t.Parallel()
 
 	fixed := time.Date(2026, 7, 30, 6, 0, 0, 0, time.UTC)
-	row := gamma.Event{
-		ID:     "123",
-		Title:  "Event A",
-		Active: true,
-		Markets: []gamma.Market{{
-			ID:               "456",
-			ConditionID:      "0xabc",
-			Question:         "Will A happen?",
-			Description:      "Resolve Yes if A happens.",
-			ResolutionSource: "https://example.com/rule",
-			Active:           true,
-			EnableOrderBook:  true,
-			Outcomes: []gamma.Outcome{
-				{Name: "Yes", TokenID: "token-yes", Price: "0.4"},
-				{Name: "No", TokenID: "token-no", Price: "0.6"},
-			},
+	event := EventDetail{
+		ID:         "polymarket:event:123",
+		Title:      "Event A",
+		Status:     MarketStatusOpen,
+		Markets: []MarketSummary{{
+			ID: "polymarket:market:456",
+			Outcomes: []Outcome{{
+				Price: ptrDecimal("0.4"),
+			}},
 		}},
 	}
 	svc := NewService(ServiceConfig{
-		CatalogEnabled: true,
-		Catalog:        stubCatalog{event: row},
-		Now:            func() time.Time { return fixed },
+		CatalogEnabled:    true,
+		CatalogProjection: stubProjection{observed: fixed, event: event, events: []EventSummary{{ID: event.ID}}},
+		CatalogWorker:     projectionTestWorker(),
+		Now:               func() time.Time { return fixed },
 	})
 	got, err := svc.GetEvent(context.Background(), "polymarket:event:123")
 	if err != nil {
@@ -250,18 +255,20 @@ func TestGetMarketIncludesResolutionRule(t *testing.T) {
 	t.Parallel()
 
 	fixed := time.Date(2026, 7, 30, 6, 0, 0, 0, time.UTC)
-	row := gamma.Market{
-		ID:               "456",
-		ConditionID:      "0xabc",
-		Question:         "Will A happen?",
-		Description:      "Resolve Yes if A happens.",
-		ResolutionSource: "https://example.com/rule",
-		Active:           true,
+	market := MarketDetail{
+		ID:          "polymarket:market:456",
+		ConditionID: "0xabc",
+		Question:    "Will A happen?",
+		Resolution: ResolutionRule{
+			ContentHash: "hash",
+			Sources:     []ResolutionSource{{Name: "source", URL: "https://example.com/rule"}},
+		},
 	}
 	svc := NewService(ServiceConfig{
-		CatalogEnabled: true,
-		Catalog:        stubCatalog{market: row},
-		Now:            func() time.Time { return fixed },
+		CatalogEnabled:    true,
+		CatalogProjection: stubProjection{observed: fixed, market: market},
+		CatalogWorker:     projectionTestWorker(),
+		Now:               func() time.Time { return fixed },
 	})
 	got, err := svc.GetMarket(context.Background(), "polymarket:market:456")
 	if err != nil {
@@ -270,6 +277,11 @@ func TestGetMarketIncludesResolutionRule(t *testing.T) {
 	if got.Resolution.ContentHash == "" || len(got.Resolution.Sources) != 1 {
 		t.Fatalf("market %+v", got)
 	}
+}
+
+func ptrDecimal(raw string) *DecimalString {
+	value := DecimalString(raw)
+	return &value
 }
 
 func TestGetOrderBookLabelsStaleSnapshot(t *testing.T) {
