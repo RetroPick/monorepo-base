@@ -98,12 +98,16 @@ func main() {
 		Interval:      cfg.CatalogSyncInterval,
 		PageSize:      cfg.CatalogPageSize,
 		MaxPages:      cfg.CatalogMaxPagesPerRun,
+		MaxStaleAge:   cfg.CatalogMaxStaleAge,
 		Backoff:       cfg.CatalogBackoff,
 		ShutdownGrace: cfg.ShutdownTimeout,
 	})
 	if err != nil {
 		log.Error("catalog worker", "err", err)
 		os.Exit(1)
+	}
+	if err := worker.Bootstrap(ctx); err != nil {
+		log.Warn("catalog bootstrap", "err", err)
 	}
 
 	metrics := markets.NewMetrics()

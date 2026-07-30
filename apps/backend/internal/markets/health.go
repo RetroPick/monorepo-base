@@ -68,41 +68,32 @@ func (h HealthChecker) Ready(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.Worker != nil {
-		switch {
-		case h.Worker.WorkerReady():
-			checks["catalogWorker"] = "ok"
-		case h.Worker.WorkerDegraded():
-			checks["catalogWorker"] = "degraded"
-			checks["catalogProjection"] = "stale"
-			degraded = true
-		default:
-			checks["catalogWorker"] = "syncing"
-			checks["catalogProjection"] = "missing"
+		maxStale := 15 * time.Minute
+		projection := CatalogProjectionStatus{}
+		if h.Service != nil {
+			maxStale = h.Service.catalogMaxStale()
+			if status, err := h.Service.ProjectionStatus(r.Context()); err == nil {
+				projection = status
+			} else {
+				ok = false
+				checks["catalogProjection"] = "unavailable"
+			}
+		}
+		eval := evaluateCatalogHealth(h.Worker, projection, now, maxStale)
+		checks["catalogWorker"] = eval.workerCheck
+		if checks["catalogProjection"] == "" {
+			checks["catalogProjection"] = eval.projectionCheck
+		}
+		if !eval.ok {
 			ok = false
 		}
-		if h.Worker.ProjectionAvailable() {
-			if checks["catalogProjection"] == "" {
-				checks["catalogProjection"] = "ok"
-			}
-		} else if checks["catalogProjection"] == "" {
-			checks["catalogProjection"] = "missing"
-			ok = false
+		if eval.degraded {
+			degraded = true
 		}
 	} else {
 		checks["catalogWorker"] = "disabled"
 		checks["catalogProjection"] = "missing"
 		ok = false
-	}
-
-	if h.Service != nil {
-		if status, err := h.Service.ProjectionStatus(r.Context()); err == nil {
-			if status.HasProjection {
-				checks["catalogProjection"] = projectionFreshnessLabel(status.LatestObserved, now, h.Service.catalogMaxStale())
-				if checks["catalogProjection"] == "stale" {
-					degraded = true
-				}
-			}
-		}
 	}
 
 	if h.SignalsOperational {
