@@ -119,9 +119,12 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 	}
 
 	for _, market := range page.Markets {
+		var prior MarketSignalPriorState
 		if s.signalsEnabled && s.signalProducer != nil {
-			if err := s.signalProducer.ProcessMarket(ctx, queries, market, market.Provenance.ObservedAt); err != nil {
-				return fmt.Errorf("apply markets catalog page: signals for %s: %w", market.ID, err)
+			var err error
+			prior, err = s.signalProducer.PriorState(ctx, queries, market.ID)
+			if err != nil {
+				return fmt.Errorf("apply markets catalog page: prior state for %s: %w", market.ID, err)
 			}
 		}
 		payload, err := json.Marshal(market)
@@ -184,6 +187,11 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			ObservedAt:           requiredTimestamptz(market.Provenance.ObservedAt),
 		}); err != nil {
 			return fmt.Errorf("apply markets catalog page: rule %s: %w", market.ID, err)
+		}
+		if s.signalsEnabled && s.signalProducer != nil {
+			if err := s.signalProducer.EmitAfterUpsert(ctx, queries, market, market.Provenance.ObservedAt, prior); err != nil {
+				return fmt.Errorf("apply markets catalog page: signals for %s: %w", market.ID, err)
+			}
 		}
 	}
 

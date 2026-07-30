@@ -24,28 +24,49 @@ func NewCatalogSignalProducer(engine *signals.Engine) *CatalogSignalProducer {
 	return &CatalogSignalProducer{engine: engine}
 }
 
-func (p *CatalogSignalProducer) ProcessMarket(
+// MarketSignalPriorState captures durable projection state before a catalog upsert.
+type MarketSignalPriorState struct {
+	MarketExists     bool
+	RuleExists       bool
+	PreviousRuleHash string
+}
+
+func (p *CatalogSignalProducer) PriorState(ctx context.Context, queries *dbqueries.Queries, marketID string) (MarketSignalPriorState, error) {
+	state := MarketSignalPriorState{}
+	if p == nil || p.engine == nil {
+		return state, nil
+	}
+	existingMarket, marketErr := queries.GetMarketsCatalogMarket(ctx, marketID)
+	state.MarketExists = marketErr == nil
+	if marketErr != nil && !errors.Is(marketErr, pgx.ErrNoRows) {
+		return state, fmt.Errorf("catalog signal producer: load market %s: %w", marketID, marketErr)
+	}
+
+	existingRule, ruleErr := queries.GetMarketsCatalogRule(ctx, marketID)
+	state.RuleExists = ruleErr == nil
+	if ruleErr != nil && !errors.Is(ruleErr, pgx.ErrNoRows) {
+		return state, fmt.Errorf("catalog signal producer: load rule %s: %w", marketID, ruleErr)
+	}
+	if state.RuleExists {
+		state.PreviousRuleHash = existingRule.ContentHash
+	} else if state.MarketExists {
+		state.PreviousRuleHash = existingMarket.ContentHash
+	}
+	return state, nil
+}
+
+// EmitAfterUpsert persists signals after the market row exists to satisfy FK constraints.
+func (p *CatalogSignalProducer) EmitAfterUpsert(
 	ctx context.Context,
 	queries *dbqueries.Queries,
 	market markets.MarketDetail,
 	observedAt time.Time,
+	prior MarketSignalPriorState,
 ) error {
 	if p == nil || p.engine == nil {
 		return nil
 	}
-	existingMarket, marketErr := queries.GetMarketsCatalogMarket(ctx, market.ID)
-	marketExists := marketErr == nil
-	if marketErr != nil && !errors.Is(marketErr, pgx.ErrNoRows) {
-		return fmt.Errorf("catalog signal producer: load market %s: %w", market.ID, marketErr)
-	}
-
-	existingRule, ruleErr := queries.GetMarketsCatalogRule(ctx, market.ID)
-	ruleExists := ruleErr == nil
-	if ruleErr != nil && !errors.Is(ruleErr, pgx.ErrNoRows) {
-		return fmt.Errorf("catalog signal producer: load rule %s: %w", market.ID, ruleErr)
-	}
-
-	if !marketExists {
+	if !prior.MarketExists {
 		envelope, err := p.engine.Evaluate(signals.Observation{
 			Kind:       signals.TypeNewMarket,
 			MarketID:   market.ID,
@@ -71,18 +92,12 @@ func (p *CatalogSignalProducer) ProcessMarket(
 	if currentRuleHash == "" {
 		currentRuleHash = hashPayload([]byte(market.Resolution.Description))
 	}
-	var previousRuleHash string
-	if ruleExists {
-		previousRuleHash = existingRule.ContentHash
-	} else if marketExists {
-		previousRuleHash = existingMarket.ContentHash
-	}
-	if ruleExists && previousRuleHash != "" && previousRuleHash != currentRuleHash {
+	if prior.RuleExists && prior.PreviousRuleHash != "" && prior.PreviousRuleHash != currentRuleHash {
 		envelope, err := p.engine.Evaluate(signals.Observation{
 			Kind:         signals.TypeRuleChanged,
 			MarketID:     market.ID,
 			ObservedAt:   observedAt,
-			PreviousHash: previousRuleHash,
+			PreviousHash: prior.PreviousRuleHash,
 			CurrentHash:  currentRuleHash,
 			Evidence: []markets.SignalEvidence{{
 				Kind:        "resolution_rule",
