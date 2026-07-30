@@ -1,5 +1,5 @@
 import { createAppKit, modal } from '@reown/appkit/react'
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { appDefaultNetwork, networks, projectId, wagmiAdapter } from '../config'
 
