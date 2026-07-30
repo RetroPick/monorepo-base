@@ -2,13 +2,17 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/dbqueries"
 )
+
+const catalogUnlockCloseTimeout = 5 * time.Second
 
 // CatalogLease holds a session-scoped advisory lock on one pooled connection.
 type CatalogLease interface {
@@ -60,10 +64,21 @@ func (l *catalogLease) Release(ctx context.Context) error {
 	l.conn = nil
 
 	queries := dbqueries.New(conn)
-	if _, err := queries.ReleaseMarketsAdvisoryLock(ctx, catalogAdvisoryLockKey); err != nil {
-		conn.Hijack()
-		return fmt.Errorf("catalog locker: release advisory lock: %w", err)
+	if _, err := queries.ReleaseMarketsAdvisoryLock(ctx, catalogAdvisoryLockKey); err == nil {
+		conn.Release()
+		return nil
+	} else {
+		unlockErr := fmt.Errorf("catalog locker: release advisory lock: %w", err)
+		rawConn := conn.Hijack()
+		closeCtx, cancel := context.WithTimeout(context.Background(), catalogUnlockCloseTimeout)
+		defer cancel()
+		var closeErr error
+		if rawConn != nil {
+			closeErr = rawConn.Close(closeCtx)
+			if closeErr != nil {
+				closeErr = fmt.Errorf("catalog locker: close hijacked connection: %w", closeErr)
+			}
+		}
+		return errors.Join(unlockErr, closeErr)
 	}
-	conn.Release()
-	return nil
 }

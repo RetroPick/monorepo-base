@@ -112,6 +112,38 @@ func TestCatalogLockerRepeatedReleaseIsSafe(t *testing.T) {
 	}
 }
 
+func TestCatalogLockerReleaseUnlockFailureClosesSessionAndReleasesLock(t *testing.T) {
+	pool := integrationPool(t)
+	lockerA, err := NewCatalogLocker(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockerB, err := NewCatalogLocker(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+	lease, acquired, err := lockerA.TryAcquire(ctx)
+	if err != nil || !acquired {
+		t.Fatalf("acquire acquired=%v err=%v", acquired, err)
+	}
+
+	canceled, cancel := context.WithCancel(ctx)
+	cancel()
+	if err := lease.Release(canceled); err == nil {
+		t.Fatal("expected unlock failure with canceled context")
+	}
+
+	leaseB, acquiredB, err := lockerB.TryAcquire(ctx)
+	if err != nil || !acquiredB || leaseB == nil {
+		t.Fatalf("second acquire after unlock failure acquired=%v err=%v", acquiredB, err)
+	}
+	if err := leaseB.Release(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestCatalogLockerPoolStableAfterManyAcquireReleaseCycles(t *testing.T) {
 	pool := integrationPool(t)
 	locker, err := NewCatalogLocker(pool)
