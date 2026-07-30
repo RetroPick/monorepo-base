@@ -11,6 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash scripts/check-gitlinks.sh
+      - run: bash scripts/check-gitlinks_test.sh
       - uses: pnpm/action-setup@v4
         with:
           version: 10.0.0
