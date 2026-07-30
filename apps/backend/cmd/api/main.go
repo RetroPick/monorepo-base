@@ -19,7 +19,9 @@ import (
 	"retropick/apps/backend/internal/db"
 	"retropick/apps/backend/internal/ethops"
 	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/clob"
 	"retropick/apps/backend/internal/markets/gamma"
+	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/registry"
 )
 
@@ -104,8 +106,12 @@ func main() {
 	r.Mount("/api/v1/auth", api.AuthRouter())
 
 	marketsSvc := markets.NewService(markets.ServiceConfig{
-		Catalog:        gamma.NewClient(cfg.MarketsGammaAPIURL),
-		CatalogEnabled: cfg.MarketsCatalogEnabled,
+		Catalog:           gamma.NewClient(cfg.MarketsGammaAPIURL),
+		CatalogEnabled:    cfg.MarketsCatalogEnabled,
+		MarketData:        clob.NewClient(cfg.MarketsCLOBAPIURL),
+		MarketProcessor:   marketdata.Processor{},
+		MarketDataEnabled: cfg.MarketsMarketDataEnabled,
+		BookMaxAge:        cfg.MarketsBookMaxAge,
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
 

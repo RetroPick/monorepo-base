@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -74,17 +75,20 @@ type Config struct {
 	PriceHeartbeatInterval  time.Duration
 
 	// V3 feature flags (default off).
-	GoodDollarEnabled bool
-	FeeRouterEnabled  bool
-	FeeRouterAddress  string
-	ReferralsEnabled  bool
-	RewardsEnabled    bool
-	ImpactEnabled     bool
-	CeloChainID       int64
-	CeloRPCURL        string
-	RegistryPath            string
-	MarketsGammaAPIURL        string
-	MarketsCatalogEnabled     bool
+	GoodDollarEnabled        bool
+	FeeRouterEnabled         bool
+	FeeRouterAddress         string
+	ReferralsEnabled         bool
+	RewardsEnabled           bool
+	ImpactEnabled            bool
+	CeloChainID              int64
+	CeloRPCURL               string
+	RegistryPath             string
+	MarketsGammaAPIURL       string
+	MarketsCLOBAPIURL        string
+	MarketsCatalogEnabled    bool
+	MarketsMarketDataEnabled bool
+	MarketsBookMaxAge        time.Duration
 }
 
 func Load() (*Config, error) {
@@ -207,6 +211,10 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	marketsBookMaxAge, err := durationFromEnv("MARKETS_BOOK_MAX_AGE", 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
 	keeperMaxRetryCount := 3
 	if raw := strings.TrimSpace(os.Getenv("KEEPER_MAX_RETRY_COUNT")); raw != "" {
 		n, err := strconv.Atoi(raw)
@@ -254,73 +262,76 @@ func Load() (*Config, error) {
 		settlementChainID = v
 	}
 	cfg := &Config{
-		Environment:             environment,
-		DatabaseURL:             db,
-		RPCURL:                  rpc,
-		HTTPPort:                port,
-		DBMaxConns:              maxConns,
-		DBMinConns:              minConns,
-		DBMaxConnLifetime:       maxLifetime,
-		DBHealthCheckInterval:   healthInterval,
-		LiveRPCTimeout:          liveTimeout,
-		LiveRPCGlobalCacheTTL:   liveCacheTTL,
-		BuildVersion:            envDefault("BUILD_VERSION", "dev"),
-		BuildCommit:             envDefault("BUILD_COMMIT", "unknown"),
-		BuildTime:               envDefault("BUILD_TIME", "unknown"),
-		LogLevel:                level,
-		FaucetRelayEnabled:      faucetRelayEnabled,
-		FaucetRelayPrivateKey:   faucetRelayKey,
-		FaucetRelayDeadlineMax:  faucetRelayDeadlineMax,
-		LifiBaseURL:             strings.TrimSpace(os.Getenv("LIFI_BASE_URL")),
-		LifiTimeout:             lifiTimeout,
-		FundingAllowedChains:    parseInt64CSV(os.Getenv("FUNDING_ALLOWED_CHAIN_IDS")),
-		FundingAllowedTokens:    parseCSVLower(os.Getenv("FUNDING_ALLOWED_TOKENS")),
-		FundingAllowedProviders: parseCSVUpper(os.Getenv("FUNDING_ALLOWED_PROVIDERS")),
-		AuthJWTSecret:           strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")),
-		AuthSessionSecret:       strings.TrimSpace(envDefault("AUTH_SESSION_SECRET", strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")))),
-		AuthSessionTTL:          authSessionTTL,
-		AuthNonceTTL:            authNonceTTL,
-		AuthCookieDomain:        strings.TrimSpace(os.Getenv("AUTH_COOKIE_DOMAIN")),
-		AuthCookieSecure:        os.Getenv("AUTH_COOKIE_SECURE") == "1",
-		AuthCookieSameSite:      strings.TrimSpace(envDefault("AUTH_COOKIE_SAMESITE", "Lax")),
-		WSAllowedOrigins:        parseCSVLower(os.Getenv("WS_ALLOWED_ORIGINS")),
-		TrustedProxyCIDRs:       parseCSV(os.Getenv("TRUSTED_PROXY_CIDRS")),
-		IndexerStartBlock:       indexerStartBlock,
-		IndexerLookbackBlocks:   indexerLookbackBlocks,
-		IndexerFinalityDepth:    indexerFinalityDepth,
-		IndexerTickInterval:     indexerTickInterval,
-		IndexerMaxBlocksPerTick: indexerMaxBlocksPerTick,
-		RPCFallbackURLs:         parseCSV(os.Getenv("RPC_FALLBACK_URLS")),
-		SettlementChainID:       settlementChainID,
-		SettlementUSDCAddress:   strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_USDC_ADDRESS"))),
-		SettlementReceiver:      strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_RECEIVER_ADDRESS"))),
-		MinDepositUSDC:          envDefault("MIN_DEPOSIT_USDC", "5000000"),
-		SoftMaxDepositUSDC:      envDefault("SOFT_MAX_DEPOSIT_USDC", "500000000"),
-		HardMaxDepositUSDC:      envDefault("HARD_MAX_DEPOSIT_USDC", "2000000000"),
-		MarketEntrySafetyBuffer: marketEntrySafetyBuffer,
-		LifiWebhookSecret:       strings.TrimSpace(os.Getenv("LIFI_WEBHOOK_SECRET")),
-		DestinationPollInterval: destinationPollInterval,
-		MatcherPollInterval:     matcherPollInterval,
-		KeeperEnabled:           os.Getenv("KEEPER_ENABLED") == "1",
-		KeeperPrivateKeyFile:    strings.TrimSpace(envDefault("KEEPER_PRIVATE_KEY_FILE", os.Getenv("KEEPER_SIGNER_PATH"))),
-		KeeperPollInterval:      keeperPollInterval,
-		KeeperReceiptTimeout:    keeperReceiptTimeout,
-		KeeperMaxRetryCount:     keeperMaxRetryCount,
-		AlertWebhookURL:         strings.TrimSpace(os.Getenv("ALERT_WEBHOOK_URL")),
-		AlertPollInterval:       alertPollInterval,
-		PricePollInterval:       pricePollInterval,
-		PriceHeartbeatInterval:  priceHeartbeatInterval,
-		GoodDollarEnabled:       os.Getenv("GOODDOLLAR_ENABLED") == "1",
-		FeeRouterEnabled:        os.Getenv("FEE_ROUTER_ENABLED") == "1",
-		FeeRouterAddress:        strings.TrimSpace(os.Getenv("FEE_ROUTER_ADDRESS")),
-		ReferralsEnabled:        os.Getenv("REFERRALS_ENABLED") == "1",
-		RewardsEnabled:          os.Getenv("REWARDS_ENABLED") == "1",
-		ImpactEnabled:           os.Getenv("IMPACT_ENABLED") == "1",
-		CeloChainID:             int64FromEnvDefault("CELO_CHAIN_ID", 44787),
-		CeloRPCURL:              strings.TrimSpace(envDefault("CELO_RPC_URL", "https://alfajores-forno.celo-testnet.org")),
-		RegistryPath:            strings.TrimSpace(os.Getenv("REGISTRY_PATH")),
-		MarketsGammaAPIURL:        envDefault("MARKETS_GAMMA_API_URL", "https://gamma-api.polymarket.com"),
-		MarketsCatalogEnabled:     envDefault("MARKETS_CATALOG_ENABLED", "1") != "0",
+		Environment:              environment,
+		DatabaseURL:              db,
+		RPCURL:                   rpc,
+		HTTPPort:                 port,
+		DBMaxConns:               maxConns,
+		DBMinConns:               minConns,
+		DBMaxConnLifetime:        maxLifetime,
+		DBHealthCheckInterval:    healthInterval,
+		LiveRPCTimeout:           liveTimeout,
+		LiveRPCGlobalCacheTTL:    liveCacheTTL,
+		BuildVersion:             envDefault("BUILD_VERSION", "dev"),
+		BuildCommit:              envDefault("BUILD_COMMIT", "unknown"),
+		BuildTime:                envDefault("BUILD_TIME", "unknown"),
+		LogLevel:                 level,
+		FaucetRelayEnabled:       faucetRelayEnabled,
+		FaucetRelayPrivateKey:    faucetRelayKey,
+		FaucetRelayDeadlineMax:   faucetRelayDeadlineMax,
+		LifiBaseURL:              strings.TrimSpace(os.Getenv("LIFI_BASE_URL")),
+		LifiTimeout:              lifiTimeout,
+		FundingAllowedChains:     parseInt64CSV(os.Getenv("FUNDING_ALLOWED_CHAIN_IDS")),
+		FundingAllowedTokens:     parseCSVLower(os.Getenv("FUNDING_ALLOWED_TOKENS")),
+		FundingAllowedProviders:  parseCSVUpper(os.Getenv("FUNDING_ALLOWED_PROVIDERS")),
+		AuthJWTSecret:            strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")),
+		AuthSessionSecret:        strings.TrimSpace(envDefault("AUTH_SESSION_SECRET", strings.TrimSpace(os.Getenv("AUTH_JWT_SECRET")))),
+		AuthSessionTTL:           authSessionTTL,
+		AuthNonceTTL:             authNonceTTL,
+		AuthCookieDomain:         strings.TrimSpace(os.Getenv("AUTH_COOKIE_DOMAIN")),
+		AuthCookieSecure:         os.Getenv("AUTH_COOKIE_SECURE") == "1",
+		AuthCookieSameSite:       strings.TrimSpace(envDefault("AUTH_COOKIE_SAMESITE", "Lax")),
+		WSAllowedOrigins:         parseCSVLower(os.Getenv("WS_ALLOWED_ORIGINS")),
+		TrustedProxyCIDRs:        parseCSV(os.Getenv("TRUSTED_PROXY_CIDRS")),
+		IndexerStartBlock:        indexerStartBlock,
+		IndexerLookbackBlocks:    indexerLookbackBlocks,
+		IndexerFinalityDepth:     indexerFinalityDepth,
+		IndexerTickInterval:      indexerTickInterval,
+		IndexerMaxBlocksPerTick:  indexerMaxBlocksPerTick,
+		RPCFallbackURLs:          parseCSV(os.Getenv("RPC_FALLBACK_URLS")),
+		SettlementChainID:        settlementChainID,
+		SettlementUSDCAddress:    strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_USDC_ADDRESS"))),
+		SettlementReceiver:       strings.ToLower(strings.TrimSpace(os.Getenv("SETTLEMENT_RECEIVER_ADDRESS"))),
+		MinDepositUSDC:           envDefault("MIN_DEPOSIT_USDC", "5000000"),
+		SoftMaxDepositUSDC:       envDefault("SOFT_MAX_DEPOSIT_USDC", "500000000"),
+		HardMaxDepositUSDC:       envDefault("HARD_MAX_DEPOSIT_USDC", "2000000000"),
+		MarketEntrySafetyBuffer:  marketEntrySafetyBuffer,
+		LifiWebhookSecret:        strings.TrimSpace(os.Getenv("LIFI_WEBHOOK_SECRET")),
+		DestinationPollInterval:  destinationPollInterval,
+		MatcherPollInterval:      matcherPollInterval,
+		KeeperEnabled:            os.Getenv("KEEPER_ENABLED") == "1",
+		KeeperPrivateKeyFile:     strings.TrimSpace(envDefault("KEEPER_PRIVATE_KEY_FILE", os.Getenv("KEEPER_SIGNER_PATH"))),
+		KeeperPollInterval:       keeperPollInterval,
+		KeeperReceiptTimeout:     keeperReceiptTimeout,
+		KeeperMaxRetryCount:      keeperMaxRetryCount,
+		AlertWebhookURL:          strings.TrimSpace(os.Getenv("ALERT_WEBHOOK_URL")),
+		AlertPollInterval:        alertPollInterval,
+		PricePollInterval:        pricePollInterval,
+		PriceHeartbeatInterval:   priceHeartbeatInterval,
+		GoodDollarEnabled:        os.Getenv("GOODDOLLAR_ENABLED") == "1",
+		FeeRouterEnabled:         os.Getenv("FEE_ROUTER_ENABLED") == "1",
+		FeeRouterAddress:         strings.TrimSpace(os.Getenv("FEE_ROUTER_ADDRESS")),
+		ReferralsEnabled:         os.Getenv("REFERRALS_ENABLED") == "1",
+		RewardsEnabled:           os.Getenv("REWARDS_ENABLED") == "1",
+		ImpactEnabled:            os.Getenv("IMPACT_ENABLED") == "1",
+		CeloChainID:              int64FromEnvDefault("CELO_CHAIN_ID", 44787),
+		CeloRPCURL:               strings.TrimSpace(envDefault("CELO_RPC_URL", "https://alfajores-forno.celo-testnet.org")),
+		RegistryPath:             strings.TrimSpace(os.Getenv("REGISTRY_PATH")),
+		MarketsGammaAPIURL:       strings.TrimSpace(envDefault("MARKETS_GAMMA_API_URL", "https://gamma-api.polymarket.com")),
+		MarketsCLOBAPIURL:        strings.TrimSpace(envDefault("MARKETS_CLOB_API_URL", "https://clob.polymarket.com")),
+		MarketsCatalogEnabled:    envDefault("MARKETS_CATALOG_ENABLED", "1") != "0",
+		MarketsMarketDataEnabled: envDefault("MARKETS_MARKET_DATA_ENABLED", "1") != "0",
+		MarketsBookMaxAge:        marketsBookMaxAge,
 	}
 	if err := validateProductionConfig(cfg); err != nil {
 		return nil, err
@@ -488,6 +499,21 @@ func validateProductionConfig(cfg *Config) error {
 	}
 	if isPlaceholderSecret(cfg.LifiWebhookSecret) {
 		return fmt.Errorf("LIFI_WEBHOOK_SECRET must be set to a non-placeholder value in production")
+	}
+	if err := validateOfficialMarketsURL("MARKETS_GAMMA_API_URL", cfg.MarketsGammaAPIURL, "gamma-api.polymarket.com"); err != nil {
+		return err
+	}
+	if err := validateOfficialMarketsURL("MARKETS_CLOB_API_URL", cfg.MarketsCLOBAPIURL, "clob.polymarket.com"); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateOfficialMarketsURL(key, raw, expectedHost string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || !strings.EqualFold(parsed.Hostname(), expectedHost) ||
+		parsed.User != nil || (parsed.Path != "" && parsed.Path != "/") || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("%s must use official HTTPS host %s", key, expectedHost)
 	}
 	return nil
 }
