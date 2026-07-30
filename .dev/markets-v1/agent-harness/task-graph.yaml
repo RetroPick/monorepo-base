@@ -554,7 +554,7 @@ tasks:
     phase: "PHASE-1"
     title: "Verification, traceability, and handoff"
     goal: "Run CI-equivalent backend verification and record exact evidence for reviewed client integration."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-007"
       - "MKT-P1-009"
@@ -580,7 +580,9 @@ tasks:
     acceptance_criteria:
       - "Every completed task links exact verification evidence"
       - "No frontend, Android, trading, PRISM, signing, or fund movement"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-010.yaml"
+      - ".dev/markets-v1/agent-harness/PHASE-1-BACKEND-HANDOFF.md"
     rollback: "Revert Phase 1 commits and migration before deployment."
     human_approval_required: false
     handoff_to: []

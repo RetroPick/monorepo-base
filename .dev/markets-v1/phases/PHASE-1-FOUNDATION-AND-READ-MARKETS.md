@@ -1,8 +1,8 @@
 # PHASE-1 — Foundation and Read Markets
 
-**Status:** backend-first implementation in progress (ADR-010)
+**Status:** backend-first read slice complete (ADR-010, 2026-07-30)
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-30
 **Product:** RetroPick Markets V1
 
 ## 1. Purpose
@@ -41,7 +41,10 @@ Phase specification for **PHASE-1**: Monorepo boundaries, schemas, public catalo
 
 ## 5. Current state
 
-Phase status tracked in `implementation-manifest.yaml` (`current_phase` is PHASE-0 at documentation baseline).
+Phase 1 backend-first public-read slice is implemented on branch
+`cursor/markets-v1-backend-phase1-5b74`. Handoff:
+`.dev/markets-v1/agent-harness/PHASE-1-BACKEND-HANDOFF.md`. Web and Android
+client work remain deferred.
 
 ## 6. Target design
 
