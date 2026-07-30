@@ -51,6 +51,78 @@ type stubMarketData struct {
 	err     error
 }
 
+type stubProcessor struct{}
+
+func (stubProcessor) BuildSnapshot(marketID string, book clob.OrderBook, observedAt time.Time, maxAge time.Duration) (OrderBookSnapshot, error) {
+	state := FreshnessFresh
+	reason := ""
+	if observedAt.Sub(book.Timestamp) > maxAge {
+		state = FreshnessStale
+		reason = "snapshot_age_exceeded"
+	}
+	bids := make([]OrderBookLevel, 0, len(book.Bids))
+	for _, level := range book.Bids {
+		bids = append(bids, OrderBookLevel{Price: mustServiceDecimal(level.Price), Size: mustServiceDecimal(level.Size)})
+	}
+	asks := make([]OrderBookLevel, 0, len(book.Asks))
+	for _, level := range book.Asks {
+		asks = append(asks, OrderBookLevel{Price: mustServiceDecimal(level.Price), Size: mustServiceDecimal(level.Size)})
+	}
+	return OrderBookSnapshot{
+		SchemaVersion: SchemaVersion,
+		MarketID:      marketID,
+		ConditionID:   book.ConditionID,
+		TokenID:       book.TokenID,
+		Hash:          book.Hash,
+		Timestamp:     book.Timestamp,
+		Bids:          bids,
+		Asks:          asks,
+		Freshness:     MarketFreshness{State: state, Reason: reason, ObservedAt: observedAt},
+		Provenance:    UpstreamProvenance{Source: "polymarket_clob", ObservedAt: observedAt},
+	}, nil
+}
+
+func (stubProcessor) NormalizeHistory(rows []clob.PricePoint) ([]PricePoint, error) {
+	points := make([]PricePoint, 0, len(rows))
+	for _, row := range rows {
+		points = append(points, PricePoint{
+			Timestamp: row.Timestamp,
+			Price:     mustServiceDecimal(row.Price),
+			Source:    "polymarket_clob",
+		})
+	}
+	return points, nil
+}
+
+func (stubProcessor) Health(snapshot OrderBookSnapshot, observedAt time.Time) (MarketHealthSnapshot, error) {
+	bidDepth := mustServiceDecimal("0")
+	if len(snapshot.Bids) > 0 {
+		bidDepth = snapshot.Bids[0].Size
+	}
+	askDepth := mustServiceDecimal("0")
+	if len(snapshot.Asks) > 0 {
+		askDepth = snapshot.Asks[0].Size
+	}
+	return MarketHealthSnapshot{
+		SchemaVersion: SchemaVersion,
+		MarketID:      snapshot.MarketID,
+		Algorithm:     "market-health-components-v1",
+		ObservedAt:    observedAt,
+		BidDepth:      bidDepth,
+		AskDepth:      askDepth,
+		Freshness:     snapshot.Freshness,
+		Provenance:    snapshot.Provenance,
+	}, nil
+}
+
+func mustServiceDecimal(raw string) DecimalString {
+	value, err := ParseDecimalString(raw)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
 func (s stubMarketData) GetOrderBook(_ context.Context, _ string) (clob.OrderBook, error) {
 	return s.book, s.err
 }
@@ -216,8 +288,9 @@ func TestGetOrderBookLabelsStaleSnapshot(t *testing.T) {
 			MinOrderSize: "1",
 			TickSize:     "0.01",
 		}},
-		BookMaxAge: 5 * time.Second,
-		Now:        func() time.Time { return fixed },
+		MarketProcessor: stubProcessor{},
+		BookMaxAge:      5 * time.Second,
+		Now:             func() time.Time { return fixed },
 	})
 	got, err := svc.GetOrderBook(context.Background(), "market-1", "token-yes")
 	if err != nil {
@@ -238,7 +311,8 @@ func TestGetHistoryPreservesSparsePoints(t *testing.T) {
 			{Timestamp: fixed.Add(-time.Hour), Price: "0.4"},
 			{Timestamp: fixed, Price: "0.5"},
 		}},
-		Now: func() time.Time { return fixed },
+		MarketProcessor: stubProcessor{},
+		Now:             func() time.Time { return fixed },
 	})
 	got, err := svc.GetHistory(context.Background(), "market-1", "token-yes", "1d", 60)
 	if err != nil {
@@ -265,8 +339,9 @@ func TestGetHealthComputesComponentsFromSnapshot(t *testing.T) {
 			MinOrderSize: "1",
 			TickSize:     "0.01",
 		}},
-		BookMaxAge: 5 * time.Second,
-		Now:        func() time.Time { return fixed },
+		MarketProcessor: stubProcessor{},
+		BookMaxAge:      5 * time.Second,
+		Now:             func() time.Time { return fixed },
 	})
 	got, err := svc.GetHealth(context.Background(), "market-1", "token-yes")
 	if err != nil {

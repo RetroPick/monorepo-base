@@ -13,6 +13,7 @@ import (
 	"retropick/apps/backend/internal/markets"
 	"retropick/apps/backend/internal/markets/clob"
 	"retropick/apps/backend/internal/markets/gamma"
+	"retropick/apps/backend/internal/markets/marketdata"
 )
 
 type catalogStub struct {
@@ -177,6 +178,7 @@ func newPhaseOneRouter(t *testing.T) http.Handler {
 		Catalog:           catalogStub{event: event},
 		MarketDataEnabled: true,
 		MarketData:        marketDataStub{now: now},
+		MarketProcessor:   marketdata.Processor{},
 		BookMaxAge:        5 * time.Second,
 		Now:               func() time.Time { return now },
 	})

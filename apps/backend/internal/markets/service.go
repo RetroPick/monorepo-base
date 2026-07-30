@@ -10,7 +10,6 @@ import (
 
 	"retropick/apps/backend/internal/markets/clob"
 	"retropick/apps/backend/internal/markets/gamma"
-	"retropick/apps/backend/internal/markets/marketdata"
 )
 
 const (
@@ -38,6 +37,12 @@ type MarketDataClient interface {
 	GetPriceHistory(ctx context.Context, request clob.PriceHistoryRequest) ([]clob.PricePoint, error)
 }
 
+type MarketDataProcessor interface {
+	BuildSnapshot(marketID string, upstream clob.OrderBook, observedAt time.Time, maxAge time.Duration) (OrderBookSnapshot, error)
+	NormalizeHistory(rows []clob.PricePoint) ([]PricePoint, error)
+	Health(snapshot OrderBookSnapshot, observedAt time.Time) (MarketHealthSnapshot, error)
+}
+
 type SignalReader interface {
 	ListSignals(ctx context.Context, marketID, cursor string, limit int) ([]SignalEnvelope, *string, error)
 }
@@ -46,6 +51,7 @@ type ServiceConfig struct {
 	Catalog           CatalogClient
 	CatalogEnabled    bool
 	MarketData        MarketDataClient
+	MarketProcessor   MarketDataProcessor
 	MarketDataEnabled bool
 	Signals           SignalReader
 	BookMaxAge        time.Duration
@@ -88,7 +94,7 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 	if s.cfg.CatalogEnabled && s.cfg.Catalog != nil {
 		source = "gamma"
 	}
-	marketDataEnabled := s.cfg.MarketDataEnabled && s.cfg.MarketData != nil
+	marketDataEnabled := s.cfg.MarketDataEnabled && s.cfg.MarketData != nil && s.cfg.MarketProcessor != nil
 	intelligenceEnabled := s.cfg.Signals != nil
 	return CapabilitiesResponse{
 		Version: APIVersion,
@@ -217,7 +223,7 @@ func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail,
 }
 
 func (s *Service) GetOrderBook(ctx context.Context, marketID, tokenID string) (OrderBookSnapshot, error) {
-	if !s.cfg.MarketDataEnabled || s.cfg.MarketData == nil {
+	if !s.cfg.MarketDataEnabled || s.cfg.MarketData == nil || s.cfg.MarketProcessor == nil {
 		return OrderBookSnapshot{}, ErrDataUnavailable
 	}
 	if strings.TrimSpace(marketID) == "" || len(marketID) > 256 || strings.TrimSpace(tokenID) == "" || len(tokenID) > 256 {
@@ -227,7 +233,7 @@ func (s *Service) GetOrderBook(ctx context.Context, marketID, tokenID string) (O
 	if err != nil {
 		return OrderBookSnapshot{}, classifyMarketDataError(err)
 	}
-	snapshot, err := marketdata.BuildSnapshot(marketID, book, s.nowUTC(), s.bookMaxAge)
+	snapshot, err := s.cfg.MarketProcessor.BuildSnapshot(marketID, book, s.nowUTC(), s.bookMaxAge)
 	if err != nil {
 		return OrderBookSnapshot{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
 	}
@@ -235,7 +241,7 @@ func (s *Service) GetOrderBook(ctx context.Context, marketID, tokenID string) (O
 }
 
 func (s *Service) GetHistory(ctx context.Context, marketID, tokenID, interval string, fidelity int) (PriceHistoryResponse, error) {
-	if !s.cfg.MarketDataEnabled || s.cfg.MarketData == nil {
+	if !s.cfg.MarketDataEnabled || s.cfg.MarketData == nil || s.cfg.MarketProcessor == nil {
 		return PriceHistoryResponse{}, ErrDataUnavailable
 	}
 	if strings.TrimSpace(marketID) == "" || len(marketID) > 256 || strings.TrimSpace(tokenID) == "" || len(tokenID) > 256 {
@@ -252,7 +258,7 @@ func (s *Service) GetHistory(ctx context.Context, marketID, tokenID, interval st
 	if err != nil {
 		return PriceHistoryResponse{}, classifyMarketDataError(err)
 	}
-	points, err := marketdata.NormalizeHistory(rows)
+	points, err := s.cfg.MarketProcessor.NormalizeHistory(rows)
 	if err != nil {
 		return PriceHistoryResponse{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
 	}
@@ -272,7 +278,7 @@ func (s *Service) GetHealth(ctx context.Context, marketID, tokenID string) (Mark
 	if err != nil {
 		return MarketHealthSnapshot{}, err
 	}
-	health, err := marketdata.Health(snapshot, s.nowUTC())
+	health, err := s.cfg.MarketProcessor.Health(snapshot, s.nowUTC())
 	if err != nil {
 		return MarketHealthSnapshot{}, fmt.Errorf("%w: %v", ErrDataUnavailable, err)
 	}
