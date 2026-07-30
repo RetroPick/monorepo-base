@@ -101,6 +101,7 @@ func TestApplyPageEmitsRuleChangedOnce(t *testing.T) {
 				SchemaVersion: markets.SchemaVersion,
 				ID:            marketID,
 				EventID:       "polymarket:event:signal-rule",
+				ConditionID:   "0xsignal-rule",
 				Question:      "Rule market?",
 				Status:        markets.MarketStatusOpen,
 				Outcomes:      []markets.Outcome{{ID: "polymarket:token:rule", UpstreamID: "token", Name: "Yes"}},
