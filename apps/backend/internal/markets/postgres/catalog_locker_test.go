@@ -28,11 +28,6 @@ func TestCatalogLockerExclusiveAcquireAndRelease(t *testing.T) {
 	if err != nil || !acquired || leaseA == nil {
 		t.Fatalf("first acquire acquired=%v err=%v", acquired, err)
 	}
-	defer func() {
-		if err := leaseA.Release(ctx); err != nil {
-			t.Fatalf("release A: %v", err)
-		}
-	}()
 
 	_, acquiredB, err := lockerB.TryAcquire(ctx)
 	if err != nil {
@@ -45,7 +40,6 @@ func TestCatalogLockerExclusiveAcquireAndRelease(t *testing.T) {
 	if err := leaseA.Release(ctx); err != nil {
 		t.Fatal(err)
 	}
-	leaseA = nil
 
 	leaseB, acquiredB, err := lockerB.TryAcquire(ctx)
 	if err != nil || !acquiredB || leaseB == nil {
