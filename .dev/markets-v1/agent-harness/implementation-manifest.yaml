@@ -31,7 +31,7 @@ phase_order:
       - focused_adr_accepted
   - id: PHASE-1
     name: Foundation and Read Markets
-    status: backend_runtime_remediation_complete_pending_ci
+    status: backend_runtime_closure_ready_for_independent_review
     spec: .dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
     prerequisites: ['PHASE-0']
     implementation_slice: backend_read_only

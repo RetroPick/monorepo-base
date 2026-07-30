@@ -37,19 +37,21 @@ resynchronizing order book is never labeled live.
 
 ## Degraded behavior
 
-- Gamma failure: return a structured upstream error unless a bounded persisted
-  projection is available.
+- Gamma failure: serve bounded persisted projection when within stale policy (`degraded=true` on `/api/v1/health/ready`); over-age projection returns 503.
+- Catalog worker bootstraps readiness from durable projection before first Gamma sync; passive replicas refresh projection without holding the advisory lock.
 - CLOB failure: mark the market-data capability unavailable; never synthesize a
   book or forward-fill history.
 - Realtime disconnect, hash mismatch, or backward timestamp: mark the session
   `resyncing` and require an authoritative REST snapshot.
 - Signal engine failure: catalog and market-data reads remain independent.
 - `/api/v1/health/live` does not depend on Polymarket availability.
+- Operational catalog signals: `new_market` and `rule_changed` only; `price_move` and `liquidity_change` deferred.
 
 ## Verification
 
 ```bash
 go test ./internal/markets/... -count=1
+go test ./internal/markets -run TestOpenAPIRuntimeConformancePhaseOne -count=1
 go test ./internal/config -count=1
 go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
 git diff --exit-code internal/dbqueries
