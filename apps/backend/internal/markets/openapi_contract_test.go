@@ -17,9 +17,9 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	var document struct {
-		OpenAPI string                 `yaml:"openapi"`
-		Paths   map[string]any         `yaml:"paths"`
-		Parts   openAPIComponents      `yaml:"components"`
+		OpenAPI string            `yaml:"openapi"`
+		Paths   map[string]any    `yaml:"paths"`
+		Parts   openAPIComponents `yaml:"components"`
 	}
 	if err := yaml.Unmarshal(body, &document); err != nil {
 		t.Fatalf("parse OpenAPI: %v", err)
