@@ -1,0 +1,31 @@
+task_id: MKT-P1-006
+date: 2026-07-30
+result: pass
+commands:
+  - command: go test ./internal/markets/... -count=1
+    working_directory: apps/backend
+    exit_code: 0
+  - command: go test ./internal/config -run 'TestLoad_(MarketsReadDefaults|ProductionRejectsUntrustedMarketsHost)' -count=1
+    working_directory: apps/backend
+    exit_code: 0
+tests:
+  - invalid cursors, limits, token IDs, intervals, and fidelity return structured 400 responses
+  - event and market detail preserve canonical IDs, outcomes, rules, and provenance
+  - stale order-book snapshots remain explicitly stale
+  - history preserves sparse points
+  - market health exposes deterministic components
+  - signal listing degrades independently to an empty page when no engine is wired
+  - production configuration rejects non-official Markets upstream hosts
+requirements:
+  - MKT-FR-001
+  - MKT-FR-002
+  - MKT-FR-010
+artifacts:
+  - apps/backend/internal/markets/handler.go
+  - apps/backend/internal/markets/router.go
+  - apps/backend/internal/markets/service.go
+  - apps/backend/cmd/api/main.go
+  - schemas/openapi/markets-v1.yaml
+limitations:
+  - realtime capability remains false until MKT-P1-007 gap-safe envelope verification
+human_approval_required: false

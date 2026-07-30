@@ -419,7 +419,7 @@ tasks:
     phase: "PHASE-1"
     title: "Public read API handlers and error contract"
     goal: "Serve all authorized read endpoints with deterministic errors and degraded states."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-004"
       - "MKT-P1-005"
@@ -443,7 +443,8 @@ tasks:
       - "go -C apps/backend test ./internal/markets/... -count=1"
     acceptance_criteria:
       - "Invalid input is 400/404, upstream failure is 502/503, and stale fallback is explicit"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-006.yaml"
     rollback: "Disable Markets catalog and market-data capabilities."
     human_approval_required: false
     handoff_to:
@@ -452,7 +453,7 @@ tasks:
     phase: "PHASE-1"
     title: "Realtime client envelope"
     goal: "Publish versioned normalized snapshot/delta/update envelopes without claiming sequence guarantees."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-005"
       - "MKT-P1-006"
