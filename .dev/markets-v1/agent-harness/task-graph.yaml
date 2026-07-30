@@ -355,7 +355,7 @@ tasks:
     phase: "PHASE-1"
     title: "Catalog synchronization and checkpointing"
     goal: "Ingest bounded Gamma pages with validated relationships, rule hashes, and durable checkpoints."
-    status: "ready"
+    status: "done"
     depends_on:
       - "MKT-P1-002"
       - "MKT-P1-003"
@@ -377,7 +377,8 @@ tasks:
       - "go -C apps/backend test ./internal/markets/catalog -count=1"
     acceptance_criteria:
       - "Checkpoint does not advance on projection failure"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/evidence/MKT-P1-004.yaml"
     rollback: "Disable catalog sync and serve last durable projection."
     human_approval_required: false
     handoff_to:
@@ -386,7 +387,7 @@ tasks:
     phase: "PHASE-1"
     title: "Market-data ingest, freshness, and resynchronization"
     goal: "Normalize CLOB snapshots/history and implement hash/time-based degraded states."
-    status: "planned"
+    status: "ready"
     depends_on:
       - "MKT-P1-002"
       - "MKT-P1-003"
