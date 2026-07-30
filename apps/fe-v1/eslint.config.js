@@ -11,8 +11,8 @@ export default tseslint.config(
       ".next/**",
       "coverage/**",
       "node_modules/**",
-      /** Vendored / mirror tree — canonical sources live under `src/`. */
-      "sources/**",
+      /** Legacy quarantined UI — not part of canonical Markets V1 routes. */
+      "src/legacy-quarantine/**",
       "next-env.d.ts",
     ],
   },

@@ -28,24 +28,13 @@ if (process.env.VERCEL) {
   }
 
   const rawDocs = process.env.NEXT_PUBLIC_DOCS_URL?.trim() ?? "";
-  if (!rawDocs) {
-    throw new Error(
-      "Vercel build: set NEXT_PUBLIC_DOCS_URL to your deployed docs origin (https://…). " +
-        "The public app currently expects external docs links.",
-    );
-  }
-  const lowerDocs = rawDocs.toLowerCase();
-  if (lowerDocs.includes("127.0.0.1") || lowerDocs.includes("localhost")) {
-    throw new Error(
-      "Vercel build: NEXT_PUBLIC_DOCS_URL must not point at localhost; public docs links need a reachable HTTPS URL.",
-    );
-  }
-
-  const fredKey = process.env.FRED_API_KEY?.trim() ?? process.env.NEXT_PUBLIC_FRED_API_KEY?.trim() ?? "";
-  if (!fredKey) {
-    throw new Error(
-      "Vercel build: set FRED_API_KEY (preferred) or NEXT_PUBLIC_FRED_API_KEY so FRED-backed reference charts work in the public app.",
-    );
+  if (rawDocs) {
+    const lowerDocs = rawDocs.toLowerCase();
+    if (lowerDocs.includes("127.0.0.1") || lowerDocs.includes("localhost")) {
+      throw new Error(
+        "Vercel build: NEXT_PUBLIC_DOCS_URL must not point at localhost; public docs links need a reachable HTTPS URL.",
+      );
+    }
   }
 }
 
@@ -134,7 +123,6 @@ const nextConfig = {
       { protocol: "https", hostname: "cdn.jsdelivr.net" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
-      { protocol: "https", hostname: "**.polymarket.com" },
       { protocol: "https", hostname: "polymarket-upload.s3.us-east-2.amazonaws.com" },
     ],
   },

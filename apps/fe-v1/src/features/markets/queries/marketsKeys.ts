@@ -5,6 +5,7 @@ export const marketsKeys = {
   events: {
     all: () => [...marketsKeys.all, "events"] as const,
     list: (cursor?: string) => [...marketsKeys.events.all(), "list", cursor ?? ""] as const,
+    infiniteList: () => [...marketsKeys.events.all(), "infinite"] as const,
   },
   event: (eventId: string) => [...marketsKeys.all, "event", eventId] as const,
   market: (marketId: string) => [...marketsKeys.all, "market", marketId] as const,

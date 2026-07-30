@@ -1,28 +1,20 @@
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import MarketCard from "@/components/MarketCard";
+import { PolymarketEventCard } from "@/features/markets/components/PolymarketEventCard";
 import { DataStateBanner, DataStateEmpty } from "@/features/markets/components/DataState";
 import { FreshnessBadge } from "@/features/markets/components/FreshnessBadge";
-import { eventSummaryToMarketCard } from "@/features/markets/adapters/eventToMarket";
 import { useMarketsCapabilities, useMarketsEventsInfinite } from "@/features/markets/hooks/useMarketsQueries";
 import { cn } from "@/lib/utils";
-import type { Market } from "@/types/market";
-import { useNavigate } from "react-router-dom";
 
 const gridClass =
   "grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-2 lg:gap-6 xl:grid-cols-3 xl:gap-5";
 
 export function PolymarketDiscoverPanel() {
-  const navigate = useNavigate();
   const capabilities = useMarketsCapabilities();
   const events = useMarketsEventsInfinite();
 
   const allEvents = events.data?.pages.flatMap((p) => p.events) ?? [];
   const listFreshness = events.data?.pages[0]?.freshness;
-
-  const openEvent = (eventId: string) => {
-    navigate(`/app/events/${encodeURIComponent(eventId)}`);
-  };
 
   return (
     <div className="min-h-screen overflow-x-clip bg-background text-foreground">
@@ -65,19 +57,9 @@ export function PolymarketDiscoverPanel() {
         ) : null}
 
         <div className={cn(gridClass)}>
-          {allEvents.map((event) => {
-            const cardMarket = eventSummaryToMarketCard(event);
-            return (
-              <div key={event.id} className="h-full min-h-0">
-                <MarketCard
-                  market={cardMarket}
-                  variant="discover"
-                  navigationState={{ market: cardMarket as Market, polymarketEventId: event.id }}
-                  href={`/app/events/${encodeURIComponent(event.id)}`}
-                />
-              </div>
-            );
-          })}
+          {allEvents.map((event) => (
+            <PolymarketEventCard key={event.id} event={event} freshness={event.freshness} />
+          ))}
         </div>
 
         {events.hasNextPage ? (
@@ -96,3 +78,5 @@ export function PolymarketDiscoverPanel() {
     </div>
   );
 }
+
+export default PolymarketDiscoverPanel;

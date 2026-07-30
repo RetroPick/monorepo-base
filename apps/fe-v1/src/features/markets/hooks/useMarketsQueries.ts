@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
+import { marketsKeys } from "../queries/marketsKeys";
 import { marketsQueryOptions } from "../queries/marketsQueryOptions";
 
 export function useMarketsEligibility() {
@@ -16,7 +17,7 @@ export function useMarketsEvents() {
 
 export function useMarketsEventsInfinite() {
   return useInfiniteQuery({
-    queryKey: marketsQueryOptions.eventsList().queryKey,
+    queryKey: marketsKeys.events.infiniteList(),
     queryFn: ({ pageParam, signal }) =>
       import("../api/marketsClient").then(({ getMarketsClient }) =>
         getMarketsClient()

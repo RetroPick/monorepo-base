@@ -1,17 +1,7 @@
 import { createAppKit, modal } from '@reown/appkit/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { ReactNode, useEffect } from 'react'
+import { ReactNode } from 'react'
 import { WagmiProvider } from 'wagmi'
 import { appDefaultNetwork, networks, projectId, wagmiAdapter } from '../config'
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 10_000,
-      retry: 2,
-    },
-  },
-})
 
 /** Above Radix Dialog (z-50) and in-app menus (z-[10000]) so WalletConnect stays usable */
 const APPKIT_Z_INDEX = 100_150
@@ -25,7 +15,7 @@ function getMetadataUrl() {
   return 'https://retropick.io'
 }
 
-function initAppKit() {
+export function ensureAppKitInitialized() {
   if (typeof window === 'undefined' || isAppKitInitialized) return
 
   createAppKit({
@@ -58,17 +48,19 @@ function initAppKit() {
   isAppKitInitialized = true
 }
 
-initAppKit()
-
-export function Web3ModalProvider({ children, cookies }: { children: ReactNode; cookies?: string }) {
-  /** Pre-warm AppKit before auth actions — Google sign-in needs a synchronous popup. */
-  useEffect(() => {
-    void modal?.ready().catch(() => undefined)
-  }, [])
-
+export function Web3ModalProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiAdapter.wagmiConfig as typeof wagmiAdapter.wagmiConfig} reconnectOnMount={false}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      {children}
     </WagmiProvider>
   )
+}
+
+export async function openAppKitWhenReady(): Promise<void> {
+  ensureAppKitInitialized()
+  if (!modal) {
+    throw new Error('Wallet UI is not initialized.')
+  }
+  await modal.ready()
+  await modal.open()
 }

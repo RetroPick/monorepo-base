@@ -36,17 +36,9 @@ const Header = ({ discoveryNav, assetClassNav, marketFamilyAssetClassNav }: Head
   const railRef = useRef<HTMLDivElement>(null);
   const isMarketsAllPage = location.pathname === "/app/markets/all";
 
-  const navItems = [
-    { name: "Discover", path: "/app/markets/all" },
-    { name: "Up vs Down?", path: "/app/markets/updown/crypto", withSeparator: true, activePrefix: "/app/markets/updown" },
-    { name: "Above or Below?", path: "/app/markets/abovebelow/crypto", activePrefix: "/app/markets/abovebelow" },
-    { name: "Portfolio", path: "/app/portfolio" },
-  ] as const;
+  const navItems = [{ name: "Discover", path: "/app/markets/all" }] as const;
 
   const isNavItemActive = (item: (typeof navItems)[number]) => {
-    if ("activePrefix" in item && item.activePrefix) {
-      return location.pathname.startsWith(item.activePrefix);
-    }
     if (item.path === "/app/markets/all") return isMarketsAllPage;
     return location.pathname === item.path;
   };

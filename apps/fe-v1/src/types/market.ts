@@ -1,7 +1,9 @@
 export interface MarketOutcome {
   id: string;
   label: string;
-  probability: number;
+  /** Implied probability in percent (0–100). Omit when upstream price is unavailable. */
+  probability?: number;
+  probabilityUnavailable?: boolean;
 }
 
 export interface Market {

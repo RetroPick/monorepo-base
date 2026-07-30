@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { HistoryInterval } from "@retropick/polymarket";
 
@@ -27,6 +27,11 @@ export default function MarketDetailPolymarket() {
 
   const outcomes = market.data?.outcomes ?? [];
   const [selectedTokenId, setSelectedTokenId] = useState("");
+
+  useEffect(() => {
+    setSelectedTokenId("");
+  }, [decodedId]);
+
   const tokenId = selectedTokenId || outcomes[0]?.upstreamId || "";
 
   const pollingEnabled =
