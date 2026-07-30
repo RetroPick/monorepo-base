@@ -3,4 +3,4 @@ export type {
   MarketsEligibility,
   MarketsEventSummary,
   MarketsEventsList,
-} from "./types";
+} from "./types.js";
