@@ -17,6 +17,8 @@ export default function SignalsPolymarket() {
           Deterministic catalog-driven signals when intelligence capability is enabled.
         </p>
 
+        <DataStateBanner error={capabilities.error} onRetry={() => capabilities.refetch()} />
+
         {!intelligence ? (
           <p className="mt-6 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
             Signals are not enabled on this deployment.

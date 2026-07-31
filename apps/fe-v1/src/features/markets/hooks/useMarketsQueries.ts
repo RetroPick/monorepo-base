@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
+import { isPolymarketResourceId } from "../adapters/eventToMarket";
 import { marketsKeys } from "../queries/marketsKeys";
 import { marketsQueryOptions } from "../queries/marketsQueryOptions";
 
@@ -35,11 +36,17 @@ export function useMarketsEvent(eventId: string) {
 }
 
 export function useMarketsMarket(marketId: string) {
-  return useQuery(marketsQueryOptions.market(marketId));
+  const enabled = marketId.length > 0 && isPolymarketResourceId(marketId);
+  return useQuery({ ...marketsQueryOptions.market(marketId), enabled });
 }
 
-export function useMarketsOrderBook(marketId: string, tokenId: string, pollingEnabled: boolean) {
-  return useQuery(marketsQueryOptions.orderBook(marketId, tokenId, pollingEnabled));
+export function useMarketsOrderBook(
+  marketId: string,
+  tokenId: string,
+  fetchEnabled: boolean,
+  pollingEnabled: boolean,
+) {
+  return useQuery(marketsQueryOptions.orderBook(marketId, tokenId, fetchEnabled, pollingEnabled));
 }
 
 export function useMarketsPriceHistory(

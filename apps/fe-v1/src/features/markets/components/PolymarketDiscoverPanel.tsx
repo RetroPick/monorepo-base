@@ -31,17 +31,26 @@ export function PolymarketDiscoverPanel() {
           {listFreshness ? <FreshnessBadge freshness={listFreshness} /> : null}
         </div>
 
+        {capabilities.isLoading ? (
+          <p className="mb-4 text-xs text-muted-foreground">Checking deployment capabilities…</p>
+        ) : null}
+
         {capabilities.data ? (
           <div className="mb-4 flex flex-wrap gap-2 text-xs">
             <span className="rounded border border-border px-2 py-1">
-              Catalog: {capabilities.data.catalog ? "on" : "off"}
+              Catalog: {capabilities.data.catalog ? "available" : "unavailable"}
             </span>
-            <span className="rounded border border-border px-2 py-1">Trading: off</span>
+            <span className="rounded border border-border px-2 py-1">Trading: unavailable</span>
             <span className="rounded border border-border px-2 py-1">
-              Realtime: {capabilities.data.features?.realtime ? "on" : "off (polling)"}
+              Realtime: {capabilities.data.features?.realtime ? "on" : "off (polling only)"}
+            </span>
+            <span className="rounded border border-border px-2 py-1">
+              Intelligence: {capabilities.data.intelligence ? "enabled" : "disabled"}
             </span>
           </div>
         ) : null}
+
+        <DataStateBanner error={capabilities.error} onRetry={() => capabilities.refetch()} />
 
         <DataStateBanner error={events.error} onRetry={() => events.refetch()} />
 
@@ -51,8 +60,8 @@ export function PolymarketDiscoverPanel() {
 
         {!events.isLoading && !events.error && allEvents.length === 0 ? (
           <DataStateEmpty
-            title="No events in catalog"
-            description="Check MARKETS_CATALOG_ENABLED and backend Gamma connectivity."
+            title="No events currently available"
+            description="The catalog is temporarily empty. Try again in a moment or check back later."
           />
         ) : null}
 

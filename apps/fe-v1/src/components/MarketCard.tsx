@@ -6,7 +6,15 @@ import Icon from "./Icon";
 import BetModal from "./BetModal";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
-import { formatPayoutMultiplier } from "@/lib/market-odds";
+import {
+  binaryRingPercents,
+  formatPayoutDisplay,
+  formatPercentDisplay,
+  multiRingWeights,
+  PROBABILITY_UNAVAILABLE_LABEL,
+  resolveBinaryRingInput,
+  resolveOutcomeProbability,
+} from "@/lib/market-outcome-probability";
 import { pickBinaryOutcomes, resolveMarketCardLayout } from "@/lib/market-card-layout";
 
 interface MarketCardProps {
@@ -32,9 +40,29 @@ const ALLOCATION_PALETTE = [
 const ringWrapClass =
   "relative flex size-[3.25rem] shrink-0 items-center justify-center sm:size-14";
 
-function AllocationRingBinary({ yesP, noP }: { yesP: number; noP: number }) {
-  const y = Math.max(0, Math.min(100, yesP));
-  const n = Math.max(0, Math.min(100, noP));
+function AllocationRingUnavailable() {
+  return (
+    <div className={ringWrapClass} aria-hidden>
+      <svg className="size-[3.25rem] -rotate-90 sm:size-14" viewBox="0 0 44 44">
+        <circle cx="22" cy="22" r={RING_R} fill="none" strokeWidth="2.5" className="stroke-muted/40" />
+      </svg>
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center leading-none">
+        <span className="text-[11px] font-bold tabular-nums text-muted-foreground sm:text-xs">
+          {PROBABILITY_UNAVAILABLE_LABEL}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function AllocationRingBinary({ yesOutcome, noOutcome }: { yesOutcome: MarketOutcome; noOutcome: MarketOutcome }) {
+  const ring = binaryRingPercents(resolveBinaryRingInput(yesOutcome, noOutcome));
+  if (ring.unavailable || ring.yesP === undefined || ring.noP === undefined) {
+    return <AllocationRingUnavailable />;
+  }
+
+  const y = Math.max(0, Math.min(100, ring.yesP));
+  const n = Math.max(0, Math.min(100, ring.noP));
   const tot = y + n || 1;
   const yesLen = (y / tot) * RING_C;
   const noLen = (n / tot) * RING_C;
@@ -80,7 +108,10 @@ function AllocationRingBinary({ yesP, noP }: { yesP: number; noP: number }) {
 }
 
 function AllocationRingMulti({ outcomes }: { outcomes: MarketOutcome[] }) {
-  const weights = outcomes.map((o) => Math.max(0, o.probability));
+  const { weights, unavailable } = multiRingWeights(outcomes);
+  if (unavailable) {
+    return <AllocationRingUnavailable />;
+  }
   const sum = weights.reduce((a, b) => a + b, 0) || 1;
   const maxPct = Math.round(Math.max(...weights, 0));
   let cum = 0;
@@ -142,10 +173,12 @@ function UpDownBinaryRow({
   downOutcome: MarketOutcome;
   onBet: BetHandler;
 }) {
-  const upP = Math.round(upOutcome.probability);
-  const downP = Math.round(downOutcome.probability);
-  const upMult = formatPayoutMultiplier(upOutcome.probability);
-  const downMult = formatPayoutMultiplier(downOutcome.probability);
+  const upView = resolveOutcomeProbability(upOutcome);
+  const downView = resolveOutcomeProbability(downOutcome);
+  const upP = formatPercentDisplay(upView);
+  const downP = formatPercentDisplay(downView);
+  const upMult = formatPayoutDisplay(upView);
+  const downMult = formatPayoutDisplay(downView);
   return (
     <div className="flex gap-2 pt-1 sm:gap-3">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
@@ -202,10 +235,12 @@ function BinaryYesNoRow({
   noOutcome: MarketOutcome;
   onBet: BetHandler;
 }) {
-  const yesP = Math.round(yesOutcome.probability);
-  const noP = Math.round(noOutcome.probability);
-  const yesMult = formatPayoutMultiplier(yesOutcome.probability);
-  const noMult = formatPayoutMultiplier(noOutcome.probability);
+  const yesView = resolveOutcomeProbability(yesOutcome);
+  const noView = resolveOutcomeProbability(noOutcome);
+  const yesP = formatPercentDisplay(yesView);
+  const noP = formatPercentDisplay(noView);
+  const yesMult = formatPayoutDisplay(yesView);
+  const noMult = formatPayoutDisplay(noView);
   return (
     <div className="flex gap-2 pt-1 sm:gap-3">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1">
@@ -263,9 +298,10 @@ function MultiOutcomeRow({
   outcome: MarketOutcome;
   onBet: BetHandler;
 }) {
-  const p = Math.round(outcome.probability);
-  const yesMult = formatPayoutMultiplier(outcome.probability);
-  const noMult = formatPayoutMultiplier(Math.max(1, Math.min(99, 100 - outcome.probability)));
+  const view = resolveOutcomeProbability(outcome);
+  const p = formatPercentDisplay(view);
+  const yesMult = formatPayoutDisplay(view);
+  const noMult = PROBABILITY_UNAVAILABLE_LABEL;
   return (
     <div className="flex w-full items-center gap-2 rounded-lg py-2 text-left transition-colors hover:bg-muted/40 sm:gap-2.5 sm:py-2.5">
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-foreground sm:text-xs">{outcome.label}</span>
@@ -312,8 +348,9 @@ function RangeBinRow({
   /** Back this bin (single winner pool); uses YES + outcome label for modal compatibility. */
   onPickBin: (e: React.MouseEvent, outcomeLabel: string) => void;
 }) {
-  const p = Math.round(outcome.probability);
-  const mult = formatPayoutMultiplier(outcome.probability);
+  const view = resolveOutcomeProbability(outcome);
+  const p = formatPercentDisplay(view);
+  const mult = formatPayoutDisplay(view);
   return (
     <div
       className={cn(
@@ -418,7 +455,7 @@ const MarketCard = memo(({ market, navigationState, href, variant = "default" }:
               </h3>
             </div>
             {(cardLayout === "binary-yesno" || cardLayout === "updown") && yesOutcome && noOutcome ? (
-              <AllocationRingBinary yesP={yesOutcome.probability} noP={noOutcome.probability} />
+              <AllocationRingBinary yesOutcome={yesOutcome} noOutcome={noOutcome} />
             ) : (cardLayout === "multi" || cardLayout === "range") && rowOutcomes.length > 0 ? (
               <AllocationRingMulti outcomes={rowOutcomes} />
             ) : null}

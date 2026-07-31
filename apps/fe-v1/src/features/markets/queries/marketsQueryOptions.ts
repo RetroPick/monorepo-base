@@ -48,14 +48,14 @@ export const marketsQueryOptions = {
     staleTime: STALE_DETAIL,
     enabled: marketId.length > 0,
   }),
-  orderBook: (marketId: string, tokenId: string, enabled = true) => ({
+  orderBook: (marketId: string, tokenId: string, fetchEnabled = true, pollingEnabled = true) => ({
     queryKey: marketsKeys.orderBook(marketId, tokenId),
     queryFn: ({ signal }: { signal?: AbortSignal }) =>
       fetchData(getMarketsClient().getOrderBook(marketId, tokenId, { signal })),
     staleTime: 3_000,
-    refetchInterval: (enabled ? POLL_ORDERBOOK : false) as number | false,
+    refetchInterval: (fetchEnabled && pollingEnabled ? POLL_ORDERBOOK : false) as number | false,
     refetchIntervalInBackground: false,
-    enabled: enabled && marketId.length > 0 && tokenId.length > 0,
+    enabled: fetchEnabled && marketId.length > 0 && tokenId.length > 0,
   }),
   priceHistory: (marketId: string, tokenId: string, interval: HistoryInterval = "1d") => ({
     queryKey: marketsKeys.history(marketId, tokenId, interval),

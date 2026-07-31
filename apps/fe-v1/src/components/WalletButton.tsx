@@ -41,7 +41,24 @@ import { openAppKitModal } from "@/lib/openAppKitModal";
 import LazyFundWalletDialog from "@/components/wallet/LazyFundWalletDialog";
 
 const WalletButton = () => {
-    const { address, isConnected } = useAccount();
+    const { isConnected } = useAccount();
+
+    if (!isConnected) {
+        return (
+            <Button
+                onClick={() => void openAppKitModal()}
+                className="h-9 rounded-lg border border-border/50 bg-secondary px-4 text-xs font-semibold text-foreground transition-colors hover:bg-muted sm:px-5 sm:text-sm dark:border-transparent dark:ring-1 dark:ring-white/[0.06]"
+            >
+                Connect Wallet
+            </Button>
+        );
+    }
+
+    return <ConnectedWalletMenu />;
+};
+
+function ConnectedWalletMenu() {
+    const { address } = useAccount();
     const { disconnect } = useDisconnect();
     const { data: balance } = useBalance({ address });
     const { walletInfo } = useWalletInfo();
@@ -62,7 +79,7 @@ const WalletButton = () => {
     ];
 
     useEffect(() => {
-        if (!isConnected || !address) return;
+        if (!address) return;
 
         const isSocialWallet =
             walletInfo?.type === "social" ||
@@ -79,18 +96,7 @@ const WalletButton = () => {
 
         window.localStorage.setItem(storageKey, "true");
         setIsFundWalletOpen(true);
-    }, [address, balance?.value, isConnected, walletInfo]);
-
-    if (!isConnected) {
-        return (
-            <Button
-                onClick={() => void openAppKitModal()}
-                className="h-9 rounded-lg border border-border/50 bg-secondary px-4 text-xs font-semibold text-foreground transition-colors hover:bg-muted sm:px-5 sm:text-sm dark:border-transparent dark:ring-1 dark:ring-white/[0.06]"
-            >
-                Connect Wallet
-            </Button>
-        );
-    }
+    }, [address, balance?.value, walletInfo]);
 
     return (
         <div className="flex items-center gap-2">
@@ -103,7 +109,7 @@ const WalletButton = () => {
                                 {t('balance')}
                             </span>
                             <span className="text-xs font-bold tabular-nums text-primary">
-                                {isConnected ? nativeBalanceFormatted : "0.00"}
+                                {nativeBalanceFormatted}
                             </span>
                         </div>
 
