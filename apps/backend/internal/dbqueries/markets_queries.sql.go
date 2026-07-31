@@ -76,6 +76,19 @@ func (q *Queries) GetLatestMarketsHealth(ctx context.Context, arg GetLatestMarke
 	return i, err
 }
 
+const getMarketIDByUpstreamToken = `-- name: GetMarketIDByUpstreamToken :one
+SELECT market_id
+FROM markets_catalog_outcomes
+WHERE upstream_token_id = $1
+`
+
+func (q *Queries) GetMarketIDByUpstreamToken(ctx context.Context, upstreamTokenID string) (string, error) {
+	row := q.db.QueryRow(ctx, getMarketIDByUpstreamToken, upstreamTokenID)
+	var market_id string
+	err := row.Scan(&market_id)
+	return market_id, err
+}
+
 const getMarketsCatalogEvent = `-- name: GetMarketsCatalogEvent :one
 SELECT event_id, slug, title, description, status, start_at, end_at, source, upstream_updated_at, content_hash, payload, observed_at, created_at, updated_at
 FROM markets_catalog_events
@@ -337,6 +350,38 @@ func (q *Queries) InsertMarketsSignalEvidence(ctx context.Context, arg InsertMar
 	return err
 }
 
+const listCatalogTokenMappings = `-- name: ListCatalogTokenMappings :many
+SELECT upstream_token_id, market_id
+FROM markets_catalog_outcomes
+ORDER BY market_id, upstream_token_id
+LIMIT $1
+`
+
+type ListCatalogTokenMappingsRow struct {
+	UpstreamTokenID string `json:"upstream_token_id"`
+	MarketID        string `json:"market_id"`
+}
+
+func (q *Queries) ListCatalogTokenMappings(ctx context.Context, limit int32) ([]ListCatalogTokenMappingsRow, error) {
+	rows, err := q.db.Query(ctx, listCatalogTokenMappings, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCatalogTokenMappingsRow{}
+	for rows.Next() {
+		var i ListCatalogTokenMappingsRow
+		if err := rows.Scan(&i.UpstreamTokenID, &i.MarketID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMarketsCatalogEventSummaries = `-- name: ListMarketsCatalogEventSummaries :many
 SELECT
     e.event_id,
@@ -595,6 +640,70 @@ func (q *Queries) ListMarketsOutcomes(ctx context.Context, marketID string) ([]M
 			&i.ObservedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMarketsPriceObservations = `-- name: ListMarketsPriceObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, price, best_bid, best_ask, spread, snapshot_hash, rule_version
+FROM markets_price_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4
+`
+
+type ListMarketsPriceObservationsParams struct {
+	MarketID  string             `json:"market_id"`
+	TokenID   string             `json:"token_id"`
+	BucketEnd pgtype.Timestamptz `json:"bucket_end"`
+	Limit     int32              `json:"limit"`
+}
+
+type ListMarketsPriceObservationsRow struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	Price        string             `json:"price"`
+	BestBid      pgtype.Text        `json:"best_bid"`
+	BestAsk      pgtype.Text        `json:"best_ask"`
+	Spread       pgtype.Text        `json:"spread"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+}
+
+func (q *Queries) ListMarketsPriceObservations(ctx context.Context, arg ListMarketsPriceObservationsParams) ([]ListMarketsPriceObservationsRow, error) {
+	rows, err := q.db.Query(ctx, listMarketsPriceObservations,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketEnd,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMarketsPriceObservationsRow{}
+	for rows.Next() {
+		var i ListMarketsPriceObservationsRow
+		if err := rows.Scan(
+			&i.MarketID,
+			&i.TokenID,
+			&i.BucketStart,
+			&i.BucketEnd,
+			&i.Price,
+			&i.BestBid,
+			&i.BestAsk,
+			&i.Spread,
+			&i.SnapshotHash,
+			&i.RuleVersion,
 		); err != nil {
 			return nil, err
 		}

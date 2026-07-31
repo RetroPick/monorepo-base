@@ -60,6 +60,12 @@ type CatalogWorkerState interface {
 	ProjectionAvailable() bool
 }
 
+// RealtimeStateProvider exposes live realtime capability truth.
+type RealtimeStateProvider interface {
+	CapabilitiesRealtime() bool
+	HealthRealtime() string
+}
+
 type CatalogProjectionStatus struct {
 	EventCount     int64
 	LatestObserved time.Time
@@ -94,6 +100,7 @@ type ServiceConfig struct {
 	Signals              SignalReader
 	SignalsOperational   bool
 	RealtimeOperational  bool
+	RealtimeState        RealtimeStateProvider
 	Metrics              *Metrics
 	BookMaxAge        time.Duration
 	Now               func() time.Time
@@ -137,6 +144,9 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 	}
 	marketDataEnabled := s.MarketDataOperational()
 	realtimeEnabled := s.cfg.RealtimeOperational
+	if s.cfg.RealtimeState != nil {
+		realtimeEnabled = s.cfg.RealtimeState.CapabilitiesRealtime()
+	}
 	intelligenceEnabled := s.cfg.SignalsOperational && s.cfg.Signals != nil
 	return CapabilitiesResponse{
 		Version: APIVersion,

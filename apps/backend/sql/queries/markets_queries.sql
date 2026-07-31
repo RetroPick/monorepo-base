@@ -295,8 +295,26 @@ ORDER BY evidence_index;
 -- name: TryMarketsAdvisoryLock :one
 SELECT pg_try_advisory_lock($1::BIGINT) AS acquired;
 
+-- name: GetMarketIDByUpstreamToken :one
+SELECT market_id
+FROM markets_catalog_outcomes
+WHERE upstream_token_id = $1;
+
+-- name: ListCatalogTokenMappings :many
+SELECT upstream_token_id, market_id
+FROM markets_catalog_outcomes
+ORDER BY market_id, upstream_token_id
+LIMIT $1;
+
 -- name: ReleaseMarketsAdvisoryLock :one
 SELECT pg_advisory_unlock($1::BIGINT) AS released;
+
+-- name: ListMarketsPriceObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, price, best_bid, best_ask, spread, snapshot_hash, rule_version
+FROM markets_price_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4;
 
 -- name: UpsertMarketsPriceObservation :exec
 INSERT INTO markets_price_observations (

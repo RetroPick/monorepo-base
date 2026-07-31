@@ -29,20 +29,28 @@ type Producer struct {
 	rest        RESTSnapshotter
 	registry    TokenRegistry
 	reconcilers map[string]*marketdata.Reconciler
+	signals     *SignalPipeline
+	status      *StatusProvider
 	mu          sync.RWMutex
 	logger      *slog.Logger
 	bookMaxAge  time.Duration
 	now         func() time.Time
-	operational bool
+	resnapMu    sync.Mutex
+	resnapDue   map[string]time.Time
+	restMu      sync.Mutex
+	restDue     map[string]time.Time
 }
 
 type ProducerConfig struct {
-	Hub        *Hub
-	REST       RESTSnapshotter
-	Registry   TokenRegistry
-	BookMaxAge time.Duration
-	Logger     *slog.Logger
-	Now        func() time.Time
+	Hub            *Hub
+	REST           RESTSnapshotter
+	Registry       TokenRegistry
+	Signals        *SignalPipeline
+	Status         *StatusProvider
+	BookMaxAge     time.Duration
+	RESTValidate   time.Duration
+	Logger         *slog.Logger
+	Now            func() time.Time
 }
 
 func NewProducer(cfg ProducerConfig) *Producer {
@@ -63,30 +71,42 @@ func NewProducer(cfg ProducerConfig) *Producer {
 		tracker:     NewDeliveryTracker(),
 		rest:        cfg.REST,
 		registry:    cfg.Registry,
+		signals:     cfg.Signals,
+		status:      cfg.Status,
 		reconcilers: make(map[string]*marketdata.Reconciler),
 		logger:      logger,
 		bookMaxAge:  maxAge,
 		now:         now,
+		resnapDue:   make(map[string]time.Time),
+		restDue:     make(map[string]time.Time),
 	}
 }
 
-func (p *Producer) SetOperational(ok bool) {
-	p.operational = ok
-}
+func (p *Producer) SetOperational(_ bool) {}
 
 func (p *Producer) Operational() bool {
-	return p.operational
+	if p.status == nil {
+		return false
+	}
+	return p.status.Operational()
 }
 
 func (p *Producer) HandleUpstream(events []upstreamws.RawEvent) {
 	for _, event := range events {
+		if p.status != nil {
+			ts := event.Timestamp
+			if ts.IsZero() {
+				ts = p.now()
+			}
+			p.status.MarkUpstreamMessage(ts)
+		}
 		switch event.Type {
 		case upstreamws.EventBook:
 			if event.Book != nil {
 				p.handleBook(*event.Book, event.Timestamp)
 			}
 		case upstreamws.EventPriceChange:
-			p.handlePriceChanges(event.Changes, event.Timestamp)
+			p.handlePriceChangeNotification(event.Changes, event.Timestamp)
 		case upstreamws.EventLastTradePrice:
 			if event.Trade != nil {
 				p.handleTrade(*event.Trade, event.Timestamp)
@@ -111,21 +131,25 @@ func (p *Producer) OnClientSubscribe(marketID, tokenID string) {
 		if err == nil {
 			snapshot, err := rec.ApplyRESTSnapshot(book, p.now())
 			if err == nil {
-				p.publishSnapshot(marketID, tokenID, snapshot)
+				p.publishSnapshot(marketID, tokenID, snapshot, true)
 				return
 			}
 		}
 	}
 	if rec.IsSynchronized() {
-		p.publishSnapshot(marketID, tokenID, rec.Snapshot())
+		p.publishSnapshot(marketID, tokenID, rec.Snapshot(), false)
 	}
 }
 
-func (p *Producer) OnUpstreamDisconnect() {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+func (p *Producer) OnUpstreamShardDisconnect(_ int, tokens []string) {
 	now := p.now()
-	for tokenID, rec := range p.reconcilers {
+	for _, tokenID := range tokens {
+		p.mu.RLock()
+		rec, ok := p.reconcilers[tokenID]
+		p.mu.RUnlock()
+		if !ok {
+			continue
+		}
 		rec.MarkDisconnected(now)
 		p.tracker.BumpEpoch(tokenID)
 		marketID, _ := p.registry.MarketForToken(tokenID)
@@ -146,53 +170,146 @@ func (p *Producer) handleBook(book clob.OrderBook, observedAt time.Time) {
 	if observedAt.IsZero() {
 		observedAt = p.now()
 	}
+	phase := rec.Phase()
 	snapshot, err := rec.ApplyBookEvent(book, observedAt)
 	if err != nil {
 		p.logger.Warn("book event", "token", tokenID, "err", err)
 		return
 	}
-	p.publishSnapshot(marketID, tokenID, snapshot)
+	bumpEpoch := phase == marketdata.PhaseUninitialized || phase == marketdata.PhaseSnapshotLoading || phase == marketdata.PhaseResyncRequired
+	p.publishSnapshot(marketID, tokenID, snapshot, bumpEpoch)
+	if p.signals != nil {
+		p.signals.ObserveSnapshot(marketID, tokenID, snapshot)
+	}
 }
 
-func (p *Producer) handlePriceChanges(changes []marketdata.PriceChange, observedAt time.Time) {
+// handlePriceChangeNotification uses price_change as notification only; authoritative state via REST.
+func (p *Producer) handlePriceChangeNotification(changes []marketdata.PriceChange, observedAt time.Time) {
 	if len(changes) == 0 {
 		return
 	}
-	byToken := make(map[string][]marketdata.PriceChange)
+	byToken := make(map[string]struct{})
 	for _, c := range changes {
-		byToken[c.TokenID] = append(byToken[c.TokenID], c)
+		byToken[c.TokenID] = struct{}{}
 	}
-	for tokenID, batch := range byToken {
+	for tokenID := range byToken {
 		marketID, ok := p.registry.MarketForToken(tokenID)
 		if !ok {
 			continue
 		}
-		rec, err := p.ensureReconciler(marketID, tokenID)
+		p.scheduleRESTResnapshot(marketID, tokenID, observedAt)
+	}
+}
+
+func (p *Producer) scheduleRESTResnapshot(marketID, tokenID string, observedAt time.Time) {
+	if observedAt.IsZero() {
+		observedAt = p.now()
+	}
+	p.resnapMu.Lock()
+	if due, ok := p.resnapDue[tokenID]; ok && p.now().Before(due) {
+		p.resnapMu.Unlock()
+		return
+	}
+	p.resnapDue[tokenID] = p.now().Add(500 * time.Millisecond)
+	p.resnapMu.Unlock()
+	go p.fetchRESTSnapshot(marketID, tokenID, false)
+}
+
+func (p *Producer) fetchRESTSnapshot(marketID, tokenID string, bumpEpoch bool) {
+	if p.rest == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	book, err := p.rest.GetOrderBook(ctx, tokenID)
+	if err != nil {
+		p.logger.Warn("rest resnapshot", "token", tokenID, "err", err)
+		return
+	}
+	rec, err := p.ensureReconciler(marketID, tokenID)
+	if err != nil {
+		return
+	}
+	snapshot, err := rec.ApplyRESTSnapshot(book, p.now())
+	if err != nil {
+		return
+	}
+	p.publishSnapshot(marketID, tokenID, snapshot, bumpEpoch)
+	if p.signals != nil {
+		p.signals.ObserveSnapshot(marketID, tokenID, snapshot)
+	}
+	p.resnapMu.Lock()
+	delete(p.resnapDue, tokenID)
+	p.resnapMu.Unlock()
+}
+
+func (p *Producer) StartRESTValidation(ctx context.Context, interval time.Duration) {
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				p.validateSubscribedTokens(ctx)
+			}
+		}
+	}()
+}
+
+func (p *Producer) validateSubscribedTokens(ctx context.Context) {
+	p.mu.RLock()
+	tokens := make([]string, 0, len(p.reconcilers))
+	for tokenID, rec := range p.reconcilers {
+		if rec.IsSynchronized() {
+			tokens = append(tokens, tokenID)
+		}
+	}
+	p.mu.RUnlock()
+	for _, tokenID := range tokens {
+		marketID, ok := p.registry.MarketForToken(tokenID)
+		if !ok {
+			continue
+		}
+		p.restMu.Lock()
+		if due, ok := p.restDue[tokenID]; ok && p.now().Before(due) {
+			p.restMu.Unlock()
+			continue
+		}
+		p.restDue[tokenID] = p.now().Add(intervalWithJitter(intervalFromContext(ctx), 5*time.Second))
+		p.restMu.Unlock()
+
+		restCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+		book, err := p.rest.GetOrderBook(restCtx, tokenID)
+		cancel()
 		if err != nil {
 			continue
 		}
-		if observedAt.IsZero() {
-			observedAt = p.now()
+		rec, _ := p.ReconcilerForToken(tokenID)
+		if rec == nil {
+			continue
 		}
-		snapshot, err := rec.ApplyPriceChanges(batch, observedAt)
-		if err != nil {
+		if !rec.ValidateAgainstREST(book) {
 			rec.BeginResync()
 			p.tracker.BumpEpoch(tokenID)
 			p.publishResyncRequired(marketID, tokenID)
+			p.fetchRESTSnapshot(marketID, tokenID, true)
 			continue
 		}
-		epoch, counter := p.tracker.Next(tokenID)
-		envelope, err := NewEnvelope(
-			TypeOrderBookDelta,
-			marketID, tokenID, tokenID,
-			snapshot.Hash, epoch, counter,
-			observedAt, p.now(), snapshot,
-		)
-		if err != nil {
-			continue
-		}
-		p.publishEnvelope(marketID, tokenID, envelope)
 	}
+}
+
+func intervalFromContext(_ context.Context) time.Duration {
+	return 30 * time.Second
+}
+
+func intervalWithJitter(base, maxJitter time.Duration) time.Duration {
+	jitter := time.Duration(time.Now().UnixNano() % int64(maxJitter))
+	return base + jitter
 }
 
 func (p *Producer) handleTrade(trade upstreamws.TradeEvent, observedAt time.Time) {
@@ -257,9 +374,14 @@ func (p *Producer) handleTickSize(tick upstreamws.TickSizeEvent, observedAt time
 	p.publishEnvelope(marketID, tokenID, envelope)
 }
 
-func (p *Producer) publishSnapshot(marketID, tokenID string, snapshot markets.OrderBookSnapshot) {
-	epoch := p.tracker.BumpEpoch(tokenID)
-	_, counter := p.tracker.Next(tokenID)
+func (p *Producer) publishSnapshot(marketID, tokenID string, snapshot markets.OrderBookSnapshot, bumpEpoch bool) {
+	var epoch, counter uint64
+	if bumpEpoch {
+		epoch = p.tracker.BumpEpoch(tokenID)
+		_, counter = p.tracker.Next(tokenID)
+	} else {
+		epoch, counter = p.tracker.Next(tokenID)
+	}
 	envelope, err := NewEnvelope(
 		TypeOrderBookSnapshot,
 		marketID, tokenID, tokenID,
@@ -334,4 +456,8 @@ func (p *Producer) SynchronizedBookCount() int {
 		}
 	}
 	return count
+}
+
+func (p *Producer) PublishSignal(marketID, tokenID string, envelope markets.RealtimeEnvelope) {
+	p.publishEnvelope(marketID, tokenID, envelope)
 }

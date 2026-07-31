@@ -27,8 +27,13 @@ export { EtagCache } from "./etag-cache";
 
 export {
   MarketsRealtimeClient,
+  REALTIME_SCHEMA_VERSION,
   createMarketsRealtimeClient,
+  isControlEnvelope,
+  isDataEnvelope,
   realtimeStateLabel,
+  validateControlEnvelope,
+  validateDataEnvelope,
 } from "./realtime";
 export type {
   MarketsRealtimeClientConfig,

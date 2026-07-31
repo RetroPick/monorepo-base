@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -14,41 +15,47 @@ import (
 )
 
 const (
-	defaultPingInterval   = 10 * time.Second
-	defaultReadDeadline   = 30 * time.Second
-	defaultWriteDeadline  = 10 * time.Second
-	defaultMaxFrameSize   = 64 << 10
-	defaultReconnectMin   = 1 * time.Second
-	defaultReconnectMax   = 60 * time.Second
+	defaultPingInterval  = 10 * time.Second
+	defaultReadDeadline  = 30 * time.Second
+	defaultWriteDeadline = 10 * time.Second
+	defaultMaxFrameSize  = 64 << 10
+	defaultReconnectMin  = 1 * time.Second
+	defaultReconnectMax  = 60 * time.Second
+	defaultMaxPongAge    = 30 * time.Second
 )
 
 // EventHandler receives parsed upstream events.
 type EventHandler func(events []RawEvent)
 
+// ShardDisconnectHandler is invoked when a shard connection drops.
+type ShardDisconnectHandler func(shardID int, tokens []string)
+
 // SupervisorConfig configures the upstream WebSocket supervisor.
 type SupervisorConfig struct {
-	URL               string
-	MaxAssetsPerConn  int
-	PingInterval      time.Duration
-	ReadDeadline      time.Duration
-	WriteDeadline     time.Duration
-	MaxFrameSize      int64
-	ReconnectMin      time.Duration
-	ReconnectMax      time.Duration
-	Logger            *slog.Logger
-	OnConnect         func()
-	OnDisconnect      func()
-	Now               func() time.Time
+	URL              string
+	MaxAssetsPerConn int
+	PingInterval     time.Duration
+	ReadDeadline     time.Duration
+	WriteDeadline    time.Duration
+	MaxFrameSize     int64
+	MaxPongAge       time.Duration
+	ReconnectMin     time.Duration
+	ReconnectMax     time.Duration
+	ReconcileInterval time.Duration
+	Logger           *slog.Logger
+	OnConnect        func()
+	OnDisconnect     ShardDisconnectHandler
+	Now              func() time.Time
 }
 
 // Supervisor manages upstream Polymarket WebSocket connections.
 type Supervisor struct {
-	cfg       SupervisorConfig
-	handler   EventHandler
-	planner   *Planner
-	dialer    *websocket.Dialer
-	logger    *slog.Logger
-	now       func() time.Time
+	cfg     SupervisorConfig
+	handler EventHandler
+	planner *Planner
+	dialer  *websocket.Dialer
+	logger  *slog.Logger
+	now     func() time.Time
 
 	mu          sync.Mutex
 	conns       map[int]*shardConn
@@ -62,10 +69,10 @@ type Supervisor struct {
 }
 
 type shardConn struct {
-	id       int
-	conn     *websocket.Conn
-	tokens   map[string]struct{}
-	writeMu  sync.Mutex
+	id      int
+	conn    *websocket.Conn
+	tokens  map[string]struct{}
+	writeMu sync.Mutex
 }
 
 // NewSupervisor creates an upstream supervisor.
@@ -88,11 +95,20 @@ func NewSupervisor(cfg SupervisorConfig, planner *Planner, handler EventHandler)
 	if cfg.MaxFrameSize <= 0 {
 		cfg.MaxFrameSize = defaultMaxFrameSize
 	}
+	if cfg.MaxPongAge <= 0 {
+		cfg.MaxPongAge = defaultMaxPongAge
+	}
 	if cfg.ReconnectMin <= 0 {
 		cfg.ReconnectMin = defaultReconnectMin
 	}
 	if cfg.ReconnectMax <= 0 {
 		cfg.ReconnectMax = defaultReconnectMax
+	}
+	if cfg.ReconcileInterval <= 0 && planner != nil {
+		cfg.ReconcileInterval = planner.ReconcileInterval()
+	}
+	if cfg.ReconcileInterval <= 0 {
+		cfg.ReconcileInterval = 5 * time.Second
 	}
 	logger := cfg.Logger
 	if logger == nil {
@@ -137,6 +153,7 @@ func (s *Supervisor) Stop() {
 	defer s.mu.Unlock()
 	if s.cancel != nil {
 		s.cancel()
+		s.cancel = nil
 	}
 	for _, shard := range s.conns {
 		_ = shard.conn.Close()
@@ -150,9 +167,25 @@ func (s *Supervisor) ReconnectCount() uint64 {
 	return s.reconnects.Load()
 }
 
+// ConnectedShardCount returns active upstream shard connections.
+func (s *Supervisor) ConnectedShardCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.conns)
+}
+
 // LastMessageAge returns age of last upstream message.
 func (s *Supervisor) LastMessageAge() time.Duration {
 	age := s.lastMsgAge.Load()
+	if age == 0 {
+		return 0
+	}
+	return s.now().Sub(time.Unix(0, age))
+}
+
+// LastPongAge returns age of last upstream PONG.
+func (s *Supervisor) LastPongAge() time.Duration {
+	age := s.lastPongAge.Load()
 	if age == 0 {
 		return 0
 	}
@@ -166,40 +199,62 @@ func (s *Supervisor) MalformedFrames() uint64 {
 
 func (s *Supervisor) run(ctx context.Context) {
 	backoff := s.cfg.ReconnectMin
+	ticker := time.NewTicker(s.cfg.ReconcileInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
+		case <-ticker.C:
 		}
 		desired := s.planner.DesiredTokens()
 		if len(desired) == 0 {
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(s.cfg.PingInterval):
-			}
+			backoff = s.cfg.ReconnectMin
 			continue
 		}
-		if err := s.reconcileShards(ctx, desired); err != nil && !errors.Is(err, context.Canceled) {
+		s.closeStaleShards()
+		err := s.reconcileShards(ctx, desired)
+		if err != nil && !errors.Is(err, context.Canceled) {
 			s.logger.Warn("upstream reconcile", "err", err)
+			backoff = s.waitBackoff(ctx, backoff)
+			continue
 		}
-		backoff = s.waitBackoff(ctx, backoff)
+		backoff = s.cfg.ReconnectMin
+	}
+}
+
+func (s *Supervisor) closeStaleShards() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, shard := range s.conns {
+		pongAge := s.LastPongAge()
+		msgAge := s.LastMessageAge()
+		if pongAge > s.cfg.MaxPongAge && msgAge > s.cfg.MaxPongAge {
+			tokens := shardTokenList(shard)
+			_ = shard.conn.Close()
+			delete(s.conns, id)
+			if s.cfg.OnDisconnect != nil {
+				s.cfg.OnDisconnect(id, tokens)
+			}
+		}
 	}
 }
 
 func (s *Supervisor) reconcileShards(ctx context.Context, tokens []string) error {
 	shards := partition(tokens, s.cfg.MaxAssetsPerConn)
 	s.mu.Lock()
-	// close removed shards
 	active := make(map[int]struct{}, len(shards))
 	for i := range shards {
 		active[i] = struct{}{}
 	}
 	for id, shard := range s.conns {
 		if _, ok := active[id]; !ok {
+			tokensRemoved := shardTokenList(shard)
 			_ = shard.conn.Close()
 			delete(s.conns, id)
+			if s.cfg.OnDisconnect != nil {
+				s.cfg.OnDisconnect(id, tokensRemoved)
+			}
 		}
 	}
 	s.mu.Unlock()
@@ -228,6 +283,7 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 		s.mu.Lock()
 		s.conns[id] = shard
 		s.mu.Unlock()
+		s.lastPongAge.Store(s.now().UnixNano())
 		if s.cfg.OnConnect != nil {
 			s.cfg.OnConnect()
 		}
@@ -247,7 +303,7 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 			return err
 		}
 		shard.tokens = desired
-		return s.readUntilStable(ctx, shard)
+		return nil
 	}
 	if len(toAdd) > 0 {
 		msg, err := UpdateSubscriptionMessage("subscribe", toAdd)
@@ -278,12 +334,13 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 
 func (s *Supervisor) readLoop(ctx context.Context, shard *shardConn) {
 	defer func() {
+		tokens := shardTokenList(shard)
 		s.mu.Lock()
 		delete(s.conns, shard.id)
 		s.mu.Unlock()
 		_ = shard.conn.Close()
 		if s.cfg.OnDisconnect != nil {
-			s.cfg.OnDisconnect()
+			s.cfg.OnDisconnect(shard.id, tokens)
 		}
 		s.reconnects.Add(1)
 	}()
@@ -298,7 +355,7 @@ func (s *Supervisor) readLoop(ctx context.Context, shard *shardConn) {
 		if err != nil {
 			return
 		}
-		text := string(data)
+		text := strings.TrimSpace(string(data))
 		if text == "PONG" {
 			s.lastPongAge.Store(s.now().UnixNano())
 			continue
@@ -337,20 +394,8 @@ func (s *Supervisor) write(shard *shardConn, msgType int, data []byte) error {
 	return shard.conn.WriteMessage(msgType, data)
 }
 
-func (s *Supervisor) readUntilStable(ctx context.Context, shard *shardConn) error {
-	deadline := s.now().Add(2 * time.Second)
-	for s.now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(50 * time.Millisecond):
-		}
-	}
-	return nil
-}
-
 func (s *Supervisor) waitBackoff(ctx context.Context, current time.Duration) time.Duration {
-	jitter := time.Duration(rand.Int63n(int64(current / 2)))
+	jitter := time.Duration(rand.Int63n(int64(current/2 + 1)))
 	wait := current + jitter
 	select {
 	case <-ctx.Done():
@@ -362,6 +407,14 @@ func (s *Supervisor) waitBackoff(ctx context.Context, current time.Duration) tim
 		next = s.cfg.ReconnectMax
 	}
 	return next
+}
+
+func shardTokenList(shard *shardConn) []string {
+	out := make([]string, 0, len(shard.tokens))
+	for token := range shard.tokens {
+		out = append(out, token)
+	}
+	return out
 }
 
 func partition(tokens []string, size int) map[int][]string {

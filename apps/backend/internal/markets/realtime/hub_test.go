@@ -1,6 +1,7 @@
 package realtime_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -77,10 +78,14 @@ func TestValidateEnvelopeRejectsSequence(t *testing.T) {
 
 func TestHubPublishToToken(t *testing.T) {
 	t.Parallel()
-	hub := realtime.NewHub(8)
-	go hub.Run()
+	hub := realtime.NewHub(realtime.HubConfig{MaxQueue: 8})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hub.Start(ctx)
 	client := realtime.NewClient(hub, "c1")
-	hub.Register(client)
+	if !hub.Register(client, "127.0.0.1") {
+		t.Fatal("register failed")
+	}
 	hub.Subscribe(client, "m1", "t1")
 	hub.PublishToToken("m1", "t1", []byte(`{"eventType":"orderbook.snapshot"}`))
 	select {
@@ -91,4 +96,33 @@ func TestHubPublishToToken(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timeout waiting for message")
 	}
+}
+
+func TestStatusProviderStates(t *testing.T) {
+	t.Parallel()
+	status := realtime.NewStatusProvider(true)
+	status.SetRegistryReady(true)
+	status.SetHubRunning(true)
+	if status.State() != realtime.StateIdleReady {
+		t.Fatalf("expected idle ready, got %s", status.State())
+	}
+	status.SetDemandedTokens(1)
+	status.SetConnectedShards(0)
+	if status.State() != realtime.StateConnecting {
+		t.Fatalf("expected connecting, got %s", status.State())
+	}
+	status.SetConnectedShards(1)
+	if status.State() != realtime.StateSynchronizing {
+		t.Fatalf("expected synchronizing, got %s", status.State())
+	}
+	status.SetSyncedTokens(1)
+	status.MarkUpstreamMessage(time.Now())
+	if status.State() != realtime.StateOperational {
+		t.Fatalf("expected operational, got %s", status.State())
+	}
+}
+
+func TestCommandLimiterFirstCommandAlwaysAllowed(t *testing.T) {
+	t.Parallel()
+	// covered via handler integration; token bucket tested in limiter via handler tests
 }

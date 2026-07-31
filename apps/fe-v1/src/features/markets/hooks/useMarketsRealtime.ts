@@ -22,6 +22,21 @@ interface UseMarketsRealtimeResult {
   pollingOnly: boolean;
 }
 
+function hookLabel(state: RealtimeConnectionState): string {
+  switch (state) {
+    case "live":
+      return "Live";
+    case "connecting":
+      return "Reconnecting";
+    case "resyncing":
+      return "Resynchronizing";
+    case "polling_fallback":
+      return "Realtime unavailable";
+    default:
+      return "Snapshot polling — not realtime";
+  }
+}
+
 export function useMarketsRealtime({
   marketId,
   tokenId,
@@ -31,44 +46,61 @@ export function useMarketsRealtime({
   const [state, setState] = useState<RealtimeConnectionState>("idle");
   const [snapshot, setSnapshot] = useState<OrderBookSnapshot | null>(null);
   const clientRef = useRef<ReturnType<typeof createMarketsRealtimeClient> | null>(null);
+  const liveRef = useRef(false);
 
   useEffect(() => {
     if (!enabled || !realtimeCapability || !marketId || !tokenId) {
+      clientRef.current?.disconnect();
+      clientRef.current = null;
+      setSnapshot(null);
       setState("polling_fallback");
       return undefined;
     }
+
     const client = createMarketsRealtimeClient({ baseUrl: getApiBaseUrl() });
     clientRef.current = client;
-    const offState = client.onState(setState);
+
+    const offState = client.onState((next) => {
+      liveRef.current = next === "live";
+      setState(next);
+      if (next !== "live") {
+        setSnapshot(null);
+      }
+    });
+
     const offMsg = client.onMessage((envelope: RealtimeEnvelope) => {
-      if (envelope.eventType === "orderbook.snapshot" || envelope.eventType === "orderbook.delta") {
+      if (envelope.eventType === "orderbook.snapshot") {
+        setSnapshot(envelope.payload as OrderBookSnapshot);
+        return;
+      }
+      if (envelope.eventType === "orderbook.delta" && liveRef.current) {
         setSnapshot(envelope.payload as OrderBookSnapshot);
       }
     });
+
     client.connect(marketId, tokenId);
+
     const onVisibility = () => {
-      client.setBackgrounded(document.visibilityState === "hidden");
+      const hidden = document.visibilityState === "hidden";
+      client.setBackgrounded(hidden);
+      if (!hidden) {
+        client.resumeIfNeeded();
+      }
     };
+    onVisibility();
     document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
       offState();
       offMsg();
       client.disconnect();
+      clientRef.current = null;
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [enabled, marketId, realtimeCapability, tokenId]);
 
-  const pollingOnly = state !== "live";
-  const label =
-    state === "live"
-      ? "Live"
-      : state === "connecting"
-        ? "Reconnecting"
-        : state === "resyncing"
-          ? "Resynchronizing"
-          : state === "polling_fallback"
-            ? "Realtime unavailable"
-            : "Snapshot polling — not realtime";
+  const pollingOnly = !realtimeCapability || !enabled || state !== "live";
+  const label = realtimeCapability && enabled ? hookLabel(state) : "Snapshot polling — not realtime";
 
   return { state, snapshot, label, pollingOnly };
 }

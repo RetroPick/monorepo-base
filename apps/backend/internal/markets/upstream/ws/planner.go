@@ -21,13 +21,14 @@ type TokenRequest struct {
 	MarketID  string
 	Priority  TokenPriority
 	Requested time.Time
+	RefCount  int
 }
 
 // PlannerConfig bounds upstream subscriptions.
 type PlannerConfig struct {
-	MaxSubscribedAssets      int
-	ReconcileInterval        time.Duration
-	EvictionCooldown         time.Duration
+	MaxSubscribedAssets int
+	ReconcileInterval   time.Duration
+	EvictionCooldown    time.Duration
 }
 
 // Planner selects which tokens to subscribe upstream.
@@ -62,12 +63,22 @@ func (p *Planner) Subscribe(tokenID, marketID string, priority TokenPriority) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	delete(p.evicted, tokenID)
-	p.requests[tokenID] = TokenRequest{
-		TokenID:   tokenID,
-		MarketID:  marketID,
-		Priority:  priority,
-		Requested: time.Now().UTC(),
+	req, ok := p.requests[tokenID]
+	if ok {
+		req.RefCount++
+		if req.MarketID == "" {
+			req.MarketID = marketID
+		}
+	} else {
+		req = TokenRequest{
+			TokenID:   tokenID,
+			MarketID:  marketID,
+			Priority:  priority,
+			Requested: time.Now().UTC(),
+			RefCount:  1,
+		}
 	}
+	p.requests[tokenID] = req
 }
 
 func (p *Planner) Unsubscribe(tokenID string) {
@@ -76,8 +87,17 @@ func (p *Planner) Unsubscribe(tokenID string) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	delete(p.requests, tokenID)
-	p.evicted[tokenID] = time.Now().UTC()
+	req, ok := p.requests[tokenID]
+	if !ok {
+		return
+	}
+	req.RefCount--
+	if req.RefCount <= 0 {
+		delete(p.requests, tokenID)
+		p.evicted[tokenID] = time.Now().UTC()
+		return
+	}
+	p.requests[tokenID] = req
 }
 
 func (p *Planner) DesiredTokens() []string {
@@ -86,6 +106,9 @@ func (p *Planner) DesiredTokens() []string {
 	now := time.Now().UTC()
 	list := make([]TokenRequest, 0, len(p.requests))
 	for tokenID, req := range p.requests {
+		if req.RefCount <= 0 {
+			continue
+		}
 		if evictedAt, ok := p.evicted[tokenID]; ok && now.Sub(evictedAt) < p.cfg.EvictionCooldown {
 			continue
 		}
@@ -108,14 +131,24 @@ func (p *Planner) DesiredTokens() []string {
 	return out
 }
 
+func (p *Planner) DemandCount() int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	count := 0
+	for _, req := range p.requests {
+		if req.RefCount > 0 {
+			count++
+		}
+	}
+	return count
+}
+
 func (p *Planner) SubscribedCount() int {
 	return len(p.DesiredTokens())
 }
 
 func (p *Planner) EligibleCount() int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return len(p.requests)
+	return p.DemandCount()
 }
 
 func (p *Planner) CoverageRatio() float64 {
@@ -124,4 +157,8 @@ func (p *Planner) CoverageRatio() float64 {
 		return 1
 	}
 	return float64(p.SubscribedCount()) / float64(eligible)
+}
+
+func (p *Planner) ReconcileInterval() time.Duration {
+	return p.cfg.ReconcileInterval
 }

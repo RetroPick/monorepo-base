@@ -93,7 +93,7 @@ func TestOpenAPIRuntimeConformancePhaseOne(t *testing.T) {
 		Worker:                conformanceWorker{},
 		SignalsOperational:    false,
 		MarketDataOperational: true,
-		RealtimeState:         "disabled",
+		RealtimeState:         nil,
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(svc))
 

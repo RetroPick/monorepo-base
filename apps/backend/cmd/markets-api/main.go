@@ -113,39 +113,55 @@ func main() {
 
 	metrics := markets.NewMetrics()
 	clobClient := clob.NewClient(cfg.CLOBAPIURL)
-	realtimeOperational := false
-	realtimeState := "disabled"
 	var rtRuntime *realtime.Runtime
 
 	if cfg.RealtimeEnabled {
-		registry := realtime.NewTokenRegistryMap()
+		tokenRegistry, err := postgres.NewCatalogTokenRegistry(pool)
+		if err != nil {
+			log.Error("token registry", "err", err)
+			os.Exit(1)
+		}
+		if err := realtime.BootstrapRegistry(ctx, tokenRegistry); err != nil {
+			log.Error("token registry bootstrap", "err", err)
+			os.Exit(1)
+		}
+		obsStore, err := postgres.NewObservationStore(pool)
+		if err != nil {
+			log.Error("observation store", "err", err)
+			os.Exit(1)
+		}
+		signalPipeline := realtime.NewSignalPipeline(realtime.SignalPipelineConfig{
+			Store:  obsStore,
+			Writer: signalStore,
+			Logger: log,
+		})
 		rtRuntime, err = realtime.NewRuntime(realtime.RuntimeConfig{
-			Config:   cfg,
-			REST:     clobClient,
-			Registry: registry,
-			Logger:   log,
+			Config:    cfg,
+			REST:      clobClient,
+			Registry:  tokenRegistry,
+			Validator: tokenRegistry,
+			Signals:   signalPipeline,
+			Logger:    log,
 		})
 		if err != nil {
 			log.Error("realtime runtime", "err", err)
 			os.Exit(1)
 		}
-		realtimeOperational = true
-		realtimeState = "ok"
 	}
 
 	marketsSvc := markets.NewService(markets.ServiceConfig{
-		CatalogProjection:   projection,
-		CatalogWorker:       worker,
-		CatalogEnabled:      cfg.CatalogEnabled,
-		CatalogMaxStale:     cfg.CatalogMaxStaleAge,
-		MarketData:          clobClient,
-		MarketProcessor:     marketdata.Processor{},
-		MarketDataEnabled:   cfg.MarketDataEnabled,
-		Signals:             signalStore,
-		SignalsOperational:  store.SignalsOperational(),
-		RealtimeOperational: realtimeOperational,
-		Metrics:             metrics,
-		BookMaxAge:          cfg.BookMaxAge,
+		CatalogProjection:  projection,
+		CatalogWorker:      worker,
+		CatalogEnabled:     cfg.CatalogEnabled,
+		CatalogMaxStale:    cfg.CatalogMaxStaleAge,
+		MarketData:         clobClient,
+		MarketProcessor:    marketdata.Processor{},
+		MarketDataEnabled:  cfg.MarketDataEnabled,
+		Signals:            signalStore,
+		SignalsOperational: store.SignalsOperational(),
+		RealtimeState:      rtRuntime,
+		Metrics:            metrics,
+		BookMaxAge:         cfg.BookMaxAge,
 	})
 
 	r := chi.NewRouter()
@@ -163,7 +179,7 @@ func main() {
 		Worker:                worker,
 		SignalsOperational:    store.SignalsOperational(),
 		MarketDataOperational: marketsSvc.MarketDataOperational(),
-		RealtimeState:         realtimeState,
+		RealtimeState:         rtRuntime,
 		ServiceName:           "retropick-markets-api",
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))

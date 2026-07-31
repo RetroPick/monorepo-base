@@ -726,4 +726,598 @@ tasks:
     status: "done"
     verification_evidence:
       - ".dev/markets-v1/agent-harness/evidence/PR7-RV-006.yaml"
+  - id: MKT-P13-000
+    phase: "PHASE-1.3"
+    title: "Phase 1.3 preflight and ADR acceptance"
+    goal: "Reconcile Phase 1.3 scope with repository state; accept ADR-011 through ADR-014."
+    status: "done"
+    depends_on:
+      - "MKT-P1-010"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - ".dev/markets-v1/architecture/adr/ADR-011-PHASE-1-3-UPSTREAM-WS-CLIENT.md"
+      - ".dev/markets-v1/architecture/adr/ADR-012-PHASE-1-3-ORDERBOOK-RECONCILIATION.md"
+      - ".dev/markets-v1/architecture/adr/ADR-013-PHASE-1-3-LOCAL-DELIVERY-ORDERING.md"
+      - ".dev/markets-v1/architecture/adr/ADR-014-PHASE-1-3-OBSERVATION-PERSISTENCE.md"
+      - "docs/architecture/markets-phase-1-3-realtime-intelligence.md"
+    read_only_inputs:
+      - "apps/backend/internal/markets/"
+      - "schemas/openapi/markets-v1.yaml"
+    deliverables:
+      - "Frozen Phase 1.3 architecture contract"
+      - "ADR-011 … ADR-014 accepted (design); ADR-014 implementation explicitly deferred"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "No Polymarket credentials in apps/fe-v1"
+      - "Public market channel only for Phase 1.3"
+    tests: []
+    commands:
+      - "go -C apps/backend test ./internal/markets/... -count=1"
+    acceptance_criteria:
+      - "Upstream WS semantics documented with evidence"
+      - "No undocumented Polymarket sequence exposed"
+      - "ADR-014 marked design-only until transactional wiring lands"
+    verification_evidence:
+      - "docs/architecture/markets-phase-1-3-realtime-intelligence.md"
+    rollback: "Revert ADR acceptance commits; disable RealtimeEnabled config."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P13-001"
+  - id: MKT-P13-001
+    phase: "PHASE-1.3"
+    title: "Upstream WebSocket supervisor"
+    goal: "Bounded Polymarket public market channel supervisor per ADR-011."
+    status: "done"
+    depends_on:
+      - "MKT-P13-000"
+    may_run_in_parallel_with:
+      - "MKT-P13-002"
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/upstream/ws/"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-011-PHASE-1-3-UPSTREAM-WS-CLIENT.md"
+    deliverables:
+      - "Supervisor with reconnect backoff, heartbeat, sharding, planner"
+      - "Fake upstream server for deterministic tests"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Sanitized logging; no credential material"
+      - "Malformed frame isolation"
+      - "Bounded assets per connection"
+    tests:
+      - "Message parse, subscription, planner priority/limit tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/upstream/ws -count=1"
+    acceptance_criteria:
+      - "Reconnect backoff with jitter"
+      - "PING/PONG heartbeat"
+      - "Dynamic subscribe/unsubscribe via planner"
+    verification_evidence:
+      - "apps/backend/internal/markets/upstream/ws/messages_test.go"
+      - "apps/backend/internal/markets/upstream/ws/fake_server.go"
+    rollback: "Disable RealtimeEnabled; supervisor not started."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P13-005"
+      - "P13C-003"
+  - id: MKT-P13-002
+    phase: "PHASE-1.3"
+    title: "Snapshot-first order-book reconciler"
+    goal: "Replace hash-chain delta semantics with snapshot-first safe mode per ADR-012."
+    status: "done"
+    depends_on:
+      - "MKT-P13-000"
+    may_run_in_parallel_with:
+      - "MKT-P13-001"
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/marketdata/reconciler.go"
+      - "apps/backend/internal/markets/marketdata/reconciler_test.go"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-012-PHASE-1-3-ORDERBOOK-RECONCILIATION.md"
+    deliverables:
+      - "Reconciler state machine: UNINITIALIZED → SNAPSHOT_LOADING → SYNCHRONIZED ⇄ DEGRADED"
+      - "Absolute price-level replacement; hash as evidence only"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Never apply events for one token to another token's book"
+      - "Crossed books rejected for midpoint observation"
+    tests:
+      - "Snapshot, delta, reconnect, wrong-token, zero-size removal tests"
+    commands:
+      - "go -C apps/backend test ./internal/markets/marketdata -run Reconciler -count=1"
+    acceptance_criteria:
+      - "Update before snapshot rejected"
+      - "Reconnect increments streamEpoch and requires resnapshot"
+      - "sequence remains null on public envelopes"
+    verification_evidence:
+      - "apps/backend/internal/markets/marketdata/reconciler_test.go"
+    rollback: "Disable realtime; REST snapshots remain authoritative."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P13-005"
+      - "P13C-005"
+  - id: MKT-P13-003
+    phase: "PHASE-1.3"
+    title: "Local delivery ordering metadata"
+    goal: "Introduce streamEpoch and deliveryCounter per ADR-013 without claiming upstream sequence."
+    status: "done"
+    depends_on:
+      - "MKT-P13-002"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/realtime/"
+      - "schemas/openapi/markets-v1.yaml"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-013-PHASE-1-3-LOCAL-DELIVERY-ORDERING.md"
+    deliverables:
+      - "DeliveryTracker with epoch reset and counter gaps"
+      - "Extended RealtimeEnvelope fields"
+    schema_changes:
+      - "RealtimeEnvelope.streamEpoch"
+      - "RealtimeEnvelope.deliveryCounter"
+    migrations: []
+    security_requirements:
+      - "sequence always null; never described as Polymarket sequence"
+    tests:
+      - "Delivery tracker monotonic within epoch; epoch reset; gap detection"
+    commands:
+      - "go -C apps/backend test ./internal/markets/realtime -count=1"
+    acceptance_criteria:
+      - "Counter gaps emit resync.required"
+      - "Epoch change requires client discard prior deltas"
+    verification_evidence:
+      - "apps/backend/internal/markets/realtime/hub_test.go"
+    rollback: "Disable realtime capability; polling fallback in apps/fe-v1."
+    human_approval_required: false
+    handoff_to:
+      - "MKT-P13-005"
+  - id: MKT-P13-004
+    phase: "PHASE-1.3"
+    title: "Observation persistence schema and queries"
+    goal: "Add bounded observation tables and sqlc queries per ADR-014 design."
+    status: "partial"
+    depends_on:
+      - "MKT-P13-000"
+    may_run_in_parallel_with:
+      - "MKT-P13-001"
+      - "MKT-P13-002"
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/migrations/000017_markets_v1_realtime.up.sql"
+      - "apps/backend/migrations/000017_markets_v1_realtime.down.sql"
+      - "apps/backend/sql/queries/markets_queries.sql"
+      - "apps/backend/internal/dbqueries/"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-014-PHASE-1-3-OBSERVATION-PERSISTENCE.md"
+    deliverables:
+      - "markets_price_observations and markets_liquidity_observations tables"
+      - "markets_realtime_recovery table"
+      - "UpsertMarketsPriceObservation and UpsertMarketsLiquidityObservation sqlc queries"
+    schema_changes:
+      - "markets_price_observations"
+      - "markets_liquidity_observations"
+      - "markets_realtime_recovery"
+    migrations:
+      - "000017_markets_v1_realtime"
+    security_requirements:
+      - "7-day retention default; no raw WebSocket payload storage"
+      - "Decimal string CHECK constraints on monetary columns"
+    tests:
+      - "Migration forward/rollback test"
+    commands:
+      - "go -C apps/backend test ./migrations -run MarketsV1Realtime -count=1"
+    acceptance_criteria:
+      - "Migration applies cleanly"
+      - "sqlc queries generate without drift"
+      - "Transactional producer wiring explicitly NOT claimed — deferred to P13C-002"
+    verification_evidence:
+      - "apps/backend/migrations/markets_v1_realtime_test.go"
+    rollback: "Run 000017 down before production observation data exists."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-002"
+  - id: MKT-P13-005
+    phase: "PHASE-1.3"
+    title: "Public WS hub, producer bridge, and fe-v1 client scaffold"
+    goal: "Wire upstream supervisor to public hub with connect-on-demand client scaffold."
+    status: "partial"
+    depends_on:
+      - "MKT-P13-001"
+      - "MKT-P13-002"
+      - "MKT-P13-003"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/realtime/runtime.go"
+      - "apps/backend/internal/markets/realtime/producer.go"
+      - "apps/backend/internal/markets/realtime/hub.go"
+      - "apps/backend/internal/markets/realtime/handler.go"
+      - "apps/backend/cmd/markets-api/main.go"
+      - "apps/fe-v1/src/features/markets/hooks/useMarketsRealtime.ts"
+      - "packages/polymarket/"
+    read_only_inputs:
+      - "docs/architecture/markets-phase-1-3-realtime-intelligence.md"
+    deliverables:
+      - "GET /api/v1/markets/realtime WebSocket upgrade route"
+      - "Producer orchestrating reconciler and hub fan-out"
+      - "apps/fe-v1 useMarketsRealtime hook with polling fallback"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Origin allowlist on public hub"
+      - "Bounded queues; slow consumers disconnected"
+      - "Catalog-backed token validation required before closure (P13C-001)"
+      - "No direct Polymarket WS from apps/fe-v1"
+    tests:
+      - "Hub publish, delivery tracker, envelope validation tests"
+      - "Frontend hook defaults to polling when capability off"
+    commands:
+      - "go -C apps/backend test ./internal/markets/realtime -count=1"
+      - "pnpm --filter @retropick/markets-v1 test"
+    acceptance_criteria:
+      - "Hub operational when RealtimeEnabled=true"
+      - "capabilities.features.realtime=false until P13C-004 passes"
+      - "Token registry uses in-memory map — known gap tracked BLK-003"
+    verification_evidence:
+      - "apps/backend/internal/markets/realtime/hub_test.go"
+      - "apps/fe-v1/src/features/markets/hooks/useMarketsRealtime.test.ts"
+    rollback: "Set RealtimeEnabled=false; REST polling remains."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-001"
+      - "P13C-003"
+      - "P13C-004"
+  - id: P13C-000
+    phase: "PHASE-1.3"
+    title: "Phase 1.3 runtime reconciliation gate"
+    goal: "Reconcile Phase 1.3 implementation slice against architecture contract and record honest gaps."
+    status: "in_progress"
+    depends_on:
+      - "MKT-P13-005"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - ".dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md"
+      - ".dev/markets-v1/agent-harness/CURRENT_IMPLEMENTATION_STATE.md"
+    read_only_inputs:
+      - "apps/backend/internal/markets/"
+      - "apps/fe-v1/"
+      - "docs/architecture/markets-phase-1-3-realtime-intelligence.md"
+    deliverables:
+      - "Runtime reconciliation report with gap matrix"
+      - "MKT-P1-008 vs Phase 1.3 live signal pipeline split documented"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "SEC-P13-001 remains ROTATION_PENDING_OWNER"
+      - "No production deployment claim until P13C-007 owner confirmation"
+    tests:
+      - "Full Phase 1.3 unit test suite green"
+    commands:
+      - "go -C apps/backend test ./internal/markets/... -count=1"
+      - "pnpm --filter @retropick/markets-v1 test"
+    acceptance_criteria:
+      - "Every MKT-P13 task has honest status (done/partial/in_progress)"
+      - "ADR-014 not marked implemented"
+      - "Phase 1.3 not marked complete"
+    verification_evidence: []
+    rollback: "Revert reconciliation doc commit."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-001"
+  - id: P13C-001
+    phase: "PHASE-1.3"
+    title: "Catalog-backed token registry wiring"
+    goal: "Replace in-memory TokenRegistryMap with CatalogTokenRegistry bootstrapped from catalog projection."
+    status: "pending"
+    depends_on:
+      - "P13C-000"
+      - "MKT-P13-005"
+    may_run_in_parallel_with: []
+    must_not_overlap_with:
+      - "P13C-002"
+    owned_paths:
+      - "apps/backend/internal/markets/postgres/catalog_registry.go"
+      - "apps/backend/cmd/markets-api/main.go"
+      - "apps/backend/internal/markets/realtime/runtime.go"
+    read_only_inputs:
+      - "apps/backend/internal/markets/catalog/"
+    deliverables:
+      - "CatalogTokenRegistry bootstrapped on startup and refreshed after catalog sync"
+      - "Hub rejects subscribe for unknown token IDs (fail-closed)"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Arbitrary token ID injection rejected"
+      - "Token/market pair validated against catalog"
+    tests:
+      - "Registry bootstrap from projection"
+      - "Subscribe rejected for unknown token"
+      - "Refresh after catalog sync updates mappings"
+    commands:
+      - "go -C apps/backend test ./internal/markets/postgres -run CatalogToken -count=1"
+      - "go -C apps/backend test ./internal/markets/realtime -count=1"
+    acceptance_criteria:
+      - "main.go no longer uses empty TokenRegistryMap for production path"
+      - "BLK-003 resolved"
+    verification_evidence: []
+    rollback: "Revert to TokenRegistryMap; RealtimeEnabled=false."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-003"
+  - id: P13C-002
+    phase: "PHASE-1.3"
+    title: "Transactional observation and live signal pipeline"
+    goal: "Wire reconciler observations to durable buckets and signal emit atomically per ADR-014."
+    status: "pending"
+    depends_on:
+      - "MKT-P13-004"
+      - "P13C-001"
+    may_run_in_parallel_with: []
+    must_not_overlap_with:
+      - "P13C-001"
+    owned_paths:
+      - "apps/backend/internal/markets/postgres/"
+      - "apps/backend/internal/markets/signals/"
+      - "apps/backend/internal/markets/realtime/producer.go"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-014-PHASE-1-3-OBSERVATION-PERSISTENCE.md"
+      - "apps/backend/internal/markets/postgres/catalog_signals.go"
+    deliverables:
+      - "RealtimeSignalProducer writing observation + signal + evidence in one transaction"
+      - "price_move and liquidity_change emitted from reconciler path (not catalog sync)"
+      - "Idempotency keys include rule version, type, market, bucket timestamp, direction"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "No LLM or unsupported claim types"
+      - "Observation retention bounded; no raw WS payloads"
+    tests:
+      - "Replay produces identical idempotency keys"
+      - "Duplicate bucket upsert is safe"
+      - "Signal + evidence atomic with observation write"
+      - "Retraction and expiry behavior preserved"
+    commands:
+      - "go -C apps/backend test ./internal/markets/postgres -run Signal -count=1"
+      - "go -C apps/backend test ./internal/markets/signals -count=1"
+    acceptance_criteria:
+      - "ADR-014 transactional wiring exists and is tested"
+      - "MKT-P1-008 catalog signals remain separate and unaffected"
+      - "BLK-004 resolved"
+    verification_evidence: []
+    rollback: "Disable live signal emission; catalog signals remain."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-004"
+  - id: P13C-003
+    phase: "PHASE-1.3"
+    title: "Upstream to hub end-to-end integration"
+    goal: "Prove fake upstream → supervisor → producer → hub → client envelope path."
+    status: "pending"
+    depends_on:
+      - "P13C-001"
+      - "MKT-P13-001"
+      - "MKT-P13-005"
+    may_run_in_parallel_with:
+      - "P13C-002"
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/upstream/ws/fake_server.go"
+      - "apps/backend/internal/markets/realtime/"
+    read_only_inputs: []
+    deliverables:
+      - "Integration test: book snapshot → delta → reconnect → resnapshot"
+      - "Slow client disconnect does not block ingestion"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Malformed upstream frames isolated"
+      - "Hub queue overflow disconnects slow clients only"
+    tests:
+      - "E2E fake upstream through producer to hub subscriber"
+      - "Reconnect increments streamEpoch"
+    commands:
+      - "go -C apps/backend test ./internal/markets/realtime -run Integration -count=1"
+    acceptance_criteria:
+      - "Snapshot-first ordering proven under reconnect"
+      - "No upstream sequence fabricated"
+    verification_evidence: []
+    rollback: "Remove integration test; unit tests remain."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-005"
+  - id: P13C-004
+    phase: "PHASE-1.3"
+    title: "Capability flags reflect runtime truth"
+    goal: "Expose honest capabilities.features.realtime and intelligence based on operational checks."
+    status: "pending"
+    depends_on:
+      - "P13C-002"
+      - "P13C-003"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/service.go"
+      - "apps/backend/internal/markets/handler.go"
+      - "schemas/openapi/markets-v1.yaml"
+    read_only_inputs:
+      - "docs/architecture/markets-phase-1-3-realtime-intelligence.md"
+    deliverables:
+      - "capabilities.features.realtime=true only when hub + ingestion operational"
+      - "capabilities.features.intelligence=true only when live signal pipeline operational"
+      - "Separate catalog-signal vs live-signal capability labels"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Never advertise realtime when hub disabled or registry not ready"
+    tests:
+      - "Capabilities stub tests with degraded/inoperational states"
+      - "OpenAPI conformance for capabilities endpoint"
+    commands:
+      - "go -C apps/backend test ./internal/markets -run Capabilities -count=1"
+    acceptance_criteria:
+      - "Frontend never connects to Polymarket directly"
+      - "Polling fallback when realtime=false"
+      - "BLK-003 and BLK-004 resolved before flags flip true"
+    verification_evidence: []
+    rollback: "Force capabilities.features.realtime=false via config."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-008"
+  - id: P13C-005
+    phase: "PHASE-1.3"
+    title: "Reconnect and resnapshot integration verification"
+    goal: "Prove deliveryCounter gaps and streamEpoch changes trigger resync.required under load."
+    status: "pending"
+    depends_on:
+      - "P13C-003"
+    may_run_in_parallel_with:
+      - "P13C-004"
+    must_not_overlap_with: []
+    owned_paths:
+      - "apps/backend/internal/markets/realtime/"
+      - "apps/backend/internal/markets/marketdata/"
+    read_only_inputs:
+      - ".dev/markets-v1/architecture/adr/ADR-012-PHASE-1-3-ORDERBOOK-RECONCILIATION.md"
+      - ".dev/markets-v1/architecture/adr/ADR-013-PHASE-1-3-LOCAL-DELIVERY-ORDERING.md"
+    deliverables:
+      - "Integration tests for epoch change, counter gap, REST revalidation mismatch"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Stale or invalid books never labeled live"
+    tests:
+      - "Reconnect resnapshot proven"
+      - "Hash mismatch triggers resnapshot"
+    commands:
+      - "go -C apps/backend test ./internal/markets/marketdata ./internal/markets/realtime -count=1"
+    acceptance_criteria:
+      - "reconnect_resnapshot_proven exit gate satisfied"
+      - "slow_clients_cannot_block_ingestion exit gate satisfied"
+    verification_evidence: []
+    rollback: "Disable realtime; document degraded state."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-008"
+  - id: P13C-006
+    phase: "PHASE-1.3"
+    title: "Single-replica deployment guardrails"
+    goal: "Document and guard against multi-replica realtime duplication per architecture spec."
+    status: "pending"
+    depends_on:
+      - "P13C-003"
+    may_run_in_parallel_with:
+      - "P13C-005"
+    must_not_overlap_with: []
+    owned_paths:
+      - "docs/architecture/markets-phase-1-3-realtime-intelligence.md"
+      - "apps/backend/internal/markets/config/"
+      - ".dev/markets-v1/platform/"
+    read_only_inputs: []
+    deliverables:
+      - "Startup warning or fail when RealtimeEnabled with replica count > 1 without leader election"
+      - "Operator runbook for single-active-replica model"
+      - "BLK-006 documented as accepted Phase 1.3 limitation"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Prevent accidental duplicate upstream subscriptions in production"
+    tests:
+      - "Config validation test for replica guard"
+    commands:
+      - "go -C apps/backend test ./internal/markets/config -count=1"
+    acceptance_criteria:
+      - "Single-replica limitation documented in runbook and config"
+      - "Leader election explicitly deferred"
+    verification_evidence: []
+    rollback: "Remove guard; rely on operator documentation only."
+    human_approval_required: false
+    handoff_to:
+      - "P13C-008"
+  - id: P13C-007
+    phase: "PHASE-1.3"
+    title: "SEC-P13-001 rotation gate"
+    goal: "Maintain rotation gate until credential owner confirms; block production release."
+    status: "pending"
+    depends_on:
+      - "P13C-000"
+    may_run_in_parallel_with:
+      - "P13C-001"
+      - "P13C-002"
+      - "P13C-003"
+    must_not_overlap_with: []
+    owned_paths:
+      - ".dev/markets-v1/security/SEC-P13-001-ROTATE-EXPOSED-CREDENTIAL.md"
+      - ".dev/markets-v1/agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md"
+    read_only_inputs: []
+    deliverables:
+      - "SEC-P13-001 status remains ROTATION_PENDING_OWNER until owner updates document"
+      - "Production deployment and final Phase 1.3 release blocked"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Do not print, recover, test, or reuse exposed credential"
+      - "No credentials in apps/fe-v1 or Git"
+    tests: []
+    commands: []
+    acceptance_criteria:
+      - "Status is ROTATION_PENDING_OWNER or ROTATION_CONFIRMED with owner initials"
+      - "Local dev and CI not blocked"
+      - "Production release gate documented"
+    verification_evidence: []
+    rollback: "N/A — documentation gate only."
+    human_approval_required: true
+    handoff_to:
+      - "P13C-008"
+  - id: P13C-008
+    phase: "PHASE-1.3"
+    title: "Harness reconciliation and Phase 1.3 closure evidence"
+    goal: "Update manifest, task graph, traceability, and evidence for Phase 1.3 runtime closure."
+    status: "in_progress"
+    depends_on:
+      - "P13C-004"
+      - "P13C-005"
+      - "P13C-006"
+      - "P13C-007"
+    may_run_in_parallel_with: []
+    must_not_overlap_with: []
+    owned_paths:
+      - ".dev/markets-v1/agent-harness/"
+      - ".dev/markets-v1/02_SCOPE_AND_CAPABILITY_MATRIX.md"
+      - ".dev/markets-v1/04_REQUIREMENTS_AND_TRACEABILITY.md"
+      - ".dev/markets-v1/security/THREAT_MODEL.md"
+    read_only_inputs:
+      - "apps/backend/"
+      - "apps/fe-v1/"
+    deliverables:
+      - "All P13C tasks marked done with verification evidence"
+      - "Phase 1.3 exit gate checklist"
+      - "Phase 2 prerequisite on Phase 1.3 closure confirmed"
+    schema_changes: []
+    migrations: []
+    security_requirements:
+      - "Evidence contains no secrets"
+    tests:
+      - "CI-equivalent verification suite green"
+    commands:
+      - "go -C apps/backend test ./internal/markets/... -count=1"
+      - "go -C apps/backend build ./..."
+      - "pnpm --filter @retropick/markets-v1 test"
+      - "bash scripts/check-markets-openapi-drift.sh"
+    acceptance_criteria:
+      - "Every closure task links verification evidence"
+      - "Phase 1.3 marked complete only after P13C-001 … P13C-007 done"
+      - "ADR-014 marked implemented only after P13C-002 evidence"
+      - "Human review of draft PR before merge"
+    verification_evidence: []
+    rollback: "Revert harness commits; Phase remains runtime_closure_in_progress."
+    human_approval_required: true
+    handoff_to: []
 
