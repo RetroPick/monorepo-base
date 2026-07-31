@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,13 +16,20 @@ import (
 type FakeServer struct {
 	server   *httptest.Server
 	mu       sync.Mutex
-	clients  map[*websocket.Conn]struct{}
+	clients  map[*websocket.Conn]*clientConn
+	subs     map[string]int
 	upgrader websocket.Upgrader
+}
+
+type clientConn struct {
+	conn    *websocket.Conn
+	writeMu sync.Mutex
 }
 
 func NewFakeServer() *FakeServer {
 	f := &FakeServer{
-		clients: make(map[*websocket.Conn]struct{}),
+		clients: make(map[*websocket.Conn]*clientConn),
+		subs:    make(map[string]int),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		},
@@ -44,7 +52,7 @@ func (f *FakeServer) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.mu.Lock()
-	f.clients[conn] = struct{}{}
+	f.clients[conn] = &clientConn{conn: conn}
 	f.mu.Unlock()
 	defer func() {
 		f.mu.Lock()
@@ -75,23 +83,72 @@ func (f *FakeServer) handle(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, token := range tokens {
-			f.sendBook(conn, token)
+			f.mu.Lock()
+			f.subs[token]++
+			f.mu.Unlock()
+			f.sendBook(conn, token, "upstream-ws-hash-"+token)
 		}
 	}
 }
 
-func (f *FakeServer) sendBook(conn *websocket.Conn, tokenID string) {
+// SubscribedTokens returns tokens observed in subscribe messages.
+func (f *FakeServer) SubscribedTokens() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]string, 0, len(f.subs))
+	for token := range f.subs {
+		out = append(out, token)
+	}
+	return out
+}
+
+// PushBook broadcasts a book event with an explicit hash to all clients.
+func (f *FakeServer) PushBook(tokenID, hash string) {
+	f.mu.Lock()
+	clients := make([]*clientConn, 0, len(f.clients))
+	for _, client := range f.clients {
+		clients = append(clients, client)
+	}
+	f.mu.Unlock()
+	payload := bookWirePayload(tokenID, hash)
+	for _, client := range clients {
+		client.writeMu.Lock()
+		_ = client.conn.WriteMessage(websocket.TextMessage, payload)
+		client.writeMu.Unlock()
+	}
+}
+
+func (f *FakeServer) sendBook(conn *websocket.Conn, tokenID, hash string) {
+	f.mu.Lock()
+	client := f.clients[conn]
+	f.mu.Unlock()
+	if client == nil {
+		return
+	}
+	payload := bookWirePayload(tokenID, hash)
+	client.writeMu.Lock()
+	_ = client.conn.WriteMessage(websocket.TextMessage, payload)
+	client.writeMu.Unlock()
+}
+
+// bookWirePayload returns a Polymarket snake_case book frame with fields required by BuildSnapshot.
+func bookWirePayload(tokenID, hash string) []byte {
+	if hash == "" {
+		hash = "fake-hash-" + tokenID
+	}
 	book := map[string]any{
-		"event_type": "book",
-		"asset_id":   tokenID,
-		"market":     "0xcondition",
-		"bids":       []map[string]string{{"price": "0.4", "size": "100"}},
-		"asks":       []map[string]string{{"price": "0.6", "size": "200"}},
-		"timestamp":  time.Now().UnixMilli(),
-		"hash":       "fake-hash-" + tokenID,
+		"event_type":     "book",
+		"asset_id":       tokenID,
+		"market":         "0xcondition",
+		"bids":           []map[string]string{{"price": "0.4", "size": "100"}},
+		"asks":           []map[string]string{{"price": "0.6", "size": "200"}},
+		"timestamp":      strconv.FormatInt(time.Now().UnixMilli(), 10),
+		"hash":           hash,
+		"min_order_size": "5",
+		"tick_size":      "0.01",
 	}
 	payload, _ := json.Marshal(book)
-	_ = conn.WriteMessage(websocket.TextMessage, payload)
+	return payload
 }
 
 func (f *FakeServer) BroadcastPriceChange(tokenID, price, size, side string) {
@@ -106,33 +163,27 @@ func (f *FakeServer) BroadcastPriceChange(tokenID, price, size, side string) {
 		},
 	}
 	payload, _ := json.Marshal(msg)
-	for conn := range f.clients {
-		_ = conn.WriteMessage(websocket.TextMessage, payload)
+	for _, client := range f.clients {
+		client.writeMu.Lock()
+		_ = client.conn.WriteMessage(websocket.TextMessage, payload)
+		client.writeMu.Unlock()
 	}
 }
 
 func (f *FakeServer) DisconnectAll() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for conn := range f.clients {
-		conn.Close()
+	for _, client := range f.clients {
+		client.writeMu.Lock()
+		_ = client.conn.Close()
+		client.writeMu.Unlock()
 	}
-	f.clients = make(map[*websocket.Conn]struct{})
+	f.clients = make(map[*websocket.Conn]*clientConn)
 }
 
 // FixtureBook returns a sanitized book event JSON fixture.
 func FixtureBook(tokenID string) []byte {
-	book := map[string]any{
-		"event_type": "book",
-		"asset_id":   tokenID,
-		"market":     "0x747dc809fb79e1b05be09c42d6179459a58de2ef3e40f02484a4e1260f741f75",
-		"bids":       []map[string]string{{"price": "0.08", "size": "33343.4"}},
-		"asks":       []map[string]string{{"price": "0.09", "size": "163939.58"}},
-		"timestamp":  "1782753357257",
-		"hash":       "0xabc123",
-	}
-	data, _ := json.Marshal(book)
-	return data
+	return bookWirePayload(tokenID, "0xabc123")
 }
 
 // FixturePriceChange returns a sanitized price_change fixture.

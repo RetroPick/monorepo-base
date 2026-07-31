@@ -186,7 +186,7 @@ components:
         deliveryCounter:
           type: integer
           minimum: 0
-          description: Monotonic within streamEpoch only.
+          description: Monotonic within streamEpoch only; shared by book, trade, tick, and signal events on the same token stream.
         observedAt:
           type: string
           format: date-time

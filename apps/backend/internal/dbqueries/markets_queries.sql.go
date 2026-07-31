@@ -77,9 +77,11 @@ func (q *Queries) GetLatestMarketsHealth(ctx context.Context, arg GetLatestMarke
 }
 
 const getMarketIDByUpstreamToken = `-- name: GetMarketIDByUpstreamToken :one
-SELECT market_id
-FROM markets_catalog_outcomes
-WHERE upstream_token_id = $1
+SELECT o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id = $1
+  AND m.status = 'open'
 `
 
 func (q *Queries) GetMarketIDByUpstreamToken(ctx context.Context, upstreamTokenID string) (string, error) {
@@ -351,19 +353,27 @@ func (q *Queries) InsertMarketsSignalEvidence(ctx context.Context, arg InsertMar
 }
 
 const listCatalogTokenMappings = `-- name: ListCatalogTokenMappings :many
-SELECT upstream_token_id, market_id
-FROM markets_catalog_outcomes
-ORDER BY market_id, upstream_token_id
-LIMIT $1
+SELECT o.upstream_token_id, o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id <> ''
+  AND m.status = 'open'
+ORDER BY o.market_id, o.upstream_token_id
+LIMIT $1 OFFSET $2
 `
+
+type ListCatalogTokenMappingsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
 
 type ListCatalogTokenMappingsRow struct {
 	UpstreamTokenID string `json:"upstream_token_id"`
 	MarketID        string `json:"market_id"`
 }
 
-func (q *Queries) ListCatalogTokenMappings(ctx context.Context, limit int32) ([]ListCatalogTokenMappingsRow, error) {
-	rows, err := q.db.Query(ctx, listCatalogTokenMappings, limit)
+func (q *Queries) ListCatalogTokenMappings(ctx context.Context, arg ListCatalogTokenMappingsParams) ([]ListCatalogTokenMappingsRow, error) {
+	rows, err := q.db.Query(ctx, listCatalogTokenMappings, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -602,6 +612,72 @@ func (q *Queries) ListMarketsHistory(ctx context.Context, arg ListMarketsHistory
 			&i.Derived,
 			&i.Source,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMarketsLiquidityObservations = `-- name: ListMarketsLiquidityObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, total_depth, bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version
+FROM markets_liquidity_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4
+`
+
+type ListMarketsLiquidityObservationsParams struct {
+	MarketID  string             `json:"market_id"`
+	TokenID   string             `json:"token_id"`
+	BucketEnd pgtype.Timestamptz `json:"bucket_end"`
+	Limit     int32              `json:"limit"`
+}
+
+type ListMarketsLiquidityObservationsRow struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	TotalDepth   string             `json:"total_depth"`
+	BidDepth     string             `json:"bid_depth"`
+	AskDepth     string             `json:"ask_depth"`
+	Spread       pgtype.Text        `json:"spread"`
+	Epsilon      string             `json:"epsilon"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+}
+
+func (q *Queries) ListMarketsLiquidityObservations(ctx context.Context, arg ListMarketsLiquidityObservationsParams) ([]ListMarketsLiquidityObservationsRow, error) {
+	rows, err := q.db.Query(ctx, listMarketsLiquidityObservations,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketEnd,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMarketsLiquidityObservationsRow{}
+	for rows.Next() {
+		var i ListMarketsLiquidityObservationsRow
+		if err := rows.Scan(
+			&i.MarketID,
+			&i.TokenID,
+			&i.BucketStart,
+			&i.BucketEnd,
+			&i.TotalDepth,
+			&i.BidDepth,
+			&i.AskDepth,
+			&i.Spread,
+			&i.Epsilon,
+			&i.SnapshotHash,
+			&i.RuleVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -1207,7 +1283,7 @@ type UpsertMarketsLiquidityObservationParams struct {
 	BidDepth     string             `json:"bid_depth"`
 	AskDepth     string             `json:"ask_depth"`
 	Spread       pgtype.Text        `json:"spread"`
-	Epsilon      float64            `json:"epsilon"`
+	Epsilon      string             `json:"epsilon"`
 	SnapshotHash string             `json:"snapshot_hash"`
 	RuleVersion  string             `json:"rule_version"`
 	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`

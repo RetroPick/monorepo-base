@@ -144,6 +144,7 @@ type Config struct {
 	Backoff       time.Duration
 	ShutdownGrace time.Duration
 	Now           func() time.Time
+	OnCatalogSynced func(ctx context.Context) error
 }
 
 // CatalogWorker runs periodic catalog sync with advisory-lock single-flight semantics.
@@ -293,7 +294,15 @@ func (w *CatalogWorker) runOnce(ctx context.Context) error {
 	if _, err := w.cfg.Store.DeleteExpiredRawEvents(ctx, now); err != nil {
 		w.cfg.Logger.Warn("catalog raw payload cleanup failed", "err", err)
 	}
-	return w.refreshProjectionState(ctx, false)
+	if err := w.refreshProjectionState(ctx, false); err != nil {
+		return err
+	}
+	if w.cfg.OnCatalogSynced != nil {
+		if err := w.cfg.OnCatalogSynced(ctx); err != nil {
+			w.cfg.Logger.Warn("catalog synced callback failed", "err", err)
+		}
+	}
+	return nil
 }
 
 func (w *CatalogWorker) refreshProjectionState(ctx context.Context, syncUnhealthy bool) error {

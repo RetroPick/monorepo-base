@@ -93,8 +93,14 @@ func (s *StatusProvider) CapabilitiesRealtime() bool {
 	if !s.enabled {
 		return false
 	}
+	s.mu.RLock()
+	ready := s.registryReady && s.hubRunning
+	s.mu.RUnlock()
+	if !ready {
+		return false
+	}
 	st := s.State()
-	return st == StateOperational || st == StateDegraded || st == StateIdleReady || st == StateSynchronizing
+	return st != StateUnavailable && st != StateDisabled
 }
 
 func (s *StatusProvider) HealthCheck() string {

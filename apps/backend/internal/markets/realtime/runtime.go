@@ -2,7 +2,6 @@ package realtime
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -31,18 +30,20 @@ type Runtime struct {
 	Supervisor *upstreamws.Supervisor
 	Handler    *Handler
 	Status     *StatusProvider
+	Signals    *SignalPipeline
 	cancel     context.CancelFunc
 	mu         sync.Mutex
 	started    bool
 }
 
 type RuntimeConfig struct {
-	Config   marketsconfig.Config
-	REST     RESTSnapshotter
-	Registry TokenRegistry
-	Validator TokenValidator
-	Signals  *SignalPipeline
-	Logger   *slog.Logger
+	Config            marketsconfig.Config
+	REST              RESTSnapshotter
+	Registry          TokenRegistry
+	Validator         TokenValidator
+	Signals           *SignalPipeline
+	Logger            *slog.Logger
+	ReconcileInterval time.Duration
 }
 
 func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
@@ -55,29 +56,30 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	hub := NewHub(HubConfig{MaxQueue: 64, MaxConnections: 1000, MaxPerIP: 50})
 
 	producer := NewProducer(ProducerConfig{
-		Hub:      hub,
-		REST:     cfg.REST,
-		Registry: cfg.Registry,
-		Signals:  cfg.Signals,
-		Status:   status,
+		Hub:        hub,
+		REST:       cfg.REST,
+		Registry:   cfg.Registry,
+		Signals:    cfg.Signals,
+		Status:     status,
 		BookMaxAge: cfg.Config.BookMaxAge,
-		Logger:   logger,
+		Logger:     logger,
 	})
-	if cfg.Signals != nil {
-		cfg.Signals.hub = producer
-	}
 
+	reconcileInterval := cfg.ReconcileInterval
+	if reconcileInterval <= 0 {
+		reconcileInterval = 5 * time.Second
+	}
 	planner := upstreamws.NewPlanner(upstreamws.PlannerConfig{
 		MaxSubscribedAssets: cfg.Config.RealtimeMaxAssets,
-		ReconcileInterval:   5 * time.Second,
+		ReconcileInterval:   reconcileInterval,
 	})
 
 	supervisor, err := upstreamws.NewSupervisor(upstreamws.SupervisorConfig{
-		URL:              cfg.Config.RealtimeWSURL,
-		MaxAssetsPerConn: cfg.Config.RealtimeMaxPerConn,
-		ReconcileInterval: planner.ReconcileInterval(),
-		Logger:           logger,
-		OnDisconnect:     producer.OnUpstreamShardDisconnect,
+		URL:               cfg.Config.RealtimeWSURL,
+		MaxAssetsPerConn:  cfg.Config.RealtimeMaxPerConn,
+		ReconcileInterval: reconcileInterval,
+		Logger:            logger,
+		OnDisconnect:      producer.OnUpstreamShardDisconnect,
 	}, planner, producer.HandleUpstream)
 	if err != nil {
 		return nil, err
@@ -99,6 +101,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		Supervisor: supervisor,
 		Handler:    handler,
 		Status:     status,
+		Signals:    cfg.Signals,
 	}, nil
 }
 
@@ -115,6 +118,9 @@ func (r *Runtime) Start(ctx context.Context) {
 
 	r.Hub.Start(runCtx)
 	r.Status.SetHubRunning(true)
+	if r.Signals != nil {
+		r.Signals.Start(runCtx)
+	}
 	r.Supervisor.Start(runCtx)
 	r.Producer.StartRESTValidation(runCtx, 30*time.Second)
 	go r.statusLoop(runCtx)
@@ -128,6 +134,11 @@ func (r *Runtime) Stop() {
 	}
 	r.started = false
 	r.mu.Unlock()
+	if r.Signals != nil {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		r.Signals.Stop(stopCtx)
+		cancel()
+	}
 	r.Supervisor.Stop()
 	r.Hub.Stop()
 	r.Status.SetHubRunning(false)
@@ -154,8 +165,16 @@ func (r *Runtime) CapabilitiesRealtime() bool {
 	return r.Status.CapabilitiesRealtime()
 }
 
+func (r *Runtime) CapabilitiesLiveSignals() bool {
+	return r.Signals != nil && r.Signals.Operational()
+}
+
 func (r *Runtime) HealthRealtime() string {
 	return r.Status.HealthCheck()
+}
+
+func (r *Runtime) SetRegistryReady(ok bool) {
+	r.Status.SetRegistryReady(ok)
 }
 
 // CatalogTokenLookup adapts catalog reader for token validation.
@@ -168,23 +187,8 @@ func (l CatalogTokenLookup) ValidateToken(ctx context.Context, marketID, tokenID
 	return validator.ValidateToken(ctx, marketID, tokenID)
 }
 
-// RegistryBootstrapper loads catalog token mappings before realtime starts.
-type RegistryBootstrapper interface {
-	Bootstrap(ctx context.Context, limit int32) error
+// RegistryRefresher can reload token mappings after catalog sync.
+type RegistryRefresher interface {
+	Refresh(ctx context.Context) error
 	Ready() bool
-	ValidateToken(ctx context.Context, marketID, tokenID string) error
-	MarketForToken(tokenID string) (string, bool)
-}
-
-func BootstrapRegistry(ctx context.Context, registry RegistryBootstrapper) error {
-	if registry == nil {
-		return fmt.Errorf("token registry required")
-	}
-	if err := registry.Bootstrap(ctx, 10000); err != nil {
-		return err
-	}
-	if !registry.Ready() {
-		return fmt.Errorf("catalog token registry empty")
-	}
-	return nil
 }

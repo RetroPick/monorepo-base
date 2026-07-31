@@ -458,6 +458,14 @@ func (p *Producer) SynchronizedBookCount() int {
 	return count
 }
 
+func (p *Producer) AttachSignals(pipeline *SignalPipeline) {
+	p.signals = pipeline
+}
+
 func (p *Producer) PublishSignal(marketID, tokenID string, envelope markets.RealtimeEnvelope) {
 	p.publishEnvelope(marketID, tokenID, envelope)
+}
+
+func (p *Producer) NextDelivery(tokenID string) (epoch, counter uint64) {
+	return p.tracker.Next(tokenID)
 }

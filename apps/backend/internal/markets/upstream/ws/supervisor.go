@@ -69,10 +69,41 @@ type Supervisor struct {
 }
 
 type shardConn struct {
-	id      int
-	conn    *websocket.Conn
-	tokens  map[string]struct{}
-	writeMu sync.Mutex
+	id       int
+	conn     *websocket.Conn
+	tokens   map[string]struct{}
+	tokensMu sync.Mutex
+	writeMu  sync.Mutex
+}
+
+func (s *shardConn) tokenSnapshot() map[string]struct{} {
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	return tokenSet(s.tokens)
+}
+
+func (s *shardConn) replaceTokens(desired map[string]struct{}) {
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	s.tokens = desired
+}
+
+func (s *shardConn) addToken(token string) {
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	s.tokens[token] = struct{}{}
+}
+
+func (s *shardConn) removeToken(token string) {
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	delete(s.tokens, token)
+}
+
+func (s *shardConn) tokenCount() int {
+	s.tokensMu.Lock()
+	defer s.tokensMu.Unlock()
+	return len(s.tokens)
 }
 
 // NewSupervisor creates an upstream supervisor.
@@ -291,10 +322,10 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 		go s.pingLoop(ctx, shard)
 	}
 
-	current := tokenSet(shard.tokens)
+	current := shard.tokenSnapshot()
 	desired := sliceToSet(tokens)
 	toAdd, toRemove := diffSets(desired, current)
-	if len(shard.tokens) == 0 && len(tokens) > 0 {
+	if shard.tokenCount() == 0 && len(tokens) > 0 {
 		msg, err := SubscriptionMessage(tokens)
 		if err != nil {
 			return err
@@ -302,7 +333,7 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 		if err := s.write(shard, websocket.TextMessage, msg); err != nil {
 			return err
 		}
-		shard.tokens = desired
+		shard.replaceTokens(desired)
 		return nil
 	}
 	if len(toAdd) > 0 {
@@ -314,7 +345,7 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 			return err
 		}
 		for _, t := range toAdd {
-			shard.tokens[t] = struct{}{}
+			shard.addToken(t)
 		}
 	}
 	if len(toRemove) > 0 {
@@ -326,7 +357,7 @@ func (s *Supervisor) ensureShard(ctx context.Context, id int, tokens []string) e
 			return err
 		}
 		for _, t := range toRemove {
-			delete(shard.tokens, t)
+			shard.removeToken(t)
 		}
 	}
 	return nil
@@ -410,6 +441,8 @@ func (s *Supervisor) waitBackoff(ctx context.Context, current time.Duration) tim
 }
 
 func shardTokenList(shard *shardConn) []string {
+	shard.tokensMu.Lock()
+	defer shard.tokensMu.Unlock()
 	out := make([]string, 0, len(shard.tokens))
 	for token := range shard.tokens {
 		out = append(out, token)

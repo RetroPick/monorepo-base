@@ -63,6 +63,7 @@ type CatalogWorkerState interface {
 // RealtimeStateProvider exposes live realtime capability truth.
 type RealtimeStateProvider interface {
 	CapabilitiesRealtime() bool
+	CapabilitiesLiveSignals() bool
 	HealthRealtime() string
 }
 
@@ -143,11 +144,16 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 		source = "stub"
 	}
 	marketDataEnabled := s.MarketDataOperational()
-	realtimeEnabled := s.cfg.RealtimeOperational
+	realtimeEnabled := false
+	liveSignalsEnabled := false
 	if s.cfg.RealtimeState != nil {
 		realtimeEnabled = s.cfg.RealtimeState.CapabilitiesRealtime()
+		liveSignalsEnabled = s.cfg.RealtimeState.CapabilitiesLiveSignals()
+	} else if s.cfg.RealtimeOperational {
+		realtimeEnabled = true
 	}
-	intelligenceEnabled := s.cfg.SignalsOperational && s.cfg.Signals != nil
+	catalogSignalsEnabled := s.cfg.SignalsOperational && s.cfg.Signals != nil
+	intelligenceEnabled := catalogSignalsEnabled || liveSignalsEnabled
 	return CapabilitiesResponse{
 		Version: APIVersion,
 		Catalog: s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
@@ -155,14 +161,16 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 		Combos:  false,
 		Intel:   intelligenceEnabled,
 		Features: map[string]bool{
-			"catalog_read":   s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
-			"market_detail":  s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
-			"orderbook_read": marketDataEnabled,
-			"price_history":  marketDataEnabled,
-			"market_health":  marketDataEnabled,
-			"realtime":       realtimeEnabled,
-			"signals":        intelligenceEnabled,
-			"order_submit":   false,
+			"catalog_read":    s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
+			"market_detail":   s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
+			"orderbook_read":  marketDataEnabled,
+			"price_history":   marketDataEnabled,
+			"market_health":   marketDataEnabled,
+			"realtime":        realtimeEnabled,
+			"signals":         intelligenceEnabled,
+			"catalog_signals": catalogSignalsEnabled,
+			"live_signals":    liveSignalsEnabled,
+			"order_submit":    false,
 		},
 		CheckedAt: s.nowUTC(),
 		Source:    source,

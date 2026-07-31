@@ -90,6 +90,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	metrics := markets.NewMetrics()
+	clobClient := clob.NewClient(cfg.CLOBAPIURL)
+	var rtRuntime *realtime.Runtime
+	var tokenRegistry *postgres.CatalogTokenRegistry
+
+	if cfg.RealtimeEnabled {
+		tokenRegistry, err = postgres.NewCatalogTokenRegistry(pool)
+		if err != nil {
+			log.Error("token registry", "err", err)
+			os.Exit(1)
+		}
+		if err := tokenRegistry.Bootstrap(ctx, 10000); err != nil {
+			log.Warn("token registry bootstrap", "err", err)
+		}
+		if !tokenRegistry.Ready() {
+			log.Warn("realtime registry empty; catalog read API continues, realtime subscriptions unavailable until catalog sync")
+		}
+	}
+
 	worker, err := syncworker.NewCatalogWorker(syncworker.Config{
 		Syncer:        syncer,
 		Reader:        reader,
@@ -102,6 +121,18 @@ func main() {
 		MaxStaleAge:   cfg.CatalogMaxStaleAge,
 		Backoff:       cfg.CatalogBackoff,
 		ShutdownGrace: cfg.ShutdownTimeout,
+		OnCatalogSynced: func(ctx context.Context) error {
+			if tokenRegistry == nil {
+				return nil
+			}
+			if err := tokenRegistry.Refresh(ctx); err != nil {
+				return err
+			}
+			if rtRuntime != nil {
+				rtRuntime.SetRegistryReady(tokenRegistry.Ready())
+			}
+			return nil
+		},
 	})
 	if err != nil {
 		log.Error("catalog worker", "err", err)
@@ -111,42 +142,31 @@ func main() {
 		log.Warn("catalog bootstrap", "err", err)
 	}
 
-	metrics := markets.NewMetrics()
-	clobClient := clob.NewClient(cfg.CLOBAPIURL)
-	var rtRuntime *realtime.Runtime
-
-	if cfg.RealtimeEnabled {
-		tokenRegistry, err := postgres.NewCatalogTokenRegistry(pool)
+	if cfg.RealtimeEnabled && tokenRegistry != nil {
+		committer, err := postgres.NewLiveSignalCommitter(pool, signalEngine, time.Minute, nil)
 		if err != nil {
-			log.Error("token registry", "err", err)
+			log.Error("live signal committer", "err", err)
 			os.Exit(1)
 		}
-		if err := realtime.BootstrapRegistry(ctx, tokenRegistry); err != nil {
-			log.Error("token registry bootstrap", "err", err)
-			os.Exit(1)
-		}
-		obsStore, err := postgres.NewObservationStore(pool)
-		if err != nil {
-			log.Error("observation store", "err", err)
-			os.Exit(1)
-		}
-		signalPipeline := realtime.NewSignalPipeline(realtime.SignalPipelineConfig{
-			Store:  obsStore,
-			Writer: signalStore,
-			Logger: log,
-		})
 		rtRuntime, err = realtime.NewRuntime(realtime.RuntimeConfig{
 			Config:    cfg,
 			REST:      clobClient,
 			Registry:  tokenRegistry,
 			Validator: tokenRegistry,
-			Signals:   signalPipeline,
 			Logger:    log,
 		})
 		if err != nil {
 			log.Error("realtime runtime", "err", err)
 			os.Exit(1)
 		}
+		rtRuntime.SetRegistryReady(tokenRegistry.Ready())
+		pipeline := realtime.NewSignalPipeline(realtime.SignalPipelineConfig{
+			Committer: committer,
+			Publisher: rtRuntime.Producer,
+			Logger:    log,
+		})
+		rtRuntime.Producer.AttachSignals(pipeline)
+		rtRuntime.Signals = pipeline
 	}
 
 	marketsSvc := markets.NewService(markets.ServiceConfig{

@@ -24,56 +24,57 @@ var ErrNoObservation = errors.New("no valid observation")
 
 // PriceRuleConfig configures deterministic price_move detection.
 type PriceRuleConfig struct {
-	ObservationBucket time.Duration
-	ReferenceWindow   time.Duration
-	ThresholdOnPP     float64 // probability points
-	ThresholdOffPP    float64
-	Cooldown          time.Duration
-	Expiry            time.Duration
-	MinObservations   int
+	ObservationBucket  time.Duration
+	ReferenceWindow    time.Duration
+	ThresholdOnMicroPP MicroProbabilityPoints
+	ThresholdOffMicroPP MicroProbabilityPoints
+	Cooldown           time.Duration
+	Expiry             time.Duration
+	MinObservations    int
 	LastTradeFreshness time.Duration
 }
 
 // LiquidityRuleConfig configures liquidity_change detection.
 type LiquidityRuleConfig struct {
-	Epsilon           float64
-	DepthFloor        float64
-	ThresholdOn       float64
-	ThresholdOff      float64
-	MinBaselineDepth  float64
-	MinObservations   int
-	Cooldown          time.Duration
-	Expiry            time.Duration
-	ObservationBucket time.Duration
+	EpsilonMicro       MicroDecimal
+	DepthFloorMicro    MicroDecimal
+	ThresholdOnMicro   MicroDecimal
+	ThresholdOffMicro  MicroDecimal
+	MinBaselineDepth   MicroDecimal
+	MinObservations    int
+	Cooldown           time.Duration
+	Expiry             time.Duration
+	ObservationBucket  time.Duration
+	ReferenceWindow    time.Duration
 }
 
 // PriceBucket is a closed observation bucket for price.
 type PriceBucket struct {
-	MarketID    string
-	TokenID     string
-	BucketStart time.Time
-	BucketEnd   time.Time
-	Price       markets.DecimalString
-	BestBid     *markets.DecimalString
-	BestAsk     *markets.DecimalString
-	Spread      *markets.DecimalString
+	MarketID     string
+	TokenID      string
+	BucketStart  time.Time
+	BucketEnd    time.Time
+	Price        markets.DecimalString
+	BestBid      *markets.DecimalString
+	BestAsk      *markets.DecimalString
+	Spread       *markets.DecimalString
 	SnapshotHash string
 	RuleVersion  string
 }
 
 // LiquidityBucket is a closed observation bucket for liquidity.
 type LiquidityBucket struct {
-	MarketID         string
-	TokenID          string
-	BucketStart      time.Time
-	BucketEnd        time.Time
-	TotalDepth       markets.DecimalString
-	BidDepth         markets.DecimalString
-	AskDepth         markets.DecimalString
-	Spread           *markets.DecimalString
-	Epsilon          float64
-	SnapshotHash     string
-	RuleVersion      string
+	MarketID     string
+	TokenID      string
+	BucketStart  time.Time
+	BucketEnd    time.Time
+	TotalDepth   markets.DecimalString
+	BidDepth     markets.DecimalString
+	AskDepth     markets.DecimalString
+	Spread       *markets.DecimalString
+	Epsilon      MicroDecimal
+	SnapshotHash string
+	RuleVersion  string
 }
 
 // ComputeMidpointPrice returns p(t) = (bestBid + bestAsk) / 2 when valid.
@@ -105,46 +106,36 @@ func ComputeMidpointPrice(bestBid, bestAsk *markets.DecimalString) (*markets.Dec
 	return &value, nil
 }
 
-// DeltaProbabilityPoints computes 100 × (p(t) - p(ref)).
-func DeltaProbabilityPoints(current, reference markets.DecimalString) (float64, error) {
-	cur, ok := new(big.Rat).SetString(string(current))
-	if !ok {
-		return 0, ErrNoObservation
-	}
-	ref, ok := new(big.Rat).SetString(string(reference))
-	if !ok {
-		return 0, ErrNoObservation
-	}
-	delta := new(big.Rat).Sub(cur, ref)
-	delta.Mul(delta, big.NewRat(100, 1))
-	f, _ := delta.Float64()
-	return f, nil
+// DeltaProbabilityPoints computes 100 × (p(t) - p(ref)) in micro-PP.
+func DeltaProbabilityPoints(current, reference markets.DecimalString) (MicroProbabilityPoints, error) {
+	return DeltaMicroPP(current, reference)
 }
 
-// EvaluatePriceMove checks threshold with hysteresis.
-func EvaluatePriceMove(deltaPP float64, cfg PriceRuleConfig, priorDirection string) (emit bool, direction string) {
-	if deltaPP >= cfg.ThresholdOnPP {
+// EvaluatePriceMove checks threshold with hysteresis using micro-PP.
+func EvaluatePriceMove(deltaPP MicroProbabilityPoints, cfg PriceRuleConfig, priorDirection string) (emit bool, direction string) {
+	if compareMicroPP(deltaPP, cfg.ThresholdOnMicroPP) >= 0 {
 		return true, DirectionUp
 	}
-	if deltaPP <= -cfg.ThresholdOnPP {
+	if compareMicroPP(-deltaPP, cfg.ThresholdOnMicroPP) >= 0 {
 		return true, DirectionDown
 	}
-	if priorDirection == DirectionUp && deltaPP > cfg.ThresholdOffPP {
+	if priorDirection == DirectionUp && compareMicroPP(deltaPP, cfg.ThresholdOffMicroPP) > 0 {
 		return false, priorDirection
 	}
-	if priorDirection == DirectionDown && deltaPP < -cfg.ThresholdOffPP {
+	if priorDirection == DirectionDown && compareMicroPP(-deltaPP, cfg.ThresholdOffMicroPP) > 0 {
 		return false, priorDirection
 	}
 	return false, ""
 }
 
 // BandDepth computes Σ(price × size) within epsilon of best price.
-func BandDepth(levels []markets.OrderBookLevel, bestPrice markets.DecimalString, epsilon float64, isBid bool) (markets.DecimalString, error) {
+func BandDepth(levels []markets.OrderBookLevel, bestPrice markets.DecimalString, epsilon MicroDecimal, isBid bool) (markets.DecimalString, error) {
 	best, ok := new(big.Rat).SetString(string(bestPrice))
 	if !ok {
 		return "", ErrNoObservation
 	}
-	eps := new(big.Rat).SetFloat64(epsilon)
+	epsRat := new(big.Rat).SetInt64(int64(epsilon))
+	epsRat.Quo(epsRat, big.NewRat(microDecimalScale, 1))
 	total := new(big.Rat)
 	for _, level := range levels {
 		price, ok := new(big.Rat).SetString(string(level.Price))
@@ -159,7 +150,7 @@ func BandDepth(levels []markets.OrderBookLevel, bestPrice markets.DecimalString,
 		if isBid {
 			diff.Neg(diff)
 		}
-		if diff.Cmp(eps) > 0 {
+		if diff.Cmp(epsRat) > 0 {
 			continue
 		}
 		notional := new(big.Rat).Mul(price, size)
@@ -172,48 +163,70 @@ func BandDepth(levels []markets.OrderBookLevel, bestPrice markets.DecimalString,
 	return markets.ParseDecimalString(strings.TrimRight(strings.TrimRight(digits, "0"), "."))
 }
 
-// RelativeDepthChange computes (current - ref) / max(ref, floor).
-func RelativeDepthChange(current, reference markets.DecimalString, floor float64) (float64, error) {
-	cur, ok := new(big.Rat).SetString(string(current))
-	if !ok {
-		return 0, ErrNoObservation
+// ComputeLiquidityDepths returns band depths for a synchronized snapshot.
+func ComputeLiquidityDepths(snapshot markets.OrderBookSnapshot, epsilon MicroDecimal) (bid, ask, total markets.DecimalString, err error) {
+	if snapshot.BestBid == nil || snapshot.BestAsk == nil {
+		return "", "", "", ErrNoObservation
 	}
-	ref, ok := new(big.Rat).SetString(string(reference))
-	if !ok {
-		return 0, ErrNoObservation
+	if snapshot.Freshness.State != markets.FreshnessFresh {
+		return "", "", "", ErrNoObservation
 	}
-	denom := ref
-	floorRat := new(big.Rat).SetFloat64(floor)
-	if denom.Cmp(floorRat) < 0 {
-		denom = floorRat
+	bid, err = BandDepth(snapshot.Bids, *snapshot.BestBid, epsilon, true)
+	if err != nil {
+		return "", "", "", err
 	}
-	if denom.Sign() == 0 {
-		return 0, ErrNoObservation
+	ask, err = BandDepth(snapshot.Asks, *snapshot.BestAsk, epsilon, false)
+	if err != nil {
+		return "", "", "", err
 	}
-	change := new(big.Rat).Sub(cur, ref)
-	change.Quo(change, denom)
-	f, _ := change.Float64()
-	return f, nil
+	bidRat, _ := new(big.Rat).SetString(string(bid))
+	askRat, _ := new(big.Rat).SetString(string(ask))
+	sum := new(big.Rat).Add(bidRat, askRat)
+	digits := sum.FloatString(4)
+	total, err = markets.ParseDecimalString(strings.TrimRight(strings.TrimRight(digits, "0"), "."))
+	return bid, ask, total, err
+}
+
+// EvaluateLiquidityChange checks relative depth change with hysteresis.
+func EvaluateLiquidityChange(change MicroDecimal, cfg LiquidityRuleConfig, priorDirection string) (emit bool, direction string) {
+	if int64(change) >= int64(cfg.ThresholdOnMicro) {
+		return true, DirectionUp
+	}
+	if int64(-change) >= int64(cfg.ThresholdOnMicro) {
+		return true, DirectionDown
+	}
+	if priorDirection == DirectionUp && int64(change) > int64(cfg.ThresholdOffMicro) {
+		return false, priorDirection
+	}
+	if priorDirection == DirectionDown && int64(-change) > int64(cfg.ThresholdOffMicro) {
+		return false, priorDirection
+	}
+	return false, ""
+}
+
+// RelativeDepthChange computes (current - ref) / max(ref, floor) as micro-decimal ratio.
+func RelativeDepthChange(current, reference markets.DecimalString, floor MicroDecimal) (MicroDecimal, error) {
+	return RelativeDepthChangeMicro(current, reference, floor)
 }
 
 // PriceMoveIdempotencyKey builds a deterministic signal key.
-func PriceMoveIdempotencyKey(ruleVersion, marketID, tokenID string, bucketEnd time.Time, direction string, threshold float64) string {
-	canonical := fmt.Sprintf("%s|%s|%s|price_move|%s|%s|%.4f",
-		ruleVersion, marketID, tokenID, bucketEnd.UTC().Format(time.RFC3339), direction, threshold)
+func PriceMoveIdempotencyKey(ruleVersion, marketID, tokenID string, bucketEnd time.Time, direction string, threshold MicroProbabilityPoints) string {
+	canonical := fmt.Sprintf("%s|%s|%s|price_move|%s|%s|%s",
+		ruleVersion, marketID, tokenID, bucketEnd.UTC().Format(time.RFC3339), direction, threshold.CanonicalString())
 	sum := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(sum[:])
 }
 
 // LiquidityChangeIdempotencyKey builds a deterministic signal key.
-func LiquidityChangeIdempotencyKey(ruleVersion, marketID, tokenID string, bucketEnd time.Time, direction string, threshold float64) string {
-	canonical := fmt.Sprintf("%s|%s|%s|liquidity_change|%s|%s|%.4f",
-		ruleVersion, marketID, tokenID, bucketEnd.UTC().Format(time.RFC3339), direction, threshold)
+func LiquidityChangeIdempotencyKey(ruleVersion, marketID, tokenID string, bucketEnd time.Time, direction string, threshold MicroDecimal, epsilon MicroDecimal) string {
+	canonical := fmt.Sprintf("%s|%s|%s|liquidity_change|%s|%s|%s|%s",
+		ruleVersion, marketID, tokenID, bucketEnd.UTC().Format(time.RFC3339), direction, threshold.CanonicalString(), epsilon.CanonicalString())
 	sum := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(sum[:])
 }
 
 // BuildPriceMoveObservation creates an engine observation from buckets.
-func BuildPriceMoveObservation(current, reference PriceBucket, threshold markets.DecimalString, deltaPP float64, direction string) (Observation, error) {
+func BuildPriceMoveObservation(current, reference PriceBucket, threshold markets.DecimalString, deltaPP MicroProbabilityPoints, direction string) (Observation, error) {
 	evidence := []markets.SignalEvidence{
 		{
 			Kind:        "price_bucket",
@@ -222,15 +235,13 @@ func BuildPriceMoveObservation(current, reference PriceBucket, threshold markets
 			ContentHash: current.SnapshotHash,
 		},
 	}
-	details, _ := json.Marshal(map[string]any{
-		"deltaPP":      deltaPP,
-		"direction":    direction,
-		"currentPrice": current.Price,
-		"referencePrice": reference.Price,
-		"bestBid":      current.BestBid,
-		"bestAsk":      current.BestAsk,
-		"spread":       current.Spread,
-		"ruleVersion":  current.RuleVersion,
+	details, _ := json.Marshal(map[string]string{
+		"deltaMicroPP":     fmt.Sprintf("%d", deltaPP),
+		"direction":        direction,
+		"currentPrice":     string(current.Price),
+		"referencePrice":   string(reference.Price),
+		"ruleVersion":      current.RuleVersion,
+		"thresholdMicroPP": string(threshold),
 	})
 	sum := sha256.Sum256(details)
 	evidence = append(evidence, markets.SignalEvidence{
@@ -250,4 +261,78 @@ func BuildPriceMoveObservation(current, reference PriceBucket, threshold markets
 		CurrentHash:  current.SnapshotHash,
 		Evidence:     evidence,
 	}, nil
+}
+
+// BuildLiquidityChangeObservation creates an engine observation from liquidity buckets.
+func BuildLiquidityChangeObservation(current, reference LiquidityBucket, threshold markets.DecimalString, change MicroDecimal, direction string) (Observation, error) {
+	evidence := []markets.SignalEvidence{
+		{
+			Kind:        "liquidity_bucket",
+			ReferenceID: current.MarketID + ":" + current.TokenID,
+			ObservedAt:  current.BucketEnd,
+			ContentHash: current.SnapshotHash,
+		},
+	}
+	details, _ := json.Marshal(map[string]string{
+		"changeMicro":       fmt.Sprintf("%d", change),
+		"direction":         direction,
+		"currentTotalDepth": string(current.TotalDepth),
+		"referenceDepth":    string(reference.TotalDepth),
+		"epsilon":           current.Epsilon.CanonicalString(),
+		"ruleVersion":       current.RuleVersion,
+	})
+	sum := sha256.Sum256(details)
+	evidence = append(evidence, markets.SignalEvidence{
+		Kind:        "liquidity_change_evidence",
+		ReferenceID: current.MarketID,
+		ObservedAt:  current.BucketEnd,
+		ContentHash: hex.EncodeToString(sum[:]),
+	})
+	return Observation{
+		Kind:         TypeLiquidityChange,
+		MarketID:     current.MarketID,
+		ObservedAt:   current.BucketEnd,
+		Previous:     reference.TotalDepth,
+		Current:      current.TotalDepth,
+		Threshold:    threshold,
+		PreviousHash: reference.SnapshotHash,
+		CurrentHash:  current.SnapshotHash,
+		Evidence:     evidence,
+	}, nil
+}
+
+// DefaultPriceRuleConfig returns Phase 1.3 default price_move thresholds.
+func DefaultPriceRuleConfig(bucket time.Duration) PriceRuleConfig {
+	on, _ := ParseMicroPP("2")
+	off, _ := ParseMicroPP("1")
+	return PriceRuleConfig{
+		ObservationBucket:   bucket,
+		ReferenceWindow:     5 * bucket,
+		ThresholdOnMicroPP:  on,
+		ThresholdOffMicroPP: off,
+		Cooldown:            bucket,
+		Expiry:              24 * time.Hour,
+		MinObservations:     2,
+	}
+}
+
+// DefaultLiquidityRuleConfig returns Phase 1.3 default liquidity_change thresholds.
+func DefaultLiquidityRuleConfig(bucket time.Duration) LiquidityRuleConfig {
+	epsilon, _ := ParseMicroDecimal("0.01")
+	floor, _ := ParseMicroDecimal("10")
+	on, _ := ParseMicroDecimal("0.25")
+	off, _ := ParseMicroDecimal("0.10")
+	baseline, _ := ParseMicroDecimal("1")
+	return LiquidityRuleConfig{
+		EpsilonMicro:      epsilon,
+		DepthFloorMicro:   floor,
+		ThresholdOnMicro:  on,
+		ThresholdOffMicro: off,
+		MinBaselineDepth:  baseline,
+		MinObservations:   2,
+		Cooldown:          bucket,
+		Expiry:            24 * time.Hour,
+		ObservationBucket: bucket,
+		ReferenceWindow:   5 * bucket,
+	}
 }

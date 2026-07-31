@@ -4,8 +4,6 @@ import (
 	"context"
 	"os"
 	"testing"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestCatalogTokenRegistryValidate(t *testing.T) {
@@ -59,29 +57,24 @@ func TestCatalogTokenRegistryRefresh(t *testing.T) {
 	}
 }
 
-func seedCatalogTokenMapping(t *testing.T, pool *pgxpool.Pool, marketID, tokenID string) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := pool.Exec(ctx, `
-INSERT INTO markets_catalog_events (event_id, slug, title, status, source, content_hash, observed_at)
-VALUES ($1, $1, 'event', 'active', 'test', 'hash', NOW())
-ON CONFLICT (event_id) DO NOTHING`, "evt-"+marketID)
+func TestCatalogTokenRegistryExcludesClosedMarket(t *testing.T) {
+	pool := integrationPool(t)
+	marketID := "registry-closed-market"
+	tokenID := "registry-closed-token"
+	fixture := DefaultCatalogTokenFixture(marketID, tokenID)
+	fixture.MarketStatus = CatalogMarketStatusClosed
+	if err := fixture.Insert(context.Background(), pool); err != nil {
+		t.Fatal(err)
+	}
+	registry, err := NewCatalogTokenRegistry(pool)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = pool.Exec(ctx, `
-INSERT INTO markets_catalog_markets (market_id, event_id, slug, question, status, source, content_hash, observed_at)
-VALUES ($1, $2, $1, 'q', 'active', 'test', 'hash', NOW())
-ON CONFLICT (market_id) DO NOTHING`, marketID, "evt-"+marketID)
-	if err != nil {
+	if err := registry.Bootstrap(context.Background(), 100); err != nil {
 		t.Fatal(err)
 	}
-	_, err = pool.Exec(ctx, `
-INSERT INTO markets_catalog_outcomes (outcome_id, market_id, label, upstream_token_id, source, content_hash, observed_at)
-VALUES ($1, $2, 'Yes', $3, 'test', 'hash', NOW())
-ON CONFLICT (outcome_id) DO UPDATE SET upstream_token_id = EXCLUDED.upstream_token_id`, "out-"+tokenID, marketID, tokenID)
-	if err != nil {
-		t.Fatal(err)
+	if _, ok := registry.MarketForToken(tokenID); ok {
+		t.Fatal("closed market token should not be eligible")
 	}
 }
 

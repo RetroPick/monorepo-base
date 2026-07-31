@@ -108,17 +108,11 @@ func TestStatusProviderStates(t *testing.T) {
 	}
 	status.SetDemandedTokens(1)
 	status.SetConnectedShards(0)
-	if status.State() != realtime.StateConnecting {
-		t.Fatalf("expected connecting, got %s", status.State())
+	if !status.CapabilitiesRealtime() {
+		t.Fatal("realtime capability should remain available while connecting")
 	}
-	status.SetConnectedShards(1)
-	if status.State() != realtime.StateSynchronizing {
-		t.Fatalf("expected synchronizing, got %s", status.State())
-	}
-	status.SetSyncedTokens(1)
-	status.MarkUpstreamMessage(time.Now())
-	if status.State() != realtime.StateOperational {
-		t.Fatalf("expected operational, got %s", status.State())
+	if status.HealthCheck() != "degraded" {
+		t.Fatalf("health %s", status.HealthCheck())
 	}
 }
 

@@ -3,6 +3,7 @@ package realtime_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"strings"
@@ -11,8 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/gorilla/websocket"
-	marketsconfig "retropick/apps/backend/internal/markets/config"
 	"retropick/apps/backend/internal/markets/clob"
+	marketsconfig "retropick/apps/backend/internal/markets/config"
 	"retropick/apps/backend/internal/markets/realtime"
 	upstreamws "retropick/apps/backend/internal/markets/upstream/ws"
 )
@@ -34,27 +35,14 @@ func (m *memRegistry) ValidateToken(_ context.Context, marketID, tokenID string)
 	return nil
 }
 
-type fakeREST struct{}
+type failingREST struct{}
 
-func (fakeREST) GetOrderBook(_ context.Context, tokenID string) (clob.OrderBook, error) {
-	return clob.OrderBook{
-		ConditionID:  "0xcondition",
-		TokenID:      tokenID,
-		Timestamp:    time.Now().UTC(),
-		Hash:         "rest-hash-" + tokenID,
-		Bids:         []clob.Level{{Price: "0.4", Size: "100"}},
-		Asks:         []clob.Level{{Price: "0.6", Size: "200"}},
-		MinOrderSize: "1",
-		TickSize:     "0.01",
-	}, nil
+func (failingREST) GetOrderBook(_ context.Context, _ string) (clob.OrderBook, error) {
+	return clob.OrderBook{}, errors.New("rest disabled in e2e")
 }
 
-func TestRealtimeE2EFakeUpstreamSnapshot(t *testing.T) {
-	t.Parallel()
-	upstream := upstreamws.NewFakeServer()
-	defer upstream.Close()
-
-	registry := &memRegistry{tokens: map[string]string{"token-e2e": "market-e2e"}}
+func startRuntime(t *testing.T, upstream *upstreamws.FakeServer, registry *memRegistry, useREST bool) *realtime.Runtime {
+	t.Helper()
 	cfg := marketsconfig.Config{
 		RealtimeEnabled:    true,
 		RealtimeWSURL:      upstream.URL(),
@@ -62,58 +50,93 @@ func TestRealtimeE2EFakeUpstreamSnapshot(t *testing.T) {
 		RealtimeMaxPerConn: 10,
 		BookMaxAge:         30 * time.Second,
 	}
+	var rest realtime.RESTSnapshotter = failingREST{}
+	if useREST {
+		rest = nil
+	}
 	rt, err := realtime.NewRuntime(realtime.RuntimeConfig{
-		Config:    cfg,
-		REST:      fakeREST{},
-		Registry:  registry,
-		Validator: registry,
+		Config:            cfg,
+		REST:              rest,
+		Registry:          registry,
+		Validator:         registry,
+		ReconcileInterval: 200 * time.Millisecond,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	rt.SetRegistryReady(true)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	t.Cleanup(cancel)
 	rt.Start(ctx)
-	defer rt.Stop()
+	t.Cleanup(rt.Stop)
+	return rt
+}
 
+func dialPublicWS(t *testing.T, rt *realtime.Runtime) *websocket.Conn {
+	t.Helper()
 	r := chi.NewRouter()
 	rt.Handler.RegisterRoutes(r)
 	srv := httptest.NewServer(r)
-	defer srv.Close()
-
+	t.Cleanup(srv.Close)
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/markets/realtime"
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
+	t.Cleanup(func() { conn.Close() })
+	return conn
+}
 
-	sub, _ := json.Marshal(map[string]string{
-		"command":  "subscribe",
-		"marketId": "market-e2e",
-		"tokenId":  "token-e2e",
-	})
+func TestUpstreamTransportE2E(t *testing.T) {
+	t.Parallel()
+	upstream := upstreamws.NewFakeServer()
+	defer upstream.Close()
+	const (
+		marketID = "market-e2e"
+		tokenID  = "token-e2e"
+		wantHash = "upstream-only-hash-xyz"
+	)
+	registry := &memRegistry{tokens: map[string]string{tokenID: marketID}}
+	rt := startRuntime(t, upstream, registry, false)
+	conn := dialPublicWS(t, rt)
+	_, _, _ = conn.ReadMessage() // hello
+	sub, _ := json.Marshal(map[string]string{"command": "subscribe", "marketId": marketID, "tokenId": tokenID})
 	if err := conn.WriteMessage(websocket.TextMessage, sub); err != nil {
 		t.Fatal(err)
 	}
-
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
-		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
-		_, data, err := conn.ReadMessage()
-		if err != nil {
+		subs := upstream.SubscribedTokens()
+		if len(subs) > 0 {
 			break
 		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if len(upstream.SubscribedTokens()) == 0 {
+		t.Fatal("upstream never received subscription")
+	}
+	upstream.PushBook(tokenID, wantHash)
+	_ = conn.SetReadDeadline(deadline)
+	for {
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			t.Fatalf("read while waiting for snapshot: %v", err)
+		}
 		var envelope map[string]any
-		if err := json.Unmarshal(data, &envelope); err != nil {
+		if json.Unmarshal(data, &envelope) != nil {
 			continue
 		}
-		eventType, _ := envelope["eventType"].(string)
-		if eventType == realtime.TypeOrderBookSnapshot {
+		if envelope["eventType"] != realtime.TypeOrderBookSnapshot {
+			continue
+		}
+		if envelope["snapshotHash"] == wantHash {
+			return
+		}
+		payload, _ := envelope["payload"].(map[string]any)
+		if payload != nil && payload["hash"] == wantHash {
 			return
 		}
 	}
-	t.Fatal("timeout waiting for orderbook.snapshot")
 }
 
 func TestRealtimeE2ERejectsWrongToken(t *testing.T) {
@@ -121,48 +144,11 @@ func TestRealtimeE2ERejectsWrongToken(t *testing.T) {
 	upstream := upstreamws.NewFakeServer()
 	defer upstream.Close()
 	registry := &memRegistry{tokens: map[string]string{"good-token": "market-1"}}
-	cfg := marketsconfig.Config{
-		RealtimeWSURL:      upstream.URL(),
-		RealtimeMaxAssets:  10,
-		RealtimeMaxPerConn: 10,
-	}
-	rt, err := realtime.NewRuntime(realtime.RuntimeConfig{
-		Config:    cfg,
-		REST:      fakeREST{},
-		Registry:  registry,
-		Validator: registry,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	rt.Start(ctx)
-	defer rt.Stop()
-
-	r := chi.NewRouter()
-	rt.Handler.RegisterRoutes(r)
-	srv := httptest.NewServer(r)
-	defer srv.Close()
-
-	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/markets/realtime"
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-	_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	if _, _, err := conn.ReadMessage(); err != nil {
-		t.Fatal(err)
-	}
-	sub, _ := json.Marshal(map[string]string{
-		"command":  "subscribe",
-		"marketId": "market-1",
-		"tokenId":  "bad-token",
-	})
-	if err := conn.WriteMessage(websocket.TextMessage, sub); err != nil {
-		t.Fatal(err)
-	}
+	rt := startRuntime(t, upstream, registry, false)
+	conn := dialPublicWS(t, rt)
+	_, _, _ = conn.ReadMessage()
+	sub, _ := json.Marshal(map[string]string{"command": "subscribe", "marketId": "market-1", "tokenId": "bad-token"})
+	_ = conn.WriteMessage(websocket.TextMessage, sub)
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
@@ -177,7 +163,7 @@ func TestRealtimeE2ERejectsWrongToken(t *testing.T) {
 	t.Fatal("expected invalid_token error")
 }
 
-func TestRealtimeHubSlowClientDoesNotBlockHealthyClient(t *testing.T) {
+func TestSlowClientE2EDoesNotBlockHealthyClient(t *testing.T) {
 	t.Parallel()
 	hub := realtime.NewHub(realtime.HubConfig{MaxQueue: 1})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -190,13 +176,33 @@ func TestRealtimeHubSlowClientDoesNotBlockHealthyClient(t *testing.T) {
 	}
 	hub.Subscribe(slow, "m", "t")
 	hub.Subscribe(fast, "m", "t")
-	for i := 0; i < 10; i++ {
-		payload := []byte(fmt.Sprintf(`{"eventType":"orderbook.snapshot","n":%d}`, i))
+	payload := []byte(`{"eventType":"orderbook.snapshot","hash":"load-test"}`)
+	for i := 0; i < 5; i++ {
 		hub.PublishToToken("m", "t", payload)
 	}
-	select {
-	case <-fast.Send:
-	case <-time.After(2 * time.Second):
-		t.Fatal("healthy client blocked")
+	msg, ok := <-fast.Send
+	if !ok {
+		t.Fatal("healthy client channel closed")
+	}
+	if string(msg) == "" {
+		t.Fatal("empty message on healthy client")
+	}
+	if hub.SlowConsumerCount() == 0 {
+		t.Fatal("expected slow consumer removal")
+	}
+}
+
+func TestCapabilitiesRealtimeStableWhileConnecting(t *testing.T) {
+	t.Parallel()
+	status := realtime.NewStatusProvider(true)
+	status.SetRegistryReady(true)
+	status.SetHubRunning(true)
+	status.SetDemandedTokens(1)
+	status.SetConnectedShards(0)
+	if !status.CapabilitiesRealtime() {
+		t.Fatal("realtime capability should remain available while connecting")
+	}
+	if status.HealthCheck() != "degraded" {
+		t.Fatalf("health %s", status.HealthCheck())
 	}
 }

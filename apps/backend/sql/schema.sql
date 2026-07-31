@@ -881,7 +881,7 @@ CREATE TABLE markets_liquidity_observations (
     bid_depth TEXT NOT NULL CHECK (bid_depth ~ '^(0|[1-9][0-9]*)(\.[0-9]+)?$'),
     ask_depth TEXT NOT NULL CHECK (ask_depth ~ '^(0|[1-9][0-9]*)(\.[0-9]+)?$'),
     spread TEXT CHECK (spread IS NULL OR spread ~ '^(0|[1-9][0-9]*)(\.[0-9]+)?$'),
-    epsilon DOUBLE PRECISION NOT NULL,
+    epsilon TEXT NOT NULL CHECK (epsilon ~ '^(0|[1-9][0-9]*)(\.[0-9]+)?$'),
     snapshot_hash TEXT NOT NULL DEFAULT '',
     rule_version TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

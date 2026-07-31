@@ -20,6 +20,7 @@ Rules:
 - Epoch change → client discards prior state, awaits snapshot
 - No persistent replay buffer
 - Reconnecting clients always receive fresh snapshot first
+- `signal.created` and `signal.retracted` participate in the **same per-token delivery stream** as book events (Option A): they receive the current `streamEpoch` and next `deliveryCounter` from `DeliveryTracker` at fan-out time. Clients must not treat signals as a separate unordered channel.
 
 ## Consequences
 

@@ -295,16 +295,21 @@ ORDER BY evidence_index;
 -- name: TryMarketsAdvisoryLock :one
 SELECT pg_try_advisory_lock($1::BIGINT) AS acquired;
 
--- name: GetMarketIDByUpstreamToken :one
-SELECT market_id
-FROM markets_catalog_outcomes
-WHERE upstream_token_id = $1;
-
 -- name: ListCatalogTokenMappings :many
-SELECT upstream_token_id, market_id
-FROM markets_catalog_outcomes
-ORDER BY market_id, upstream_token_id
-LIMIT $1;
+SELECT o.upstream_token_id, o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id <> ''
+  AND m.status = 'open'
+ORDER BY o.market_id, o.upstream_token_id
+LIMIT $1 OFFSET $2;
+
+-- name: GetMarketIDByUpstreamToken :one
+SELECT o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id = $1
+  AND m.status = 'open';
 
 -- name: ReleaseMarketsAdvisoryLock :one
 SELECT pg_advisory_unlock($1::BIGINT) AS released;
@@ -331,6 +336,13 @@ ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
     snapshot_hash = EXCLUDED.snapshot_hash,
     rule_version = EXCLUDED.rule_version,
     expires_at = EXCLUDED.expires_at;
+
+-- name: ListMarketsLiquidityObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, total_depth, bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version
+FROM markets_liquidity_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4;
 
 -- name: UpsertMarketsLiquidityObservation :exec
 INSERT INTO markets_liquidity_observations (

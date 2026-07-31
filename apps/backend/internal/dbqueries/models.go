@@ -425,7 +425,7 @@ type MarketsLiquidityObservation struct {
 	BidDepth     string             `json:"bid_depth"`
 	AskDepth     string             `json:"ask_depth"`
 	Spread       pgtype.Text        `json:"spread"`
-	Epsilon      float64            `json:"epsilon"`
+	Epsilon      string             `json:"epsilon"`
 	SnapshotHash string             `json:"snapshot_hash"`
 	RuleVersion  string             `json:"rule_version"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
