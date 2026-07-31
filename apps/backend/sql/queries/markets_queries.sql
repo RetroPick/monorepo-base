@@ -295,5 +295,80 @@ ORDER BY evidence_index;
 -- name: TryMarketsAdvisoryLock :one
 SELECT pg_try_advisory_lock($1::BIGINT) AS acquired;
 
+-- name: ListCatalogTokenMappings :many
+SELECT o.upstream_token_id, o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id <> ''
+  AND m.status = 'open'
+ORDER BY o.market_id, o.upstream_token_id
+LIMIT $1 OFFSET $2;
+
+-- name: GetMarketIDByUpstreamToken :one
+SELECT o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id = $1
+  AND m.status = 'open';
+
 -- name: ReleaseMarketsAdvisoryLock :one
 SELECT pg_advisory_unlock($1::BIGINT) AS released;
+
+-- name: ListMarketsPriceObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, price, best_bid, best_ask, spread, snapshot_hash, rule_version
+FROM markets_price_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4;
+
+-- name: UpsertMarketsPriceObservation :exec
+INSERT INTO markets_price_observations (
+    market_id, token_id, bucket_start, bucket_end, price,
+    best_bid, best_ask, spread, snapshot_hash, rule_version, expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+)
+ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
+    price = EXCLUDED.price,
+    best_bid = EXCLUDED.best_bid,
+    best_ask = EXCLUDED.best_ask,
+    spread = EXCLUDED.spread,
+    snapshot_hash = EXCLUDED.snapshot_hash,
+    rule_version = EXCLUDED.rule_version,
+    expires_at = EXCLUDED.expires_at;
+
+-- name: ListMarketsLiquidityObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, total_depth, bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version
+FROM markets_liquidity_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4;
+
+-- name: UpsertMarketsLiquidityObservation :exec
+INSERT INTO markets_liquidity_observations (
+    market_id, token_id, bucket_start, bucket_end, total_depth,
+    bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version, expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
+    total_depth = EXCLUDED.total_depth,
+    bid_depth = EXCLUDED.bid_depth,
+    ask_depth = EXCLUDED.ask_depth,
+    spread = EXCLUDED.spread,
+    epsilon = EXCLUDED.epsilon,
+    snapshot_hash = EXCLUDED.snapshot_hash,
+    rule_version = EXCLUDED.rule_version,
+    expires_at = EXCLUDED.expires_at;
+
+-- name: UpsertMarketsRealtimeRecovery :exec
+INSERT INTO markets_realtime_recovery (
+    token_id, stream_epoch, last_snapshot_hash, last_validated_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, NOW()
+)
+ON CONFLICT (token_id) DO UPDATE SET
+    stream_epoch = EXCLUDED.stream_epoch,
+    last_snapshot_hash = EXCLUDED.last_snapshot_hash,
+    last_validated_at = EXCLUDED.last_validated_at,
+    updated_at = NOW();

@@ -247,17 +247,20 @@ type SignalEnvelope struct {
 }
 
 type RealtimeEnvelope struct {
-	SchemaVersion string    `json:"schemaVersion"`
-	EventID       string    `json:"eventId"`
-	Type          string    `json:"type"`
-	Source        string    `json:"source"`
-	MarketID      string    `json:"marketId"`
-	UpstreamID    string    `json:"upstreamId"`
-	Sequence      *string   `json:"sequence"`
-	SnapshotHash  string    `json:"snapshotHash,omitempty"`
-	ObservedAt    time.Time `json:"observedAt"`
-	PublishedAt   time.Time `json:"publishedAt"`
-	Payload       any       `json:"payload"`
+	SchemaVersion    string    `json:"schemaVersion"`
+	EventID          string    `json:"eventId"`
+	Type             string    `json:"eventType"`
+	Source           string    `json:"source"`
+	MarketID         string    `json:"marketId"`
+	UpstreamID       string    `json:"upstreamId"`
+	TokenID          string    `json:"tokenId"`
+	Sequence         *string   `json:"sequence"`
+	SnapshotHash     string    `json:"snapshotHash,omitempty"`
+	StreamEpoch      uint64    `json:"streamEpoch"`
+	DeliveryCounter  uint64    `json:"deliveryCounter"`
+	ObservedAt       time.Time `json:"observedAt"`
+	PublishedAt      time.Time `json:"publishedAt"`
+	Payload          any       `json:"payload"`
 }
 
 type PageInfo struct {

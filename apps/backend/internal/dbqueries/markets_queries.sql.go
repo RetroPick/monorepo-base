@@ -76,6 +76,21 @@ func (q *Queries) GetLatestMarketsHealth(ctx context.Context, arg GetLatestMarke
 	return i, err
 }
 
+const getMarketIDByUpstreamToken = `-- name: GetMarketIDByUpstreamToken :one
+SELECT o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id = $1
+  AND m.status = 'open'
+`
+
+func (q *Queries) GetMarketIDByUpstreamToken(ctx context.Context, upstreamTokenID string) (string, error) {
+	row := q.db.QueryRow(ctx, getMarketIDByUpstreamToken, upstreamTokenID)
+	var market_id string
+	err := row.Scan(&market_id)
+	return market_id, err
+}
+
 const getMarketsCatalogEvent = `-- name: GetMarketsCatalogEvent :one
 SELECT event_id, slug, title, description, status, start_at, end_at, source, upstream_updated_at, content_hash, payload, observed_at, created_at, updated_at
 FROM markets_catalog_events
@@ -337,6 +352,46 @@ func (q *Queries) InsertMarketsSignalEvidence(ctx context.Context, arg InsertMar
 	return err
 }
 
+const listCatalogTokenMappings = `-- name: ListCatalogTokenMappings :many
+SELECT o.upstream_token_id, o.market_id
+FROM markets_catalog_outcomes o
+INNER JOIN markets_catalog_markets m ON m.market_id = o.market_id
+WHERE o.upstream_token_id <> ''
+  AND m.status = 'open'
+ORDER BY o.market_id, o.upstream_token_id
+LIMIT $1 OFFSET $2
+`
+
+type ListCatalogTokenMappingsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListCatalogTokenMappingsRow struct {
+	UpstreamTokenID string `json:"upstream_token_id"`
+	MarketID        string `json:"market_id"`
+}
+
+func (q *Queries) ListCatalogTokenMappings(ctx context.Context, arg ListCatalogTokenMappingsParams) ([]ListCatalogTokenMappingsRow, error) {
+	rows, err := q.db.Query(ctx, listCatalogTokenMappings, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCatalogTokenMappingsRow{}
+	for rows.Next() {
+		var i ListCatalogTokenMappingsRow
+		if err := rows.Scan(&i.UpstreamTokenID, &i.MarketID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMarketsCatalogEventSummaries = `-- name: ListMarketsCatalogEventSummaries :many
 SELECT
     e.event_id,
@@ -568,6 +623,72 @@ func (q *Queries) ListMarketsHistory(ctx context.Context, arg ListMarketsHistory
 	return items, nil
 }
 
+const listMarketsLiquidityObservations = `-- name: ListMarketsLiquidityObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, total_depth, bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version
+FROM markets_liquidity_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4
+`
+
+type ListMarketsLiquidityObservationsParams struct {
+	MarketID  string             `json:"market_id"`
+	TokenID   string             `json:"token_id"`
+	BucketEnd pgtype.Timestamptz `json:"bucket_end"`
+	Limit     int32              `json:"limit"`
+}
+
+type ListMarketsLiquidityObservationsRow struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	TotalDepth   string             `json:"total_depth"`
+	BidDepth     string             `json:"bid_depth"`
+	AskDepth     string             `json:"ask_depth"`
+	Spread       pgtype.Text        `json:"spread"`
+	Epsilon      string             `json:"epsilon"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+}
+
+func (q *Queries) ListMarketsLiquidityObservations(ctx context.Context, arg ListMarketsLiquidityObservationsParams) ([]ListMarketsLiquidityObservationsRow, error) {
+	rows, err := q.db.Query(ctx, listMarketsLiquidityObservations,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketEnd,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMarketsLiquidityObservationsRow{}
+	for rows.Next() {
+		var i ListMarketsLiquidityObservationsRow
+		if err := rows.Scan(
+			&i.MarketID,
+			&i.TokenID,
+			&i.BucketStart,
+			&i.BucketEnd,
+			&i.TotalDepth,
+			&i.BidDepth,
+			&i.AskDepth,
+			&i.Spread,
+			&i.Epsilon,
+			&i.SnapshotHash,
+			&i.RuleVersion,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMarketsOutcomes = `-- name: ListMarketsOutcomes :many
 SELECT outcome_id, market_id, upstream_token_id, outcome_index, name, price, winner, observed_at, created_at, updated_at
 FROM markets_catalog_outcomes
@@ -595,6 +716,70 @@ func (q *Queries) ListMarketsOutcomes(ctx context.Context, marketID string) ([]M
 			&i.ObservedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMarketsPriceObservations = `-- name: ListMarketsPriceObservations :many
+SELECT market_id, token_id, bucket_start, bucket_end, price, best_bid, best_ask, spread, snapshot_hash, rule_version
+FROM markets_price_observations
+WHERE market_id = $1 AND token_id = $2 AND bucket_end >= $3
+ORDER BY bucket_end DESC
+LIMIT $4
+`
+
+type ListMarketsPriceObservationsParams struct {
+	MarketID  string             `json:"market_id"`
+	TokenID   string             `json:"token_id"`
+	BucketEnd pgtype.Timestamptz `json:"bucket_end"`
+	Limit     int32              `json:"limit"`
+}
+
+type ListMarketsPriceObservationsRow struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	Price        string             `json:"price"`
+	BestBid      pgtype.Text        `json:"best_bid"`
+	BestAsk      pgtype.Text        `json:"best_ask"`
+	Spread       pgtype.Text        `json:"spread"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+}
+
+func (q *Queries) ListMarketsPriceObservations(ctx context.Context, arg ListMarketsPriceObservationsParams) ([]ListMarketsPriceObservationsRow, error) {
+	rows, err := q.db.Query(ctx, listMarketsPriceObservations,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketEnd,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMarketsPriceObservationsRow{}
+	for rows.Next() {
+		var i ListMarketsPriceObservationsRow
+		if err := rows.Scan(
+			&i.MarketID,
+			&i.TokenID,
+			&i.BucketStart,
+			&i.BucketEnd,
+			&i.Price,
+			&i.BestBid,
+			&i.BestAsk,
+			&i.Spread,
+			&i.SnapshotHash,
+			&i.RuleVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -1069,6 +1254,135 @@ func (q *Queries) UpsertMarketsLatestBook(ctx context.Context, arg UpsertMarkets
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertMarketsLiquidityObservation = `-- name: UpsertMarketsLiquidityObservation :exec
+INSERT INTO markets_liquidity_observations (
+    market_id, token_id, bucket_start, bucket_end, total_depth,
+    bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version, expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
+    total_depth = EXCLUDED.total_depth,
+    bid_depth = EXCLUDED.bid_depth,
+    ask_depth = EXCLUDED.ask_depth,
+    spread = EXCLUDED.spread,
+    epsilon = EXCLUDED.epsilon,
+    snapshot_hash = EXCLUDED.snapshot_hash,
+    rule_version = EXCLUDED.rule_version,
+    expires_at = EXCLUDED.expires_at
+`
+
+type UpsertMarketsLiquidityObservationParams struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	TotalDepth   string             `json:"total_depth"`
+	BidDepth     string             `json:"bid_depth"`
+	AskDepth     string             `json:"ask_depth"`
+	Spread       pgtype.Text        `json:"spread"`
+	Epsilon      string             `json:"epsilon"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) UpsertMarketsLiquidityObservation(ctx context.Context, arg UpsertMarketsLiquidityObservationParams) error {
+	_, err := q.db.Exec(ctx, upsertMarketsLiquidityObservation,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketStart,
+		arg.BucketEnd,
+		arg.TotalDepth,
+		arg.BidDepth,
+		arg.AskDepth,
+		arg.Spread,
+		arg.Epsilon,
+		arg.SnapshotHash,
+		arg.RuleVersion,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const upsertMarketsPriceObservation = `-- name: UpsertMarketsPriceObservation :exec
+INSERT INTO markets_price_observations (
+    market_id, token_id, bucket_start, bucket_end, price,
+    best_bid, best_ask, spread, snapshot_hash, rule_version, expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+)
+ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
+    price = EXCLUDED.price,
+    best_bid = EXCLUDED.best_bid,
+    best_ask = EXCLUDED.best_ask,
+    spread = EXCLUDED.spread,
+    snapshot_hash = EXCLUDED.snapshot_hash,
+    rule_version = EXCLUDED.rule_version,
+    expires_at = EXCLUDED.expires_at
+`
+
+type UpsertMarketsPriceObservationParams struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	Price        string             `json:"price"`
+	BestBid      pgtype.Text        `json:"best_bid"`
+	BestAsk      pgtype.Text        `json:"best_ask"`
+	Spread       pgtype.Text        `json:"spread"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) UpsertMarketsPriceObservation(ctx context.Context, arg UpsertMarketsPriceObservationParams) error {
+	_, err := q.db.Exec(ctx, upsertMarketsPriceObservation,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketStart,
+		arg.BucketEnd,
+		arg.Price,
+		arg.BestBid,
+		arg.BestAsk,
+		arg.Spread,
+		arg.SnapshotHash,
+		arg.RuleVersion,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const upsertMarketsRealtimeRecovery = `-- name: UpsertMarketsRealtimeRecovery :exec
+INSERT INTO markets_realtime_recovery (
+    token_id, stream_epoch, last_snapshot_hash, last_validated_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, NOW()
+)
+ON CONFLICT (token_id) DO UPDATE SET
+    stream_epoch = EXCLUDED.stream_epoch,
+    last_snapshot_hash = EXCLUDED.last_snapshot_hash,
+    last_validated_at = EXCLUDED.last_validated_at,
+    updated_at = NOW()
+`
+
+type UpsertMarketsRealtimeRecoveryParams struct {
+	TokenID          string             `json:"token_id"`
+	StreamEpoch      int64              `json:"stream_epoch"`
+	LastSnapshotHash string             `json:"last_snapshot_hash"`
+	LastValidatedAt  pgtype.Timestamptz `json:"last_validated_at"`
+}
+
+func (q *Queries) UpsertMarketsRealtimeRecovery(ctx context.Context, arg UpsertMarketsRealtimeRecoveryParams) error {
+	_, err := q.db.Exec(ctx, upsertMarketsRealtimeRecovery,
+		arg.TokenID,
+		arg.StreamEpoch,
+		arg.LastSnapshotHash,
+		arg.LastValidatedAt,
+	)
+	return err
 }
 
 const upsertMarketsSignal = `-- name: UpsertMarketsSignal :one

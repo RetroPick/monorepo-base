@@ -6,6 +6,8 @@
   "intelligence": true,
   "features": {
     "catalog_read": true,
+    "catalog_signals": true,
+    "live_signals": false,
     "realtime": false
   },
   "source": "retropick-markets-bff",

@@ -2,7 +2,7 @@
 
 **Status:** draft
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-31
 **Product:** RetroPick Markets V1
 
 ## 1. Purpose
@@ -13,7 +13,7 @@ Map every Markets capability to upstream support, RetroPick components, phase, a
 
 ### In scope
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+- RetroPick Markets V1 (`apps/fe-v1`, Go BFF, native Android Jetpack Compose).
 
 ### Out of scope
 
@@ -62,10 +62,13 @@ Full matrix per master prompt §6; Combos capability-gated until official suppor
 
 ```mermaid
 flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
+  FE[apps/fe-v1] --> BFF[internal/markets]
   Android[apps/android] --> BFF
   BFF --> Gamma[Polymarket_Gamma]
   BFF --> CLOB[Polymarket_CLOB_V2]
+  BFF --> WS[Polymarket_WS]
+  WS --> Hub[realtime/hub]
+  Hub --> FE
   Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
 ```
 
@@ -105,14 +108,24 @@ flowchart LR
 
 ## Capability matrix (excerpt)
 
-| Capability | Upstream | BFF | Web | Android | Chain | Phase | Req |
+| Capability | Upstream | BFF | Web (fe-v1) | Android | Phase | Req | Status |
 |---|---|---|---|---|---|---|---|
-| public event feed | upstream | BFF | web | android | on-chain | phase | MKT-FR-001 |
-| order-book snapshot | upstream | BFF | web | android | on-chain | phase | MKT-FR-010 |
-| wallet connect | upstream | BFF | web | android | on-chain | phase | MKT-FR-020 |
-| limit buy/sell | upstream | BFF | web | android | on-chain | phase | MKT-FR-030 |
-| positions & PnL | upstream | BFF | web | android | on-chain | phase | MKT-FR-040 |
-| watchlist & alerts | upstream | BFF | web | android | on-chain | phase | MKT-FR-050 |
-| whale feed | upstream | BFF | web | android | on-chain | phase | MKT-FR-060 |
-| Combos | upstream | BFF | web | android | on-chain | phase | MKT-FR-090 |
-| geoblock | upstream | BFF | web | android | on-chain | phase | MKT-FR-095 |
+| public event feed | Gamma | BFF | fe-v1 | android | PHASE-1 | MKT-FR-001 | done |
+| order-book snapshot (REST) | CLOB | BFF | fe-v1 | android | PHASE-1 | MKT-FR-010 | done |
+| order-book realtime (WS) | CLOB WS | BFF hub | fe-v1 | — | PHASE-1.3 | MKT-FR-010-RT | partial — P13C closure |
+| catalog signals (new_market, rule_changed) | Gamma | BFF | fe-v1 | — | PHASE-1 | MKT-FR-050-CAT | done (MKT-P1-008) |
+| live signals (price_move, liquidity_change) | CLOB WS | BFF | fe-v1 | — | PHASE-1.3 | MKT-FR-050-LIVE | **pending** (P13C-002) |
+| wallet connect | — | BFF | fe-v1 | android | PHASE-2 | MKT-FR-020 | planned — blocked on PHASE-1.3 |
+| limit buy/sell | CLOB | BFF | fe-v1 | android | PHASE-3 | MKT-FR-030 | planned |
+| positions & PnL | CLOB | BFF | fe-v1 | android | PHASE-4 | MKT-FR-040 | planned |
+| geoblock | upstream | BFF | fe-v1 | android | PHASE-2 | MKT-FR-021 | planned (BLK-001) |
+| Combos | upstream | BFF | fe-v1 | android | PHASE-8 | MKT-FR-090 | gated |
+
+## Phase 1.3 unresolved blockers
+
+| ID | Capability impact |
+|----|-------------------|
+| BLK-003 | Token registry — hub cannot fail-closed on unknown tokens |
+| BLK-004 | Live signal pipeline — intelligence capability must stay false |
+| BLK-005 | SEC-P13-001 rotation — production release blocked |
+| BLK-006 | Single-replica — multi-replica duplicates upstream WS |

@@ -9,6 +9,7 @@ const FORBIDDEN_HOSTS = [
   "data-api.polymarket.com",
   "bridge.polymarket.com",
   "relayer.polymarket.com",
+  "ws-subscriptions-clob.polymarket.com",
 ];
 const FORBIDDEN_IMPORTS = [
   "@/config/polymarket",

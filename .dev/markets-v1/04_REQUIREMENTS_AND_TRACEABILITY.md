@@ -2,7 +2,7 @@
 
 **Status:** draft
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-31
 **Product:** RetroPick Markets V1
 
 ## 1. Purpose
@@ -13,7 +13,7 @@ Canonical requirement IDs and mapping to phase, task, test, and metric.
 
 ### In scope
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+- RetroPick Markets V1 (`apps/fe-v1`, Go BFF, native Android Jetpack Compose).
 
 ### Out of scope
 
@@ -62,10 +62,11 @@ No launch-critical requirement unmapped.
 
 ```mermaid
 flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
+  FE[apps/fe-v1] --> BFF[internal/markets]
   Android[apps/android] --> BFF
   BFF --> Gamma[Polymarket_Gamma]
   BFF --> CLOB[Polymarket_CLOB_V2]
+  BFF --> WS[Polymarket_WS]
   Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
 ```
 
@@ -109,31 +110,40 @@ flowchart LR
     |----|-------------|-------|------|
     | MKT-FR-001 | List normalized Polymarket events | PHASE-1 | MKT-P1-002 |
 | MKT-FR-002 | Show market rules and resolution source | PHASE-1 | MKT-P1-001, MKT-P1-004, MKT-P1-006 |
-| MKT-FR-010 | Order book snapshot with staleness indicator | PHASE-1 | MKT-P1-002, MKT-P1-005, MKT-P1-006 |
+| MKT-FR-010 | Order book snapshot with staleness indicator (REST) | PHASE-1 | MKT-P1-002, MKT-P1-005, MKT-P1-006 |
+| MKT-FR-010-RT | Realtime order book via BFF WebSocket hub | PHASE-1.3 | MKT-P13-002, MKT-P13-005, P13C-003, P13C-005 |
 | MKT-FR-020 | Wallet connect without key custody | PHASE-2 | MKT-P2-001 |
 | MKT-FR-021 | Fail-closed eligibility check | PHASE-2 | MKT-P2-002 |
 | MKT-FR-030 | Order preview equals signed payload | PHASE-3 | MKT-P3-001 |
 | MKT-FR-031 | Submit limit order via CLOB V2 | PHASE-3 | MKT-P3-002 |
 | MKT-FR-040 | Positions reconcile with venue | PHASE-4 | MKT-P4-001 |
-| MKT-FR-050 | Deterministic public signal foundation; identity and delivery deferred | PHASE-1 | MKT-P1-008 |
+| MKT-FR-050-CAT | Catalog-sync signals: new_market, rule_changed | PHASE-1 | MKT-P1-008, P1C-008 |
+| MKT-FR-050-LIVE | Live observation signals: price_move, liquidity_change | PHASE-1.3 | MKT-P13-004, P13C-002 |
 | MKT-FR-060 | Whale/large-trade feed with reason codes | PHASE-4 | MKT-P4-003 |
 | MKT-FR-090 | Combos only when capability flag true | PHASE-8 | MKT-P8-001 |
 
     ## Security requirements
 
-    | ID | Description | Phase |
-    |----|-------------|-------|
-    | MKT-SEC-001 | No raw private key storage | PHASE-2 |
-    | MKT-SEC-002 | Preview-before-sign binding | PHASE-3 |
+    | ID | Description | Phase | Task |
+    |----|-------------|-------|------|
+    | MKT-SEC-001 | No raw private key storage | PHASE-2 | MKT-P2-001 |
+    | MKT-SEC-002 | Preview-before-sign binding | PHASE-3 | MKT-P3-002 |
+    | MKT-SEC-P13-001 | Rotate/revoke exposed Polymarket credential | PHASE-1.3 | P13C-007 |
 
     ## Non-functional requirements
 
-    | ID | Description | Phase |
-    |----|-------------|-------|
-    | MKT-NFR-001 | Catalog freshness p95 < 60s | PHASE-1 |
-    | MKT-NFR-010 | API availability 99.5% monthly | PHASE-6 |
-| MKT-NFR-002 | Invalid, stale, or sequence-ambiguous books are never labeled live | PHASE-1 |
-| MKT-NFR-060 | Monetary values use base units or decimal strings, never binary floating point | PHASE-1 |
+    | ID | Description | Phase | Task |
+    |----|-------------|-------|------|
+    | MKT-NFR-001 | Catalog freshness p95 < 60s | PHASE-1 | MKT-P1-004 |
+    | MKT-NFR-010 | API availability 99.5% monthly | PHASE-6 | MKT-P6-001 |
+| MKT-NFR-002 | Invalid, stale, or sequence-ambiguous books are never labeled live | PHASE-1, 1.3 | MKT-P1-005, MKT-P13-002 |
+| MKT-NFR-003 | Single-active-replica realtime ingestion documented and guarded | PHASE-1.3 | P13C-006 |
+| MKT-NFR-060 | Monetary values use base units or decimal strings, never binary floating point | PHASE-1, 1.3 | MKT-P1-001, MKT-P13-004 |
+
+    ## Phase dependencies
+
+    - **PHASE-2** prerequisite: **PHASE-1.3 closure** (not PHASE-1 alone).
+    - Phase 1.3 is **not complete** until P13C-000 … P13C-008 evidence and ADR-014 transactional wiring (P13C-002).
 
     ## Traceability chain
 

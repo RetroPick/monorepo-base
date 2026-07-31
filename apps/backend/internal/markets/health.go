@@ -16,7 +16,7 @@ type HealthChecker struct {
 	Worker                CatalogWorkerState
 	SignalsOperational    bool
 	MarketDataOperational bool
-	RealtimeState         string
+	RealtimeState         RealtimeStateProvider
 	ServiceName   string
 	Now           func() time.Time
 }
@@ -144,8 +144,8 @@ func (h HealthChecker) serviceName() string {
 }
 
 func (h HealthChecker) realtimeState() string {
-	if h.RealtimeState != "" {
-		return h.RealtimeState
+	if h.RealtimeState != nil {
+		return h.RealtimeState.HealthRealtime()
 	}
 	return "disabled"
 }

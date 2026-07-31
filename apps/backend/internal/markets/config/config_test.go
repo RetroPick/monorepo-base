@@ -17,12 +17,15 @@ func TestLoad_RejectsInvalidIntegerEnv(t *testing.T) {
 	}
 }
 
-func TestLoad_RejectsRealtimeEnabled(t *testing.T) {
+func TestLoad_AllowsRealtimeEnabled(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("MARKETS_REALTIME_ENABLED", "1")
-	_, err := marketsconfig.Load()
-	if err == nil {
-		t.Fatal("expected realtime unsupported error")
+	cfg, err := marketsconfig.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.RealtimeEnabled {
+		t.Fatal("expected realtime enabled")
 	}
 }
 

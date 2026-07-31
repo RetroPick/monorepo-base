@@ -21,9 +21,18 @@ vi.mock("@/features/markets/components/PriceChart", () => ({
 }));
 vi.mock("@/features/markets/hooks/useMarketsQueries", () => ({
   useMarketsMarket: (...args: unknown[]) => useMarketsMarket(...args),
+  useMarketsCapabilities: () => ({ data: { features: { realtime: false } } }),
   useMarketsOrderBook: () => ({ data: undefined, isLoading: false, error: null, refetch: vi.fn() }),
   useMarketsPriceHistory: () => ({ data: undefined, isLoading: false, error: null, refetch: vi.fn() }),
   useMarketsHealth: () => ({ data: undefined }),
+}));
+vi.mock("@/features/markets/hooks/useMarketsRealtime", () => ({
+  useMarketsRealtime: () => ({
+    state: "polling_fallback",
+    snapshot: null,
+    label: "Snapshot polling — not realtime",
+    pollingOnly: true,
+  }),
 }));
 
 function renderRoute(path: string) {

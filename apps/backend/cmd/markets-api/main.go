@@ -23,6 +23,7 @@ import (
 	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/markets/postgres"
+	"retropick/apps/backend/internal/markets/realtime"
 	"retropick/apps/backend/internal/markets/signals"
 )
 
@@ -89,6 +90,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	metrics := markets.NewMetrics()
+	clobClient := clob.NewClient(cfg.CLOBAPIURL)
+	var rtRuntime *realtime.Runtime
+	var tokenRegistry *postgres.CatalogTokenRegistry
+
+	if cfg.RealtimeEnabled {
+		tokenRegistry, err = postgres.NewCatalogTokenRegistry(pool)
+		if err != nil {
+			log.Error("token registry", "err", err)
+			os.Exit(1)
+		}
+		if err := tokenRegistry.Bootstrap(ctx, 10000); err != nil {
+			log.Warn("token registry bootstrap", "err", err)
+		}
+		if !tokenRegistry.Ready() {
+			log.Warn("realtime registry empty; catalog read API continues, realtime subscriptions unavailable until catalog sync")
+		}
+	}
+
 	worker, err := syncworker.NewCatalogWorker(syncworker.Config{
 		Syncer:        syncer,
 		Reader:        reader,
@@ -101,6 +121,18 @@ func main() {
 		MaxStaleAge:   cfg.CatalogMaxStaleAge,
 		Backoff:       cfg.CatalogBackoff,
 		ShutdownGrace: cfg.ShutdownTimeout,
+		OnCatalogSynced: func(ctx context.Context) error {
+			if tokenRegistry == nil {
+				return nil
+			}
+			if err := tokenRegistry.Refresh(ctx); err != nil {
+				return err
+			}
+			if rtRuntime != nil {
+				rtRuntime.SetRegistryReady(tokenRegistry.Ready())
+			}
+			return nil
+		},
 	})
 	if err != nil {
 		log.Error("catalog worker", "err", err)
@@ -110,19 +142,46 @@ func main() {
 		log.Warn("catalog bootstrap", "err", err)
 	}
 
-	metrics := markets.NewMetrics()
+	if cfg.RealtimeEnabled && tokenRegistry != nil {
+		committer, err := postgres.NewLiveSignalCommitter(pool, signalEngine, time.Minute, nil)
+		if err != nil {
+			log.Error("live signal committer", "err", err)
+			os.Exit(1)
+		}
+		rtRuntime, err = realtime.NewRuntime(realtime.RuntimeConfig{
+			Config:    cfg,
+			REST:      clobClient,
+			Registry:  tokenRegistry,
+			Validator: tokenRegistry,
+			Logger:    log,
+		})
+		if err != nil {
+			log.Error("realtime runtime", "err", err)
+			os.Exit(1)
+		}
+		rtRuntime.SetRegistryReady(tokenRegistry.Ready())
+		pipeline := realtime.NewSignalPipeline(realtime.SignalPipelineConfig{
+			Committer: committer,
+			Publisher: rtRuntime.Producer,
+			Logger:    log,
+		})
+		rtRuntime.Producer.AttachSignals(pipeline)
+		rtRuntime.Signals = pipeline
+	}
+
 	marketsSvc := markets.NewService(markets.ServiceConfig{
-		CatalogProjection:   projection,
-		CatalogWorker:       worker,
-		CatalogEnabled:      cfg.CatalogEnabled,
-		CatalogMaxStale:     cfg.CatalogMaxStaleAge,
-		MarketData:          clob.NewClient(cfg.CLOBAPIURL),
-		MarketProcessor:     marketdata.Processor{},
-		MarketDataEnabled:   cfg.MarketDataEnabled,
-		Signals:             signalStore,
-		SignalsOperational:  store.SignalsOperational(),
-		Metrics:             metrics,
-		BookMaxAge:          cfg.BookMaxAge,
+		CatalogProjection:  projection,
+		CatalogWorker:      worker,
+		CatalogEnabled:     cfg.CatalogEnabled,
+		CatalogMaxStale:    cfg.CatalogMaxStaleAge,
+		MarketData:         clobClient,
+		MarketProcessor:    marketdata.Processor{},
+		MarketDataEnabled:  cfg.MarketDataEnabled,
+		Signals:            signalStore,
+		SignalsOperational: store.SignalsOperational(),
+		RealtimeState:      rtRuntime,
+		Metrics:            metrics,
+		BookMaxAge:         cfg.BookMaxAge,
 	})
 
 	r := chi.NewRouter()
@@ -140,10 +199,13 @@ func main() {
 		Worker:                worker,
 		SignalsOperational:    store.SignalsOperational(),
 		MarketDataOperational: marketsSvc.MarketDataOperational(),
-		RealtimeState:         "disabled",
+		RealtimeState:         rtRuntime,
 		ServiceName:           "retropick-markets-api",
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
+	if rtRuntime != nil {
+		rtRuntime.Handler.RegisterRoutes(r)
+	}
 
 	workerCtx, workerCancel := context.WithCancel(ctx)
 	defer workerCancel()
@@ -152,6 +214,10 @@ func main() {
 			log.Error("catalog worker stopped", "err", err)
 		}
 	}()
+	if rtRuntime != nil {
+		rtRuntime.Start(workerCtx)
+		defer rtRuntime.Stop()
+	}
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: r}
 	go func() {

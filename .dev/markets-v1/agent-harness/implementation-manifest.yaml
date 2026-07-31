@@ -1,16 +1,19 @@
 product: retropick-markets
 version: v1
 mode: implementation_reconciled
-last_updated: 2026-07-30
-current_phase: PHASE-1
-phase_1_2_status: web_read_terminal_implementation
+last_updated: 2026-07-31
+current_phase: PHASE-1.3
+phase_1_3_status: runtime_closure_in_progress
 reconciliation:
-  date: 2026-07-30
+  date: 2026-07-31
   outcome: PASS_WITH_FOCUSED_ADR
   focused_adr: .dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md
   report: .dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md
-  assignment_slice: phase1_backend_read_only
+  assignment_slice: phase1_3_realtime_intelligence
   authorization: user_uploaded_implementation_assignment
+  phase_1_3_note: >-
+    Phase 1.3 is NOT complete. ADR-014 transactional observation-to-signal wiring,
+    catalog-backed token registry, and live signal pipeline remain open (P13C-001, P13C-002).
 phase_order:
   - id: PHASE-0
     name: Discovery and Spec Freeze
@@ -53,11 +56,42 @@ phase_order:
       - deterministic_fixtures_pass
       - freshness_and_degraded_states_verified
       - no_signing_or_fund_movement
+  - id: PHASE-1.3
+    name: Realtime Data and Deterministic Intelligence
+    status: runtime_closure_in_progress
+    spec: docs/architecture/markets-phase-1-3-realtime-intelligence.md
+    prerequisites: ['PHASE-1']
+    implementation_slice: realtime_intelligence
+    tasks:
+      - MKT-P13-000
+      - MKT-P13-001
+      - MKT-P13-002
+      - MKT-P13-003
+      - MKT-P13-004
+      - MKT-P13-005
+      - P13C-000
+      - P13C-001
+      - P13C-002
+      - P13C-003
+      - P13C-004
+      - P13C-005
+      - P13C-006
+      - P13C-007
+      - P13C-008
+    exit_gate:
+      - upstream_semantics_evidence_backed
+      - reconnect_resnapshot_proven
+      - no_upstream_sequence_fabricated
+      - slow_clients_cannot_block_ingestion
+      - capability_flags_reflect_runtime_truth
+      - frontend_never_connects_directly_to_polymarket
+      - signals_deterministic_and_idempotent
+      - ci_green
   - id: PHASE-2
     name: Account Wallet and Funding
     status: planned
     spec: .dev/markets-v1/phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md
-    prerequisites: ['PHASE-1']
+    prerequisites: ['PHASE-1.3']
     tasks:
       - MKT-P2-001
     exit_gate: []
@@ -116,6 +150,7 @@ products:
     package: "@retropick/markets-v1"
     phase1_implementation: true
     phase1_2_read_terminal: true
+    phase1_3_realtime_client: true
   backend:
     enabled: true
     path: apps/backend
@@ -152,3 +187,24 @@ unresolved_blockers:
   - id: BLK-002
     title: Android app scaffold beyond README
     phase: PHASE-5
+  - id: BLK-003
+    title: Catalog-backed token registry not wired to realtime runtime
+    phase: PHASE-1.3
+    task: P13C-001
+    note: markets-api uses in-memory TokenRegistryMap; CatalogTokenRegistry exists but is not bootstrapped
+  - id: BLK-004
+    title: Live signal pipeline — observation-to-signal transactional wiring missing
+    phase: PHASE-1.3
+    task: P13C-002
+    note: ADR-014 schema and sqlc queries exist; RealtimeSignalProducer not wired
+  - id: BLK-005
+    title: SEC-P13-001 exposed credential rotation pending owner
+    phase: PHASE-1.3
+    task: P13C-007
+    status: ROTATION_PENDING_OWNER
+    doc: .dev/markets-v1/security/SEC-P13-001-ROTATE-EXPOSED-CREDENTIAL.md
+  - id: BLK-006
+    title: Single-active-replica realtime ingestion — no leader election
+    phase: PHASE-1.3
+    task: P13C-006
+    note: Multiple markets-api replicas duplicate upstream WS subscriptions; documented limitation
