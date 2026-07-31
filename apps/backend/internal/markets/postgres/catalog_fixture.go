@@ -24,11 +24,12 @@ const (
 
 // CatalogTokenFixture seeds a minimal event → market → outcome → token mapping.
 type CatalogTokenFixture struct {
-	EventID  string
-	MarketID string
-	TokenID  string
-	OutcomeID string
-	EventStatus string
+	EventID      string
+	MarketID     string
+	ConditionID  string
+	TokenID      string
+	OutcomeID    string
+	EventStatus  string
 	MarketStatus string
 }
 
@@ -37,6 +38,7 @@ func DefaultCatalogTokenFixture(marketID, tokenID string) CatalogTokenFixture {
 	return CatalogTokenFixture{
 		EventID:      "evt-" + marketID,
 		MarketID:     marketID,
+		ConditionID:  "0xcondition-" + marketID,
 		TokenID:      tokenID,
 		OutcomeID:    "out-" + tokenID,
 		EventStatus:  CatalogEventStatusOpen,
@@ -54,15 +56,15 @@ ON CONFLICT (event_id) DO UPDATE SET status = EXCLUDED.status`, f.EventID, f.Eve
 		return err
 	}
 	_, err = pool.Exec(ctx, `
-INSERT INTO markets_catalog_markets (market_id, event_id, slug, question, status, source, content_hash, observed_at)
-VALUES ($1, $2, $1, 'q', $3, 'test', 'hash', NOW())
-ON CONFLICT (market_id) DO UPDATE SET status = EXCLUDED.status`, f.MarketID, f.EventID, f.MarketStatus)
+INSERT INTO markets_catalog_markets (market_id, event_id, condition_id, slug, question, status, source, content_hash, observed_at)
+VALUES ($1, $2, $3, $1, 'q', $4, 'test', 'hash', NOW())
+ON CONFLICT (market_id) DO UPDATE SET status = EXCLUDED.status`, f.MarketID, f.EventID, f.ConditionID, f.MarketStatus)
 	if err != nil {
 		return err
 	}
 	_, err = pool.Exec(ctx, `
-INSERT INTO markets_catalog_outcomes (outcome_id, market_id, label, upstream_token_id, source, content_hash, observed_at)
-VALUES ($1, $2, 'Yes', $3, 'test', 'hash', NOW())
+INSERT INTO markets_catalog_outcomes (outcome_id, market_id, upstream_token_id, outcome_index, name, observed_at)
+VALUES ($1, $2, $3, 0, 'Yes', NOW())
 ON CONFLICT (outcome_id) DO UPDATE SET upstream_token_id = EXCLUDED.upstream_token_id`,
 		f.OutcomeID, f.MarketID, f.TokenID)
 	return err
