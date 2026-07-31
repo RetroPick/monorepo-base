@@ -17,7 +17,7 @@ func TestSnapshotEnvelopeNeverInventsSequence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	envelope, err := session.SnapshotEnvelope()
+	envelope, err := session.SnapshotEnvelope(1, 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,8 +27,11 @@ func TestSnapshotEnvelopeNeverInventsSequence(t *testing.T) {
 	if envelope.Sequence != nil {
 		t.Fatalf("invented sequence %q", *envelope.Sequence)
 	}
-	if envelope.SnapshotHash != "hash-1" || envelope.Source != "polymarket" {
+	if envelope.SnapshotHash != "hash-1" || envelope.Source != "retropick" {
 		t.Fatalf("envelope %+v", envelope)
+	}
+	if envelope.StreamEpoch != 1 || envelope.DeliveryCounter != 1 {
+		t.Fatalf("transport %+v", envelope)
 	}
 }
 
@@ -46,7 +49,7 @@ func TestDeltaHashGapRequiresResnapshot(t *testing.T) {
 		Side:      marketdata.SideBid,
 		Price:     decimal(t, "0.4"),
 		Size:      decimal(t, "1"),
-	})
+	}, 1, 2)
 	if !errors.Is(err, ErrResnapshotRequired) {
 		t.Fatalf("error %v", err)
 	}
@@ -70,7 +73,7 @@ func TestDeltaEnvelopeAdvancesHashWithoutSequence(t *testing.T) {
 		Side:      marketdata.SideBid,
 		Price:     decimal(t, "0.4"),
 		Size:      decimal(t, "0"),
-	})
+	}, 1, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,9 +105,10 @@ func TestValidateEnvelopeRejectsUnknownVersionAndType(t *testing.T) {
 		SchemaVersion: "2",
 		EventID:       "event-1",
 		Type:          TypeOrderBookSnapshot,
-		Source:        "polymarket",
+		Source:        "retropick",
 		MarketID:      "market-1",
 		UpstreamID:    "token-yes",
+		TokenID:       "token-yes",
 		ObservedAt:    time.Now().UTC(),
 		PublishedAt:   time.Now().UTC(),
 		Payload:       map[string]any{},
@@ -123,16 +127,16 @@ func TestEnvelopeIDIsDeterministicForSameEvidence(t *testing.T) {
 	t.Parallel()
 
 	observed := time.Date(2026, 7, 30, 7, 0, 0, 0, time.UTC)
-	first, err := NewEnvelope(TypeMarketUpdated, "market-1", "upstream-1", "", observed, observed, map[string]any{"status": "closed"})
+	first, err := NewEnvelope(TypeMarketUpdated, "market-1", "upstream-1", "token-1", "", 1, 1, observed, observed, map[string]any{"status": "closed"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := NewEnvelope(TypeMarketUpdated, "market-1", "upstream-1", "", observed, observed.Add(time.Minute), map[string]any{"status": "closed"})
+	second, err := NewEnvelope(TypeMarketUpdated, "market-1", "upstream-1", "token-1", "", 1, 2, observed, observed.Add(time.Minute), map[string]any{"status": "closed"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.EventID != second.EventID {
-		t.Fatalf("event IDs differ %s %s", first.EventID, second.EventID)
+	if first.EventID == second.EventID {
+		t.Fatalf("event IDs should differ when delivery counter changes %s %s", first.EventID, second.EventID)
 	}
 }
 

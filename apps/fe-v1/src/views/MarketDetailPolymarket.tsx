@@ -18,6 +18,8 @@ import {
   useMarketsOrderBook,
   useMarketsPriceHistory,
 } from "@/features/markets/hooks/useMarketsQueries";
+import { useMarketsCapabilities } from "@/features/markets/hooks/useMarketsQueries";
+import { useMarketsRealtime } from "@/features/markets/hooks/useMarketsRealtime";
 import { isPolymarketResourceId } from "@/features/markets/adapters/eventToMarket";
 
 const INTERVALS: HistoryInterval[] = ["1h", "6h", "1d", "1w", "max"];
@@ -65,12 +67,22 @@ export default function MarketDetailPolymarket() {
 
   const tokenId = selectedTokenId || outcomes[0]?.upstreamId || "";
 
+  const capabilities = useMarketsCapabilities();
+  const realtimeEnabled = capabilities.data?.features?.realtime === true;
+
   const orderBookFetchEnabled =
     idValid &&
     Boolean(market.data) &&
     market.data?.capabilities.orderBook === true &&
     tokenId.length > 0;
-  const orderBookPollingEnabled = orderBookFetchEnabled && market.data?.status === "open";
+  const realtime = useMarketsRealtime({
+    marketId: decodedId,
+    tokenId,
+    enabled: orderBookFetchEnabled && market.data?.status === "open",
+    realtimeCapability: realtimeEnabled,
+  });
+  const orderBookPollingEnabled =
+    orderBookFetchEnabled && market.data?.status === "open" && realtime.pollingOnly;
 
   const orderBook = useMarketsOrderBook(
     decodedId,
@@ -78,6 +90,7 @@ export default function MarketDetailPolymarket() {
     orderBookFetchEnabled,
     orderBookPollingEnabled,
   );
+  const displaySnapshot = realtime.snapshot ?? orderBook.data;
   const [interval, setInterval] = useState<HistoryInterval>("1d");
   const history = useMarketsPriceHistory(idValid ? decodedId : "", tokenId, interval);
   const health = useMarketsHealth(idValid ? decodedId : "", tokenId);
@@ -213,13 +226,15 @@ export default function MarketDetailPolymarket() {
                 Order book {selectedOutcome ? `· ${selectedOutcome.name}` : ""}
               </h3>
               <p className="mb-2 text-xs text-muted-foreground">
-                {orderBookPollingEnabled
-                  ? "Snapshot polling — not realtime"
-                  : market.data.status === "open"
-                    ? "Order book unavailable"
-                    : "Final snapshot — polling disabled for closed markets"}
+                {realtimeEnabled
+                  ? realtime.label
+                  : orderBookPollingEnabled
+                    ? "Snapshot polling — not realtime"
+                    : market.data.status === "open"
+                      ? "Order book unavailable"
+                      : "Final snapshot — polling disabled for closed markets"}
               </p>
-              <OrderBookPanel snapshot={orderBook.data} isLoading={orderBook.isLoading} />
+              <OrderBookPanel snapshot={displaySnapshot} isLoading={orderBook.isLoading && !realtime.snapshot} />
               <DataStateBanner error={orderBook.error} onRetry={() => orderBook.refetch()} />
             </div>
 

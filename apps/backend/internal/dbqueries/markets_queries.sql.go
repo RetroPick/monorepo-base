@@ -1071,6 +1071,135 @@ func (q *Queries) UpsertMarketsLatestBook(ctx context.Context, arg UpsertMarkets
 	return i, err
 }
 
+const upsertMarketsLiquidityObservation = `-- name: UpsertMarketsLiquidityObservation :exec
+INSERT INTO markets_liquidity_observations (
+    market_id, token_id, bucket_start, bucket_end, total_depth,
+    bid_depth, ask_depth, spread, epsilon, snapshot_hash, rule_version, expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+)
+ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
+    total_depth = EXCLUDED.total_depth,
+    bid_depth = EXCLUDED.bid_depth,
+    ask_depth = EXCLUDED.ask_depth,
+    spread = EXCLUDED.spread,
+    epsilon = EXCLUDED.epsilon,
+    snapshot_hash = EXCLUDED.snapshot_hash,
+    rule_version = EXCLUDED.rule_version,
+    expires_at = EXCLUDED.expires_at
+`
+
+type UpsertMarketsLiquidityObservationParams struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	TotalDepth   string             `json:"total_depth"`
+	BidDepth     string             `json:"bid_depth"`
+	AskDepth     string             `json:"ask_depth"`
+	Spread       pgtype.Text        `json:"spread"`
+	Epsilon      float64            `json:"epsilon"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) UpsertMarketsLiquidityObservation(ctx context.Context, arg UpsertMarketsLiquidityObservationParams) error {
+	_, err := q.db.Exec(ctx, upsertMarketsLiquidityObservation,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketStart,
+		arg.BucketEnd,
+		arg.TotalDepth,
+		arg.BidDepth,
+		arg.AskDepth,
+		arg.Spread,
+		arg.Epsilon,
+		arg.SnapshotHash,
+		arg.RuleVersion,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const upsertMarketsPriceObservation = `-- name: UpsertMarketsPriceObservation :exec
+INSERT INTO markets_price_observations (
+    market_id, token_id, bucket_start, bucket_end, price,
+    best_bid, best_ask, spread, snapshot_hash, rule_version, expires_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+)
+ON CONFLICT (market_id, token_id, bucket_end) DO UPDATE SET
+    price = EXCLUDED.price,
+    best_bid = EXCLUDED.best_bid,
+    best_ask = EXCLUDED.best_ask,
+    spread = EXCLUDED.spread,
+    snapshot_hash = EXCLUDED.snapshot_hash,
+    rule_version = EXCLUDED.rule_version,
+    expires_at = EXCLUDED.expires_at
+`
+
+type UpsertMarketsPriceObservationParams struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	Price        string             `json:"price"`
+	BestBid      pgtype.Text        `json:"best_bid"`
+	BestAsk      pgtype.Text        `json:"best_ask"`
+	Spread       pgtype.Text        `json:"spread"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) UpsertMarketsPriceObservation(ctx context.Context, arg UpsertMarketsPriceObservationParams) error {
+	_, err := q.db.Exec(ctx, upsertMarketsPriceObservation,
+		arg.MarketID,
+		arg.TokenID,
+		arg.BucketStart,
+		arg.BucketEnd,
+		arg.Price,
+		arg.BestBid,
+		arg.BestAsk,
+		arg.Spread,
+		arg.SnapshotHash,
+		arg.RuleVersion,
+		arg.ExpiresAt,
+	)
+	return err
+}
+
+const upsertMarketsRealtimeRecovery = `-- name: UpsertMarketsRealtimeRecovery :exec
+INSERT INTO markets_realtime_recovery (
+    token_id, stream_epoch, last_snapshot_hash, last_validated_at, updated_at
+) VALUES (
+    $1, $2, $3, $4, NOW()
+)
+ON CONFLICT (token_id) DO UPDATE SET
+    stream_epoch = EXCLUDED.stream_epoch,
+    last_snapshot_hash = EXCLUDED.last_snapshot_hash,
+    last_validated_at = EXCLUDED.last_validated_at,
+    updated_at = NOW()
+`
+
+type UpsertMarketsRealtimeRecoveryParams struct {
+	TokenID          string             `json:"token_id"`
+	StreamEpoch      int64              `json:"stream_epoch"`
+	LastSnapshotHash string             `json:"last_snapshot_hash"`
+	LastValidatedAt  pgtype.Timestamptz `json:"last_validated_at"`
+}
+
+func (q *Queries) UpsertMarketsRealtimeRecovery(ctx context.Context, arg UpsertMarketsRealtimeRecoveryParams) error {
+	_, err := q.db.Exec(ctx, upsertMarketsRealtimeRecovery,
+		arg.TokenID,
+		arg.StreamEpoch,
+		arg.LastSnapshotHash,
+		arg.LastValidatedAt,
+	)
+	return err
+}
+
 const upsertMarketsSignal = `-- name: UpsertMarketsSignal :one
 INSERT INTO markets_market_signals (
     signal_id, signal_type, market_id, state, rule_version, reason_codes,

@@ -1,9 +1,9 @@
 product: retropick-markets
 version: v1
 mode: implementation_reconciled
-last_updated: 2026-07-30
-current_phase: PHASE-1
-phase_1_2_status: web_read_terminal_implementation
+last_updated: 2026-07-31
+current_phase: PHASE-1.3
+phase_1_3_status: realtime_intelligence_implementation
 reconciliation:
   date: 2026-07-30
   outcome: PASS_WITH_FOCUSED_ADR
@@ -53,6 +53,27 @@ phase_order:
       - deterministic_fixtures_pass
       - freshness_and_degraded_states_verified
       - no_signing_or_fund_movement
+  - id: PHASE-1.3
+    name: Realtime Data and Deterministic Intelligence
+    status: implementation_review
+    spec: docs/architecture/markets-phase-1-3-realtime-intelligence.md
+    prerequisites: ['PHASE-1']
+    tasks:
+      - MKT-P13-000
+      - MKT-P13-001
+      - MKT-P13-002
+      - MKT-P13-003
+      - MKT-P13-004
+      - MKT-P13-005
+    exit_gate:
+      - upstream_semantics_evidence_backed
+      - reconnect_resnapshot_proven
+      - no_upstream_sequence_fabricated
+      - slow_clients_cannot_block_ingestion
+      - capability_flags_reflect_runtime_truth
+      - frontend_never_connects_directly_to_polymarket
+      - signals_deterministic_and_idempotent
+      - ci_green
   - id: PHASE-2
     name: Account Wallet and Funding
     status: planned

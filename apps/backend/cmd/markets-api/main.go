@@ -23,6 +23,7 @@ import (
 	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/markets/postgres"
+	"retropick/apps/backend/internal/markets/realtime"
 	"retropick/apps/backend/internal/markets/signals"
 )
 
@@ -111,16 +112,38 @@ func main() {
 	}
 
 	metrics := markets.NewMetrics()
+	clobClient := clob.NewClient(cfg.CLOBAPIURL)
+	realtimeOperational := false
+	realtimeState := "disabled"
+	var rtRuntime *realtime.Runtime
+
+	if cfg.RealtimeEnabled {
+		registry := realtime.NewTokenRegistryMap()
+		rtRuntime, err = realtime.NewRuntime(realtime.RuntimeConfig{
+			Config:   cfg,
+			REST:     clobClient,
+			Registry: registry,
+			Logger:   log,
+		})
+		if err != nil {
+			log.Error("realtime runtime", "err", err)
+			os.Exit(1)
+		}
+		realtimeOperational = true
+		realtimeState = "ok"
+	}
+
 	marketsSvc := markets.NewService(markets.ServiceConfig{
 		CatalogProjection:   projection,
 		CatalogWorker:       worker,
 		CatalogEnabled:      cfg.CatalogEnabled,
 		CatalogMaxStale:     cfg.CatalogMaxStaleAge,
-		MarketData:          clob.NewClient(cfg.CLOBAPIURL),
+		MarketData:          clobClient,
 		MarketProcessor:     marketdata.Processor{},
 		MarketDataEnabled:   cfg.MarketDataEnabled,
 		Signals:             signalStore,
 		SignalsOperational:  store.SignalsOperational(),
+		RealtimeOperational: realtimeOperational,
 		Metrics:             metrics,
 		BookMaxAge:          cfg.BookMaxAge,
 	})
@@ -140,10 +163,13 @@ func main() {
 		Worker:                worker,
 		SignalsOperational:    store.SignalsOperational(),
 		MarketDataOperational: marketsSvc.MarketDataOperational(),
-		RealtimeState:         "disabled",
+		RealtimeState:         realtimeState,
 		ServiceName:           "retropick-markets-api",
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
+	if rtRuntime != nil {
+		rtRuntime.Handler.RegisterRoutes(r)
+	}
 
 	workerCtx, workerCancel := context.WithCancel(ctx)
 	defer workerCancel()
@@ -152,6 +178,10 @@ func main() {
 			log.Error("catalog worker stopped", "err", err)
 		}
 	}()
+	if rtRuntime != nil {
+		rtRuntime.Start(workerCtx)
+		defer rtRuntime.Stop()
+	}
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: r}
 	go func() {

@@ -93,6 +93,7 @@ type ServiceConfig struct {
 	MarketDataEnabled bool
 	Signals              SignalReader
 	SignalsOperational   bool
+	RealtimeOperational  bool
 	Metrics              *Metrics
 	BookMaxAge        time.Duration
 	Now               func() time.Time
@@ -135,6 +136,7 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 		source = "stub"
 	}
 	marketDataEnabled := s.MarketDataOperational()
+	realtimeEnabled := s.cfg.RealtimeOperational
 	intelligenceEnabled := s.cfg.SignalsOperational && s.cfg.Signals != nil
 	return CapabilitiesResponse{
 		Version: APIVersion,
@@ -148,7 +150,7 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 			"orderbook_read": marketDataEnabled,
 			"price_history":  marketDataEnabled,
 			"market_health":  marketDataEnabled,
-			"realtime":       false,
+			"realtime":       realtimeEnabled,
 			"signals":        intelligenceEnabled,
 			"order_submit":   false,
 		},

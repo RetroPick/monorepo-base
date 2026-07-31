@@ -416,6 +416,22 @@ type MarketsCatalogRule struct {
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 }
 
+type MarketsLiquidityObservation struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	TotalDepth   string             `json:"total_depth"`
+	BidDepth     string             `json:"bid_depth"`
+	AskDepth     string             `json:"ask_depth"`
+	Spread       pgtype.Text        `json:"spread"`
+	Epsilon      float64            `json:"epsilon"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
 type MarketsMarketDataHistory struct {
 	TokenID    string             `json:"token_id"`
 	MarketID   string             `json:"market_id"`
@@ -463,6 +479,21 @@ type MarketsMarketSignal struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type MarketsPriceObservation struct {
+	MarketID     string             `json:"market_id"`
+	TokenID      string             `json:"token_id"`
+	BucketStart  pgtype.Timestamptz `json:"bucket_start"`
+	BucketEnd    pgtype.Timestamptz `json:"bucket_end"`
+	Price        string             `json:"price"`
+	BestBid      pgtype.Text        `json:"best_bid"`
+	BestAsk      pgtype.Text        `json:"best_ask"`
+	Spread       pgtype.Text        `json:"spread"`
+	SnapshotHash string             `json:"snapshot_hash"`
+	RuleVersion  string             `json:"rule_version"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+}
+
 type MarketsRawUpstreamEvent struct {
 	ID              int64              `json:"id"`
 	Source          string             `json:"source"`
@@ -474,6 +505,14 @@ type MarketsRawUpstreamEvent struct {
 	ObservedAt      pgtype.Timestamptz `json:"observed_at"`
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type MarketsRealtimeRecovery struct {
+	TokenID          string             `json:"token_id"`
+	StreamEpoch      int64              `json:"stream_epoch"`
+	LastSnapshotHash string             `json:"last_snapshot_hash"`
+	LastValidatedAt  pgtype.Timestamptz `json:"last_validated_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
 type MarketsSignalEvidence struct {

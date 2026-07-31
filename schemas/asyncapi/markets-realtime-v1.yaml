@@ -1,0 +1,197 @@
+asyncapi: 3.0.0
+info:
+  title: RetroPick Markets Realtime V1
+  version: 1.0.0
+  description: Public BFF WebSocket contract for Markets V1 Phase 1.3 realtime data.
+defaultContentType: application/json
+servers:
+  production:
+    host: api.retropick.local
+    pathname: /api/v1/markets/realtime
+    protocol: wss
+channels:
+  realtime:
+    address: /api/v1/markets/realtime
+    messages:
+      hello:
+        $ref: '#/components/messages/Hello'
+      subscribed:
+        $ref: '#/components/messages/Subscribed'
+      unsubscribed:
+        $ref: '#/components/messages/Unsubscribed'
+      orderbookSnapshot:
+        $ref: '#/components/messages/OrderbookSnapshot'
+      orderbookDelta:
+        $ref: '#/components/messages/OrderbookDelta'
+      tradeExecuted:
+        $ref: '#/components/messages/TradeExecuted'
+      tickSizeChanged:
+        $ref: '#/components/messages/TickSizeChanged'
+      signalCreated:
+        $ref: '#/components/messages/SignalCreated'
+      signalRetracted:
+        $ref: '#/components/messages/SignalRetracted'
+      resyncRequired:
+        $ref: '#/components/messages/ResyncRequired'
+      error:
+        $ref: '#/components/messages/Error'
+    bindings:
+      ws:
+        method: GET
+operations:
+  subscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/realtime'
+    messages:
+      - $ref: '#/components/messages/SubscribeCommand'
+  unsubscribe:
+    action: receive
+    channel:
+      $ref: '#/channels/realtime'
+    messages:
+      - $ref: '#/components/messages/UnsubscribeCommand'
+components:
+  messages:
+    SubscribeCommand:
+      name: subscribe
+      payload:
+        $ref: '#/components/schemas/SubscribeCommand'
+    UnsubscribeCommand:
+      name: unsubscribe
+      payload:
+        $ref: '#/components/schemas/UnsubscribeCommand'
+    Hello:
+      name: hello
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    Subscribed:
+      name: subscribed
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    Unsubscribed:
+      name: unsubscribed
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    OrderbookSnapshot:
+      name: orderbook.snapshot
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    OrderbookDelta:
+      name: orderbook.delta
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    TradeExecuted:
+      name: trade.executed
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    TickSizeChanged:
+      name: market.tick_size_changed
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    SignalCreated:
+      name: signal.created
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    SignalRetracted:
+      name: signal.retracted
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    ResyncRequired:
+      name: resync.required
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+    Error:
+      name: error
+      payload:
+        $ref: '#/components/schemas/RealtimeEnvelope'
+  schemas:
+    SubscribeCommand:
+      type: object
+      required: [command, marketId, tokenId]
+      properties:
+        command:
+          type: string
+          const: subscribe
+        marketId:
+          type: string
+        tokenId:
+          type: string
+    UnsubscribeCommand:
+      type: object
+      required: [command, marketId, tokenId]
+      properties:
+        command:
+          type: string
+          const: unsubscribe
+        marketId:
+          type: string
+        tokenId:
+          type: string
+    RealtimeEnvelope:
+      type: object
+      required:
+        - schemaVersion
+        - eventId
+        - eventType
+        - source
+        - marketId
+        - upstreamId
+        - tokenId
+        - sequence
+        - streamEpoch
+        - deliveryCounter
+        - observedAt
+        - publishedAt
+        - payload
+      properties:
+        schemaVersion:
+          type: string
+          const: "1"
+        eventId:
+          type: string
+        eventType:
+          type: string
+          enum:
+            - hello
+            - subscribed
+            - unsubscribed
+            - orderbook.snapshot
+            - orderbook.delta
+            - trade.executed
+            - market.tick_size_changed
+            - market.updated
+            - signal.created
+            - signal.retracted
+            - resync.required
+            - error
+        source:
+          type: string
+          const: retropick
+        marketId:
+          type: string
+        upstreamId:
+          type: string
+        tokenId:
+          type: string
+        snapshotHash:
+          type: string
+        sequence:
+          type: "null"
+          description: Always null — Polymarket does not document authoritative sequence.
+        streamEpoch:
+          type: integer
+          minimum: 0
+          description: RetroPick transport epoch; increments on reconnect/resnapshot.
+        deliveryCounter:
+          type: integer
+          minimum: 0
+          description: Monotonic within streamEpoch only.
+        observedAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
+        payload:
+          type: object

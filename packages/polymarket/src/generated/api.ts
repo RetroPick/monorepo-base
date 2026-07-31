@@ -376,14 +376,19 @@ export interface components {
             schemaVersion: components["schemas"]["SchemaVersion"];
             eventId: string;
             /** @enum {string} */
-            type: "orderbook.snapshot" | "orderbook.delta" | "market.updated" | "signal.created" | "signal.retracted";
+            eventType: "hello" | "subscribed" | "unsubscribed" | "orderbook.snapshot" | "orderbook.delta" | "trade.executed" | "market.tick_size_changed" | "market.updated" | "signal.created" | "signal.retracted" | "resync.required" | "error";
             /** @constant */
-            source: "polymarket";
+            source: "retropick";
             marketId: string;
             upstreamId: string;
-            /** @description Null until an authoritative upstream sequence is documented. */
-            sequence: string | null;
+            tokenId: string;
+            /** @description Always null — Polymarket does not document authoritative sequence. */
+            sequence: null;
             snapshotHash?: string;
+            /** @description RetroPick transport epoch; increments on reconnect/resnapshot. */
+            streamEpoch: number;
+            /** @description Monotonic within streamEpoch only. */
+            deliveryCounter: number;
             /** Format: date-time */
             observedAt: string;
             /** Format: date-time */

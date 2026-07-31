@@ -40,6 +40,10 @@ type Config struct {
 	ShutdownTimeout       time.Duration
 	SignalsEnabled        bool
 	RealtimeEnabled       bool
+	RealtimeWSURL         string
+	RealtimeMaxAssets     int
+	RealtimeMaxPerConn    int
+	RealtimeAllowedOrigins []string
 	DBMaxConns            int32
 	DBMinConns            int32
 }
@@ -105,6 +109,10 @@ func Load() (Config, error) {
 		ShutdownTimeout:       shutdown,
 		SignalsEnabled:        envDefault("MARKETS_SIGNALS_ENABLED", "1") != "0",
 		RealtimeEnabled:       envDefault("MARKETS_REALTIME_ENABLED", "0") == "1",
+		RealtimeWSURL:         envDefault("MARKETS_REALTIME_WS_URL", "wss://ws-subscriptions-clob.polymarket.com/ws/market"),
+		RealtimeMaxAssets:     200,
+		RealtimeMaxPerConn:    50,
+		RealtimeAllowedOrigins: parseCSV(envDefault("MARKETS_REALTIME_ALLOWED_ORIGINS", "")),
 		DBMaxConns:            8,
 		DBMinConns:            1,
 	}
@@ -146,10 +154,36 @@ func Load() (Config, error) {
 	if cfg.HTTPPort < 1 || cfg.HTTPPort > 65535 {
 		return Config{}, fmt.Errorf("MARKETS_HTTP_PORT must be between 1 and 65535")
 	}
-	if cfg.RealtimeEnabled {
-		return Config{}, fmt.Errorf("MARKETS_REALTIME_ENABLED is not supported in phase 1.1")
+	if cfg.RealtimeEnabled && cfg.RealtimeWSURL == "" {
+		return Config{}, fmt.Errorf("MARKETS_REALTIME_WS_URL is required when realtime enabled")
+	}
+	if maxAssets, err := parseEnvInt("MARKETS_REALTIME_MAX_ASSETS", 200); err != nil {
+		return Config{}, err
+	} else {
+		cfg.RealtimeMaxAssets = maxAssets
+	}
+	if maxPerConn, err := parseEnvInt("MARKETS_REALTIME_MAX_PER_CONN", 50); err != nil {
+		return Config{}, err
+	} else {
+		cfg.RealtimeMaxPerConn = maxPerConn
 	}
 	return cfg, nil
+}
+
+func parseCSV(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func envDefault(key, fallback string) string {

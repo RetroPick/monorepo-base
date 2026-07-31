@@ -675,27 +675,37 @@ components:
     RealtimeEnvelope:
       type: object
       additionalProperties: false
-      required: [schemaVersion, eventId, type, source, marketId, upstreamId, sequence, observedAt, publishedAt, payload]
+      required: [schemaVersion, eventId, eventType, source, marketId, upstreamId, tokenId, sequence, streamEpoch, deliveryCounter, observedAt, publishedAt, payload]
       properties:
         schemaVersion:
           $ref: "#/components/schemas/SchemaVersion"
         eventId:
           type: string
-        type:
+        eventType:
           type: string
-          enum: [orderbook.snapshot, orderbook.delta, market.updated, signal.created, signal.retracted]
+          enum: [hello, subscribed, unsubscribed, orderbook.snapshot, orderbook.delta, trade.executed, market.tick_size_changed, market.updated, signal.created, signal.retracted, resync.required, error]
         source:
           type: string
-          const: polymarket
+          const: retropick
         marketId:
           type: string
         upstreamId:
           type: string
+        tokenId:
+          type: string
         sequence:
-          type: [string, "null"]
-          description: Null until an authoritative upstream sequence is documented.
+          type: "null"
+          description: Always null — Polymarket does not document authoritative sequence.
         snapshotHash:
           type: string
+        streamEpoch:
+          type: integer
+          minimum: 0
+          description: RetroPick transport epoch; increments on reconnect/resnapshot.
+        deliveryCounter:
+          type: integer
+          minimum: 0
+          description: Monotonic within streamEpoch only.
         observedAt:
           type: string
           format: date-time

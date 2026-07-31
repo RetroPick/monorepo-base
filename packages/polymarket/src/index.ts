@@ -25,4 +25,18 @@ export type { MarketsApiErrorBody, MarketsErrorCode } from "./errors";
 
 export { EtagCache } from "./etag-cache";
 
+export {
+  MarketsRealtimeClient,
+  createMarketsRealtimeClient,
+  realtimeStateLabel,
+} from "./realtime";
+export type {
+  MarketsRealtimeClientConfig,
+  RealtimeConnectionState,
+  RealtimeEnvelope,
+  RealtimeEventType,
+  RealtimeMessageHandler,
+  RealtimeStateHandler,
+} from "./realtime";
+
 export type { components } from "./generated/api";
