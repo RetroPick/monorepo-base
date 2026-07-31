@@ -57,21 +57,31 @@ func (c *LiveSignalCommitter) CommitPriceBucket(ctx context.Context, bucket sign
 		MarketID:  bucket.MarketID,
 		TokenID:   bucket.TokenID,
 		BucketEnd: requiredTimestamptz(bucket.BucketStart.Add(-c.priceCfg.ReferenceWindow)),
-		Limit:     int32(c.priceCfg.MinObservations + 1),
+		Limit:     int32(c.priceCfg.MinObservations + 2),
 	})
 	if err != nil {
 		return nil, err
 	}
-	if len(refRows) < c.priceCfg.MinObservations {
+	priorRows := priorPriceRows(refRows, bucket.BucketEnd)
+	if len(priorRows) < c.priceCfg.MinObservations {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
-	reference := priceRowToBucket(refRows[0])
+	reference := priceRowToBucket(priorRows[0])
 	deltaPP, err := signals.DeltaProbabilityPoints(bucket.Price, reference.Price)
 	if err != nil {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	emit, direction := signals.EvaluatePriceMove(deltaPP, c.priceCfg, "")
 	if !emit {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	threshold := markets.DecimalString(c.priceCfg.ThresholdOnMicroPP.CanonicalString())
@@ -117,21 +127,31 @@ func (c *LiveSignalCommitter) CommitLiquidityBucket(ctx context.Context, bucket 
 		MarketID:  bucket.MarketID,
 		TokenID:   bucket.TokenID,
 		BucketEnd: requiredTimestamptz(bucket.BucketStart.Add(-c.liqCfg.ReferenceWindow)),
-		Limit:     int32(c.liqCfg.MinObservations + 1),
+		Limit:     int32(c.liqCfg.MinObservations + 2),
 	})
 	if err != nil {
 		return nil, err
 	}
-	if len(refRows) < c.liqCfg.MinObservations {
+	priorRows := priorLiquidityRows(refRows, bucket.BucketEnd)
+	if len(priorRows) < c.liqCfg.MinObservations {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
-	reference := liquidityRowToBucket(refRows[0])
+	reference := liquidityRowToBucket(priorRows[0])
 	change, err := signals.RelativeDepthChange(bucket.TotalDepth, reference.TotalDepth, c.liqCfg.DepthFloorMicro)
 	if err != nil {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	emit, direction := signals.EvaluateLiquidityChange(change, c.liqCfg, "")
 	if !emit {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
 		return nil, nil
 	}
 	threshold := markets.DecimalString(c.liqCfg.ThresholdOnMicro.CanonicalString())
@@ -274,6 +294,28 @@ func priceRowToBucket(row dbqueries.ListMarketsPriceObservationsRow) signals.Pri
 		bucket.Spread = &v
 	}
 	return bucket
+}
+
+func priorPriceRows(rows []dbqueries.ListMarketsPriceObservationsRow, currentEnd time.Time) []dbqueries.ListMarketsPriceObservationsRow {
+	out := make([]dbqueries.ListMarketsPriceObservationsRow, 0, len(rows))
+	for _, row := range rows {
+		if timestamptzValue(row.BucketEnd).Equal(currentEnd) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func priorLiquidityRows(rows []dbqueries.ListMarketsLiquidityObservationsRow, currentEnd time.Time) []dbqueries.ListMarketsLiquidityObservationsRow {
+	out := make([]dbqueries.ListMarketsLiquidityObservationsRow, 0, len(rows))
+	for _, row := range rows {
+		if timestamptzValue(row.BucketEnd).Equal(currentEnd) {
+			continue
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 func liquidityRowToBucket(row dbqueries.ListMarketsLiquidityObservationsRow) signals.LiquidityBucket {

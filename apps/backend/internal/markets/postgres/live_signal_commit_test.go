@@ -18,15 +18,18 @@ func TestLiveSignalCommitRollbackOnEvidenceFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	marketID := "live-signal-market"
+	tokenID := "live-signal-token"
+	seedCatalogTokenMapping(t, pool, marketID, tokenID)
+	committer.TestHook = nil
+	seedPriceBucket(t, committer, marketID, tokenID, now.Add(-3*time.Minute), now.Add(-2*time.Minute), "0.40")
+	seedPriceBucket(t, committer, marketID, tokenID, now.Add(-2*time.Minute), now.Add(-time.Minute), "0.42")
 	committer.TestHook = func(_ context.Context, phase string) error {
 		if phase == "before_evidence" {
 			return errors.New("injected failure")
 		}
 		return nil
 	}
-	marketID := "live-signal-market"
-	tokenID := "live-signal-token"
-	seedCatalogTokenMapping(t, pool, marketID, tokenID)
 	bucket := signals.PriceBucket{
 		MarketID:     marketID,
 		TokenID:      tokenID,
@@ -87,5 +90,36 @@ func TestLiveSignalCommitPersistsObservationOnlyWhenNoSignal(t *testing.T) {
 	}
 	if len(rows) != 1 {
 		t.Fatalf("expected one observation row, got %d", len(rows))
+	}
+}
+
+func seedPriceBucket(t *testing.T, committer *LiveSignalCommitter, marketID, tokenID string, start, end time.Time, price string) {
+	t.Helper()
+	p := markets.DecimalString(price)
+	bid := markets.DecimalString("0.40")
+	ask := markets.DecimalString("0.42")
+	if price == "0.40" {
+		bid = markets.DecimalString("0.39")
+		ask = markets.DecimalString("0.41")
+	} else if price == "0.42" {
+		bid = markets.DecimalString("0.41")
+		ask = markets.DecimalString("0.43")
+	} else if price == "0.55" {
+		bid = markets.DecimalString("0.54")
+		ask = markets.DecimalString("0.56")
+	}
+	bucket := signals.PriceBucket{
+		MarketID:     marketID,
+		TokenID:      tokenID,
+		BucketStart:  start,
+		BucketEnd:    end,
+		Price:        p,
+		BestBid:      &bid,
+		BestAsk:      &ask,
+		SnapshotHash: "hash-" + price,
+		RuleVersion:  signals.RuleVersionP13,
+	}
+	if _, err := committer.CommitPriceBucket(context.Background(), bucket); err != nil {
+		t.Fatalf("seed bucket %s: %v", price, err)
 	}
 }
