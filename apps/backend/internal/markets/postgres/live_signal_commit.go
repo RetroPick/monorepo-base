@@ -84,7 +84,10 @@ func (c *LiveSignalCommitter) CommitPriceBucket(ctx context.Context, bucket sign
 		}
 		return nil, nil
 	}
-	threshold := markets.DecimalString(c.priceCfg.ThresholdOnMicroPP.CanonicalString())
+	threshold, err := c.priceCfg.ThresholdOnMicroPP.ProbabilityDeltaDecimal()
+	if err != nil {
+		return nil, err
+	}
 	observation, err := signals.BuildPriceMoveObservation(bucket, reference, threshold, deltaPP, direction)
 	if err != nil {
 		return nil, err

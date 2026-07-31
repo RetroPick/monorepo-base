@@ -67,6 +67,13 @@ func compareMicroPP(delta, threshold MicroProbabilityPoints) int {
 	return 0
 }
 
+// ProbabilityDeltaDecimal converts micro-PP threshold to absolute probability delta for engine evaluation.
+func (m MicroProbabilityPoints) ProbabilityDeltaDecimal() (markets.DecimalString, error) {
+	rat := new(big.Rat).SetInt64(int64(m))
+	rat.Quo(rat, big.NewRat(100*microPPScale, 1))
+	return markets.ParseDecimalString(strings.TrimRight(strings.TrimRight(rat.FloatString(6), "0"), "."))
+}
+
 // MicroDecimal stores a deterministic decimal scalar at 1e-6 resolution.
 type MicroDecimal int64
 
