@@ -25,8 +25,8 @@ case "$MODE" in
   core)
     TARGETS=(
       "apps/backend"
-      "apps/web/src"
-      "apps/web/app"
+      "apps/fe-v1/src"
+      "apps/fe-v1/app"
       "apps/ops-web/src"
       "apps/docs/app"
       "apps/docs/components"
@@ -41,8 +41,8 @@ case "$MODE" in
     ;;
   frontend)
     TARGETS=(
-      "apps/web/src"
-      "apps/web/app"
+      "apps/fe-v1/src"
+      "apps/fe-v1/app"
       "apps/ops-web/src"
       "apps/docs/app"
       "apps/docs/components"
@@ -89,8 +89,8 @@ case "$MODE" in
       "ORCHESTRATOR.md"
       "HARNESS.md"
       "apps/backend"
-      "apps/web/src"
-      "apps/web/app"
+      "apps/fe-v1/src"
+      "apps/fe-v1/app"
       "apps/ops-web/src"
       "apps/docs/app"
       "apps/docs/components"

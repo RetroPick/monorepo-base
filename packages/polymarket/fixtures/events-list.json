@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1",
+  "events": [
+    {
+      "schemaVersion": "1",
+      "id": "polymarket:event:fixture-1",
+      "upstreamId": "12345",
+      "slug": "fixture-event",
+      "title": "Fixture Presidential Election",
+      "status": "open",
+      "startAt": null,
+      "endAt": "2026-12-31T23:59:59.000Z",
+      "marketCount": 1,
+      "freshness": {
+        "state": "fresh",
+        "observedAt": "2026-07-30T12:00:00.000Z",
+        "ageMillis": 1000
+      },
+      "provenance": {
+        "source": "retropick_projection",
+        "observedAt": "2026-07-30T12:00:00.000Z"
+      }
+    }
+  ],
+  "cursor": null,
+  "page": { "nextCursor": null, "limit": 50 },
+  "source": "retropick_projection",
+  "checkedAt": "2026-07-30T12:00:00.000Z",
+  "freshness": {
+    "state": "fresh",
+    "observedAt": "2026-07-30T12:00:00.000Z",
+    "ageMillis": 1000
+  },
+  "provenance": {
+    "source": "retropick_projection",
+    "observedAt": "2026-07-30T12:00:00.000Z"
+  }
+}

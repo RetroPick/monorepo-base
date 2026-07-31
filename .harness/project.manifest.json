@@ -37,7 +37,7 @@
     ]
   },
   "commands": {
-    "dev": "NEXT_PUBLIC_PRODUCT=markets pnpm dev:web",
+    "dev": "NEXT_PUBLIC_PRODUCT=markets pnpm dev:fe-v1",
     "typecheck": "pnpm -r exec tsc --noEmit 2>/dev/null || pnpm build",
     "lint": "pnpm lint",
     "test": "pnpm test",

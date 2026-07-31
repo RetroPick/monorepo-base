@@ -26,6 +26,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: bash scripts/check-markets-openapi-drift.sh
       - run: pnpm build
       - run: go -C apps/backend build ./...
       - run: go -C apps/backend test ./internal/markets -run 'TestMarketsOpenAPIContainsPhaseOneReadContract|TestOpenAPIRuntimeConformancePhaseOne' -count=1
