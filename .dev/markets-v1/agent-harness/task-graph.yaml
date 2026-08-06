@@ -1024,7 +1024,7 @@ tasks:
     phase: "PHASE-1.3"
     title: "Catalog-backed token registry wiring"
     goal: "Replace in-memory TokenRegistryMap with CatalogTokenRegistry bootstrapped from catalog projection."
-    status: "pending"
+    status: "done"
     depends_on:
       - "P13C-000"
       - "MKT-P13-005"
@@ -1055,7 +1055,11 @@ tasks:
     acceptance_criteria:
       - "main.go no longer uses empty TokenRegistryMap for production path"
       - "BLK-003 resolved"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/P13C-001-VERIFICATION-EVIDENCE.md"
+      - "apps/backend/internal/markets/postgres/catalog_registry_test.go"
+      - "apps/backend/internal/markets/realtime/handler_registry_test.go"
+      - "CatalogToken: 14 PASS / 0 SKIP (PostgreSQL 16.14 local, 2026-08-06)"
     rollback: "Revert to TokenRegistryMap; RealtimeEnabled=false."
     human_approval_required: false
     handoff_to:

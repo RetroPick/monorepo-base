@@ -5,7 +5,7 @@
 - **Authoritative baseline:** PR #9 merge `54ae0f9fd98ada0c2ec646deea65b973fce885ca` on `origin/main`
 - **Phase:** 1.3 — Realtime data and deterministic intelligence (runtime closure)
 - **Status:** `runtime_closure_in_progress` — **NOT complete**
-- **Last reconciliation:** P13C-000 accepted 2026-08-06 (pending independent review before P13C-001)
+- **Last reconciliation:** P13C-001 accepted 2026-08-06; Phase 1.3 runtime closure still in progress
 
 ## Phase lineage
 
@@ -38,7 +38,7 @@
 | ID | Blocker |
 |----|---------|
 | P13C-000 | **accepted** — Go/TS/drift evidence recorded; independent review pending |
-| P13C-001 | PR #9 code landed; validation pending |
+| P13C-001 | **done** — catalog registry fail-closed validation (evidence: P13C-001-VERIFICATION-EVIDENCE.md) |
 | P13C-002 | PR #9 code landed; ADR-014 closure pending |
 | P13C-003 | Local Go verification blocked |
 | P13C-004 | — |
@@ -56,7 +56,7 @@
 
 ## Blockers
 
-- BLK-003/004 manifest notes **stale** after PR #9 — validate under P13C-001/002
+- BLK-003 **resolved** (P13C-001); BLK-004 remains open under P13C-002
 - BLK-005: `ROTATION_PENDING_OWNER` — production blocked
 - BLK-006: single-replica limitation
 
@@ -83,4 +83,4 @@ bash scripts/check-markets-realtime-asyncapi-drift.sh    # PASS
 ## Next action
 
 1. Independent human review of P13C-000 evidence.
-2. Then begin P13C-001 validation (do not treat PR #9 merge as proof of closure).
+2. P13C-001 closed; next gated slice is P13C-002 (do not begin without explicit gate).

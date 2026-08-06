@@ -188,10 +188,13 @@ unresolved_blockers:
     title: Android app scaffold beyond README
     phase: PHASE-5
   - id: BLK-003
-    title: Catalog-backed token registry not wired to realtime runtime
+    title: Catalog-backed token registry fail-closed validation
     phase: PHASE-1.3
     task: P13C-001
-    note: markets-api uses in-memory TokenRegistryMap; CatalogTokenRegistry exists but is not bootstrapped
+    status: resolved
+    resolved_at: "2026-08-06"
+    evidence: .dev/markets-v1/agent-harness/P13C-001-VERIFICATION-EVIDENCE.md
+    note: CatalogTokenRegistry bootstrapped/refreshed in markets-api; snapshot-only ValidateToken and validation_unavailable vs invalid_token taxonomy landed in P13C-001
   - id: BLK-004
     title: Live signal pipeline — observation-to-signal transactional wiring missing
     phase: PHASE-1.3
