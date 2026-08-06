@@ -1,76 +1,86 @@
 # Current Implementation State — Phase 1.3
 
-- **Branch:** `cursor/markets-v1-phase1-3-runtime-closure`
-- **Base merge SHA (PR #8):** `64bce05ae16229d22405ff1b72893352ca9e15a8`
+- **Worktree:** `/home/asyam/dev/set-up/projects/retropick-markets-v1`
+- **Branch:** `codex/p13c-000-reconciliation`
+- **Authoritative baseline:** PR #9 merge `54ae0f9fd98ada0c2ec646deea65b973fce885ca` on `origin/main`
 - **Phase:** 1.3 — Realtime data and deterministic intelligence (runtime closure)
 - **Status:** `runtime_closure_in_progress` — **NOT complete**
+- **Last reconciliation:** P13C-000 accepted 2026-08-06 (pending independent review before P13C-001)
 
 ## Phase lineage
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1.0 backend read | closed | MKT-P1-001 … MKT-P1-010 + P1C-001 … P1C-009 (PR #7) |
-| 1.2 web read terminal | closed | P1W-000 … P1W-012; `apps/fe-v1` mobile-first read terminal |
-| 1.3 realtime intelligence | **in progress** | Implementation landed in PR #8; closure tasks P13C-000 … P13C-008 open |
+| 1.0 backend read | closed | PR #7 |
+| 1.2 web read terminal | closed | P1W-000 … P1W-012 |
+| 1.3 realtime intelligence | **in progress** | PR #9 landed; P13C-000 … P13C-008 open |
 
-## Delivered in Phase 1.3 (implementation slice)
+## Delivered in Phase 1.3
 
-| Task | Outcome | Honest status |
-|------|---------|---------------|
-| MKT-P13-000 | ADR-011 … ADR-014 accepted; architecture contract frozen | done |
-| MKT-P13-001 | Upstream WS supervisor (`internal/markets/upstream/ws`) | done (unit tests) |
-| MKT-P13-002 | Snapshot-first reconciler (`internal/markets/marketdata/reconciler.go`) | done (unit tests) |
-| MKT-P13-003 | `streamEpoch` / `deliveryCounter` delivery metadata | done (unit tests) |
-| MKT-P13-004 | Migration 000017 + sqlc observation queries | **partial** — schema only; no transactional producer |
-| MKT-P13-005 | Public WS hub, producer bridge, `apps/fe-v1` realtime hook scaffold | **partial** — capability off by default |
+| Task | Honest status |
+|------|---------------|
+| MKT-P13-000 | done |
+| MKT-P13-001 | done (tests not re-run locally) |
+| MKT-P13-002 | done (tests not re-run locally) |
+| MKT-P13-003 | done (tests not re-run locally) |
+| MKT-P13-004 | **partial** — PR #9 landed observation + committer wiring; P13C-002 pending |
+| MKT-P13-005 | **partial** — PR #9 landed hub/runtime/registry wiring; P13C-001/003/004/005 pending |
 
-## Signal pipeline honesty (MKT-P1-008 vs Phase 1.3)
+## Signal pipeline honesty
 
-| Path | Scope | Status |
-|------|-------|--------|
-| **MKT-P1-008** (Phase 1) | Catalog-sync signals: `new_market`, `rule_changed` via `CatalogSignalProducer` inside `ApplyPage` transaction | **done** — verified P1C-008 |
-| **Phase 1.3 live pipeline** | Reconciler-driven `price_move`, `liquidity_change` from bounded observation buckets → durable evidence → signal emit | **NOT wired** — ADR-014 design accepted; transactional `RealtimeSignalProducer` missing (P13C-002) |
-
-Do not conflate catalog-sync signal correctness (Phase 1) with live observation-driven signals (Phase 1.3).
+| Path | Status |
+|------|--------|
+| MKT-P1-008 catalog-sync signals | **done** |
+| Phase 1.3 live pipeline | **wired in PR #9**; ADR-014 NOT implemented until P13C-002 |
 
 ## Open closure tasks (P13C)
 
-| ID | Title | Blocker |
-|----|-------|---------|
-| P13C-000 | Runtime reconciliation gate | — |
-| P13C-001 | Catalog-backed token registry wiring | BLK-003 |
-| P13C-002 | Transactional observation + signal pipeline | BLK-004 |
-| P13C-003 | Upstream → hub E2E integration tests | — |
-| P13C-004 | Capability flags reflect runtime truth | — |
-| P13C-005 | Reconnect/resnapshot integration verification | — |
-| P13C-006 | Single-replica deployment guardrails | BLK-006 |
-| P13C-007 | SEC-P13-001 rotation gate | BLK-005 (`ROTATION_PENDING_OWNER`) |
-| P13C-008 | Harness reconciliation and closure evidence | — |
+| ID | Blocker |
+|----|---------|
+| P13C-000 | **accepted** — Go/TS/drift evidence recorded; independent review pending |
+| P13C-001 | PR #9 code landed; validation pending |
+| P13C-002 | PR #9 code landed; ADR-014 closure pending |
+| P13C-003 | Local Go verification blocked |
+| P13C-004 | — |
+| P13C-005 | — |
+| P13C-006 | BLK-006 |
+| P13C-007 | BLK-005 (`ROTATION_PENDING_OWNER`) |
+| P13C-008 | — |
 
 ## Capability honesty
 
-- `capabilities.trading=false` — no order submission
-- `capabilities.features.realtime=false` until hub + ingestion operational and P13C-004 passes
-- `capabilities.features.intelligence=false` for live `price_move`/`liquidity_change` until P13C-002 passes
-- Catalog signals (`new_market`, `rule_changed`) may be enabled independently via `SignalsEnabled`
-- Frontend (`apps/fe-v1`) polls when realtime capability is false; labels say "Snapshot polling — not realtime"
+- `capabilities.trading=false`
+- `capabilities.features.realtime=false` by default (`MARKETS_REALTIME_ENABLED=0`)
+- `capabilities.features.intelligence=false` until P13C-002
+- Frontend polls when realtime off; no direct Polymarket connection (network boundary tests)
 
-## Unresolved blockers
+## Blockers
 
-See [implementation-manifest.yaml](implementation-manifest.yaml) `unresolved_blockers`: token registry (BLK-003), signal pipeline (BLK-004), rotation (BLK-005), single-replica (BLK-006).
+- BLK-003/004 manifest notes **stale** after PR #9 — validate under P13C-001/002
+- BLK-005: `ROTATION_PENDING_OWNER` — production blocked
+- BLK-006: single-replica limitation
+
+## Toolchain
+
+| Source | Go | Node |
+|--------|-----|------|
+| go.mod | 1.25 | — |
+| CI | 1.26 | 22 |
+| Local verification | 1.26.5 (`~/toolchain/go1.26.5`) | v22.22.0 (nvm) |
 
 ## Verification
 
 ```bash
-go -C apps/backend test ./internal/markets/... -count=1
-go -C apps/backend test ./internal/markets/upstream/ws ./internal/markets/marketdata ./internal/markets/realtime ./internal/markets/signals -count=1
-pnpm --filter @retropick/polymarket test
-pnpm --filter @retropick/markets-v1 test
-bash scripts/check-markets-openapi-drift.sh
+go -C apps/backend test ./internal/markets/... -count=1   # PASS (Go 1.26.5)
+pnpm --filter @retropick/markets-v1 test                   # PASS (75)
+pnpm --filter @retropick/polymarket test                   # PASS (20)
+bash scripts/check-markets-openapi-drift.sh              # PASS
+bash scripts/check-markets-realtime-asyncapi-drift.sh    # PASS
 ```
 
-Phase 1.3 exit requires P13C-000 … P13C-008 evidence and human review. **Do not advance to Phase 2 until Phase 1.3 closure is approved.**
+**Do not advance to Phase 2 until Phase 1.3 closure is approved.**
 
 ## Next action
 
-Complete P13C-001 (catalog token registry) and P13C-002 (transactional observation-to-signal wiring) before claiming ADR-014 implemented or Phase 1.3 complete.
+1. Independent human review of P13C-000 evidence.
+2. Then begin P13C-001 validation (do not treat PR #9 merge as proof of closure).

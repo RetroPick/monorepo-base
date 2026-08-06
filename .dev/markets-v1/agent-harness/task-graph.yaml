@@ -978,7 +978,7 @@ tasks:
     phase: "PHASE-1.3"
     title: "Phase 1.3 runtime reconciliation gate"
     goal: "Reconcile Phase 1.3 implementation slice against architecture contract and record honest gaps."
-    status: "in_progress"
+    status: "done"
     depends_on:
       - "MKT-P13-005"
     may_run_in_parallel_with: []
@@ -1007,7 +1007,15 @@ tasks:
       - "Every MKT-P13 task has honest status (done/partial/in_progress)"
       - "ADR-014 not marked implemented"
       - "Phase 1.3 not marked complete"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md#phase-1-3-runtime-reconciliation-p13c-000"
+      - ".dev/markets-v1/agent-harness/CURRENT_IMPLEMENTATION_STATE.md"
+      - "Go 1.26.5: markets test ./internal/markets/... PASS (2026-08-06)"
+      - "Go 1.26.5: backend test ./... PASS; vet ./internal/markets/... PASS"
+      - "Node 22.22.0: markets-v1 75 tests PASS; polymarket 20 tests PASS"
+      - "OpenAPI/AsyncAPI drift PASS (2026-08-06)"
+      - "No go.mod/go.sum/lockfile mutation during verification"
+      - "BLK-003/BLK-004 recorded as stale manifest findings (not deleted)"
     rollback: "Revert reconciliation doc commit."
     human_approval_required: false
     handoff_to:

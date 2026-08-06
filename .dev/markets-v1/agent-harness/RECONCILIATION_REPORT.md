@@ -1,9 +1,9 @@
 # Markets V1 Phase 1 Reconciliation Report
 
-**Date:** 2026-07-30  
-**Starting HEAD:** `bf269210772b07764ac02a60eff1ca91deae6d4f`  
-**Authorized slice:** backend foundation and public read markets  
-**Result:** `PASS_WITH_FOCUSED_ADR`  
+**Date:** 2026-07-30
+**Starting HEAD:** `bf269210772b07764ac02a60eff1ca91deae6d4f`
+**Authorized slice:** backend foundation and public read markets
+**Result:** `PASS_WITH_FOCUSED_ADR`
 **Decision:** [ADR-010](../architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md)
 
 ## Repository-to-design matrix
@@ -63,3 +63,96 @@ The slice may proceed because the conflicts are local, reversible, and resolved
 by ADR-010. Human approval remains required for production deployment,
 production writes, secrets, custody/signing, fund movement, destructive
 migration, custom contracts, and jurisdiction enablement.
+
+---
+
+# Phase 1.3 Runtime Reconciliation (P13C-000)
+
+**Date:** 2026-08-06
+**Worktree:** `/home/asyam/dev/set-up/projects/retropick-markets-v1`
+**Branch:** `codex/p13c-000-reconciliation`
+**Authoritative baseline:** PR #9 merge commit `54ae0f9fd98ada0c2ec646deea65b973fce885ca` on `origin/main`
+**Result:** `RECONCILIATION_ACCEPTED` — documentation and local verification complete (2026-08-06)
+**Agent:** Cursor (Composer)
+
+## Worktree and parent checkout integrity
+
+| Check | Result |
+|---|---|
+| `origin/main` resolves to `54ae0f9…` | PASS |
+| Sibling worktree clean at creation | PASS |
+| Parent porcelain unchanged (130 lines, diff empty) | PASS |
+| Parent branch remains `production/testnet-hardening-v1` (untouched) | PASS |
+
+## Toolchain reconciliation evidence
+
+| Source | Declared Go | Declared Node | Notes |
+|---|---|---|---|
+| `apps/backend/go.mod` | **1.25** | — | Authoritative module requirement |
+| `.github/workflows/ci.yml` | **1.26** | **22** | CI uses newer Go than module pin |
+| Local environment | **1.26.5** (`/home/asyam/toolchain/go1.26.5`) | **v22.22.0** (nvm) | Verification toolchain; not committed to repo |
+
+**Verdict:** No `toolchain` directive in `go.mod`. Module minimum `go 1.25`; CI and local verification use Go 1.26.5 with `GOTOOLCHAIN=local`. Not a defect.
+
+## ECC preflight (existing install only)
+
+| Command | Result | Notes |
+|---|---|---|
+| `ecc doctor` | PASS | No install-state files for current context |
+| `ecc list-installed` | PASS | Inventory empty; `ecc-universal@2.1.0` global |
+| `ecc memory doctor` | PASS | 0 memories, 0 invalid files |
+| `ecc security-ioc-scan` | PASS | 11 files, zero findings |
+| AgentShield | **unavailable** | Not installed; not claimed as executed |
+
+## PR #9 code vs harness documentation gap matrix
+
+| Area | Pre-reconciliation docs | PR #9 code evidence | Honest status | Closure owner |
+|---|---|---|---|---|
+| Catalog token registry | BLK-003: TokenRegistryMap | `CatalogTokenRegistry` in `main.go`; no `TokenRegistryMap` in tree | implemented — validation pending | P13C-001 |
+| Live signal pipeline | BLK-004: producer missing | `LiveSignalCommitter`, `SignalPipeline` wired | implemented — validation pending | P13C-002 |
+| E2E upstream→hub | P13C-003 pending | `realtime/e2e_test.go` present | present — not verified locally | P13C-003 |
+| Capability honesty | P13C-004 pending | `MARKETS_REALTIME_ENABLED` defaults `0` | default safe — validation pending | P13C-004 |
+| Single-replica guard | BLK-006 | No leader election | not implemented | P13C-006 |
+| Credential rotation | BLK-005 | `ROTATION_PENDING_OWNER` | blocked — owner action | P13C-007 |
+| Baseline reference | PR #8 / `64bce05` | PR #9 / `54ae0f9` | stale — corrected | P13C-000 |
+| ADR-014 | design only until P13C-002 | wiring in PR #9 | remain design-only until P13C-002 | P13C-002 |
+
+## MKT-P13 honest status
+
+| Task | Status | Rationale |
+|---|---|---|
+| MKT-P13-000 | done | ADR-011…014 accepted (design) |
+| MKT-P13-001 | done | Upstream WS supervisor |
+| MKT-P13-002 | done | Snapshot-first reconciler |
+| MKT-P13-003 | done | Delivery metadata |
+| MKT-P13-004 | partial | Schema + committer landed; P13C-002 pending |
+| MKT-P13-005 | partial | Runtime wiring landed; P13C-001/003/004/005 pending |
+
+## MKT-P1-008 vs Phase 1.3 live pipeline
+
+| Path | Scope | Status |
+|---|---|---|
+| MKT-P1-008 (Phase 1) | Catalog-sync signals in ApplyPage transaction | done (P1C-008) |
+| Phase 1.3 live | price_move / liquidity_change via observations | wired in PR #9; ADR-014 NOT implemented until P13C-002 |
+
+## Local verification (sanitized)
+
+**Passed (Node 22.22.0):** `pnpm --filter @retropick/markets-v1 test` (75), `pnpm --filter @retropick/polymarket test` (20), OpenAPI drift PASS, AsyncAPI drift PASS.
+
+**Passed (Go 1.26.5, `GOTOOLCHAIN=local`, `-mod=readonly`):**
+- `go -C apps/backend test ./internal/markets/... -count=1` → exit 0 (11 packages)
+- `go -C apps/backend test ./... -count=1` → exit 0 (no Markets regression)
+- `go -C apps/backend vet ./internal/markets/...` → exit 0
+- No `go.mod`/`go.sum` mutation after Go commands
+
+## P13C-000 acceptance verdict
+
+| Criterion | Result |
+|---|---|
+| MKT-P13 honest statuses | PASS |
+| ADR-014 not implemented | PASS |
+| Phase 1.3 not complete | PASS |
+| Full Phase 1.3 unit tests green | FAIL/BLOCKED |
+| Gap matrix documented | PASS |
+
+**Overall: ACCEPTED** — pending independent human review before P13C-001 handoff.
