@@ -9,7 +9,21 @@ export type Category =
   | 'AI'
   | 'Climate'
 
-export type MarketType = 'UP_OR_DOWN' | 'MULTIPLE_CHOICE' | 'RANGE' | 'THRESHOLD' | 'DATE'
+export type MarketType =
+  | 'UP_OR_DOWN'
+  | 'MULTIPLE_CHOICE'
+  | 'RANGE'
+  | 'THRESHOLD'
+  | 'LADDER'
+  | 'VELOCITY'
+  | 'DATE'
+  | 'CONVERGENCE'
+
+export type MarketOption = {
+  label: string
+  percentage: number
+  icon?: string
+}
 
 export type Market = {
   id: string
@@ -24,8 +38,13 @@ export type Market = {
   trend: 'up' | 'down'
   chart: number[]
   verified: boolean
-  icon: string // emoji-free short token label shown in the colored chip
-  accent: string // hex color for the icon chip
+  icon?: string // emoji-free short token label shown in the colored chip
+  image?: string // Real image URL from Polymarket API
+  accent?: string // hex color for the icon chip
+  options?: MarketOption[]
+  description?: string
+  resolutionSource?: string
+  tags?: string[]
 }
 
 export const CATEGORIES: Category[] = [
@@ -51,39 +70,821 @@ function series(seed: number, up: boolean): number[] {
   return pts
 }
 
+const UNIQUE_TOPIC_IMAGES: string[] = [
+  'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80', // Football Stadium
+  'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80', // Bitcoin Gold Coin
+  'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?w=200&auto=format&fit=crop&q=80', // Ethereum 3D Neon
+  'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80', // Solana Holographic
+  'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=200&auto=format&fit=crop&q=80', // Crypto Trading Screen
+  'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&auto=format&fit=crop&q=80', // AI Chip Processor
+  'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=200&auto=format&fit=crop&q=80', // US Dollar Currency
+  'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=200&auto=format&fit=crop&q=80', // Stock Market Graph
+  'https://images.unsplash.com/photo-1563720223185-11003d516935?w=200&auto=format&fit=crop&q=80', // Electric Vehicle Charging
+  'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200&auto=format&fit=crop&q=80', // Modern Smartphone
+  'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=200&auto=format&fit=crop&q=80', // Cyber Security / Web
+  'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=200&auto=format&fit=crop&q=80', // Gold Bullion Bars
+  'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=200&auto=format&fit=crop&q=80', // OpenAI AI Brain
+  'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=200&auto=format&fit=crop&q=80', // Growth Finance Piggybank
+  'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=200&auto=format&fit=crop&q=80', // Running Track Sports
+  'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=200&auto=format&fit=crop&q=80', // Tech Team Laptop
+  'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=200&auto=format&fit=crop&q=80', // Financial Analytics Dashboard
+  'https://images.unsplash.com/photo-1517649763962-0c623266010b?w=200&auto=format&fit=crop&q=80', // Basketball Player Hoop
+  'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=200&auto=format&fit=crop&q=80', // Baseball Field Stadium
+  'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=200&auto=format&fit=crop&q=80', // Luxury Car Automotive
+  'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=200&auto=format&fit=crop&q=80', // Planet Earth Space
+  'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=200&auto=format&fit=crop&q=80', // Executive Business
+  'https://images.unsplash.com/photo-1509062522246-3755977927d7?w=200&auto=format&fit=crop&q=80', // Renewable Energy
+  'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=200&auto=format&fit=crop&q=80', // Skyscraper Real Estate
+  'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=200&auto=format&fit=crop&q=80', // Soccer Ball Net
+]
+
+function hashString(str: string): number {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash)
+}
+
+export enum ImageSource {
+  API_MARKET = 'API_MARKET',
+  API_EVENT = 'API_EVENT',
+  LOCAL_ENTITY = 'LOCAL_ENTITY',
+  LOCAL_CATEGORY_FALLBACK = 'LOCAL_CATEGORY_FALLBACK',
+}
+
+export interface ResolvedImage {
+  url: string
+  source: ImageSource
+}
+
+// Mapping ENTITAS spesifik -> local asset (.webp / .png)
+const ENTITY_ASSET_MAP: Record<string, string> = {
+  // Sports Entities
+  'tennis': '/images/markets/Sports/tennis.webp',
+  'wta': '/images/markets/Sports/tennis.webp',
+  'atp': '/images/markets/Sports/tennis.webp',
+  'wimbledon': '/images/markets/Sports/tennis.webp',
+  'french open': '/images/markets/Sports/tennis.webp',
+  'us open': '/images/markets/Sports/tennis.webp',
+  'australian open': '/images/markets/Sports/tennis.webp',
+  'grand slam': '/images/markets/Sports/tennis.webp',
+  'costoulas': '/images/markets/Sports/tennis.webp',
+  'inglis': '/images/markets/Sports/tennis.webp',
+  'kozyreva': '/images/markets/Sports/tennis.webp',
+  'lumsden': '/images/markets/Sports/tennis.webp',
+  'chan': '/images/markets/Sports/tennis.webp',
+  'joint': '/images/markets/Sports/tennis.webp',
+  'djokovic': '/images/markets/Sports/tennis.webp',
+  'alcaraz': '/images/markets/Sports/tennis.webp',
+  'sinner': '/images/markets/Sports/tennis.webp',
+  'swiatek': '/images/markets/Sports/tennis.webp',
+  'sabalenka': '/images/markets/Sports/tennis.webp',
+  'gauff': '/images/markets/Sports/tennis.webp',
+  'medvedev': '/images/markets/Sports/tennis.webp',
+  'zverev': '/images/markets/Sports/tennis.webp',
+
+  'premier league': '/images/markets/Sports/soccer.webp',
+  'champions league': '/images/markets/Sports/soccer.webp',
+  "ballon d'or": '/images/markets/Sports/soccer.webp',
+  'ballon dor': '/images/markets/Sports/soccer.webp',
+  'haaland': '/images/markets/Sports/soccer.webp',
+  'messi': '/images/markets/Sports/soccer.webp',
+  'ronaldo': '/images/markets/Sports/soccer.webp',
+  'mbappe': '/images/markets/Sports/soccer.webp',
+  'soccer': '/images/markets/Sports/soccer.webp',
+  'football': '/images/markets/Sports/soccer.webp',
+
+  'formula 1': '/images/markets/Sports/F1.webp',
+  'formula one': '/images/markets/Sports/F1.webp',
+  'f1': '/images/markets/Sports/F1.webp',
+  'verstappen': '/images/markets/Sports/verstappen.webp',
+  'norris': '/images/markets/Sports/norris.jpg',
+  'hamilton': '/images/markets/Sports/hamilton.webp',
+  'leclerc': '/images/markets/Sports/leclerc.jpg',
+
+  'baseball': '/images/markets/Sports/baseball.webp',
+  'mlb': '/images/markets/Sports/baseball.webp',
+  'cpbl': '/images/markets/Sports/baseball.webp',
+  'home run': '/images/markets/Sports/baseball.webp',
+  'aaron judge': '/images/markets/Sports/baseball.webp',
+  'yankees': '/images/markets/Sports/baseball.webp',
+  'dodgers': '/images/markets/Sports/baseball.webp',
+
+  'nfl': '/images/markets/Sports/NFL.webp',
+  'nba': '/images/markets/Sports/NBA.webp',
+  'ufc': '/images/markets/Sports/UFC.webp',
+  'mma': '/images/markets/Sports/UFC.webp',
+  'golf': '/images/markets/Sports/golf.webp',
+  'boxing': '/images/markets/Sports/boxing.webp',
+  'cricket': '/images/markets/Sports/cricket.webp',
+  'esport': '/images/markets/Sports/esport.webp',
+  'esports': '/images/markets/Sports/esport.webp',
+  'rampage': '/images/markets/Sports/esport.webp',
+  'csgo': '/images/markets/Sports/esport.webp',
+  'cs2': '/images/markets/Sports/esport.webp',
+  'valorant': '/images/markets/Sports/esport.webp',
+  'dota': '/images/markets/Sports/esport.webp',
+
+  // Crypto Entities
+  'bitcoin': '/images/markets/crypto/bitcoin.webp',
+  'btc': '/images/markets/crypto/bitcoin.webp',
+  'ethereum': '/images/markets/crypto/eth.webp',
+  'eth': '/images/markets/crypto/eth.webp',
+  'solana': '/images/markets/crypto/solana.webp',
+  'sol': '/images/markets/crypto/solana.webp',
+  'xrp': '/images/markets/crypto/xrp.webp',
+  'base network': '/images/markets/crypto/base.webp',
+  'arbitrum': '/images/markets/crypto/arbitrum.webp',
+  'optimism': '/images/markets/crypto/optimism.webp',
+  'zksync': '/images/markets/crypto/zksync.webp',
+  'jupiter': '/images/markets/crypto/jupiter.webp',
+  'raydium': '/images/markets/crypto/raydium.webp',
+  'orca': '/images/markets/crypto/orca.webp',
+  'meteora': '/images/markets/crypto/meteora.webp',
+  'layer 2': '/images/markets/crypto/layer2.webp',
+  'l2': '/images/markets/crypto/layer2.webp',
+
+  // Finance Entities
+  'nvidia': '/images/markets/finance/nvidia.webp',
+  'nvda': '/images/markets/finance/nvidia.webp',
+  'apple': '/apple.webp',
+  'aapl': '/apple.webp',
+  'iphone': '/apple.webp',
+  'google': '/google.webp',
+  'twitter': '/twitter.webp',
+  'telegram': '/telegram.webp',
+  'microsoft': '/images/markets/finance/microsoft.webp',
+  'amazon': '/images/markets/finance/amazon.webp',
+  'meta': '/images/markets/finance/meta.webp',
+  'blackrock': '/images/markets/finance/blackrock.webp',
+  'gold': '/images/markets/finance/gold.webp',
+  'bank': '/images/markets/finance/bank.webp',
+  's&p 500': '/images/markets/finance/stock.webp',
+  's&p500': '/images/markets/finance/stock.webp',
+  'spx': '/images/markets/finance/stock.webp',
+  'nasdaq': '/images/markets/finance/stock.webp',
+  'dow jones': '/images/markets/finance/stock.webp',
+
+  // Tech & AI Entities
+  'chatgpt': '/images/markets/tech%20&%20AI/openAI.webp',
+  'openai': '/images/markets/tech%20&%20AI/openAI.webp',
+  'gemini': '/images/markets/tech%20&%20AI/gemini.webp',
+  'claude': '/images/markets/tech%20&%20AI/claude.webp',
+  'grok': '/images/markets/tech%20&%20AI/grok.webp',
+  'tesla': '/images/markets/tech%20&%20AI/tesla.webp',
+  'byd': '/images/markets/tech%20&%20AI/byd.webp',
+  'spacex': '/images/markets/tech%20&%20AI/spaceX.webp',
+  'starship': '/images/markets/tech%20&%20AI/spaceX.webp',
+  'ev': '/images/markets/tech%20&%20AI/ev.webp',
+  'evs': '/images/markets/tech%20&%20AI/ev.webp',
+  'electric vehicle': '/images/markets/tech%20&%20AI/ev.webp',
+  'chip': '/images/markets/tech%20&%20AI/chips.webp',
+  'chips': '/images/markets/tech%20&%20AI/chips.webp',
+  'semiconductor': '/images/markets/tech%20&%20AI/chips.webp',
+  'cybersecurity': '/images/markets/tech%20&%20AI/cyberscurity.webp',
+  'quantum': '/images/markets/tech%20&%20AI/quantum.webp',
+  'ai robotics': '/images/markets/tech%20&%20AI/AI_robotic.webp',
+  'robotics': '/images/markets/tech%20&%20AI/AI_robotic.webp',
+  'ai model': '/images/markets/tech%20&%20AI/AI_robotic.webp',
+  'ai models': '/images/markets/tech%20&%20AI/AI_robotic.webp',
+
+  // Browsers & Smartphones Entities
+  'browser': '/images/markets/tech%20&%20AI/browser.webp',
+  'browsers': '/images/markets/tech%20&%20AI/browser.webp',
+  'chrome': '/images/markets/tech%20&%20AI/chrome.webp',
+  'edge': '/images/markets/tech%20&%20AI/edge.webp',
+  'brave': '/images/markets/tech%20&%20AI/brave.webp',
+  'smartphone': '/images/markets/tech%20&%20AI/hp.webp',
+  'smartphones': '/images/markets/tech%20&%20AI/hp.webp',
+  'phone': '/images/markets/tech%20&%20AI/hp.webp',
+  'mobile': '/images/markets/tech%20&%20AI/hp.webp',
+  'hp': '/images/markets/tech%20&%20AI/hp.webp',
+
+  // Economics Entities
+  'federal reserve': '/images/markets/economics/Fed.webp',
+  'jerome powell': '/images/markets/economics/Fed.webp',
+  'powell': '/images/markets/economics/Fed.webp',
+  'cpi': '/images/markets/economics/Fed.webp',
+  'inflation': '/images/markets/economics/Fed.webp',
+  'fed': '/images/markets/economics/Fed.webp',
+
+  // Climate & Location Entities
+  'paris': '/images/markets/finance/paris.webp',
+  'temperature in paris': '/images/markets/finance/paris.webp',
+  'el salvador': '/images/markets/crypto/bitcoin.webp',
+  'salvador': '/images/markets/crypto/bitcoin.webp',
+  'solar power': '/images/markets/climate/green_energy.webp',
+  'wind energy': '/images/markets/climate/green_energy.webp',
+  'green energy': '/images/markets/climate/green_energy.webp',
+  'climate change': '/images/markets/climate/climate.webp',
+  'climate': '/images/markets/climate/climate.webp',
+}
+
+// Fallback Asset Generic per Kategori
+const CATEGORY_FALLBACK_ASSET: Record<string, string> = {
+  Crypto: '/images/markets/crypto/bitcoin.webp',
+  Sports: '/images/markets/Sports/soccer.webp',
+  Finance: '/images/markets/finance/stock.webp',
+  Tech: '/images/markets/tech%20&%20AI/chips.webp',
+  AI: '/images/markets/tech%20&%20AI/openAI.webp',
+  Economics: '/images/markets/economics/Fed.webp',
+  Climate: '/images/markets/climate/climate.webp',
+}
+
+export function resolveMarketImage(market: {
+  id?: string
+  question?: string
+  category?: string
+  icon?: string
+  image?: string
+  eventImage?: string
+  eventIcon?: string
+  slug?: string
+  title?: string
+}): ResolvedImage {
+  if (!market) {
+    return { url: '/images/markets/crypto/bitcoin.webp', source: ImageSource.LOCAL_CATEGORY_FALLBACK }
+  }
+
+  const isRealApiUrl = (url?: string) => {
+    if (!url || typeof url !== 'string') return false
+    if (!url.startsWith('http')) return false
+    if (url.includes('images.unsplash.com')) return false
+    if (url.includes('photo-1541872703')) return false
+    return true
+  }
+
+  // TIER 1: Real Polymarket API image/icon (icon takes priority for crisp square avatars)
+  if (isRealApiUrl(market.icon)) {
+    return { url: market.icon!, source: ImageSource.API_MARKET }
+  }
+  if (isRealApiUrl(market.image)) {
+    return { url: market.image!, source: ImageSource.API_MARKET }
+  }
+  if (isRealApiUrl(market.eventIcon)) {
+    return { url: market.eventIcon!, source: ImageSource.API_EVENT }
+  }
+  if (isRealApiUrl(market.eventImage)) {
+    return { url: market.eventImage!, source: ImageSource.API_EVENT }
+  }
+
+  // TIER 2: Local asset berbasis ENTITAS spesifik (only when API image is missing)
+  const haystack = `${market.question || ''} ${market.title || ''} ${(market.slug || '').replace(/-/g, ' ')}`.toLowerCase()
+
+  const matchedEntities = Object.keys(ENTITY_ASSET_MAP)
+    .filter((entity) => {
+      const escaped = entity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      return new RegExp(`\\b${escaped}\\b`, 'i').test(haystack)
+    })
+    .sort((a, b) => b.length - a.length)
+
+  if (matchedEntities.length > 0) {
+    const bestMatch = matchedEntities[0]
+    return { url: ENTITY_ASSET_MAP[bestMatch], source: ImageSource.LOCAL_ENTITY }
+  }
+
+  // TIER 3: Category Fallback
+  const cat = market.category || 'Crypto'
+  const fallback = CATEGORY_FALLBACK_ASSET[cat] || '/images/markets/crypto/bitcoin.webp'
+  return { url: fallback, source: ImageSource.LOCAL_CATEGORY_FALLBACK }
+}
+
+export function getSafeMarketImage(market: any): string {
+  return resolveMarketImage(market).url
+}
+
+export function getOptionThumbnail(optLabel: string, market?: { category?: string; question?: string; icon?: string; image?: string }): string | null {
+  const label = (optLabel || '').toLowerCase()
+
+  // Avoid giving thumbnails to generic binary/range labels
+  if (/\b(over|under|yes|no|up|down|other|none|above|below)\b/i.test(label)) {
+    return null
+  }
+
+  // 1. AI Models
+  if (/\b(chatgpt|openai)\b/i.test(label)) {
+    return '/images/markets/tech & AI/openAI.webp'
+  }
+  if (/\b(gemini|google gemini)\b/i.test(label)) {
+    return '/images/markets/tech & AI/gemini.webp'
+  }
+  if (/\b(claude|anthropic)\b/i.test(label)) {
+    return '/images/markets/tech & AI/claude.webp'
+  }
+  if (/\b(grok|xai)\b/i.test(label)) {
+    return '/images/markets/tech & AI/grok.webp'
+  }
+
+  // 2. Web Browsers
+  if (/\b(chrome|google chrome)\b/i.test(label)) {
+    return '/images/markets/tech & AI/chrome.webp'
+  }
+  if (/\b(edge|microsoft edge)\b/i.test(label)) {
+    return '/images/markets/tech & AI/edge.webp'
+  }
+  if (/\b(arc|arc browser)\b/i.test(label)) {
+    return '/images/markets/tech & AI/arc.webp'
+  }
+  if (/\b(brave|brave browser)\b/i.test(label)) {
+    return '/images/markets/tech & AI/brave.webp'
+  }
+
+  // 3. EV Automakers
+  if (/\b(byd|byd auto)\b/i.test(label)) {
+    return '/images/markets/tech & AI/byd.webp'
+  }
+  if (/\b(tesla|tesla inc)\b/i.test(label)) {
+    return '/images/markets/tech & AI/tesla.webp'
+  }
+  if (/\b(xiaomi|xiaomi auto)\b/i.test(label)) {
+    return '/images/markets/tech & AI/xiaomi.webp'
+  }
+  if (/\b(volkswagen|vw)\b/i.test(label)) {
+    return '/images/markets/tech & AI/volkswagen.webp'
+  }
+  if (/\b(ev|evs|electric vehicle|electric vehicles|rivian|lucid)\b/i.test(label)) {
+    return '/images/markets/tech & AI/ev.webp'
+  }
+
+  // 4. Tech & Corporations
+  if (/\b(microsoft|msft)\b/i.test(label)) {
+    return '/images/markets/finance/microsoft.webp'
+  }
+  if (/\b(amazon|amzn)\b/i.test(label)) {
+    return '/images/markets/finance/amazon.webp'
+  }
+  if (/\b(meta|facebook)\b/i.test(label)) {
+    return '/images/markets/finance/meta.webp'
+  }
+  if (/\b(spacex|starlink|falcon)\b/i.test(label)) {
+    return '/images/markets/tech & AI/spaceX.webp'
+  }
+
+  // 5. Smartphones & Electronics
+  if (/\b(apple|iphone|aapl)\b/i.test(label)) {
+    return '/apple.webp'
+  }
+  if (/\b(samsung|galaxy)\b/i.test(label)) {
+    return '/images/markets/finance/samsung.webp'
+  }
+  if (/\b(pixel|google pixel|google)\b/i.test(label)) {
+    return '/google.webp'
+  }
+  if (/\b(motorola|lenovo)\b/i.test(label)) {
+    return '/images/markets/finance/motorola.webp'
+  }
+
+  // 6. Financials
+  if (/\b(nvidia|nvda)\b/i.test(label)) {
+    return '/images/markets/finance/nvidia.webp'
+  }
+  if (/\b(blackrock|blk)\b/i.test(label)) {
+    return '/images/markets/finance/blackrock.webp'
+  }
+
+  // 7. Solana DEXes & Crypto
+  if (/\b(jupiter)\b/i.test(label)) {
+    return '/images/markets/crypto/jupiter.webp'
+  }
+  if (/\b(raydium)\b/i.test(label)) {
+    return '/images/markets/crypto/raydium.webp'
+  }
+  if (/\b(orca)\b/i.test(label)) {
+    return '/images/markets/crypto/orca.webp'
+  }
+  if (/\b(meteora)\b/i.test(label)) {
+    return '/images/markets/crypto/meteora.webp'
+  }
+  if (/\b(solana|sol)\b/i.test(label)) {
+    return '/images/markets/crypto/solana.webp'
+  }
+  if (/\b(btc|bitcoin)\b/i.test(label)) {
+    return '/images/markets/crypto/bitcoin.webp'
+  }
+  if (/\b(eth|ethereum)\b/i.test(label)) {
+    return '/images/markets/crypto/eth.webp'
+  }
+  if (/\b(xrp|ripple)\b/i.test(label)) {
+    return '/images/markets/crypto/xrp.webp'
+  }
+
+  // 8. Layer 2 Networks
+  if (/\b(base|base network|base chain)\b/i.test(label)) {
+    return '/images/markets/crypto/base.webp'
+  }
+  if (/\b(arbitrum)\b/i.test(label)) {
+    return '/images/markets/crypto/arbitrum.webp'
+  }
+  if (/\b(optimism|op mainnet)\b/i.test(label)) {
+    return '/images/markets/crypto/optimism.webp'
+  }
+  if (/\b(zksync)\b/i.test(label)) {
+    return '/images/markets/crypto/zksync.webp'
+  }
+  if (/\b(l2|layer2)\b/i.test(label)) {
+    return '/images/markets/crypto/layer2.webp'
+  }
+
+  // 9. Sports & Athletes
+  if (/\b(verstappen|max verstappen)\b/i.test(label)) return '/images/markets/Sports/verstappen.webp'
+  if (/\b(norris|lando norris|lando)\b/i.test(label)) return '/images/markets/Sports/norris.webp'
+  if (/\b(hamilton|lewis hamilton)\b/i.test(label)) return '/images/markets/Sports/hamilton.webp'
+  if (/\b(leclerc|charles leclerc|charles)\b/i.test(label)) return '/images/markets/Sports/leclerc.webp'
+  if (/\b(tennis)\b/i.test(label)) return '/images/markets/Sports/tennis.webp'
+  if (/\b(golf)\b/i.test(label)) return '/images/markets/Sports/golf.webp'
+  if (/\b(esport|esports)\b/i.test(label)) return '/images/markets/Sports/esport.webp'
+  if (/\b(boxing)\b/i.test(label)) return '/images/markets/Sports/boxing.webp'
+  if (/\b(cricket)\b/i.test(label)) return '/images/markets/Sports/cricket.webp'
+  if (/\b(f1|formula 1)\b/i.test(label)) return '/images/markets/Sports/F1.webp'
+  if (/\b(nfl)\b/i.test(label)) return '/images/markets/Sports/NFL.webp'
+  if (/\b(mlb|baseball)\b/i.test(label)) return '/images/markets/Sports/baseball.webp'
+  if (/\b(nba|basketball)\b/i.test(label)) return '/images/markets/Sports/NBA.webp'
+  if (/\b(ufc)\b/i.test(label)) return '/images/markets/Sports/UFC.webp'
+  if (/\b(soccer|football)\b/i.test(label)) return '/images/markets/Sports/soccer.webp'
+
+  return null
+}
+
 export const MARKETS: Market[] = [
+  // --- CONVERGENCE MARKETS ---
   {
-    id: 'btc-200k',
-    question: 'Bitcoin above $70,000 on July 24?',
-    category: 'Crypto',
-    marketType: 'UP_OR_DOWN',
-    yes: 51,
-    volume: '$18.4m',
-    liquidity: '$6.2m',
-    participants: '28.3K',
-    timeLeft: '24 Jul · 07:00 AM',
+    id: 'ai-model-convergence',
+    question: 'Which AI model will reach 100M daily active users first?',
+    category: 'AI',
+    marketType: 'CONVERGENCE',
+    yes: 54,
+    volume: '$18.5m',
+    liquidity: '$4.8m',
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&auto=format&fit=crop&q=80',
+    participants: '12.0K',
+    timeLeft: 'May 31, 2027',
     trend: 'up',
-    chart: series(3, true),
+    chart: series(49, true),
     verified: true,
+    resolutionSource: 'openai.com',
+    icon: 'AI',
+    accent: '#8b5cf6',
+    options: [
+      { label: 'ChatGPT (OpenAI)', percentage: 54, icon: 'openai' },
+      { label: 'Gemini (Google)', percentage: 28, icon: 'google' },
+      { label: 'Claude (Anthropic)', percentage: 12, icon: 'claude' },
+      { label: 'Grok (xAI)', percentage: 4, icon: 'grok' },
+      { label: 'Other Model', percentage: 2 }
+    ]
+  },
+  {
+    id: 'ev-market-leader-2026',
+    question: 'Which automaker will deliver the most EVs globally in 2026?',
+    category: 'Tech',
+    marketType: 'CONVERGENCE',
+    yes: 48,
+    volume: '$14.2m',
+    liquidity: '$3.9m',
+    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?w=200&auto=format&fit=crop&q=80',
+    participants: '9.4K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(51, true),
+    verified: true,
+    icon: 'EV',
+    accent: '#e82127',
+    options: [
+      { label: 'BYD Auto', percentage: 48, icon: 'byd' },
+      { label: 'Tesla Inc', percentage: 41, icon: 'tesla' },
+      { label: 'Xiaomi Auto', percentage: 7 },
+      { label: 'Volkswagen Group', percentage: 4 }
+    ]
+  },
+  {
+    id: 'eth-l2-tvl-leader',
+    question: 'Which Ethereum L2 will reach $25B TVL first?',
+    category: 'Crypto',
+    marketType: 'CONVERGENCE',
+    yes: 52,
+    volume: '$9.8m',
+    liquidity: '$2.7m',
+    image: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?w=200&auto=format&fit=crop&q=80',
+    participants: '8.1K',
+    timeLeft: 'Oct 31, 2026',
+    trend: 'up',
+    chart: series(53, true),
+    verified: true,
+    icon: 'L2',
+    accent: '#0052ff',
+    options: [
+      { label: 'Base Network', percentage: 52, icon: 'base' },
+      { label: 'Arbitrum One', percentage: 34 },
+      { label: 'Optimism (OP Mainnet)', percentage: 10 },
+      { label: 'zkSync Era', percentage: 4 }
+    ]
+  },
+  {
+    id: 'solana-dex-volume-2026',
+    question: 'Which DEX will dominate Solana trading volume in Q3 2026?',
+    category: 'Crypto',
+    marketType: 'CONVERGENCE',
+    yes: 64,
+    volume: '$11.3m',
+    liquidity: '$3.5m',
+    image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80',
+    participants: '7.8K',
+    timeLeft: 'Sep 30, 2026',
+    trend: 'up',
+    chart: series(55, true),
+    verified: true,
+    icon: 'DEX',
+    accent: '#14f195',
+    options: [
+      { label: 'Jupiter Aggregator', percentage: 64, icon: 'solana' },
+      { label: 'Raydium Protocol', percentage: 24 },
+      { label: 'Orca DEX', percentage: 8 },
+      { label: 'Meteora DLMM', percentage: 4 }
+    ]
+  },
+  {
+    id: 'us-smartphone-market-share',
+    question: 'Which brand will hold top US smartphone market share in Q4 2026?',
+    category: 'Tech',
+    marketType: 'CONVERGENCE',
+    yes: 58,
+    volume: '$8.7m',
+    liquidity: '$2.1m',
+    image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200&auto=format&fit=crop&q=80',
+    participants: '5.6K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(57, true),
+    verified: true,
+    icon: 'MOB',
+    accent: '#a1a1a1',
+    options: [
+      { label: 'Apple iPhone', percentage: 58, icon: 'apple' },
+      { label: 'Samsung Galaxy', percentage: 36 },
+      { label: 'Google Pixel', percentage: 5 },
+      { label: 'Motorola / Lenovo', percentage: 1 }
+    ]
+  },
+  {
+    id: 'ai-browser-race',
+    question: 'First browser to integrate native autonomous AI agents for all users?',
+    category: 'Tech',
+    marketType: 'CONVERGENCE',
+    yes: 42,
+    volume: '$6.5m',
+    liquidity: '$1.8m',
+    image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=200&auto=format&fit=crop&q=80',
+    participants: '4.2K',
+    timeLeft: 'Nov 30, 2026',
+    trend: 'up',
+    chart: series(59, true),
+    verified: true,
+    icon: 'WEB',
+    accent: '#4285f4',
+    options: [
+      { label: 'Google Chrome', percentage: 42, icon: 'google' },
+      { label: 'Microsoft Edge', percentage: 33 },
+      { label: 'Arc Browser / The Browser Co', percentage: 18 },
+      { label: 'Brave Browser', percentage: 7 }
+    ]
+  },
+
+  // --- VELOCITY MARKETS ---
+  {
+    id: 'sol-move-velocity',
+    question: 'How much will SOL move in the next 24 hours?',
+    category: 'Crypto',
+    marketType: 'VELOCITY',
+    yes: 32,
+    volume: '$6.7m',
+    liquidity: '$2.2m',
+    participants: '3.1K',
+    timeLeft: '24h Market',
+    trend: 'down',
+    chart: series(34, false),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80',
+    accent: '#00ffad',
+    options: [
+      { label: '0% - 3%', percentage: 20 },
+      { label: '3% - 5%', percentage: 32 },
+      { label: '5% - 10%', percentage: 28 },
+      { label: '10% - 20%', percentage: 15 },
+      { label: 'Above 20%', percentage: 5 }
+    ]
+  },
+  {
+    id: 'btc-24h-volatility-range',
+    question: 'Bitcoin 24-hour price swing range today?',
+    category: 'Crypto',
+    marketType: 'VELOCITY',
+    yes: 45,
+    volume: '$12.4m',
+    liquidity: '$4.1m',
+    participants: '8.9K',
+    timeLeft: '24h Market',
+    trend: 'up',
+    chart: series(36, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
     icon: 'BTC',
     accent: '#f7931a',
+    options: [
+      { label: '0% - 2%', percentage: 45 },
+      { label: '2% - 5%', percentage: 38 },
+      { label: '5% - 10%', percentage: 12 },
+      { label: 'Above 10%', percentage: 5 }
+    ]
   },
   {
-    id: 'fed-decision',
-    question: 'Fed Decision in July?',
-    category: 'Economics',
-    marketType: 'MULTIPLE_CHOICE',
-    yes: 71,
-    volume: '$91.7m',
-    liquidity: '$28.2m',
-    participants: '14 markets',
-    timeLeft: '29 Jul · 07:00 AM',
+    id: 'eth-gas-fee-surge',
+    question: 'Peak Ethereum gas fee in the next 24 hours?',
+    category: 'Crypto',
+    marketType: 'VELOCITY',
+    yes: 52,
+    volume: '$4.8m',
+    liquidity: '$1.5m',
+    participants: '3.4K',
+    timeLeft: '24h Market',
     trend: 'up',
-    chart: series(8, true),
+    chart: series(38, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?w=200&auto=format&fit=crop&q=80',
+    icon: 'GAS',
+    accent: '#627eea',
+    options: [
+      { label: '< 20 Gwei', percentage: 22 },
+      { label: '20 - 50 Gwei', percentage: 52 },
+      { label: '50 - 100 Gwei', percentage: 20 },
+      { label: '> 100 Gwei', percentage: 6 }
+    ]
+  },
+  {
+    id: 'nvda-earnings-velocity',
+    question: 'NVIDIA post-earnings 24h price swing magnitude?',
+    category: 'Tech',
+    marketType: 'VELOCITY',
+    yes: 41,
+    volume: '$15.1m',
+    liquidity: '$4.6m',
+    participants: '10.2K',
+    timeLeft: 'Aug 28, 2026',
+    trend: 'up',
+    chart: series(40, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&auto=format&fit=crop&q=80',
+    icon: 'NVDA',
+    accent: '#76b900',
+    options: [
+      { label: '0% - 3%', percentage: 18 },
+      { label: '3% - 7%', percentage: 41 },
+      { label: '7% - 12%', percentage: 29 },
+      { label: 'Above 12%', percentage: 12 }
+    ]
+  },
+  {
+    id: 'sp500-daily-velocity',
+    question: 'S&P 500 maximum single-day percentage change this week?',
+    category: 'Finance',
+    marketType: 'VELOCITY',
+    yes: 62,
+    volume: '$7.3m',
+    liquidity: '$2.3m',
+    participants: '5.1K',
+    timeLeft: '5d Market',
+    trend: 'up',
+    chart: series(42, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=200&auto=format&fit=crop&q=80',
+    icon: 'SPX',
+    accent: '#003478',
+    options: [
+      { label: '0.0% - 1.0%', percentage: 62 },
+      { label: '1.0% - 2.5%', percentage: 28 },
+      { label: 'Above 2.5%', percentage: 10 }
+    ]
+  },
+
+  // --- LADDER MARKETS ---
+  {
+    id: 'btc-highest-ladder',
+    question: 'Highest price of BTC in 2026?',
+    category: 'Crypto',
+    marketType: 'LADDER',
+    yes: 60,
+    volume: '$18.9m',
+    liquidity: '$6.3m',
+    participants: '4.4K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(29, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
+    accent: '#f7931a',
+    options: [
+      { label: '>= $100,000', percentage: 95 },
+      { label: '>= $120,000', percentage: 82 },
+      { label: '>= $140,000', percentage: 60 },
+      { label: '>= $160,000', percentage: 38 },
+      { label: '>= $180,000', percentage: 21 },
+      { label: '>= $200,000', percentage: 10 }
+    ]
+  },
+  {
+    id: 'eth-ladder-2026',
+    question: 'Highest price of ETH in 2026?',
+    category: 'Crypto',
+    marketType: 'LADDER',
+    yes: 74,
+    volume: '$14.1m',
+    liquidity: '$4.5m',
+    participants: '6.8K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(31, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?w=200&auto=format&fit=crop&q=80',
+    accent: '#627eea',
+    options: [
+      { label: '>= $4,000', percentage: 91 },
+      { label: '>= $5,000', percentage: 74 },
+      { label: '>= $6,500', percentage: 48 },
+      { label: '>= $8,000', percentage: 26 },
+      { label: '>= $10,000', percentage: 11 }
+    ]
+  },
+  {
+    id: 'sol-ladder-2026',
+    question: 'Highest price of Solana in 2026?',
+    category: 'Crypto',
+    marketType: 'LADDER',
+    yes: 68,
+    volume: '$12.8m',
+    liquidity: '$3.9m',
+    participants: '7.2K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(33, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80',
+    accent: '#14f195',
+    options: [
+      { label: '>= $250', percentage: 88 },
+      { label: '>= $350', percentage: 68 },
+      { label: '>= $500', percentage: 41 },
+      { label: '>= $750', percentage: 19 },
+      { label: '>= $1,000', percentage: 7 }
+    ]
+  },
+  {
+    id: 'nvda-stock-ladder',
+    question: 'NVIDIA market cap milestone in 2026?',
+    category: 'Tech',
+    marketType: 'LADDER',
+    yes: 78,
+    volume: '$16.5m',
+    liquidity: '$5.2m',
+    participants: '9.1K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(35, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&auto=format&fit=crop&q=80',
+    icon: 'NVDA',
+    accent: '#76b900',
+    options: [
+      { label: '>= $3.5 Trillion', percentage: 92 },
+      { label: '>= $4.0 Trillion', percentage: 78 },
+      { label: '>= $4.5 Trillion', percentage: 51 },
+      { label: '>= $5.0 Trillion', percentage: 24 }
+    ]
+  },
+  {
+    id: 'us-fed-rate-ladder',
+    question: 'Target Fed Funds rate by end of 2026?',
+    category: 'Economics',
+    marketType: 'LADDER',
+    yes: 65,
+    volume: '$22.0m',
+    liquidity: '$7.4m',
+    participants: '11.5K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(37, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=200&auto=format&fit=crop&q=80',
     icon: 'FED',
     accent: '#20c997',
+    options: [
+      { label: '<= 4.75%', percentage: 89 },
+      { label: '<= 4.50%', percentage: 65 },
+      { label: '<= 4.25%', percentage: 38 },
+      { label: '<= 4.00%', percentage: 16 }
+    ]
   },
+
+  // --- RANGE MARKETS ---
   {
     id: 'xrp-range',
     question: 'XRP price between $1.05 - $1.20 on July 25?',
@@ -97,24 +898,132 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(21, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=200&auto=format&fit=crop&q=80',
     icon: 'XRP',
     accent: '#23f7dd',
+    options: [
+      { label: '< $1.05', percentage: 18 },
+      { label: '$1.05 - $1.20', percentage: 55 },
+      { label: '$1.20 - $1.35', percentage: 21 },
+      { label: '> $1.35', percentage: 6 }
+    ]
   },
   {
-    id: 'xrp-threshold',
-    question: 'XRP above $1.20 anytime on July 25?',
+    id: 'btc-range-q3',
+    question: 'BTC average price range in Q3 2026?',
     category: 'Crypto',
-    marketType: 'THRESHOLD',
-    yes: 38,
-    volume: '$2.8m',
-    liquidity: '$910K',
-    participants: '6.2K',
-    timeLeft: '25 Jul · 23:59',
-    trend: 'down',
-    chart: series(14, false),
+    marketType: 'RANGE',
+    yes: 48,
+    volume: '$19.2m',
+    liquidity: '$5.8m',
+    participants: '14.2K',
+    timeLeft: 'Sep 30, 2026',
+    trend: 'up',
+    chart: series(23, true),
     verified: true,
-    icon: 'XRP',
-    accent: '#23f7dd',
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
+    icon: 'BTC',
+    accent: '#f7931a',
+    options: [
+      { label: '$85K - $95K', percentage: 15 },
+      { label: '$95K - $110K', percentage: 48 },
+      { label: '$110K - $125K', percentage: 29 },
+      { label: 'Above $125K', percentage: 8 }
+    ]
+  },
+  {
+    id: 'eth-btc-ratio-range',
+    question: 'ETH/BTC ratio range in Q3 2026?',
+    category: 'Crypto',
+    marketType: 'RANGE',
+    yes: 42,
+    volume: '$8.4m',
+    liquidity: '$2.6m',
+    participants: '6.3K',
+    timeLeft: 'Sep 30, 2026',
+    trend: 'up',
+    chart: series(25, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?w=200&auto=format&fit=crop&q=80',
+    icon: 'ETH',
+    accent: '#627eea',
+    options: [
+      { label: '< 0.040', percentage: 22 },
+      { label: '0.040 - 0.055', percentage: 42 },
+      { label: '0.055 - 0.070', percentage: 28 },
+      { label: '> 0.070', percentage: 8 }
+    ]
+  },
+  {
+    id: 'fed-inflation-range',
+    question: 'US Annual CPI Inflation rate in Q4 2026?',
+    category: 'Economics',
+    marketType: 'RANGE',
+    yes: 54,
+    volume: '$11.6m',
+    liquidity: '$3.8m',
+    participants: '7.9K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'down',
+    chart: series(27, false),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=200&auto=format&fit=crop&q=80',
+    icon: 'CPI',
+    accent: '#3b82f6',
+    options: [
+      { label: '1.5% - 2.2%', percentage: 24 },
+      { label: '2.2% - 2.8%', percentage: 54 },
+      { label: '2.8% - 3.5%', percentage: 17 },
+      { label: 'Above 3.5%', percentage: 5 }
+    ]
+  },
+  {
+    id: 'gold-price-range',
+    question: 'Gold price per ounce in Q4 2026?',
+    category: 'Finance',
+    marketType: 'RANGE',
+    yes: 46,
+    volume: '$9.1m',
+    liquidity: '$2.9m',
+    participants: '6.7K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(29, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=200&auto=format&fit=crop&q=80',
+    icon: 'GOLD',
+    accent: '#fbbf24',
+    options: [
+      { label: '< $2,800', percentage: 12 },
+      { label: '$2,800 - $3,200', percentage: 46 },
+      { label: '$3,200 - $3,600', percentage: 33 },
+      { label: '> $3,600', percentage: 9 }
+    ]
+  },
+
+  // --- DATE MARKETS ---
+  {
+    id: 'openai-gpt6-date',
+    question: 'When will OpenAI release GPT-6?',
+    category: 'Tech',
+    marketType: 'DATE',
+    yes: 61,
+    volume: '$10.2m',
+    liquidity: '$3.4m',
+    participants: '2.7K',
+    timeLeft: 'Dec 31, 2027',
+    trend: 'up',
+    chart: series(42, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=200&auto=format&fit=crop&q=80',
+    accent: '#10a37f',
+    options: [
+      { label: 'July - Sep 2026', percentage: 12 },
+      { label: 'Oct - Dec 2026', percentage: 48 },
+      { label: 'Jan - Mar 2027', percentage: 26 },
+      { label: 'Apr - Jun 2027', percentage: 11 },
+      { label: 'After Jun 2027', percentage: 3 }
+    ]
   },
   {
     id: 'xrp-date',
@@ -129,12 +1038,319 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(30, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=200&auto=format&fit=crop&q=80',
+    icon: 'XRP',
+    accent: '#23f7dd',
+    options: [
+      { label: 'Above $1.50', percentage: 62 },
+      { label: '$1.00 - $1.50', percentage: 28 },
+      { label: 'Below $1.00', percentage: 10 }
+    ]
+  },
+  {
+    id: 'spacex-mars-uncrewed-date',
+    question: 'Date of first uncrewed SpaceX Starship Mars landing attempt?',
+    category: 'Tech',
+    marketType: 'DATE',
+    yes: 42,
+    volume: '$14.6m',
+    liquidity: '$4.2m',
+    participants: '9.8K',
+    timeLeft: 'Dec 31, 2028',
+    trend: 'up',
+    chart: series(44, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1517976487492-5750f3195933?w=200&auto=format&fit=crop&q=80',
+    icon: 'SPX',
+    accent: '#ef4444',
+    options: [
+      { label: 'Q4 2026', percentage: 14 },
+      { label: 'Q1 - Q2 2027', percentage: 42 },
+      { label: 'Q3 - Q4 2027', percentage: 31 },
+      { label: '2028 or later', percentage: 13 }
+    ]
+  },
+  {
+    id: 'us-solana-etf-date',
+    question: 'Approval date for first US spot Solana ETF?',
+    category: 'Crypto',
+    marketType: 'DATE',
+    yes: 54,
+    volume: '$18.2m',
+    liquidity: '$5.6m',
+    participants: '12.4K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(46, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80',
+    icon: 'SOL',
+    accent: '#14f195',
+    options: [
+      { label: 'Q3 2026', percentage: 22 },
+      { label: 'Q4 2026', percentage: 54 },
+      { label: 'Q1 2027', percentage: 18 },
+      { label: 'Later than Q1 2027', percentage: 6 }
+    ]
+  },
+  {
+    id: 'fed-50bps-cut-date',
+    question: 'Date of next 50bps Fed interest rate cut?',
+    category: 'Economics',
+    marketType: 'DATE',
+    yes: 38,
+    volume: '$16.9m',
+    liquidity: '$5.1m',
+    participants: '8.7K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'down',
+    chart: series(48, false),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=200&auto=format&fit=crop&q=80',
+    icon: 'FED',
+    accent: '#20c997',
+    options: [
+      { label: 'September 2026', percentage: 38 },
+      { label: 'November 2026', percentage: 34 },
+      { label: 'December 2026', percentage: 20 },
+      { label: 'In 2027 or later', percentage: 8 }
+    ]
+  },
+
+  // --- THRESHOLD MARKETS ---
+  {
+    id: 'eth-exceed-5000',
+    question: 'Will ETH exceed $5,000 before Dec 31, 2026?',
+    category: 'Crypto',
+    marketType: 'THRESHOLD',
+    yes: 47,
+    volume: '$15.6m',
+    liquidity: '$5.2m',
+    participants: '7.2K',
+    timeLeft: '31 Dec 2026',
+    trend: 'up',
+    chart: series(15, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1622979135225-d2ba269bc1bd?w=200&auto=format&fit=crop&q=80',
+    icon: 'ETH',
+    accent: '#627eea',
+  },
+  {
+    id: 'sol-ath-2025',
+    question: 'Will Solana break its all-time high before Nov 2026?',
+    category: 'Crypto',
+    marketType: 'THRESHOLD',
+    yes: 78,
+    volume: '$34.2m',
+    liquidity: '$11.8m',
+    participants: '15.4K',
+    timeLeft: 'Nov 2026',
+    trend: 'up',
+    chart: series(22, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80',
+    accent: '#14f195',
+  },
+  {
+    id: 'xrp-threshold',
+    question: 'XRP above $1.20 anytime on July 25?',
+    category: 'Crypto',
+    marketType: 'THRESHOLD',
+    yes: 38,
+    volume: '$2.8m',
+    liquidity: '$910K',
+    participants: '6.2K',
+    timeLeft: '25 Jul · 23:59',
+    trend: 'down',
+    chart: series(14, false),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?w=200&auto=format&fit=crop&q=80',
     icon: 'XRP',
     accent: '#23f7dd',
   },
   {
+    id: 'btc-cross-150k',
+    question: 'Will Bitcoin cross $150,000 before Oct 2026?',
+    category: 'Crypto',
+    marketType: 'THRESHOLD',
+    yes: 62,
+    volume: '$42.1m',
+    liquidity: '$14.3m',
+    participants: '21.5K',
+    timeLeft: 'Oct 31, 2026',
+    trend: 'up',
+    chart: series(16, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
+    icon: 'BTC',
+    accent: '#f7931a',
+  },
+  {
+    id: 'base-daily-tx-10m',
+    question: 'Will Base Network reach 10M daily transactions before 2027?',
+    category: 'Crypto',
+    marketType: 'THRESHOLD',
+    yes: 71,
+    volume: '$11.4m',
+    liquidity: '$3.6m',
+    participants: '8.3K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(18, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?w=200&auto=format&fit=crop&q=80',
+    icon: 'BASE',
+    accent: '#0052ff',
+  },
+  {
+    id: 'tsla-fsd-unsupervised',
+    question: 'Will Tesla receive unsupervised FSD approval in CA before Q4?',
+    category: 'Tech',
+    marketType: 'THRESHOLD',
+    yes: 34,
+    volume: '$8.9m',
+    liquidity: '$2.8m',
+    participants: '6.1K',
+    timeLeft: 'Sep 30, 2026',
+    trend: 'down',
+    chart: series(20, false),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?w=200&auto=format&fit=crop&q=80',
+    icon: 'TSLA',
+    accent: '#e82127',
+  },
+
+  // --- MULTIPLE CHOICE MARKETS ---
+  {
+    id: 'fed-decision-july',
+    question: 'Fed Decision in July?',
+    category: 'Economics',
+    marketType: 'MULTIPLE_CHOICE',
+    yes: 71,
+    volume: '$91.7m',
+    liquidity: '$28.2m',
+    participants: '8.3K',
+    timeLeft: 'Ends Jul 29, 07:00',
+    trend: 'up',
+    chart: series(8, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=200&auto=format&fit=crop&q=80',
+    icon: 'FED',
+    accent: '#20c997',
+    options: [
+      { label: 'No change', percentage: 71 },
+      { label: '25 bps cut', percentage: 22 },
+      { label: '50+ bps cut', percentage: 7 }
+    ]
+  },
+  {
+    id: 'premier-league-winner-2026',
+    question: 'Who will win the Premier League 2025/2026 season?',
+    category: 'Sports',
+    marketType: 'MULTIPLE_CHOICE',
+    yes: 46,
+    volume: '$16.4m',
+    liquidity: '$5.1m',
+    participants: '11.2K',
+    timeLeft: 'May 24, 2026',
+    trend: 'up',
+    chart: series(10, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80',
+    icon: 'EPL',
+    accent: '#38003c',
+    options: [
+      { label: 'Manchester City', percentage: 46 },
+      { label: 'Arsenal FC', percentage: 32 },
+      { label: 'Liverpool FC', percentage: 16 },
+      { label: 'Chelsea FC', percentage: 6 }
+    ]
+  },
+  {
+    id: 'f1-champion-driver-2026',
+    question: 'Formula 1 2026 Drivers Championship Winner?',
+    category: 'Sports',
+    marketType: 'MULTIPLE_CHOICE',
+    yes: 54,
+    volume: '$12.1m',
+    liquidity: '$3.8m',
+    participants: '9.3K',
+    timeLeft: 'Nov 29, 2026',
+    trend: 'up',
+    chart: series(12, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=200&auto=format&fit=crop&q=80',
+    icon: 'F1',
+    accent: '#e10600',
+    options: [
+      { label: 'Max Verstappen', percentage: 54 },
+      { label: 'Lando Norris', percentage: 24 },
+      { label: 'Lewis Hamilton', percentage: 14 },
+      { label: 'Charles Leclerc', percentage: 8 }
+    ]
+  },
+  {
+    id: 'us-tech-regulation-2026',
+    question: 'Dominant US Tech Policy enacted in 2026?',
+    category: 'Tech',
+    marketType: 'MULTIPLE_CHOICE',
+    yes: 42,
+    volume: '$7.8m',
+    liquidity: '$2.3m',
+    participants: '5.4K',
+    timeLeft: 'Dec 31, 2026',
+    trend: 'up',
+    chart: series(14, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=200&auto=format&fit=crop&q=80',
+    icon: 'TECH',
+    accent: '#3b82f6',
+    options: [
+      { label: 'Federal Crypto Sandbox Act', percentage: 42 },
+      { label: 'AI Open Source Shield Bill', percentage: 31 },
+      { label: 'Algorithmic Safety Audit Standard', percentage: 19 },
+      { label: 'Cross-Border Data Privacy Compact', percentage: 8 }
+    ]
+  },
+
+  // --- UP OR DOWN MARKETS ---
+  {
+    id: 'btc-up-down-direction',
+    question: 'Bitcoin Up or Down today?',
+    category: 'Crypto',
+    marketType: 'UP_OR_DOWN',
+    yes: 51,
+    volume: '$28.4m',
+    liquidity: '$9.2m',
+    participants: '12.1K',
+    timeLeft: 'Ends in 2h 45m',
+    trend: 'up',
+    chart: series(3, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
+    icon: 'BTC',
+    accent: '#f7931a',
+  },
+  {
+    id: 'btc-200k',
+    question: 'Bitcoin above $70,000 on July 24?',
+    category: 'Crypto',
+    marketType: 'UP_OR_DOWN',
+    yes: 51,
+    volume: '$18.4m',
+    liquidity: '$6.2m',
+    participants: '28.3K',
+    timeLeft: '24 Jul · 07:00 AM',
+    trend: 'up',
+    chart: series(3, true),
+    verified: true,
+    image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=200&auto=format&fit=crop&q=80',
+    icon: 'BTC',
+    accent: '#f7931a',
+  },
+  {
     id: 'brazil-copa',
-    question: 'Will Brazil win the Copa 2026?',
+    question: 'Will Brazil win the FIFA World Cup 2026?',
     category: 'Sports',
     marketType: 'UP_OR_DOWN',
     yes: 48,
@@ -145,6 +1361,7 @@ export const MARKETS: Market[] = [
     trend: 'down',
     chart: series(41, false),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80',
     icon: 'BR',
     accent: '#febe10',
   },
@@ -161,13 +1378,14 @@ export const MARKETS: Market[] = [
     trend: 'down',
     chart: series(52, false),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=200&auto=format&fit=crop&q=80',
     icon: 'CPI',
     accent: '#3b82f6',
   },
   {
     id: 'nvda-stocks',
     question: 'NVIDIA above $150 on Aug 15?',
-    category: 'Stocks',
+    category: 'Finance',
     marketType: 'UP_OR_DOWN',
     yes: 55,
     volume: '$2.3m',
@@ -177,171 +1395,10 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(63, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&auto=format&fit=crop&q=80',
     icon: 'NVDA',
     accent: '#76b900',
   },
-  // Economics Markets
-  {
-    id: 'us-inflation-2026',
-    question: 'US Inflation below 2% by Q4 2026',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 35,
-    volume: '$2.1m',
-    liquidity: '$650K',
-    participants: '3.8K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(10, false),
-    verified: true,
-    icon: 'INF',
-    accent: '#8b5cf6',
-  },
-  {
-    id: 'us-gdp-growth',
-    question: 'US GDP Growth above 3%',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 48,
-    volume: '$1.8m',
-    liquidity: '$540K',
-    participants: '3.2K',
-    timeLeft: '30 Jun 2026',
-    trend: 'up',
-    chart: series(11, true),
-    verified: true,
-    icon: 'GDP',
-    accent: '#06b6d4',
-  },
-  {
-    id: 'us-unemployment-4',
-    question: 'US Unemployment below 4%',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 52,
-    volume: '$1.5m',
-    liquidity: '$450K',
-    participants: '2.9K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(12, true),
-    verified: true,
-    icon: 'UMP',
-    accent: '#10b981',
-  },
-  {
-    id: 'china-gdp',
-    question: 'China GDP exceed expectations',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 41,
-    volume: '$1.2m',
-    liquidity: '$360K',
-    participants: '2.4K',
-    timeLeft: '30 Jun 2026',
-    trend: 'down',
-    chart: series(13, false),
-    verified: true,
-    icon: 'CHN',
-    accent: '#ef4444',
-  },
-  {
-    id: 'eurozone-recession',
-    question: 'Eurozone enters recession',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 28,
-    volume: '$980K',
-    liquidity: '$294K',
-    participants: '1.8K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(14, false),
-    verified: true,
-    icon: 'EUR',
-    accent: '#0ea5e9',
-  },
-  {
-    id: 'japan-rates',
-    question: 'Japan raises interest rates again',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 62,
-    volume: '$1.3m',
-    liquidity: '$390K',
-    participants: '2.6K',
-    timeLeft: '30 Sep 2026',
-    trend: 'up',
-    chart: series(15, true),
-    verified: true,
-    icon: 'JPN',
-    accent: '#ec4899',
-  },
-  {
-    id: 'indonesia-bi-cut',
-    question: 'Indonesia BI Rate cut before Q1 2027',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 55,
-    volume: '$850K',
-    liquidity: '$255K',
-    participants: '2.1K',
-    timeLeft: '31 Mar 2027',
-    trend: 'up',
-    chart: series(16, true),
-    verified: true,
-    icon: 'IDN',
-    accent: '#f59e0b',
-  },
-  {
-    id: 'oil-100',
-    question: 'Oil price above $100/barrel',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 38,
-    volume: '$1.4m',
-    liquidity: '$420K',
-    participants: '3.1K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(17, false),
-    verified: true,
-    icon: 'OIL',
-    accent: '#1f2937',
-  },
-  {
-    id: 'gold-4000',
-    question: 'Gold above $4,000',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 72,
-    volume: '$2.2m',
-    liquidity: '$660K',
-    participants: '4.5K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(18, true),
-    verified: true,
-    icon: 'AU',
-    accent: '#fbbf24',
-  },
-  {
-    id: 'usd-index-110',
-    question: 'US Dollar Index above 110',
-    category: 'Economics',
-    marketType: 'UP_OR_DOWN',
-    yes: 45,
-    volume: '$1.6m',
-    liquidity: '$480K',
-    participants: '3.3K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(19, false),
-    verified: true,
-    icon: 'USD',
-    accent: '#22c55e',
-  },
-  // Financials Markets
   {
     id: 'apple-5t',
     question: 'Apple market cap reaches $5T',
@@ -355,6 +1412,7 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(20, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=200&auto=format&fit=crop&q=80',
     icon: 'AAPL',
     accent: '#a1a1a1',
   },
@@ -371,28 +1429,13 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(21, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1633419461186-7d40a38105ec?w=200&auto=format&fit=crop&q=80',
     icon: 'MSFT',
     accent: '#00a4ef',
   },
   {
-    id: 'nvda-beats',
-    question: 'NVIDIA quarterly revenue beats estimates',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 74,
-    volume: '$2.6m',
-    liquidity: '$780K',
-    participants: '4.5K',
-    timeLeft: '30 Sep 2026',
-    trend: 'up',
-    chart: series(22, true),
-    verified: true,
-    icon: 'NVDA',
-    accent: '#76b900',
-  },
-  {
     id: 'tesla-500',
-    question: 'Tesla above $500/share',
+    question: 'Tesla above $500/share before end of 2026',
     category: 'Finance',
     marketType: 'UP_OR_DOWN',
     yes: 52,
@@ -403,110 +1446,14 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(23, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?w=200&auto=format&fit=crop&q=80',
     icon: 'TSLA',
     accent: '#e82127',
   },
   {
-    id: 'meta-ai-device',
-    question: 'Meta launches new AI device',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 81,
-    volume: '$1.9m',
-    liquidity: '$570K',
-    participants: '3.7K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(24, true),
-    verified: true,
-    icon: 'META',
-    accent: '#0a66c2',
-  },
-  {
-    id: 'amzn-beats',
-    question: 'Amazon revenue beats Wall Street estimates',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 76,
-    volume: '$2.3m',
-    liquidity: '$690K',
-    participants: '4.3K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(25, true),
-    verified: true,
-    icon: 'AMZN',
-    accent: '#ff9900',
-  },
-  {
-    id: 'nflx-subs',
-    question: 'Netflix subscriber growth exceeds expectations',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 69,
-    volume: '$1.7m',
-    liquidity: '$510K',
-    participants: '3.5K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(26, true),
-    verified: true,
-    icon: 'NFLX',
-    accent: '#e50914',
-  },
-  {
-    id: 'ibit-200b',
-    question: 'BlackRock Bitcoin ETF AUM above $200B',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 58,
-    volume: '$2.4m',
-    liquidity: '$720K',
-    participants: '4.6K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(27, true),
-    verified: true,
-    icon: 'IBIT',
-    accent: '#1f2937',
-  },
-  {
-    id: 'sp500-7000',
-    question: 'S&P500 closes above 7,000',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 65,
-    volume: '$3.2m',
-    liquidity: '$960K',
-    participants: '5.4K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(28, true),
-    verified: true,
-    icon: 'SPX',
-    accent: '#003478',
-  },
-  {
-    id: 'nasdaq-ath',
-    question: 'Nasdaq hits new all-time high',
-    category: 'Finance',
-    marketType: 'UP_OR_DOWN',
-    yes: 73,
-    volume: '$2.9m',
-    liquidity: '$870K',
-    participants: '5.1K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(29, true),
-    verified: true,
-    icon: 'NDX',
-    accent: '#fff4f0',
-  },
-  // Tech & Science Markets (same as Financials for now)
-  {
     id: 'gpt6-release',
-    question: 'OpenAI releases GPT-6',
-    category: 'Tech',
+    question: 'OpenAI releases GPT-6 in 2026',
+    category: 'AI',
     marketType: 'UP_OR_DOWN',
     yes: 64,
     volume: '$2.7m',
@@ -516,13 +1463,14 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(30, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=200&auto=format&fit=crop&q=80',
     icon: 'GPT',
     accent: '#10a37f',
   },
   {
     id: 'gemini-ultra',
     question: 'Google Gemini Ultra surpasses GPT benchmark',
-    category: 'Tech',
+    category: 'AI',
     marketType: 'UP_OR_DOWN',
     yes: 53,
     volume: '$1.9m',
@@ -532,109 +1480,13 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(31, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=200&auto=format&fit=crop&q=80',
     icon: 'GEM',
     accent: '#4285f4',
   },
   {
-    id: 'claude-100m',
-    question: 'Claude reaches 100M monthly users',
-    category: 'Tech',
-    marketType: 'UP_OR_DOWN',
-    yes: 70,
-    volume: '$2.2m',
-    liquidity: '$660K',
-    participants: '4.2K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(32, true),
-    verified: true,
-    icon: 'CLD',
-    accent: '#c4a26d',
-  },
-  {
-    id: 'ai-movie-oscar',
-    question: 'AI-generated movies win an Oscar',
-    category: 'Tech',
-    marketType: 'UP_OR_DOWN',
-    yes: 22,
-    volume: '$1.1m',
-    liquidity: '$330K',
-    participants: '2.3K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(33, false),
-    verified: true,
-    icon: 'OSC',
-    accent: '#fbbf24',
-  },
-  {
-    id: 'copilot-50m',
-    question: 'GitHub Copilot reaches 50M users',
-    category: 'Tech',
-    marketType: 'UP_OR_DOWN',
-    yes: 76,
-    volume: '$2.4m',
-    liquidity: '$720K',
-    participants: '4.7K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(34, true),
-    verified: true,
-    icon: 'GHP',
-    accent: '#1f2937',
-  },
-  // AI Markets
-  {
-    id: 'ai-support-20pct',
-    question: 'AI agents replace 20% of customer support jobs',
-    category: 'AI',
-    marketType: 'UP_OR_DOWN',
-    yes: 61,
-    volume: '$2.1m',
-    liquidity: '$630K',
-    participants: '4.0K',
-    timeLeft: '31 Dec 2027',
-    trend: 'up',
-    chart: series(35, true),
-    verified: true,
-    icon: 'AI',
-    accent: '#8b5cf6',
-  },
-  {
-    id: 'oss-beats-gpt',
-    question: 'Open-source model beats GPT benchmark',
-    category: 'AI',
-    marketType: 'UP_OR_DOWN',
-    yes: 67,
-    volume: '$2.3m',
-    liquidity: '$690K',
-    participants: '4.4K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(36, true),
-    verified: true,
-    icon: 'OSS',
-    accent: '#0ea5e9',
-  },
-  {
-    id: 'ai-regulation-us',
-    question: 'AI regulation passes in the US',
-    category: 'AI',
-    marketType: 'UP_OR_DOWN',
-    yes: 45,
-    volume: '$1.8m',
-    liquidity: '$540K',
-    participants: '3.5K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(37, false),
-    verified: true,
-    icon: 'REG',
-    accent: '#ef4444',
-  },
-  {
     id: 'ai-market-1t',
-    question: 'AI market exceeds $1 trillion',
+    question: 'Global AI market exceeds $1 trillion',
     category: 'AI',
     marketType: 'UP_OR_DOWN',
     yes: 82,
@@ -645,77 +1497,30 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(38, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=200&auto=format&fit=crop&q=80',
     icon: 'MKT',
     accent: '#10b981',
   },
   {
-    id: 'humanoid-robots',
-    question: 'Humanoid AI robots enter mass production',
-    category: 'AI',
+    id: 'gold-4000',
+    question: 'Gold price above $4,000 per ounce',
+    category: 'Finance',
     marketType: 'UP_OR_DOWN',
-    yes: 48,
-    volume: '$1.5m',
-    liquidity: '$450K',
-    participants: '3.0K',
-    timeLeft: '31 Dec 2027',
-    trend: 'up',
-    chart: series(39, true),
-    verified: true,
-    icon: 'RBT',
-    accent: '#f59e0b',
-  },
-  // Climate Markets
-  {
-    id: 'co2-decrease',
-    question: 'Global CO₂ emissions decrease year-over-year',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 32,
-    volume: '$1.3m',
-    liquidity: '$390K',
-    participants: '2.8K',
+    yes: 72,
+    volume: '$2.2m',
+    liquidity: '$660K',
+    participants: '4.5K',
     timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(40, false),
-    verified: true,
-    icon: 'CO2',
-    accent: '#059669',
-  },
-  {
-    id: 'hurricane-forecast',
-    question: 'Hurricane season exceeds NOAA forecast',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 55,
-    volume: '$1.1m',
-    liquidity: '$330K',
-    participants: '2.5K',
-    timeLeft: '30 Nov 2026',
     trend: 'up',
-    chart: series(41, true),
+    chart: series(18, true),
     verified: true,
-    icon: 'HUR',
-    accent: '#0369a1',
-  },
-  {
-    id: 'arctic-ice-low',
-    question: 'Arctic sea ice reaches record low',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 71,
-    volume: '$1.8m',
-    liquidity: '$540K',
-    participants: '3.6K',
-    timeLeft: '31 Aug 2026',
-    trend: 'up',
-    chart: series(42, true),
-    verified: true,
-    icon: 'ARC',
-    accent: '#0ea5e9',
+    image: 'https://images.unsplash.com/photo-1610375461246-83df859d849d?w=200&auto=format&fit=crop&q=80',
+    icon: 'AU',
+    accent: '#fbbf24',
   },
   {
     id: 'solar-exceeds-coal',
-    question: 'Solar energy exceeds coal globally',
+    question: 'Solar energy generation exceeds coal globally',
     category: 'Climate',
     marketType: 'UP_OR_DOWN',
     yes: 66,
@@ -726,13 +1531,14 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(43, true),
     verified: true,
-    icon: 'SOL',
+    image: 'https://images.unsplash.com/photo-1509391365360-2e959784a276?w=200&auto=format&fit=crop&q=80',
+    icon: 'SOLAR',
     accent: '#fbbf24',
   },
   {
     id: 'ev-sales-50pct',
-    question: 'EV sales exceed 50% of new cars',
-    category: 'Climate',
+    question: 'EV sales exceed 50% of new global car sales',
+    category: 'Tech',
     marketType: 'UP_OR_DOWN',
     yes: 58,
     volume: '$1.9m',
@@ -742,93 +1548,13 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(44, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1563720223185-11003d516935?w=200&auto=format&fit=crop&q=80',
     icon: 'EV',
     accent: '#10b981',
   },
   {
-    id: 'renewable-capacity',
-    question: 'Global renewable capacity surpasses target',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 73,
-    volume: '$2.2m',
-    liquidity: '$660K',
-    participants: '4.3K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(45, true),
-    verified: true,
-    icon: 'REN',
-    accent: '#059669',
-  },
-  {
-    id: 'el-nino-ends',
-    question: 'El Niño officially ends',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 62,
-    volume: '$1.4m',
-    liquidity: '$420K',
-    participants: '2.9K',
-    timeLeft: '30 Sep 2026',
-    trend: 'up',
-    chart: series(46, true),
-    verified: true,
-    icon: 'ENO',
-    accent: '#d97706',
-  },
-  {
-    id: 'la-nina-returns',
-    question: 'La Niña returns before year end',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 48,
-    volume: '$1.2m',
-    liquidity: '$360K',
-    participants: '2.6K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(47, false),
-    verified: true,
-    icon: 'LNA',
-    accent: '#0369a1',
-  },
-  {
-    id: 'carbon-credit-100',
-    question: 'Carbon credit price above $100',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 51,
-    volume: '$1.6m',
-    liquidity: '$480K',
-    participants: '3.2K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(48, true),
-    verified: true,
-    icon: 'CRB',
-    accent: '#059669',
-  },
-  {
-    id: 'temp-anomaly-17',
-    question: 'Global temperature anomaly exceeds 1.7°C',
-    category: 'Climate',
-    marketType: 'UP_OR_DOWN',
-    yes: 64,
-    volume: '$1.7m',
-    liquidity: '$510K',
-    participants: '3.4K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(49, true),
-    verified: true,
-    icon: 'TMP',
-    accent: '#ef4444',
-  },
-  // Sports Markets - Additional
-  {
     id: 'real-madrid-ucl',
-    question: 'Real Madrid wins Champions League',
+    question: 'Real Madrid wins UEFA Champions League',
     category: 'Sports',
     marketType: 'UP_OR_DOWN',
     yes: 45,
@@ -839,136 +1565,9 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(50, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=200&auto=format&fit=crop&q=80',
     icon: 'RM',
     accent: '#ffffff',
-  },
-  {
-    id: 'man-city-pl',
-    question: 'Manchester City wins Premier League',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 52,
-    volume: '$1.6m',
-    liquidity: '$480K',
-    participants: '3.3K',
-    timeLeft: '31 May 2026',
-    trend: 'up',
-    chart: series(51, true),
-    verified: true,
-    icon: 'MC',
-    accent: '#6cabde',
-  },
-  {
-    id: 'brazil-wc',
-    question: 'Brazil wins FIFA World Cup 2026',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 48,
-    volume: '$2.4m',
-    liquidity: '$720K',
-    participants: '4.5K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(52, true),
-    verified: true,
-    icon: 'BR',
-    accent: '#fbbf24',
-  },
-  {
-    id: 'max-verstappen-f1',
-    question: 'Max Verstappen wins Formula 1 Championship',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 71,
-    volume: '$1.9m',
-    liquidity: '$570K',
-    participants: '3.7K',
-    timeLeft: '31 Dec 2026',
-    trend: 'up',
-    chart: series(53, true),
-    verified: true,
-    icon: 'F1',
-    accent: '#003478',
-  },
-  {
-    id: 'lakers-nba-finals',
-    question: 'Lakers reach NBA Finals',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 38,
-    volume: '$1.3m',
-    liquidity: '$390K',
-    participants: '2.8K',
-    timeLeft: '31 May 2026',
-    trend: 'down',
-    chart: series(54, false),
-    verified: true,
-    icon: 'LAL',
-    accent: '#552583',
-  },
-  {
-    id: 'indonesia-wc',
-    question: 'Indonesia qualifies for World Cup',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 22,
-    volume: '$920K',
-    liquidity: '$276K',
-    participants: '2.1K',
-    timeLeft: '15 Nov 2025',
-    trend: 'down',
-    chart: series(55, false),
-    verified: true,
-    icon: 'IDN',
-    accent: '#ff0000',
-  },
-  {
-    id: 'djokovic-wimbledon',
-    question: 'Novak Djokovic wins Wimbledon',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 35,
-    volume: '$1.1m',
-    liquidity: '$330K',
-    participants: '2.5K',
-    timeLeft: '31 Jul 2026',
-    trend: 'down',
-    chart: series(56, false),
-    verified: true,
-    icon: 'WIM',
-    accent: '#006241',
-  },
-  {
-    id: 'mclaren-constructors',
-    question: 'McLaren wins Constructors Championship',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 28,
-    volume: '$980K',
-    liquidity: '$294K',
-    participants: '2.3K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(57, false),
-    verified: true,
-    icon: 'MCL',
-    accent: '#ff8700',
-  },
-  {
-    id: 'messi-20-goals',
-    question: 'Lionel Messi scores 20+ goals this season',
-    category: 'Sports',
-    marketType: 'UP_OR_DOWN',
-    yes: 42,
-    volume: '$1.2m',
-    liquidity: '$360K',
-    participants: '2.7K',
-    timeLeft: '31 Dec 2026',
-    trend: 'down',
-    chart: series(58, false),
-    verified: true,
-    icon: 'LEO',
-    accent: '#1f2937',
   },
   {
     id: 'ronaldo-1000-goals',
@@ -983,10 +1582,11 @@ export const MARKETS: Market[] = [
     trend: 'up',
     chart: series(59, true),
     verified: true,
+    image: 'https://images.unsplash.com/photo-1518091043644-c1d4457512c6?w=200&auto=format&fit=crop&q=80',
     icon: 'CR7',
     accent: '#ef4444',
-  },
-]
+  }
+];
 
 export const FEATURED = {
   tag: 'FEATURED EVENT',

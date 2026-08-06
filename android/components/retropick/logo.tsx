@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { cn } from '@/lib/utils'
 
 export function Logo({
-  size = 28,
+  size = 24,
   rounded = true,
   className,
 }: {
@@ -14,13 +14,13 @@ export function Logo({
     <span
       className={cn(
         'relative inline-block shrink-0 overflow-hidden',
-        rounded && 'rounded-full',
+        rounded && 'rounded-lg shadow-xs border border-border/40',
         className,
       )}
       style={{ width: size, height: size }}
     >
       <Image
-        src="/retropick-logo-ribbon.png"
+        src="/logo.webp"
         alt="RetroPick"
         fill
         sizes={`${size}px`}
