@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -30,7 +29,7 @@ func (m *memRegistry) MarketForToken(tokenID string) (string, bool) {
 func (m *memRegistry) ValidateToken(_ context.Context, marketID, tokenID string) error {
 	found, ok := m.MarketForToken(tokenID)
 	if !ok || found != marketID {
-		return fmt.Errorf("token not in catalog")
+		return realtime.ErrInvalidCatalogToken
 	}
 	return nil
 }

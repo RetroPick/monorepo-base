@@ -65,7 +65,9 @@ ON CONFLICT (market_id) DO UPDATE SET status = EXCLUDED.status`, f.MarketID, f.E
 	_, err = pool.Exec(ctx, `
 INSERT INTO markets_catalog_outcomes (outcome_id, market_id, upstream_token_id, outcome_index, name, observed_at)
 VALUES ($1, $2, $3, 0, 'Yes', NOW())
-ON CONFLICT (outcome_id) DO UPDATE SET upstream_token_id = EXCLUDED.upstream_token_id`,
+ON CONFLICT (outcome_id) DO UPDATE SET
+	upstream_token_id = EXCLUDED.upstream_token_id,
+	market_id = EXCLUDED.market_id`,
 		f.OutcomeID, f.MarketID, f.TokenID)
 	return err
 }

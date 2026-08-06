@@ -52,7 +52,7 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 		logger = slog.Default()
 	}
 	status := NewStatusProvider(true)
-	status.SetRegistryReady(cfg.Registry != nil)
+	status.SetRegistryReady(false)
 	hub := NewHub(HubConfig{MaxQueue: 64, MaxConnections: 1000, MaxPerIP: 50})
 
 	producer := NewProducer(ProducerConfig{
