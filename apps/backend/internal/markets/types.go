@@ -19,6 +19,7 @@ type CapabilitiesResponse struct {
 	Intel     bool            `json:"intelligence"`
 	Features  map[string]bool `json:"features,omitempty"`
 	CheckedAt time.Time       `json:"checkedAt"`
+	Source    string          `json:"source"`
 }
 
 // EventSummary is a normalized Polymarket event stub (catalog grows in later phases).
