@@ -5,7 +5,7 @@
 | Product | Description | Client |
 |---------|-------------|--------|
 | **Markets** | Polymarket-native discovery, trading, portfolio (V1 in progress) | Web, Android |
-| **PRISM** | Fully collateralized structured-outcome derivatives (future) | Web |
+| **PRISM** | Fully collateralized structured-outcome derivatives (future) | Web, Android |
 | **Android** | Native Markets client (Kotlin + Jetpack Compose) | Mobile |
 
 Legacy epoch v1 (MarketEngine) is **archived** under [`archive/`](archive/) — not part of the active build.

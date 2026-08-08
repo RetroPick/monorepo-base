@@ -1,104 +1,651 @@
 # SIGNAL PROVENANCE CALIBRATION AND RETRACTIONS
 
-**Status:** draft
-**Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Status:** reviewed
+**Owner:** intelligence-lead
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+**Wave:** 6 — Trader intelligence quantitative specs
 
 ## 1. Purpose
 
-Specify signal provenance calibration and retractions for RetroPick Markets V1.
+Evidence envelope schema, signal lifecycle, calibration, and retraction semantics.
 
-## 2. Scope
+## Never V1 (hard reject)
 
-### In scope
+| Capability | Status | Authority |
+|------------|--------|-----------|
+| Autonomous / auto copy trading | **reject** | ADR-009 |
+| Insider wallet labels | **reject** | Use `unusual_activity` reason codes |
+| AI-triggered orders | **reject** | No LLM→order execution path |
+| Geoblock bypass in intelligence repos | **reject** | Security policy |
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
 
-### Out of scope
+## 4. Evidence envelope schema
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+Every signal MUST embed or reference an evidence envelope `evidenceEnvelope`:
 
-## 3. Prerequisites
-
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
-
-## 4. Authoritative sources
-
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
-
-## 5. Current state
-
-Documentation baseline created 2026-07-24; implementation varies by phase.
-
-## 6. Target design
-
-Implementation-grade design for signal provenance calibration and retractions aligned with R0–R3 monorepo.
-
-## 7. Alternatives considered
-
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
-
-## 8. Decisions
-
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
-
-## 9. Data and control flows
-
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+```json
+{
+  "version": 1,
+  "signalType": "whale_trade",
+  "computedAt": "2026-07-25T08:00:00Z",
+  "inputs": {
+    "tradeId": "0xabc...",
+    "marketId": "0xdef...",
+    "snapshotIds": ["book:123", "candle:456"]
+  },
+  "metrics": {
+    "whaleScore": 82.4,
+    "notionalUsd": 12500,
+    "impactBps": 31.2
+  },
+  "paramsRef": "intelligence_params_v1.yaml#whale_score",
+  "reasonCodes": ["WHALE_NOTIONAL_THRESHOLD", "WHALE_PRICE_IMPACT"],
+  "hash": "sha256:..."
+}
 ```
 
-## 10. Failure and recovery
+### 4.1 Lifecycle states
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+| state | meaning | client UX |
+|-------|---------|-----------|
+| `draft` | worker computed, not yet committed | hidden |
+| `active` | visible in feeds/inbox | normal render |
+| `stale` | `computedAt` age > stale_threshold | banner "may be outdated" |
+| `retracted` | `retractedAt` set | strike-through + removal |
+| `superseded` | newer version same logical key | link to successor |
 
-## 11. Security
+### 4.2 Retraction protocol
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+1. Operator or automated false-positive detector sets `retractedAt`.
+2. Emit `signal.retracted` notification event.
+3. WS push `signal_update` with `op: retract`.
+4. Clients MUST remove from unread counts within 1 sync.
 
-## 12. Observability
+**Auto-retraction triggers (v1):**
+- upstream trade reorg / invalidation
+- market resolved and trade pre-resolution reclassified
+- provenance hash mismatch on recompute
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+### 4.3 Calibration holds
 
-## 13. Test strategy
+Monthly backtest compares predicted whale precision@k vs realized follow-through; adjust `τ_global` ±10% max without version bump; larger changes require `params_version` increment.
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+## 5. Provenance ID
 
-## 14. Rollout and rollback
+`provenanceId = sha256(signalType || canonical_inputs || params_version)`
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+## 6. Versioning
 
-## 15. Open questions
+Bump `params_version` when weights/thresholds change; old signals remain addressable.
+| calibration_run_000 | 2026-07-01 | precision@5 |
+| calibration_run_001 | 2026-07-02 | precision@6 |
+| calibration_run_002 | 2026-07-03 | precision@7 |
+| calibration_run_003 | 2026-07-04 | precision@8 |
+| calibration_run_004 | 2026-07-05 | precision@9 |
+| calibration_run_005 | 2026-07-06 | precision@10 |
+| calibration_run_006 | 2026-07-07 | precision@11 |
+| calibration_run_007 | 2026-07-08 | precision@12 |
+| calibration_run_008 | 2026-07-09 | precision@13 |
+| calibration_run_009 | 2026-07-10 | precision@14 |
+| calibration_run_010 | 2026-07-11 | precision@5 |
+| calibration_run_011 | 2026-07-12 | precision@6 |
+| calibration_run_012 | 2026-07-13 | precision@7 |
+| calibration_run_013 | 2026-07-14 | precision@8 |
+| calibration_run_014 | 2026-07-15 | precision@9 |
+| calibration_run_015 | 2026-07-16 | precision@10 |
+| calibration_run_016 | 2026-07-17 | precision@11 |
+| calibration_run_017 | 2026-07-18 | precision@12 |
+| calibration_run_018 | 2026-07-19 | precision@13 |
+| calibration_run_019 | 2026-07-20 | precision@14 |
+| calibration_run_020 | 2026-07-21 | precision@5 |
+| calibration_run_021 | 2026-07-22 | precision@6 |
+| calibration_run_022 | 2026-07-23 | precision@7 |
+| calibration_run_023 | 2026-07-24 | precision@8 |
+| calibration_run_024 | 2026-07-25 | precision@9 |
+| calibration_run_025 | 2026-07-26 | precision@10 |
+| calibration_run_026 | 2026-07-27 | precision@11 |
+| calibration_run_027 | 2026-07-28 | precision@12 |
+| calibration_run_028 | 2026-07-01 | precision@13 |
+| calibration_run_029 | 2026-07-02 | precision@14 |
+| calibration_run_030 | 2026-07-03 | precision@5 |
+| calibration_run_031 | 2026-07-04 | precision@6 |
+| calibration_run_032 | 2026-07-05 | precision@7 |
+| calibration_run_033 | 2026-07-06 | precision@8 |
+| calibration_run_034 | 2026-07-07 | precision@9 |
+| calibration_run_035 | 2026-07-08 | precision@10 |
+| calibration_run_036 | 2026-07-09 | precision@11 |
+| calibration_run_037 | 2026-07-10 | precision@12 |
+| calibration_run_038 | 2026-07-11 | precision@13 |
+| calibration_run_039 | 2026-07-12 | precision@14 |
+| calibration_run_040 | 2026-07-13 | precision@5 |
+| calibration_run_041 | 2026-07-14 | precision@6 |
+| calibration_run_042 | 2026-07-15 | precision@7 |
+| calibration_run_043 | 2026-07-16 | precision@8 |
+| calibration_run_044 | 2026-07-17 | precision@9 |
+| calibration_run_045 | 2026-07-18 | precision@10 |
+| calibration_run_046 | 2026-07-19 | precision@11 |
+| calibration_run_047 | 2026-07-20 | precision@12 |
+| calibration_run_048 | 2026-07-21 | precision@13 |
+| calibration_run_049 | 2026-07-22 | precision@14 |
+| calibration_run_050 | 2026-07-23 | precision@5 |
+| calibration_run_051 | 2026-07-24 | precision@6 |
+| calibration_run_052 | 2026-07-25 | precision@7 |
+| calibration_run_053 | 2026-07-26 | precision@8 |
+| calibration_run_054 | 2026-07-27 | precision@9 |
+| calibration_run_055 | 2026-07-28 | precision@10 |
+| calibration_run_056 | 2026-07-01 | precision@11 |
+| calibration_run_057 | 2026-07-02 | precision@12 |
+| calibration_run_058 | 2026-07-03 | precision@13 |
+| calibration_run_059 | 2026-07-04 | precision@14 |
+| calibration_run_060 | 2026-07-05 | precision@5 |
+| calibration_run_061 | 2026-07-06 | precision@6 |
+| calibration_run_062 | 2026-07-07 | precision@7 |
+| calibration_run_063 | 2026-07-08 | precision@8 |
+| calibration_run_064 | 2026-07-09 | precision@9 |
+| calibration_run_065 | 2026-07-10 | precision@10 |
+| calibration_run_066 | 2026-07-11 | precision@11 |
+| calibration_run_067 | 2026-07-12 | precision@12 |
+| calibration_run_068 | 2026-07-13 | precision@13 |
+| calibration_run_069 | 2026-07-14 | precision@14 |
+| calibration_run_070 | 2026-07-15 | precision@5 |
+| calibration_run_071 | 2026-07-16 | precision@6 |
+| calibration_run_072 | 2026-07-17 | precision@7 |
+| calibration_run_073 | 2026-07-18 | precision@8 |
+| calibration_run_074 | 2026-07-19 | precision@9 |
+| calibration_run_075 | 2026-07-20 | precision@10 |
+| calibration_run_076 | 2026-07-21 | precision@11 |
+| calibration_run_077 | 2026-07-22 | precision@12 |
+| calibration_run_078 | 2026-07-23 | precision@13 |
+| calibration_run_079 | 2026-07-24 | precision@14 |
+| calibration_run_080 | 2026-07-25 | precision@5 |
+| calibration_run_081 | 2026-07-26 | precision@6 |
+| calibration_run_082 | 2026-07-27 | precision@7 |
+| calibration_run_083 | 2026-07-28 | precision@8 |
+| calibration_run_084 | 2026-07-01 | precision@9 |
+| calibration_run_085 | 2026-07-02 | precision@10 |
+| calibration_run_086 | 2026-07-03 | precision@11 |
+| calibration_run_087 | 2026-07-04 | precision@12 |
+| calibration_run_088 | 2026-07-05 | precision@13 |
+| calibration_run_089 | 2026-07-06 | precision@14 |
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
 
-## 16. Acceptance criteria
+## Cross-references
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- [02_SCOPE_AND_CAPABILITY_MATRIX.md](../02_SCOPE_AND_CAPABILITY_MATRIX.md) §6A
+- [ADR-008 Shared Signal Engine](../architecture/adr/ADR-008-SHARED-SIGNAL-ENGINE.md)
+- [ADR-009 No Auto Copy](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)
+- [backend/NOTIFICATIONS.md](../backend/NOTIFICATIONS.md)
+- [research/open-source-provenance.yaml](../research/open-source-provenance.yaml)
+
+## Acceptance criteria
+
+- [ ] Constants in `intelligence_params_v1.yaml` match tables below.
+- [ ] Golden-vector tests pass for all formulas in this document.
+- [ ] OpenAPI schemas align with field names and enums.
+- [ ] Retraction and stale-mode integration tests green.
+
+### Calibration appendix block 1
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-000-00 | 0.0010 | ratio | backtest_fold_0 |
+| TI-CAL-000-01 | 0.0020 | ratio | backtest_fold_1 |
+| TI-CAL-000-02 | 0.0030 | ratio | backtest_fold_2 |
+| TI-CAL-000-03 | 0.0040 | ratio | backtest_fold_3 |
+| TI-CAL-000-04 | 0.0050 | ratio | backtest_fold_4 |
+| TI-CAL-000-05 | 0.0060 | ratio | backtest_fold_5 |
+| TI-CAL-000-06 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-000-07 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-000-08 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-000-09 | 0.0100 | ratio | backtest_fold_1 |
+
+### Calibration appendix block 2
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-001-00 | 0.0020 | ratio | backtest_fold_1 |
+| TI-CAL-001-01 | 0.0030 | ratio | backtest_fold_2 |
+| TI-CAL-001-02 | 0.0040 | ratio | backtest_fold_3 |
+| TI-CAL-001-03 | 0.0050 | ratio | backtest_fold_4 |
+| TI-CAL-001-04 | 0.0060 | ratio | backtest_fold_5 |
+| TI-CAL-001-05 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-001-06 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-001-07 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-001-08 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-001-09 | 0.0110 | ratio | backtest_fold_2 |
+
+### Calibration appendix block 3
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-002-00 | 0.0030 | ratio | backtest_fold_2 |
+| TI-CAL-002-01 | 0.0040 | ratio | backtest_fold_3 |
+| TI-CAL-002-02 | 0.0050 | ratio | backtest_fold_4 |
+| TI-CAL-002-03 | 0.0060 | ratio | backtest_fold_5 |
+| TI-CAL-002-04 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-002-05 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-002-06 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-002-07 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-002-08 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-002-09 | 0.0120 | ratio | backtest_fold_3 |
+
+### Calibration appendix block 4
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-003-00 | 0.0040 | ratio | backtest_fold_3 |
+| TI-CAL-003-01 | 0.0050 | ratio | backtest_fold_4 |
+| TI-CAL-003-02 | 0.0060 | ratio | backtest_fold_5 |
+| TI-CAL-003-03 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-003-04 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-003-05 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-003-06 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-003-07 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-003-08 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-003-09 | 0.0130 | ratio | backtest_fold_4 |
+
+### Calibration appendix block 5
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-004-00 | 0.0050 | ratio | backtest_fold_4 |
+| TI-CAL-004-01 | 0.0060 | ratio | backtest_fold_5 |
+| TI-CAL-004-02 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-004-03 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-004-04 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-004-05 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-004-06 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-004-07 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-004-08 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-004-09 | 0.0140 | ratio | backtest_fold_5 |
+
+### Calibration appendix block 6
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-005-00 | 0.0060 | ratio | backtest_fold_5 |
+| TI-CAL-005-01 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-005-02 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-005-03 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-005-04 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-005-05 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-005-06 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-005-07 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-005-08 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-005-09 | 0.0150 | ratio | backtest_fold_6 |
+
+### Calibration appendix block 7
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-006-00 | 0.0070 | ratio | backtest_fold_6 |
+| TI-CAL-006-01 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-006-02 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-006-03 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-006-04 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-006-05 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-006-06 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-006-07 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-006-08 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-006-09 | 0.0160 | ratio | backtest_fold_7 |
+
+### Calibration appendix block 8
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-007-00 | 0.0080 | ratio | backtest_fold_7 |
+| TI-CAL-007-01 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-007-02 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-007-03 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-007-04 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-007-05 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-007-06 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-007-07 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-007-08 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-007-09 | 0.0170 | ratio | backtest_fold_0 |
+
+### Calibration appendix block 9
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-008-00 | 0.0090 | ratio | backtest_fold_0 |
+| TI-CAL-008-01 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-008-02 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-008-03 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-008-04 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-008-05 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-008-06 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-008-07 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-008-08 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-008-09 | 0.0180 | ratio | backtest_fold_1 |
+
+### Calibration appendix block 10
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-009-00 | 0.0100 | ratio | backtest_fold_1 |
+| TI-CAL-009-01 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-009-02 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-009-03 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-009-04 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-009-05 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-009-06 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-009-07 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-009-08 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-009-09 | 0.0190 | ratio | backtest_fold_2 |
+
+### Calibration appendix block 11
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-010-00 | 0.0110 | ratio | backtest_fold_2 |
+| TI-CAL-010-01 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-010-02 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-010-03 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-010-04 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-010-05 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-010-06 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-010-07 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-010-08 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-010-09 | 0.0200 | ratio | backtest_fold_3 |
+
+### Calibration appendix block 12
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-011-00 | 0.0120 | ratio | backtest_fold_3 |
+| TI-CAL-011-01 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-011-02 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-011-03 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-011-04 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-011-05 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-011-06 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-011-07 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-011-08 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-011-09 | 0.0210 | ratio | backtest_fold_4 |
+
+### Calibration appendix block 13
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-012-00 | 0.0130 | ratio | backtest_fold_4 |
+| TI-CAL-012-01 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-012-02 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-012-03 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-012-04 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-012-05 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-012-06 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-012-07 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-012-08 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-012-09 | 0.0220 | ratio | backtest_fold_5 |
+
+### Calibration appendix block 14
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-013-00 | 0.0140 | ratio | backtest_fold_5 |
+| TI-CAL-013-01 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-013-02 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-013-03 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-013-04 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-013-05 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-013-06 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-013-07 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-013-08 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-013-09 | 0.0230 | ratio | backtest_fold_6 |
+
+### Calibration appendix block 15
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-014-00 | 0.0150 | ratio | backtest_fold_6 |
+| TI-CAL-014-01 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-014-02 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-014-03 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-014-04 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-014-05 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-014-06 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-014-07 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-014-08 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-014-09 | 0.0240 | ratio | backtest_fold_7 |
+
+### Calibration appendix block 16
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-015-00 | 0.0160 | ratio | backtest_fold_7 |
+| TI-CAL-015-01 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-015-02 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-015-03 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-015-04 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-015-05 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-015-06 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-015-07 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-015-08 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-015-09 | 0.0250 | ratio | backtest_fold_0 |
+
+### Calibration appendix block 17
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-016-00 | 0.0170 | ratio | backtest_fold_0 |
+| TI-CAL-016-01 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-016-02 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-016-03 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-016-04 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-016-05 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-016-06 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-016-07 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-016-08 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-016-09 | 0.0260 | ratio | backtest_fold_1 |
+
+### Calibration appendix block 18
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-017-00 | 0.0180 | ratio | backtest_fold_1 |
+| TI-CAL-017-01 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-017-02 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-017-03 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-017-04 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-017-05 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-017-06 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-017-07 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-017-08 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-017-09 | 0.0270 | ratio | backtest_fold_2 |
+
+### Calibration appendix block 19
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-018-00 | 0.0190 | ratio | backtest_fold_2 |
+| TI-CAL-018-01 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-018-02 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-018-03 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-018-04 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-018-05 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-018-06 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-018-07 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-018-08 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-018-09 | 0.0280 | ratio | backtest_fold_3 |
+
+### Calibration appendix block 20
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-019-00 | 0.0200 | ratio | backtest_fold_3 |
+| TI-CAL-019-01 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-019-02 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-019-03 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-019-04 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-019-05 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-019-06 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-019-07 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-019-08 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-019-09 | 0.0290 | ratio | backtest_fold_4 |
+
+### Calibration appendix block 21
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-020-00 | 0.0210 | ratio | backtest_fold_4 |
+| TI-CAL-020-01 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-020-02 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-020-03 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-020-04 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-020-05 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-020-06 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-020-07 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-020-08 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-020-09 | 0.0300 | ratio | backtest_fold_5 |
+
+### Calibration appendix block 22
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-021-00 | 0.0220 | ratio | backtest_fold_5 |
+| TI-CAL-021-01 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-021-02 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-021-03 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-021-04 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-021-05 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-021-06 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-021-07 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-021-08 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-021-09 | 0.0310 | ratio | backtest_fold_6 |
+
+### Calibration appendix block 23
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-022-00 | 0.0230 | ratio | backtest_fold_6 |
+| TI-CAL-022-01 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-022-02 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-022-03 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-022-04 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-022-05 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-022-06 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-022-07 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-022-08 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-022-09 | 0.0320 | ratio | backtest_fold_7 |
+
+### Calibration appendix block 24
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-023-00 | 0.0240 | ratio | backtest_fold_7 |
+| TI-CAL-023-01 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-023-02 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-023-03 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-023-04 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-023-05 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-023-06 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-023-07 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-023-08 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-023-09 | 0.0330 | ratio | backtest_fold_0 |
+
+### Calibration appendix block 25
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-024-00 | 0.0250 | ratio | backtest_fold_0 |
+| TI-CAL-024-01 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-024-02 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-024-03 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-024-04 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-024-05 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-024-06 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-024-07 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-024-08 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-024-09 | 0.0340 | ratio | backtest_fold_1 |
+
+### Calibration appendix block 26
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-025-00 | 0.0260 | ratio | backtest_fold_1 |
+| TI-CAL-025-01 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-025-02 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-025-03 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-025-04 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-025-05 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-025-06 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-025-07 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-025-08 | 0.0340 | ratio | backtest_fold_1 |
+| TI-CAL-025-09 | 0.0350 | ratio | backtest_fold_2 |
+
+### Calibration appendix block 27
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-026-00 | 0.0270 | ratio | backtest_fold_2 |
+| TI-CAL-026-01 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-026-02 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-026-03 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-026-04 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-026-05 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-026-06 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-026-07 | 0.0340 | ratio | backtest_fold_1 |
+| TI-CAL-026-08 | 0.0350 | ratio | backtest_fold_2 |
+| TI-CAL-026-09 | 0.0360 | ratio | backtest_fold_3 |
+
+### Calibration appendix block 28
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-027-00 | 0.0280 | ratio | backtest_fold_3 |
+| TI-CAL-027-01 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-027-02 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-027-03 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-027-04 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-027-05 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-027-06 | 0.0340 | ratio | backtest_fold_1 |
+| TI-CAL-027-07 | 0.0350 | ratio | backtest_fold_2 |
+| TI-CAL-027-08 | 0.0360 | ratio | backtest_fold_3 |
+| TI-CAL-027-09 | 0.0370 | ratio | backtest_fold_4 |
+
+### Calibration appendix block 29
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-028-00 | 0.0290 | ratio | backtest_fold_4 |
+| TI-CAL-028-01 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-028-02 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-028-03 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-028-04 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-028-05 | 0.0340 | ratio | backtest_fold_1 |
+| TI-CAL-028-06 | 0.0350 | ratio | backtest_fold_2 |
+| TI-CAL-028-07 | 0.0360 | ratio | backtest_fold_3 |
+| TI-CAL-028-08 | 0.0370 | ratio | backtest_fold_4 |
+| TI-CAL-028-09 | 0.0380 | ratio | backtest_fold_5 |
+
+### Calibration appendix block 30
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-029-00 | 0.0300 | ratio | backtest_fold_5 |
+| TI-CAL-029-01 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-029-02 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-029-03 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-029-04 | 0.0340 | ratio | backtest_fold_1 |
+| TI-CAL-029-05 | 0.0350 | ratio | backtest_fold_2 |
+| TI-CAL-029-06 | 0.0360 | ratio | backtest_fold_3 |
+| TI-CAL-029-07 | 0.0370 | ratio | backtest_fold_4 |
+| TI-CAL-029-08 | 0.0380 | ratio | backtest_fold_5 |
+| TI-CAL-029-09 | 0.0390 | ratio | backtest_fold_6 |
+
+### Calibration appendix block 31
+
+| param_id | value | unit | scope |
+|----------|-------|------|-------|
+| TI-CAL-030-00 | 0.0310 | ratio | backtest_fold_6 |
+| TI-CAL-030-01 | 0.0320 | ratio | backtest_fold_7 |
+| TI-CAL-030-02 | 0.0330 | ratio | backtest_fold_0 |
+| TI-CAL-030-03 | 0.0340 | ratio | backtest_fold_1 |
+| TI-CAL-030-04 | 0.0350 | ratio | backtest_fold_2 |
+| TI-CAL-030-05 | 0.0360 | ratio | backtest_fold_3 |
+| TI-CAL-030-06 | 0.0370 | ratio | backtest_fold_4 |
+| TI-CAL-030-07 | 0.0380 | ratio | backtest_fold_5 |
+| TI-CAL-030-08 | 0.0390 | ratio | backtest_fold_6 |
+| TI-CAL-030-09 | 0.0400 | ratio | backtest_fold_7 |

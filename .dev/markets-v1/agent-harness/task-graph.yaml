@@ -1,445 +1,1534 @@
 tasks:
-  - id: MKT-P0-001
-    phase: "PHASE-0"
-    title: "Repository inventory and R0-R3 audit"
-    goal: "Document current monorepo layout, legacy quarantine, and Markets placeholder state."
-    status: "planned"
-    depends_on: []
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/architecture/EXISTING_REPOSITORY_AUDIT.md"
-    read_only_inputs: []
-    deliverables:
-      - "EXISTING_REPOSITORY_AUDIT.md draft"
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands:
-      - "graphify query 'markets backend'"
-      - "ls apps/backend/internal/markets"
-    acceptance_criteria:
-      - "Audit lists web, backend/markets, legacy API, OpenAPI stub"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-002
-    phase: "PHASE-0"
-    title: "Evidence register bootstrap"
-    goal: "Create evidence-register.yaml and EVIDENCE_REGISTER.md with confidence tags."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-001"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/research/evidence-register.yaml"
-      - ".dev/markets-v1/research/EVIDENCE_REGISTER.md"
-    read_only_inputs: []
-    deliverables:
-      - "evidence-register.yaml"
-      - "EVIDENCE_REGISTER.md"
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-003
-    phase: "PHASE-0"
-    title: "Capability matrix and scope freeze"
-    goal: "Complete 02_SCOPE_AND_CAPABILITY_MATRIX with V1 phase column."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/02_SCOPE_AND_CAPABILITY_MATRIX.md"
-    read_only_inputs: []
-    deliverables:
-      - "Capability matrix with Combos gated"
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-004
-    phase: "PHASE-0"
-    title: "ADR set acceptance"
-    goal: "Review ADR-001 through ADR-009 for §23 consistency."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-001"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/architecture/adr/"
-    read_only_inputs: []
-    deliverables:
-      - "9 ADRs in accepted draft status"
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-005
-    phase: "PHASE-0"
-    title: "Requirements and traceability baseline"
-    goal: "Assign MKT-FR/NFR/SEC IDs and map to phases."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-003"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/04_REQUIREMENTS_AND_TRACEABILITY.md"
-      - ".dev/markets-v1/agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-006
-    phase: "PHASE-0"
-    title: "Open-source provenance audit"
-    goal: "Document licenses and clean-room boundaries for OSS references."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/research/open-source-provenance.yaml"
-      - ".dev/markets-v1/research/OPEN_SOURCE_REFERENCE_AUDIT.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-007
-    phase: "PHASE-0"
-    title: "Threat model draft"
-    goal: "Initial STRIDE-oriented threat model for Markets V1."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-004"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/security/THREAT_MODEL.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P0-008
-    phase: "PHASE-0"
-    title: "PHASE-0 exit gate review"
-    goal: "Human approval of V1 scope freeze."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-005"
-      - "MKT-P0-007"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths: []
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "No unverified production contract address"
-      - "No unresolved signer ambiguity"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: true
-    handoff_to: []
-  - id: MKT-P1-001
-    phase: "PHASE-1"
-    title: "OpenAPI markets-v1 expansion"
-    goal: "Extend schemas/openapi/markets-v1.yaml for catalog read models."
-    status: "planned"
-    depends_on:
-      - "MKT-P0-008"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "schemas/openapi/markets-v1.yaml"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes:
-      - "EventDetail"
-      - "MarketSummary"
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "OpenAPI validates"
-      - "Web and Android codegen path documented"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-002
-    phase: "PHASE-1"
-    title: "Gamma catalog client hardening"
-    goal: "Normalize Polymarket Gamma responses in internal/markets/gamma."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-001"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/backend/internal/markets/gamma/"
-      - "apps/backend/internal/markets/service.go"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests:
-      - "go test ./apps/backend/internal/markets/..."
-    commands:
-      - "go test ./apps/backend/internal/markets/..."
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-003
-    phase: "PHASE-1"
-    title: "Markets database schema v1"
-    goal: "Migrations for catalog cache and watchlist foundation."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-001"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/backend/migrations/"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations:
-      - "markets_catalog_events"
-      - "markets_watchlists"
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-004
-    phase: "PHASE-1"
-    title: "Web markets read routes"
-    goal: "Product shell routes under apps/web/src/products/markets for event list and detail."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/web/src/products/markets/"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "Same canonical market ID as OpenAPI"
-      - "Stale state visible"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-005
-    phase: "PHASE-1"
-    title: "Signal schema foundation"
-    goal: "Shared signal envelope for alerts (ADR-008)."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-003"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/intelligence/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-006
-    phase: "PHASE-1"
-    title: "Realtime snapshot and gap recovery design"
-    goal: "Document WS snapshot/gap protocol per ADR-005."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/backend/API_AND_REALTIME_CONTRACTS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-007
-    phase: "PHASE-1"
-    title: "Android module scaffold plan"
-    goal: "Gradle module graph and README alignment (implementation in PHASE-5)."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-001"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/android/README.md"
-      - ".dev/markets-v1/android/GRADLE_MODULE_GRAPH.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "Documented Compose-only stack"
-      - "No hidden Polymarket adapter in app"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-008
-    phase: "PHASE-1"
-    title: "Contract conformance tests"
-    goal: "OpenAPI conformance tests for markets handlers."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - "apps/backend/internal/markets/handler_test.go"
-      - ".dev/markets-v1/testing/CONTRACT_AND_CONFORMANCE_TESTS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests:
-      - "contract tests pass"
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-009
-    phase: "PHASE-1"
-    title: "Observability baseline"
-    goal: "Metrics for catalog freshness and Gamma error rate."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-002"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths:
-      - ".dev/markets-v1/platform/OBSERVABILITY_SLOS_AND_ALERTS.md"
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria: []
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
-  - id: MKT-P1-010
-    phase: "PHASE-1"
-    title: "PHASE-1 exit gate verification"
-    goal: "Web renders canonical market; no signing or fund movement."
-    status: "planned"
-    depends_on:
-      - "MKT-P1-004"
-      - "MKT-P1-008"
-    may_run_in_parallel_with: []
-    must_not_overlap_with: []
-    owned_paths: []
-    read_only_inputs: []
-    deliverables: []
-    schema_changes: []
-    migrations: []
-    security_requirements: []
-    tests: []
-    commands: []
-    acceptance_criteria:
-      - "Schema conformance SLOs pass"
-      - "Signal reproducible from evidence"
-    verification_evidence: []
-    rollback: ""
-    human_approval_required: false
-    handoff_to: []
+- id: MKT-W9-001
+  phase: WAVE-9
+  title: Document map completeness verification
+  goal: Verify 121/121 files in 00_DOCUMENT_MAP.md exist and are reviewed.
+  status: done
+  depends_on: []
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/00_DOCUMENT_MAP.md
+  read_only_inputs: []
+  deliverables:
+  - All entries status=reviewed, last_updated=2026-07-25
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands:
+  - wc -l .dev/markets-v1/00_DOCUMENT_MAP.md
+  acceptance_criteria:
+  - 121 files present
+  - No draft status remains
+  - Last updated 2026-07-25
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-W9-002
+  phase: WAVE-9
+  title: §23 invariant cross-check
+  goal: Verify all 28 master-prompt invariants across documentation tree.
+  status: done
+  depends_on:
+  - MKT-W9-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/agent-harness/INVARIANT_CHECK.md
+  read_only_inputs: []
+  deliverables:
+  - 28/28 invariants checked
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - INVARIANT_CHECK.md lists all 28
+  - No contradictions found
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-W9-003
+  phase: WAVE-9
+  title: Requirements traceability matrix
+  goal: Complete REQ-ID to task mapping for all launch-critical requirements.
+  status: done
+  depends_on:
+  - MKT-W9-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md
+  read_only_inputs: []
+  deliverables:
+  - Comprehensive traceability matrix
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Every MKT-FR/SEC/NFR has task + test + metric
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-W9-004
+  phase: WAVE-9
+  title: Task graph expansion and validation
+  goal: Expand task-graph.yaml with phase implementation tasks; validate YAML.
+  status: done
+  depends_on:
+  - MKT-W9-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/agent-harness/task-graph.yaml
+  read_only_inputs: []
+  deliverables:
+  - Valid task-graph.yaml with W9 + PHASE-0-8 tasks
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - YAML parses
+  - Dependency graph acyclic
+  - owned_paths documented
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-W9-005
+  phase: WAVE-9
+  title: Implementation manifest alignment
+  goal: Update manifest with phase ordering, parallelization, doc paths.
+  status: done
+  depends_on:
+  - MKT-W9-004
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/agent-harness/implementation-manifest.yaml
+  - .dev/markets-v1/README.md
+  - .dev/markets-v1/EXECUTIVE_OUTCOME.md
+  read_only_inputs: []
+  deliverables:
+  - implementation-manifest.yaml
+  - README.md
+  - EXECUTIVE_OUTCOME.md
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - current_phase=PHASE-1
+  - All phases have task lists
+  - doc_paths populated
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-001
+  phase: PHASE-0
+  title: Repository inventory and R0-R3 audit
+  goal: Document current monorepo layout, legacy quarantine, and Markets placeholder state.
+  status: done
+  depends_on: []
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/architecture/EXISTING_REPOSITORY_AUDIT.md
+  read_only_inputs: []
+  deliverables:
+  - EXISTING_REPOSITORY_AUDIT.md reviewed
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands:
+  - graphify query 'markets backend'
+  - ls apps/backend/internal/markets
+  acceptance_criteria:
+  - Audit lists web, backend/markets, legacy API, OpenAPI stub
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-002
+  phase: PHASE-0
+  title: Evidence register bootstrap
+  goal: Create evidence-register.yaml and EVIDENCE_REGISTER.md with confidence tags.
+  status: done
+  depends_on:
+  - MKT-P0-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/research/evidence-register.yaml
+  - .dev/markets-v1/research/EVIDENCE_REGISTER.md
+  read_only_inputs: []
+  deliverables:
+  - evidence-register.yaml
+  - EVIDENCE_REGISTER.md
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-003
+  phase: PHASE-0
+  title: Capability matrix and scope freeze
+  goal: Complete 02_SCOPE_AND_CAPABILITY_MATRIX with V1 phase column.
+  status: done
+  depends_on:
+  - MKT-P0-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/02_SCOPE_AND_CAPABILITY_MATRIX.md
+  read_only_inputs: []
+  deliverables:
+  - Capability matrix with Combos gated
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-004
+  phase: PHASE-0
+  title: ADR set acceptance
+  goal: Review ADR-001 through ADR-009 for §23 consistency.
+  status: done
+  depends_on:
+  - MKT-P0-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/architecture/adr/
+  read_only_inputs: []
+  deliverables:
+  - 9 ADRs in reviewed status
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-005
+  phase: PHASE-0
+  title: Requirements and traceability baseline
+  goal: Assign MKT-FR/NFR/SEC IDs and map to phases.
+  status: done
+  depends_on:
+  - MKT-P0-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/04_REQUIREMENTS_AND_TRACEABILITY.md
+  - .dev/markets-v1/agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-006
+  phase: PHASE-0
+  title: Open-source provenance audit
+  goal: Document licenses and clean-room boundaries for OSS references.
+  status: done
+  depends_on:
+  - MKT-P0-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/research/open-source-provenance.yaml
+  - .dev/markets-v1/research/OPEN_SOURCE_REFERENCE_AUDIT.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-007
+  phase: PHASE-0
+  title: Threat model draft
+  goal: Initial STRIDE-oriented threat model for Markets V1.
+  status: done
+  depends_on:
+  - MKT-P0-004
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/security/THREAT_MODEL.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P0-008
+  phase: PHASE-0
+  title: PHASE-0 exit gate review
+  goal: Human approval of V1 scope freeze.
+  status: done
+  depends_on:
+  - MKT-P0-005
+  - MKT-P0-007
+  - MKT-W9-005
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - No unverified production contract address in specs
+  - No unresolved signer ambiguity
+  - 121 documents reviewed
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P1-001
+  phase: PHASE-1
+  title: OpenAPI markets-v1 expansion
+  goal: Extend schemas/openapi/markets-v1.yaml for catalog read models.
+  status: planned
+  depends_on:
+  - MKT-P0-008
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - schemas/openapi/markets-v1.yaml
+  - .dev/markets-v1/backend/API_AND_REALTIME_CONTRACTS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes:
+  - EventDetail
+  - MarketSummary
+  - MoneyAmount
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - OpenAPI validates
+  - No float in money fields
+  - Web and Android codegen path documented
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-002
+  phase: PHASE-1
+  title: Gamma catalog client hardening
+  goal: Normalize Polymarket Gamma responses in internal/markets/gamma.
+  status: planned
+  depends_on:
+  - MKT-P1-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/gamma/
+  - apps/backend/internal/markets/service.go
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests:
+  - go test ./apps/backend/internal/markets/...
+  commands:
+  - go test ./apps/backend/internal/markets/...
+  acceptance_criteria:
+  - Canonical market IDs
+  - catalog_freshness_p95 metric emitted
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-003
+  phase: PHASE-1
+  title: Markets database schema v1
+  goal: Migrations for catalog cache and watchlist foundation.
+  status: planned
+  depends_on:
+  - MKT-P1-001
+  may_run_in_parallel_with:
+  - MKT-P1-002
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/migrations/
+  - .dev/markets-v1/backend/DATABASE_AND_MIGRATIONS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations:
+  - markets_catalog_events
+  - markets_watchlists
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-004
+  phase: PHASE-1
+  title: Web markets read routes
+  goal: Product shell routes under apps/web/src/products/markets for event list and detail.
+  status: planned
+  depends_on:
+  - MKT-P1-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/web/src/products/markets/
+  - .dev/markets-v1/web/WEB_PRODUCT_INFORMATION_ARCHITECTURE.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Same canonical market ID as OpenAPI
+  - Stale state visible
+  - Rules and resolution source shown
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-005
+  phase: PHASE-1
+  title: Signal schema foundation
+  goal: Shared signal envelope for alerts (ADR-008).
+  status: planned
+  depends_on:
+  - MKT-P1-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/intelligence/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md
+  - apps/backend/internal/markets/signals/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Signal versioned, evidence-linked, retractable
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-006
+  phase: PHASE-1
+  title: Realtime snapshot and gap recovery design
+  goal: Document and implement WS snapshot/gap protocol per ADR-005.
+  status: planned
+  depends_on:
+  - MKT-P1-002
+  may_run_in_parallel_with:
+  - MKT-P1-003
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/backend/API_AND_REALTIME_CONTRACTS.md
+  - apps/backend/internal/markets/realtime/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Staleness indicator in API
+  - orderbook_snapshot_age_p95 < 5s
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-007
+  phase: PHASE-1
+  title: Android module scaffold plan
+  goal: Gradle module graph and README alignment (implementation in PHASE-5).
+  status: planned
+  depends_on:
+  - MKT-P1-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/android/README.md
+  - .dev/markets-v1/android/GRADLE_MODULE_GRAPH.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Documented Compose-only stack
+  - No hidden Polymarket adapter in app
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-008
+  phase: PHASE-1
+  title: Contract conformance tests
+  goal: OpenAPI conformance tests for markets handlers.
+  status: planned
+  depends_on:
+  - MKT-P1-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/handler_test.go
+  - .dev/markets-v1/testing/CONTRACT_AND_CONFORMANCE_TESTS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests:
+  - contract tests pass
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-009
+  phase: PHASE-1
+  title: Observability baseline
+  goal: Metrics for catalog freshness and Gamma error rate.
+  status: planned
+  depends_on:
+  - MKT-P1-002
+  may_run_in_parallel_with:
+  - MKT-P1-006
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/platform/OBSERVABILITY_SLOS_AND_ALERTS.md
+  - apps/backend/internal/markets/metrics.go
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - SLO dashboards defined
+  - infra cost estimate documented
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P1-010
+  phase: PHASE-1
+  title: PHASE-1 exit gate verification
+  goal: Web renders canonical market; no signing or fund movement.
+  status: planned
+  depends_on:
+  - MKT-P1-004
+  - MKT-P1-008
+  - MKT-P1-009
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Schema conformance SLOs pass
+  - Signal reproducible from evidence
+  - No wallet connect or order submit in PHASE-1
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P2-001
+  phase: PHASE-2
+  title: Wallet connect flow (web)
+  goal: Implement wallet connect without raw key custody per ADR-003.
+  status: planned
+  depends_on:
+  - MKT-P1-010
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/web/src/products/markets/wallet/
+  - .dev/markets-v1/web/WALLET_AND_TRANSACTION_UX.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - No T4 data stored
+  - Signer distinct from account wallet
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P2-002
+  phase: PHASE-2
+  title: Fail-closed eligibility service
+  goal: Server-side geoblock and eligibility checks.
+  status: planned
+  depends_on:
+  - MKT-P1-010
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/eligibility/
+  - .dev/markets-v1/backend/AUTH_SESSION_AND_ELIGIBILITY.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Unknown region returns eligible:false
+  - No VPN bypass logic
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P2-003
+  phase: PHASE-2
+  title: Account wallet discovery
+  goal: Discover and link Polymarket account wallet addresses.
+  status: planned
+  depends_on:
+  - MKT-P2-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/wallet/
+  - .dev/markets-v1/polymarket/AUTHENTICATION_AND_ACCOUNT_WALLETS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P2-004
+  phase: PHASE-2
+  title: Deposit wallet creation flow
+  goal: Deposit Wallet creation with human approval gate.
+  status: planned
+  depends_on:
+  - MKT-P2-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/web/src/products/markets/funding/
+  - .dev/markets-v1/polymarket/FUNDS_DEPOSIT_AND_WITHDRAWAL.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P2-005
+  phase: PHASE-2
+  title: Session and auth middleware
+  goal: Markets session management without key custody.
+  status: planned
+  depends_on:
+  - MKT-P2-001
+  may_run_in_parallel_with:
+  - MKT-P2-002
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/auth/
+  - .dev/markets-v1/backend/AUTH_SESSION_AND_ELIGIBILITY.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P2-006
+  phase: PHASE-2
+  title: pUSD balance read
+  goal: Read collateral balance from venue via BFF.
+  status: planned
+  depends_on:
+  - MKT-P2-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/balances/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P2-007
+  phase: PHASE-2
+  title: PHASE-2 exit gate verification
+  goal: Wallet connect, eligibility, and funding foundations verified.
+  status: planned
+  depends_on:
+  - MKT-P2-004
+  - MKT-P2-005
+  - MKT-P2-006
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - eligibility_fail_closed metric green
+  - No order submit yet
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P3-001
+  phase: PHASE-3
+  title: Order preview endpoint
+  goal: Preview-before-sign binding per MKT-SEC-002.
+  status: planned
+  depends_on:
+  - MKT-P2-007
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/orders/preview.go
+  - .dev/markets-v1/polymarket/ORDER_LIFECYCLE.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Preview hash matches EIP-712 payload
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P3-002
+  phase: PHASE-3
+  title: CLOB V2 order submit
+  goal: Submit limit orders via CLOB V2 with idempotency.
+  status: planned
+  depends_on:
+  - MKT-P3-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/clob/
+  - .dev/markets-v1/polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - CLOB V2 only
+  - Reconcile unknown states before retry
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P3-003
+  phase: PHASE-3
+  title: Order cancel and status
+  goal: Cancel open orders; poll reconciliation.
+  status: planned
+  depends_on:
+  - MKT-P3-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/orders/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P3-004
+  phase: PHASE-3
+  title: Web trading UI
+  goal: Order entry, preview, sign, submit on web.
+  status: planned
+  depends_on:
+  - MKT-P3-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/web/src/products/markets/trading/
+  - .dev/markets-v1/web/MARKET_AND_ORDERBOOK_UX.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - WCAG 2.1 AA on critical paths
+  - Fresh eligibility before each order
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P3-005
+  phase: PHASE-3
+  title: Order reconciliation worker
+  goal: Reconcile unknown order states before retry.
+  status: planned
+  depends_on:
+  - MKT-P3-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/reconcile/
+  - .dev/markets-v1/backend/INDEXING_RECONCILIATION_AND_REORGS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P3-006
+  phase: PHASE-3
+  title: PHASE-3 exit gate verification
+  goal: End-to-end limit order on web with preview-sign-submit.
+  status: planned
+  depends_on:
+  - MKT-P3-003
+  - MKT-P3-004
+  - MKT-P3-005
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - preview_sign_match metric green
+  - e2e journey J-03 pass
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P4-001
+  phase: PHASE-4
+  title: Position reconciliation
+  goal: BFF positions match CLOB within SLA.
+  status: planned
+  depends_on:
+  - MKT-P3-006
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/positions/
+  - .dev/markets-v1/polymarket/POSITIONS_CTF_AND_REDEMPTION.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P4-002
+  phase: PHASE-4
+  title: Portfolio and PnL display
+  goal: Web portfolio view with venue reconciliation.
+  status: planned
+  depends_on:
+  - MKT-P4-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/web/src/products/markets/portfolio/
+  - .dev/markets-v1/web/PORTFOLIO_FUNDING_AND_REDEMPTION_UX.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P4-003
+  phase: PHASE-4
+  title: Whale/large-trade feed
+  goal: Descriptive intelligence feed with reason codes.
+  status: planned
+  depends_on:
+  - MKT-P4-001
+  may_run_in_parallel_with:
+  - MKT-P4-002
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/intelligence/
+  - .dev/markets-v1/intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - No insider accusations
+  - Signals evidence-linked
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P4-004
+  phase: PHASE-4
+  title: Redemption flow
+  goal: CTF redemption via preview-sign-submit.
+  status: planned
+  depends_on:
+  - MKT-P4-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/backend/internal/markets/redemption/
+  - .dev/markets-v1/polymarket/POSITIONS_CTF_AND_REDEMPTION.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P4-005
+  phase: PHASE-4
+  title: Withdrawal flow
+  goal: Withdrawal with human approval gate.
+  status: planned
+  depends_on:
+  - MKT-P4-004
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/web/src/products/markets/withdraw/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P4-006
+  phase: PHASE-4
+  title: PHASE-4 exit gate verification
+  goal: Portfolio, redemption, withdrawal verified.
+  status: planned
+  depends_on:
+  - MKT-P4-002
+  - MKT-P4-003
+  - MKT-P4-005
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P5-001
+  phase: PHASE-5
+  title: Android Gradle project scaffold
+  goal: Create Compose-only Gradle module graph.
+  status: planned
+  depends_on:
+  - MKT-P3-006
+  - MKT-P4-006
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/android/
+  - .dev/markets-v1/android/COMPOSE_APP_ARCHITECTURE.md
+  - .dev/markets-v1/android/GRADLE_MODULE_GRAPH.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Jetpack Compose only
+  - Hilt + Retrofit configured
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P5-002
+  phase: PHASE-5
+  title: OpenAPI Retrofit client
+  goal: Generated client from markets-v1.yaml.
+  status: planned
+  depends_on:
+  - MKT-P5-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/android/core/network/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P5-003
+  phase: PHASE-5
+  title: Compose navigation shell
+  goal: Navigation and deep links per spec.
+  status: planned
+  depends_on:
+  - MKT-P5-001
+  may_run_in_parallel_with:
+  - MKT-P5-002
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/android/app/src/main/
+  - .dev/markets-v1/android/NAVIGATION_AND_DEEP_LINKS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P5-004
+  phase: PHASE-5
+  title: Android markets read and trading parity
+  goal: Feature parity for approved V1 capabilities.
+  status: planned
+  depends_on:
+  - MKT-P5-002
+  - MKT-P5-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - apps/android/features/markets/
+  - .dev/markets-v1/android/STATE_DATA_OFFLINE_AND_REALTIME.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - cold start p75 < 2s
+  - Same OpenAPI contract as web
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P5-005
+  phase: PHASE-5
+  title: Android wallet and signing
+  goal: Wallet connect and EIP-712 signing on Android.
+  status: planned
+  depends_on:
+  - MKT-P5-004
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/android/WALLET_SIGNING_AND_SECURITY.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P5-006
+  phase: PHASE-5
+  title: PHASE-5 exit gate verification
+  goal: Android parity for V1 scope on internal track.
+  status: planned
+  depends_on:
+  - MKT-P5-004
+  - MKT-P5-005
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - Play compliance checklist started
+  - No direct Polymarket API calls
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P6-001
+  phase: PHASE-6
+  title: CI/CD pipeline implementation
+  goal: Markets-specific CI/CD per platform spec.
+  status: planned
+  depends_on:
+  - MKT-P5-006
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/platform/CI_CD_PIPELINE.md
+  - .github/workflows/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P6-002
+  phase: PHASE-6
+  title: Security review pass
+  goal: Complete security test and review plan.
+  status: planned
+  depends_on:
+  - MKT-P5-006
+  may_run_in_parallel_with:
+  - MKT-P6-001
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/security/SECURITY_TEST_AND_REVIEW_PLAN.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P6-003
+  phase: PHASE-6
+  title: Chaos and resilience tests
+  goal: Load, chaos, and degraded-mode verification.
+  status: planned
+  depends_on:
+  - MKT-P6-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/testing/LOAD_CHAOS_AND_RESILIENCE.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P6-004
+  phase: PHASE-6
+  title: Observability SLO enforcement
+  goal: 99.5% uptime and alerting in staging.
+  status: planned
+  depends_on:
+  - MKT-P6-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/platform/OBSERVABILITY_SLOS_AND_ALERTS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P6-005
+  phase: PHASE-6
+  title: Disaster recovery drill
+  goal: Backup/restore RPO < 24h verified.
+  status: planned
+  depends_on:
+  - MKT-P6-004
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/platform/BACKUP_RESTORE_AND_DISASTER_RECOVERY.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P6-006
+  phase: PHASE-6
+  title: PHASE-6 exit gate verification
+  goal: Hardening complete; release verification matrix green.
+  status: planned
+  depends_on:
+  - MKT-P6-002
+  - MKT-P6-003
+  - MKT-P6-005
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/testing/RELEASE_VERIFICATION_MATRIX.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P7-001
+  phase: PHASE-7
+  title: Production web/backend deployment
+  goal: Controlled production launch with kill switches.
+  status: planned
+  depends_on:
+  - MKT-P6-006
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/phases/PHASE-7-PRODUCTION-LAUNCH.md
+  - .dev/markets-v1/platform/PRODUCTION_OPERATIONS_RUNBOOK.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P7-002
+  phase: PHASE-7
+  title: Staged Android Play release
+  goal: Closed to open track with policy compliance.
+  status: planned
+  depends_on:
+  - MKT-P7-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/android/PLAY_STORE_COMPLIANCE_AND_RELEASE.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P7-003
+  phase: PHASE-7
+  title: Launch verification and monitoring
+  goal: Post-launch SLO monitoring for 72h.
+  status: planned
+  depends_on:
+  - MKT-P7-001
+  - MKT-P7-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/testing/END_TO_END_CRITICAL_JOURNEYS.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P7-004
+  phase: PHASE-7
+  title: PHASE-7 exit gate verification
+  goal: Production launch sign-off.
+  status: planned
+  depends_on:
+  - MKT-P7-003
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: true
+  handoff_to: []
+- id: MKT-P8-001
+  phase: PHASE-8
+  title: Combos capability gate implementation
+  goal: Enable Combos only when capability flag true.
+  status: planned
+  depends_on:
+  - MKT-P7-004
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/polymarket/COMBOS_CAPABILITY_GATE.md
+  - apps/backend/internal/markets/capabilities/
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria: []
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P8-002
+  phase: PHASE-8
+  title: Advanced intelligence heuristics
+  goal: Unusual activity and relationship scanner (descriptive only).
+  status: planned
+  depends_on:
+  - MKT-P8-001
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths:
+  - .dev/markets-v1/intelligence/UNUSUAL_ACTIVITY_HEURISTICS.md
+  - .dev/markets-v1/intelligence/RELATIONSHIP_AND_ARBITRAGE_SCANNER.md
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - No guaranteed arbitrage labels
+  - Intelligence isolated from trading
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []
+- id: MKT-P8-003
+  phase: PHASE-8
+  title: PHASE-8 exit gate verification
+  goal: Post-V1 capabilities behind flags; no auto copy trading.
+  status: planned
+  depends_on:
+  - MKT-P8-002
+  may_run_in_parallel_with: []
+  must_not_overlap_with: []
+  owned_paths: []
+  read_only_inputs: []
+  deliverables: []
+  schema_changes: []
+  migrations: []
+  security_requirements: []
+  tests: []
+  commands: []
+  acceptance_criteria:
+  - ADR-009 preserved
+  - Combos gate violations = 0
+  verification_evidence: []
+  rollback: ''
+  human_approval_required: false
+  handoff_to: []

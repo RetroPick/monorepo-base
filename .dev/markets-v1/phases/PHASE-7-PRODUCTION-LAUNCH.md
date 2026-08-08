@@ -1,111 +1,396 @@
 # PHASE-7 — Production Launch
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
-## 1. Purpose
+---
 
-Phase specification for **PHASE-7**: Controlled web/backend launch and staged Android release.
+> Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
-## 2. Scope
+## Phase ID and exact name
 
-### In scope
+- **Phase ID:** `PHASE-7`
+- **Exact name:** Production Launch
 
-- Tasks and deliverables assigned to PHASE-7 in [implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+## Business outcome
 
-### Out of scope
+Controlled web/backend prod launch and staged Android release.
 
-- Work belonging to other phases unless explicitly pulled forward with ADR.
+## Technical outcome
 
-## 3. Prerequisites
+Legal/store approved; canary OK; rollback ready; evidence archived.
 
-- [phases/README.md](README.md)
-- [agent-harness/task-graph.yaml](../agent-harness/task-graph.yaml)
+## Prerequisites
 
-## 4. Authoritative sources
+PHASE-6 exit.
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
+- [AGENT_OPERATING_CONTRACT.md](../agent-harness/AGENT_OPERATING_CONTRACT.md)
 
-## 5. Current state
+## Dependencies
 
-Phase status tracked in `implementation-manifest.yaml` (`current_phase` is PHASE-0 at documentation baseline).
+- Upstream: PHASE-6 complete.
+- Polymarket docs per evidence register
+- ADRs and OpenAPI baseline
 
-## 6. Target design
+## In scope
 
-Controlled web/backend launch and staged Android release.
+- Legal pack
+- Builder verify
+- Canary deploy
+- Android rollout
+- On-call
+- Launch metrics
+- Rollback rehearsal
+- Evidence archive
+- Smoke
 
-## 7. Alternatives considered
+## Out of scope
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+- Post-V1 features
+- Combos without gate
+- New jurisdictions
+- PRISM and legacy epoch APIs
+- Custom exchange (ADR-001)
 
-## 8. Decisions
+## Repository areas affected
 
-- Phase ID `PHASE-7` is locked per master prompt §15.
+- infra/production/
+- deploy configs
+- play/
 
-## 9. Data and control flows
+## New modules/files expected
 
-```mermaid
-flowchart TB
-  Prev[Prior_phase_exit_gate] --> PHASE-7
-  PHASE-7 --> Next[Next_phase]
-```
+- Launch checklist artifacts
 
-## 10. Failure and recovery
+## Data migrations
 
-- Phase cannot exit with unresolved blockers in [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md).
+Prod migrations expand/contract with approval.
+Expand→migrate→contract; destructive changes need §18 approval.
 
-## 11. Security
+## API/schema changes
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+- Prod OpenAPI pinned
+Source: `schemas/openapi/markets-v1.yaml`.
 
-## 12. Observability
+## External integrations
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
-
-## 13. Test strategy
-
-- Phase verification uses [VERIFICATION_EVIDENCE_TEMPLATE.md](../agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md).
-
-## 14. Rollout and rollback
-
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
-
-## 15. Open questions
-
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
-
-## 16. Acceptance criteria
-
-- rollback available
-- launch evidence archived
-
-            ## Deliverables
-
-    - legal gates
 - Builder prod
-- canary
+- Play prod
+- Monitoring
 
-    ## Exit gate
+## On-chain interactions
 
-    - rollback available
-- launch evidence archived
+- Real user txs with disclosed fees
+RetroPick never holds user private keys.
 
-    ## Rollback
+## Security controls
 
-    - Revert feature flags and migrations introduced in this phase.
-    - Preserve read-only catalog if trading changes are rolled back.
+- Prod geoblock
+- Relayer budgets
+- Incident comms
+
+## Observability
+
+- Launch dashboards
+- canary views
+
+## Test plan
+
+- Prod smoke CI
+- release matrix
+- Unit, contract, integration, E2E per MASTER_TEST_PLAN.md
+- Evidence per VERIFICATION_EVIDENCE_TEMPLATE.md
+
+## CI/CD changes
+
+- Canary 1→5→25→100%
+- Android staged %
+
+## Deployment sequence
+
+- Production canary promotion
+
+## Rollback sequence
+
+- Kill switches
+- revert images
+- halt rollout
+
+## Risks and mitigations
+
+- **Risk:** Canary regression — **Mitigation:** Auto-rollback
+- **Risk:** Store rejection — **Mitigation:** Hotfix ready
+
+| Failure | Detection | User state | Auto action | Retry | Reconcile | Alert | Runbook |
+|---|---|---|---|---|---|---|---|
+| Upstream 5xx | HTTP 5xx metric | Unavailable banner | Circuit breaker | Idempotent safe | Venue reconcile | P2 | PRODUCTION_OPERATIONS_RUNBOOK.md |
+| Rate limit 429 | Retry-After | Slow down | Backoff | Safe | Pause cursor | P3 | CACHE_QUEUE_AND_RATE_LIMITING.md |
+| Stale order book | Sequence gap | Stale badge | Disable marketable | N/A | Resync snapshot | P2 | INDEXING_RECONCILIATION_AND_REORGS.md |
+| Wallet rejected | Client callback | Retry connect | Clear session | Safe | No order | P3 | WALLET_SIGNING_AND_SECURITY.md |
+| Geoblock unknown | Eligibility timeout | Not available | Fail closed | N/A | Log decision | P1 | AUTH_SESSION_AND_ELIGIBILITY.md |
+| Submit timeout | Timer | Checking status | Reconciliation | Never auto-resubmit | Venue lookup | P1 | ORDER_LIFECYCLE.md |
+| Chain reorg | Indexer event | Updating | Pause settle | N/A | Reindex | P2 | INDEXING_RECONCILIATION_AND_REORGS.md |
+| Android killed signing | Resume missing | Resume CTA | Invalidate preview | Safe | No duplicate | P3 | android/WALLET_SIGNING_AND_SECURITY.md |
+
+## Human approvals
+
+- Play production
+- Builder prod creds
+- Legal sign-off
+See BLOCKERS_AND_HUMAN_APPROVALS.md.
+
+## Task breakdown
+
+| Task ID | Title | Goal | Handoff |
+|---|---|---|---|
+| MKT-P7-001 | Legal compliance pack | Deliver legal compliance pack | MKT-P7-002 |
+| MKT-P7-002 | Builder production verify | Deliver builder production verify | MKT-P7-003 |
+| MKT-P7-003 | Canary deploy | Deliver canary deploy | MKT-P7-004 |
+| MKT-P7-004 | Android staged rollout | Deliver android staged rollout | MKT-P7-005 |
+| MKT-P7-005 | On-call activation | Deliver on-call activation | MKT-P7-006 |
+| MKT-P7-006 | Launch metrics | Deliver launch metrics | MKT-P7-007 |
+| MKT-P7-007 | Rollback rehearsal | Deliver rollback rehearsal | MKT-P7-008 |
+| MKT-P7-008 | Launch evidence archive | Deliver launch evidence archive | MKT-P7-009 |
+| MKT-P7-009 | Post-launch smoke | Deliver post-launch smoke | MKT-P7-010 |
+| MKT-P7-010 | PHASE-7 exit gate | Deliver phase-7 exit gate | MKT-P8-001 |
+
+### MKT-P7-001 — Legal compliance pack
+
+**Goal:** Implement Legal compliance pack within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-002 — Builder production verify
+
+**Goal:** Implement Builder production verify within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-003 — Canary deploy
+
+**Goal:** Implement Canary deploy within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-004 — Android staged rollout
+
+**Goal:** Implement Android staged rollout within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-005 — On-call activation
+
+**Goal:** Implement On-call activation within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-006 — Launch metrics
+
+**Goal:** Implement Launch metrics within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-007 — Rollback rehearsal
+
+**Goal:** Implement Rollback rehearsal within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-008 — Launch evidence archive
+
+**Goal:** Implement Launch evidence archive within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-009 — Post-launch smoke
+
+**Goal:** Implement Post-launch smoke within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P7-010 — PHASE-7 exit gate
+
+**Goal:** Implement PHASE-7 exit gate within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+## Parallelization constraints
+
+Legal before prod; Builder before canary.
+
+§17.3: one owner per path; schemas→clients; migrations→code; read→write; preview→sign.
+
+## Definition of ready
+
+- Prior exit gate signed
+- Tasks in task-graph with owned_paths
+- ADRs accepted
+- No phase blockers
+- Fixtures available
+- Approvals filed
+## Acceptance criteria
+
+- PHASE-7 §15 exit gate met
+- Final task verification complete
+
+| REQ ID | Description | Verify |
+|---|---|---|
+| MKT-OPS-002 | Launch checklist | Phase tests |
+| MKT-OPS-003 | Canary rollback | Phase tests |
+
+## Verification evidence
+
+- CI links
+- Contract report
+- SLO exports
+- Human approvals
+- RELEASE_VERIFICATION_MATRIX rows
+## Definition of done
+
+- All tasks complete
+- Exit gate evidence
+- No open P0/P1 security without acceptance
+- Runbooks updated
+- Manifest updated
+## Handoff to next phase
+
+Begin `PHASE-8` when all PHASE-7 tasks done, evidence archived, manifest updated.
+
+First task: `MKT-P8-001`.
+
+## Authoritative references
+
+| Source | Location | Retrieved | Confidence |
+|---|---|---|---|
+| Polymarket | https://docs.polymarket.com/ | 2026-07-25 | partial |
+| OpenAPI | schemas/openapi/markets-v1.yaml | 2026-07-25 | verified |
+| Master prompt | .dev/RETROPICK_MARKETS_AGENT_DOCS_MASTER_PROMPT(1).md | 2026-07-25 | verified |
+
+## Cross-document invariants (§23)
+
+1. Polymarket is venue
+2. No PRISM positions in Markets
+3. No custom contract default
+4. Signer≠account wallet
+5. No raw key custody
+6. Fixed-point money
+7. Reconcile before retry
+8. Fail closed geoblock
+9. Deterministic signals
+10. No auto copy trade
+
+## Operational detail matrix
+
+### Catalog ingest
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Order preview
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Order submit
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Position reconcile
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### CTF relay
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Push notify
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Eligibility
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Signal compute
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-7 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+## Agent execution notes
+
+- Read AGENT_OPERATING_CONTRACT before tasks.
+- Stay in authorized phase/task.
+- Never invent secrets, addresses, or test results.
+- File verification evidence before completion.

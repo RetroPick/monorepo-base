@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/agents-inc/cli/main/src/schemas/metadata.schema.json
+category: meta-reviewing
+slug: cli-reviewing
+domain: meta
+author: "@vince"
+displayName: CLI Reviewing
+cliDescription: CLI code review patterns for Commander.js and @clack/prompts
+usageGuidance: Use when reviewing CLI applications built with Commander.js, @clack/prompts, or similar tools. Covers exit codes, signal handling, cancellation, error messages, spinners, and testing adequacy.

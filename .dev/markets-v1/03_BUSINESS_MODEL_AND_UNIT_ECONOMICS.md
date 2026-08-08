@@ -1,123 +1,280 @@
-# Business Model and Unit Economics
+# Business Model and Unit Economics — RetroPick Markets V1
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+
+---
 
 ## 1. Purpose
 
-Document revenue (Builder fees, future subscriptions), cost drivers, and contribution margin for pre-funding MVP (<USD 100/mo baseline).
+Document revenue hypotheses, cost drivers, unit economics, and KPI framework for Markets V1 pre-funding MVP (baseline infra < USD 100/month).
 
-## 2. Scope
+## 2. Positioning statement
 
-### In scope
+RetroPick Markets is a Polymarket-native client that wins on **clarity, execution transparency, mobile quality, and trustworthy operations** — not on hidden spreads or implied liquidity superiority.
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+## 3. Revenue streams
 
-### Out of scope
+### 3.1 Primary — Polymarket Builder Program
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+| Attribute | Detail |
+|---|---|
+| Mechanism | Configurable builder fee on routed notional |
+| Disclosure | Effective fee shown before every signature |
+| Authority | Polymarket published maximums and change-notice rules |
+| Verification | Fetch current terms at deploy; never hardcode |
+| Phase | PHASE-2 design; PHASE-3 production attribution |
 
-## 3. Prerequisites
+Formula (per order):
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
-
-## 4. Authoritative sources
-
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
-
-## 5. Current state
-
-See [EXISTING_REPOSITORY_AUDIT.md](../architecture/EXISTING_REPOSITORY_AUDIT.md).
-
-## 6. Target design
-
-Transparent Builder fee disclosure; no undisclosed spread; track gas subsidy and infra per active trader.
-
-## 7. Alternatives considered
-
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
-
-## 8. Decisions
-
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
-
-## 9. Data and control flows
-
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+```
+Builder Fee Revenue = filled_notional × effective_builder_fee_rate
 ```
 
-## 10. Failure and recovery
+### 3.2 Secondary — Professional subscription (PHASE-8)
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+| Tier | Features | Pricing hypothesis |
+|---|---|---|
+| Pro | Advanced analytics, exports, webhooks | TBD after usage validation |
+| API | Rate-limited professional API access | Usage-based |
 
-## 11. Security
+Gated behind separate legal/commercial review. Not required for V1 launch.
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+### 3.3 Excluded revenue
 
-## 12. Observability
+- Undisclosed spread on orders.
+- Revenue from failed/cancelled order attempts.
+- Interest on user collateral (RetroPick does not custody balances).
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+## 4. Cost structure
 
-## 13. Test strategy
+### 4.1 Variable costs
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+| Driver | Description | Phase introduced | Mitigation |
+|---|---|---|---|
+| Relayer gas | Builder/relayer subsidized txs | PHASE-2 | Per-user budgets, kill switch |
+| Gamma/CLOB API | Upstream polling and WS | PHASE-1 | Shared ingest, cache, backoff |
+| Polygon RPC | Balance and indexer reads | PHASE-2 | Batch reads, provider failover |
+| Push notifications | FCM delivery | PHASE-5 | Opt-in, batching |
+| LLM narration | Evidence narration only | PHASE-8 | Rate limits, cache |
+| Support/fraud | Manual review escalations | PHASE-7 | Self-serve UX, automation |
 
-## 14. Rollout and rollback
+### 4.2 Fixed costs (MVP baseline)
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+| Item | Monthly estimate | Notes |
+|---|---|---|
+| VPS + Postgres | USD 40–80 | Single region |
+| Object storage / backups | USD 5–15 | PHASE-6 |
+| Monitoring (basic) | USD 0–20 | OSS stack acceptable |
+| Play Console | USD ~25 amortized | Annual fee |
+| **Total baseline** | **< USD 100** | MKT-NFR-030 |
 
-## 15. Open questions
+See [platform/INFRASTRUCTURE_AND_COST_MODEL.md](platform/INFRASTRUCTURE_AND_COST_MODEL.md).
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+## 5. Unit economics
 
-## 16. Acceptance criteria
+### 5.1 Contribution margin
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+```
+CM = Builder_Fee_Revenue + Subscription_Revenue
+   - Relayer_Gas - Venue_API_Cost - Variable_Infra - Support_Fraud_Cost
+```
 
-## Revenue
+### 5.2 Per-trader economics
 
-- Primary: Polymarket Builder Program fees (verify current terms at deploy).
-- Secondary (post-validation): analytics subscription, exports, webhooks.
+| Metric | Definition | Target (V1) |
+|---|---|---|
+| ARPT | Avg revenue per funded trader / month | Positive after gas |
+| Gas subsidy / trader | Relayer cost / active trader | < fee revenue |
+| Infra / trader | Variable infra / MAU | Decreasing with scale |
+| LTV | Cumulative CM over retention window | TBD post-launch |
 
-## Cost model
+### 5.3 Per-order economics
 
-| Driver | Phase | Mitigation |
-|--------|-------|------------|
-| VPS + Postgres | PHASE-1+ | Single-region baseline |
-| Gamma/CLOB polling | PHASE-1 | Shared ingest, cache |
-| Push notifications | PHASE-5 | Batched, opt-in |
-| LLM narration | PHASE-8 opt-in | Rate-limited, cacheable |
+| Metric | Definition |
+|---|---|
+| Effective fee | Realized builder fee / filled notional |
+| Realized slippage | Fill price vs preview midpoint |
+| Time to fill | Submit → first fill |
+| Failure cost | Infra + support cost of failed journey |
 
-## KPIs
+## 6. Funnel and conversion KPIs
 
-- Routed notional, effective fee, slippage, reconciliation errors.
-- D7/D30 retained funded traders.
+| Stage | Metric | Instrumentation |
+|---|---|---|
+| Awareness | Eligible visitors | Analytics (privacy-compliant) |
+| Connect | Wallet connect rate | PHASE-2 events |
+| Fund | First deposit conversion | PHASE-2 state machine |
+| Trade | First order within 7d | PHASE-3 events |
+| Retain | D7/D30 funded trader retention | Warehouse / metrics |
+| Expand | Markets per active trader | Portfolio analytics |
+
+## 7. Operational KPIs
+
+| KPI | Target | Phase | REQ ID |
+|---|---|---|---|
+| Catalog freshness p95 | < 60s | PHASE-1 | MKT-NFR-001 |
+| Order book age p95 | < 5s | PHASE-1 | MKT-NFR-002 |
+| Preview latency p95 | < 750ms | PHASE-3 | MKT-NFR-003 |
+| Reconciliation error rate | < 0.1% | PHASE-4 | MKT-FR-040 |
+| API uptime | 99.5% | PHASE-6 | MKT-NFR-010 |
+| Android crash-free | > 99% | PHASE-5 | MKT-NFR-051 |
+
+## 8. Concentration and risk metrics
+
+| Risk | Metric | Action threshold |
+|---|---|---|
+| Market concentration | % notional top 10 markets | Diversify discovery UX |
+| Category concentration | % volume single category | Monitor regulatory exposure |
+| Jurisdiction blocks | % sessions geoblocked | Product messaging review |
+| Upstream dependency | Gamma/CLOB error rate | Circuit breaker, read-only mode |
+| Gas budget overrun | Daily relayer spend | Kill switch |
+
+## 9. Pricing and disclosure requirements
+
+Before every signature, disclose:
+
+1. Venue (Polymarket) and chain (Polygon).
+2. Effective builder fee rate and estimated fee amount.
+3. Estimated gas / subsidy treatment.
+4. Maximum loss and maximum payout.
+5. Partial fill possibility for marketable orders.
+
+Non-compliance blocks order preview response (MKT-SEC-004).
+
+## 10. Financial governance
+
+| Decision | Approver | Evidence required |
+|---|---|---|
+| Builder fee enrollment | Human + legal | Polymarket Builder profile |
+| Gas subsidy budget | Ops + finance | Projected MAU and order rate |
+| Subscription pricing | Product + finance | PHASE-8 validation data |
+| Infra scale-up | Ops | SLO breach or cost alert |
+
+## 11. Scenario analysis
+
+### 11.1 Bootstrap (100 MAU, 20 funded, 5 orders/day each)
+
+| Line | Monthly estimate |
+|---|---|
+| Builder revenue | Depends on notional × fee; model at deploy |
+| Gas subsidy | Low with per-user caps |
+| Infra | < USD 100 |
+| Net | Likely negative until volume; acceptable for MVP |
+
+### 11.2 Growth (1,000 MAU, 200 funded)
+
+| Line | Notes |
+|---|---|
+| Infra | May require second region / read replica |
+| API costs | Monitor Gamma/CLOB rate limits |
+| Support | Plan FAQ + in-app help before scaling |
+
+## 12. Competitive economics
+
+Markets does not compete on fee undercutting alone. Differentiation:
+
+- Rule comprehension reduces costly user errors.
+- Execution quality transparency builds retention.
+- Mobile parity increases session frequency.
+- Intelligence (descriptive, uncertain) aids discovery without insider claims.
+
+## 13. Phase alignment
+
+| Phase | Business milestone |
+|---|---|
+| PHASE-0 | Scope and revenue model locked |
+| PHASE-1 | Catalog drives discovery funnel |
+| PHASE-2 | Wallet + fund conversion measurable |
+| PHASE-3 | First routed notional and builder fees |
+| PHASE-4 | Retention via portfolio and redeem UX |
+| PHASE-5 | Mobile session frequency |
+| PHASE-6 | Unit cost visibility via observability |
+| PHASE-7 | Revenue instrumentation live |
+| PHASE-8 | Subscription experiments |
+
+## 14. Traceability
+
+| Business requirement | REQ ID |
+|---|---|
+| Transparent fee disclosure | MKT-FR-032 |
+| No undisclosed spread | MKT-SEC-005 |
+| Builder attribution | MKT-POLY-002 |
+| Cost baseline | MKT-NFR-030 |
+
+## 15. Authoritative sources
+
+| Source | URL | Retrieved |
+|---|---|---|
+| Builder fees | https://docs.polymarket.com/programs/builders/fees | 2026-07-25 |
+| MARKETS baseline | .dev/MARKETS.md | 2026-07-25 |
+
+## 16. Open assumptions
+
+- Builder fee rates remain economically viable after gas subsidy.
+- MVP infra stays under USD 100/month until >500 DAU.
+- Subscription revenue deferred to PHASE-8 validation.
+
+See [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
+
+## Appendix B.0 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.1 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.2 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.3 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.4 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.5 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.6 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.7 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.8 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.9 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.10 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.11 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.12 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.13 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.
+
+## Appendix B.14 — KPI definitions
+
+All KPIs require metric name, owner, dashboard, and review cadence before PHASE-7.

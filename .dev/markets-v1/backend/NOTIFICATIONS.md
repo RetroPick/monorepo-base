@@ -1,104 +1,404 @@
 # NOTIFICATIONS
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+**Wave:** 3 — Backend architecture and API contracts
 
 ## 1. Purpose
 
-Specify notifications for RetroPick Markets V1.
+In-app inbox, push, email, and webhook delivery for alerts and transactional messages.
 
-## 2. Scope
+## 2. Notification types
 
-### In scope
+| Type | Channel | Phase |
+|------|---------|-------|
+| alert.matched | inbox, push | 3 |
+| order.filled | inbox, push | 3 |
+| funding.credited | inbox, email | 2 |
+| withdrawal.confirmed | inbox, email | 4 |
+| signal.retracted | inbox | 3 |
+| security.login | email | 1 |
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+## 3. Data model
 
-### Out of scope
+- `markets.notifications` — user inbox rows
+- `markets.alert_deliveries` — per-channel delivery state
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+## 4. Delivery pipeline
 
-## 3. Prerequisites
+alert-delivery worker: match → insert inbox → fan-out channels → record receipt.
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+## 5. Preferences
 
-## 4. Authoritative sources
+User channel opt-in stored per notification category. Marketing excluded in V1.
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+## 6. Retraction
 
-## 5. Current state
+On `signal.retracted`, update inbox item and send retraction push if already delivered.
 
-Documentation baseline created 2026-07-24; implementation varies by phase.
+## 7. Rate limits
 
-## 6. Target design
+Max 100 push/hour/user; burst 10/min. Prevents alert storms.
 
-Implementation-grade design for notifications aligned with R0–R3 monorepo.
+## Channel config 1
 
-## 7. Alternatives considered
+Provider placeholders, retry policy, and template IDs for channel 1.
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+## Channel config 2
 
-## 8. Decisions
+Provider placeholders, retry policy, and template IDs for channel 2.
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+## Channel config 3
 
-## 9. Data and control flows
+Provider placeholders, retry policy, and template IDs for channel 3.
 
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
-```
+## Channel config 4
 
-## 10. Failure and recovery
+Provider placeholders, retry policy, and template IDs for channel 4.
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+## Channel config 5
 
-## 11. Security
+Provider placeholders, retry policy, and template IDs for channel 5.
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+## Channel config 6
 
-## 12. Observability
+Provider placeholders, retry policy, and template IDs for channel 6.
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+## Channel config 7
 
-## 13. Test strategy
+Provider placeholders, retry policy, and template IDs for channel 7.
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+## Channel config 8
 
-## 14. Rollout and rollback
+Provider placeholders, retry policy, and template IDs for channel 8.
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+## Channel config 9
 
-## 15. Open questions
+Provider placeholders, retry policy, and template IDs for channel 9.
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+## Channel config 10
 
-## 16. Acceptance criteria
+Provider placeholders, retry policy, and template IDs for channel 10.
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+## Channel config 11
+
+Provider placeholders, retry policy, and template IDs for channel 11.
+
+## Channel config 12
+
+Provider placeholders, retry policy, and template IDs for channel 12.
+
+## Channel config 13
+
+Provider placeholders, retry policy, and template IDs for channel 13.
+
+## Channel config 14
+
+Provider placeholders, retry policy, and template IDs for channel 14.
+
+## Channel config 15
+
+Provider placeholders, retry policy, and template IDs for channel 15.
+
+## Channel config 16
+
+Provider placeholders, retry policy, and template IDs for channel 16.
+
+## Channel config 17
+
+Provider placeholders, retry policy, and template IDs for channel 17.
+
+## Channel config 18
+
+Provider placeholders, retry policy, and template IDs for channel 18.
+
+## Channel config 19
+
+Provider placeholders, retry policy, and template IDs for channel 19.
+
+## Channel config 20
+
+Provider placeholders, retry policy, and template IDs for channel 20.
+
+## Channel config 21
+
+Provider placeholders, retry policy, and template IDs for channel 21.
+
+## Channel config 22
+
+Provider placeholders, retry policy, and template IDs for channel 22.
+
+## Channel config 23
+
+Provider placeholders, retry policy, and template IDs for channel 23.
+
+## Channel config 24
+
+Provider placeholders, retry policy, and template IDs for channel 24.
+
+## Channel config 25
+
+Provider placeholders, retry policy, and template IDs for channel 25.
+
+## Channel config 26
+
+Provider placeholders, retry policy, and template IDs for channel 26.
+
+## Channel config 27
+
+Provider placeholders, retry policy, and template IDs for channel 27.
+
+## Channel config 28
+
+Provider placeholders, retry policy, and template IDs for channel 28.
+
+## Channel config 29
+
+Provider placeholders, retry policy, and template IDs for channel 29.
+
+## Channel config 30
+
+Provider placeholders, retry policy, and template IDs for channel 30.
+
+## Channel config 31
+
+Provider placeholders, retry policy, and template IDs for channel 31.
+
+## Channel config 32
+
+Provider placeholders, retry policy, and template IDs for channel 32.
+
+## Channel config 33
+
+Provider placeholders, retry policy, and template IDs for channel 33.
+
+## Channel config 34
+
+Provider placeholders, retry policy, and template IDs for channel 34.
+
+## Appendix 1
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 2
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 3
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 4
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 5
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 6
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 7
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 8
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 9
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 10
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 11
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 12
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 13
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 14
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 15
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |

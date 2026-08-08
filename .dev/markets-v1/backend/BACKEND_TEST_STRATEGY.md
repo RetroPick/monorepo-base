@@ -1,104 +1,434 @@
 # BACKEND TEST STRATEGY
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+**Wave:** 3 — Backend architecture and API contracts
 
 ## 1. Purpose
 
-Specify backend test strategy for RetroPick Markets V1.
+Testing approach for Markets backend: unit, integration, contract, e2e, chaos.
 
-## 2. Scope
+## 2. Pyramid
 
-### In scope
+| Layer | Scope | Tools |
+|-------|-------|-------|
+| Unit | domain, state machines | Go testing |
+| Integration | store + testcontainers PG | testcontainers-go |
+| Contract | OpenAPI examples | contract_test.go |
+| E2E | critical journeys | staging + playwright trigger |
+| Chaos | worker isolation | toxiproxy, kill pods |
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+## 3. Contract tests
 
-### Out of scope
+- Load `markets-v1.yaml` examples; assert handler JSON matches schema.
+- Golden files for Gamma/CLOB ACL normalization.
+- Idempotency replay tests for all POST operations.
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+## 4. Worker tests
 
-## 3. Prerequisites
+- Ingest: fixture upstream JSON → expected DB rows.
+- Signal-engine: deterministic output hash for fixed input stream.
+- Alert-delivery: mock FCM; assert inbox + delivery rows.
+- Reconciliation: inject drift; assert repair.
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+## 5. CI gates
 
-## 4. Authoritative sources
+- `go test ./internal/markets/...`
+- OpenAPI lint (spectral)
+- Migration up/down on ephemeral DB
+- No legacy imports check
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+## 6. Environments
 
-## 5. Current state
+| Env | Upstream | Data |
+|-----|----------|------|
+| local | mocks/fixtures | docker PG |
+| CI | wiremock | ephemeral |
+| staging | Polymarket read + limited wallet | anonymized |
+| prod | live | real |
 
-Documentation baseline created 2026-07-24; implementation varies by phase.
+## Test case catalog 1
 
-## 6. Target design
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-Implementation-grade design for backend test strategy aligned with R0–R3 monorepo.
+## Test case catalog 2
 
-## 7. Alternatives considered
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+## Test case catalog 3
 
-## 8. Decisions
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+## Test case catalog 4
 
-## 9. Data and control flows
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
-```
+## Test case catalog 5
 
-## 10. Failure and recovery
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+## Test case catalog 6
 
-## 11. Security
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+## Test case catalog 7
 
-## 12. Observability
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+## Test case catalog 8
 
-## 13. Test strategy
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+## Test case catalog 9
 
-## 14. Rollout and rollback
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+## Test case catalog 10
 
-## 15. Open questions
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+## Test case catalog 11
 
-## 16. Acceptance criteria
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+## Test case catalog 12
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 13
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 14
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 15
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 16
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 17
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 18
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 19
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 20
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 21
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 22
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 23
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 24
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 25
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 26
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 27
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 28
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 29
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 30
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Test case catalog 31
+
+Mapped to requirement IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md).
+Includes happy path, eligibility denial, idempotency replay, upstream 503, stale catalog,
+unknown order reconciliation, signal retraction, and alert DLQ.
+
+## Appendix 1
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 2
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 3
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 4
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 5
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 6
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 7
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 8
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 9
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 10
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+
+## Appendix 1
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+
+## Appendix 2
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+
+## Appendix 3
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |

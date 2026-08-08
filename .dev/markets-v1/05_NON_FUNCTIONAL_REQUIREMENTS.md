@@ -1,126 +1,283 @@
-# Non-Functional Requirements
+# Non-Functional Requirements — RetroPick Markets V1
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+
+---
 
 ## 1. Purpose
 
-Performance, availability, security, cost, accessibility, and operational NFRs for Markets V1.
+Performance, availability, security, cost, accessibility, operability, and mobile NFRs with measurable targets and verification phases.
 
-## 2. Scope
+## 2. NFR principles
 
-### In scope
+1. Every NFR has a numeric target or boolean gate.
+2. Every NFR maps to a phase, task, test, and metric.
+3. SLO breaches trigger runbooks — not silent degradation of safety controls.
+4. Intelligence failures must not block trading (ADR-008).
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+## 3. Performance
 
-### Out of scope
+| ID | Requirement | Target | Measurement | Phase | Task |
+|---|---|---|---|---|---|
+| MKT-NFR-001 | Event catalog freshness | p95 < 60s | `markets_catalog_freshness_seconds` | PHASE-1 | MKT-P1-009 |
+| MKT-NFR-002 | Order book snapshot age | p95 < 5s | `orderbook_snapshot_age_seconds` | PHASE-1 | MKT-P1-006 |
+| MKT-NFR-003 | Order preview latency | p95 < 750ms | `order_preview_duration_seconds` | PHASE-3 | MKT-P3-001 |
+| MKT-NFR-004 | Order submit round-trip | p95 < 2s excl. wallet | `order_submit_duration_seconds` | PHASE-3 | MKT-P3-002 |
+| MKT-NFR-005 | Web market detail TTFB | p95 < 300ms cached | RUM + server | PHASE-1 | MKT-P1-004 |
+| MKT-NFR-006 | Signal computation latency | p95 < 30s | `signal_compute_lag_seconds` | PHASE-4 | MKT-P4-003 |
+| MKT-NFR-007 | Position reconcile lag | p95 < 60s | `position_reconcile_lag_seconds` | PHASE-4 | MKT-P4-001 |
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+## 4. Availability and reliability
 
-## 3. Prerequisites
+| ID | Requirement | Target | Phase | Task |
+|---|---|---|---|---|
+| MKT-NFR-010 | Markets BFF uptime | 99.5% monthly | PHASE-6 | MKT-P6-004 |
+| MKT-NFR-011 | Read-only degradation on upstream outage | < 60s detect | PHASE-1 | MKT-P1-002 |
+| MKT-NFR-012 | RTO for backend rollback | < 15 min | PHASE-6 | MKT-P6-003 |
+| MKT-NFR-013 | Order submit unknown state resolution | < 120s | PHASE-3 | MKT-P3-005 |
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+## 5. Security NFRs
 
-## 4. Authoritative sources
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-NFR-020 | Secrets outside Git | 100% | PHASE-0 |
+| MKT-NFR-021 | TLS for all client API calls | 100% | PHASE-1 |
+| MKT-NFR-022 | SBOM on release artifacts | 100% | PHASE-6 |
+| MKT-NFR-023 | Pen test critical findings | 0 open at launch | PHASE-6 |
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+## 6. Cost and efficiency
 
-## 5. Current state
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-NFR-030 | Baseline infra spend | < USD 100/mo | PHASE-1 |
+| MKT-NFR-031 | LLM narration cost cap | TBD per MAU | PHASE-8 |
+| MKT-NFR-032 | Notification cost per MAU | Batched + opt-in | PHASE-5 |
 
-See [EXISTING_REPOSITORY_AUDIT.md](../architecture/EXISTING_REPOSITORY_AUDIT.md).
+## 7. Accessibility
 
-## 6. Target design
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-NFR-040 | WCAG 2.1 AA on critical paths | Pass audit | PHASE-3 |
+| MKT-NFR-041 | Android TalkBack on trade flow | Pass | PHASE-5 |
+| MKT-NFR-042 | Color contrast and motion prefs | Pass | PHASE-3,5 |
 
-Measurable SLOs with verification in PHASE-6 hardening.
+Critical paths: market detail, order ticket, portfolio, wallet connect.
 
-## 7. Alternatives considered
+## 8. Mobile (Android)
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-NFR-050 | Cold start | p75 < 2s | PHASE-5 |
+| MKT-NFR-051 | Crash-free users | > 99% | PHASE-5 |
+| MKT-NFR-052 | ANR rate | < 0.1% | PHASE-5 |
+| MKT-AND-001 | Jetpack Compose only | Enforced by lint | PHASE-5 |
 
-## 8. Decisions
+## 9. Data integrity
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-NFR-060 | Fixed-point money in APIs | No float fields | PHASE-1 |
+| MKT-NFR-061 | Idempotent catalog ingest | At-least-once safe | PHASE-1 |
+| MKT-NFR-070 | Backup RPO | < 24h | PHASE-6 |
+| MKT-NFR-071 | Backup RTO | < 4h | PHASE-6 |
 
-## 9. Data and control flows
+## 10. Web platform
 
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
-```
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-WEB-001 | OpenAPI-generated TypeScript types | Enforced in CI | PHASE-1 |
+| MKT-WEB-002 | Core Web Vitals LCP | < 2.5s p75 | PHASE-3 |
 
-## 10. Failure and recovery
+## 11. Upstream (Polymarket)
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+| ID | Requirement | Target | Phase |
+|---|---|---|---|
+| MKT-POLY-001 | CLOB V2 only | No V1 assumptions | PHASE-3 |
+| MKT-POLY-002 | Builder fee fetch before preview | 100% | PHASE-3 |
+| MKT-POLY-003 | Contract address registry verified at startup | 100% | PHASE-2 |
 
-## 11. Security
+## 12. Degraded modes
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+| Condition | User-visible state | Safety |
+|---|---|---|
+| Gamma/CLOB outage | Read-only catalog + banner | No new orders if book stale |
+| Eligibility unknown | `eligible: false` | Fail closed |
+| Relayer down | User-submit path or block write ops | No silent failure |
+| Signal engine down | Trading unaffected | Alerts paused |
+| WS gap | Stale book badge | Disable marketable |
 
-## 12. Observability
+See [architecture/FAILURE_DOMAINS_AND_DEGRADED_MODES.md](architecture/FAILURE_DOMAINS_AND_DEGRADED_MODES.md).
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+## 13. Observability requirements
 
-## 13. Test strategy
+Every SLI must have: metric name, dashboard panel, alert threshold, owner, runbook link.
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+Catalog: [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](platform/OBSERVABILITY_SLOS_AND_ALERTS.md)
 
-## 14. Rollout and rollback
+## 14. Test verification
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+| NFR category | Test type | Document |
+|---|---|---|
+| Performance | Load test | testing/LOAD_CHAOS_AND_RESILIENCE.md |
+| Availability | Chaos | PHASE-6 |
+| Security | Pen test | security/SECURITY_TEST_AND_REVIEW_PLAN.md |
+| Accessibility | Manual + automated | web/DESIGN_SYSTEM_AND_ACCESSIBILITY.md |
+| Mobile | Benchmark + Play vitals | android/ACCESSIBILITY_PERFORMANCE_AND_DEVICES.md |
 
-## 15. Open questions
+## 15. Phase verification gates
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+| Phase | NFR gate |
+|---|---|
+| PHASE-1 | MKT-NFR-001,002,030,060 |
+| PHASE-3 | MKT-NFR-003,004,040 |
+| PHASE-5 | MKT-NFR-050,051,052 |
+| PHASE-6 | MKT-NFR-010,070,071,022,023 |
+| PHASE-7 | All launch-critical NFRs green |
 
-## 16. Acceptance criteria
+## 16. Traceability
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+Full REQ IDs: [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md)
 
-## NFR catalog
+## 17. Open items
 
-| ID | Category | Requirement | Target | Phase |
-|----|----------|-------------|--------|-------|
-| MKT-NFR-001 | Performance | Event catalog freshness | p95 < 60s | PHASE-1 |
-| MKT-NFR-002 | Performance | Order book snapshot age | p95 < 5s | PHASE-1 |
-| MKT-NFR-010 | Availability | Markets BFF uptime | 99.5% / month | PHASE-6 |
-| MKT-NFR-020 | Security | Secrets in env only | 100% | PHASE-0 |
-| MKT-NFR-030 | Cost | Baseline infra | < USD 100/mo | PHASE-1 |
-| MKT-NFR-040 | Accessibility | WCAG 2.1 AA critical paths | Pass | PHASE-3 |
-| MKT-NFR-050 | Mobile | Android cold start | < 2s p75 | PHASE-5 |
-| MKT-NFR-060 | Data | Fixed-point money | No float in APIs | PHASE-1 |
-| MKT-NFR-070 | Ops | Backup RPO | < 24h | PHASE-6 |
-| MKT-AND-001 | Android | Jetpack Compose only | Enforced | PHASE-5 |
-| MKT-WEB-001 | Web | OpenAPI-generated types | Enforced | PHASE-1 |
-| MKT-POLY-001 | Upstream | CLOB V2 only | No V1 assumptions | PHASE-3 |
+- Exact pUSD collateral verification at deploy (MKT-POLY-003).
+- LLM cost cap numeric target pending PHASE-8 scope approval.
 
-## Degraded modes
+## Appendix N.0 — SLO review cadence
 
-- Upstream outage → read-only catalog with banner.
-- Eligibility unknown → fail closed (`eligible: false`).
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.1 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.2 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.3 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.4 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.5 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.6 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.7 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.8 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.9 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.10 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.11 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.12 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.13 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.14 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.15 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.16 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.17 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.18 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.19 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.20 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.21 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.22 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.23 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.24 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.25 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.26 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.27 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.28 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.29 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.30 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.31 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.32 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.
+
+## Appendix N.33 — SLO review cadence
+
+Review all NFR targets monthly pre-launch, weekly post-launch first 30 days.

@@ -1,119 +1,56 @@
 # Decision and Assumption Log
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
 ## 1. Purpose
 
-Chronological log of decisions and expiring assumptions.
+Chronological log of decisions and expiring assumptions. Agents MUST record non-obvious choices here before marking tasks done.
 
-## 2. Scope
+## 2. How to use
 
-### In scope
+| Event | Action |
+|-------|--------|
+| Architecture choice | Add row to **Decisions** with ADR link |
+| Time-sensitive upstream claim | Add row to **Assumptions** with expiry |
+| Blocker workaround rejected | Note in **Decisions** with rationale |
+| Scope change | Requires ADR + human approval first |
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+## 3. Decisions
 
-### Out of scope
+| Date | ID | Decision | ADR / Doc | Task |
+|------|-----|----------|-----------|------|
+| 2026-07-24 | D-001 | No custom exchange | ADR-001 | MKT-P0-004 |
+| 2026-07-24 | D-002 | BFF at internal/markets | ADR-002 | MKT-P0-004 |
+| 2026-07-24 | D-003 | Shared OpenAPI for web/Android | ADR-004 | MKT-P0-004 |
+| 2026-07-24 | D-004 | No auto copy trading in V1 | ADR-009 | MKT-P0-004 |
+| 2026-07-24 | D-005 | Jetpack Compose only for Android | ADR-006 | MKT-P0-004 |
+| 2026-07-25 | D-006 | Documentation spec-freeze ready | EXECUTIVE_OUTCOME.md | MKT-P0-008 |
+| 2026-07-25 | D-007 | Wave 9 harness complete; PHASE-1 first executable | implementation-manifest.yaml | MKT-W9-005 |
+| 2026-07-25 | D-008 | 28 §23 invariants verified across 121 docs | INVARIANT_CHECK.md | MKT-W9-002 |
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+## 4. Assumptions (expiring)
 
-## 3. Prerequisites
+| ID | Assumption | Expires | Revalidation | Task |
+|----|------------|---------|--------------|------|
+| A-001 | pUSD collateral config current | before PHASE-3 | Polymarket docs + evidence register | MKT-P0-002 |
+| A-002 | Gamma API shape stable | PHASE-1 exit | integration tests | MKT-P1-002 |
+| A-003 | CLOB V2 endpoint registry accurate | before PHASE-3 | upstream changelog | MKT-P0-002 |
+| A-004 | No public Polymarket testnet | ongoing | fixture strategy in MASTER_TEST_PLAN | MKT-P0-002 |
+| A-005 | Builder Program available for production | PHASE-7 | Builder approval status | BLK-003 |
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+## 5. Rejected alternatives
 
-## 4. Authoritative sources
+| Date | Alternative | Rejected because | ADR |
+|------|-------------|------------------|-----|
+| 2026-07-24 | Custom RetroPick exchange | Polymarket is venue | ADR-001 |
+| 2026-07-24 | Direct Gamma/CLOB from clients | BFF anti-corruption layer | ADR-002 |
+| 2026-07-24 | Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` | — |
+| 2026-07-24 | Flutter/React Native for Android | Kotlin+Compose required | ADR-006 |
+| 2026-07-24 | Pixel-copy Polymarket UI | Clean-room boundary | ADR-007 |
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+## 6. Open questions
 
-## 5. Current state
-
-See [EXISTING_REPOSITORY_AUDIT.md](../architecture/EXISTING_REPOSITORY_AUDIT.md).
-
-## 6. Target design
-
-Documented in this file.
-
-## 7. Alternatives considered
-
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
-
-## 8. Decisions
-
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
-
-## 9. Data and control flows
-
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
-```
-
-## 10. Failure and recovery
-
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
-
-## 11. Security
-
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
-
-## 12. Observability
-
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
-
-## 13. Test strategy
-
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
-
-## 14. Rollout and rollback
-
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
-
-## 15. Open questions
-
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
-
-## 16. Acceptance criteria
-
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
-
-## Decisions
-
-| Date | ID | Decision | ADR |
-|------|-----|----------|-----|
-| 2026-07-24 | D-001 | No custom exchange | ADR-001 |
-| 2026-07-24 | D-002 | BFF at internal/markets | ADR-002 |
-| 2026-07-24 | D-003 | Shared OpenAPI for web/Android | ADR-004 |
-
-## Assumptions (expiring)
-
-| ID | Assumption | Expires | Revalidation |
-|----|------------|---------|--------------|
-| A-001 | pUSD collateral config | before PHASE-3 | Polymarket docs |
-| A-002 | Gamma API shape stable | PHASE-1 exit | integration tests |
+Delegated to [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md). Do not resolve by guessing — log assumption with expiry instead.

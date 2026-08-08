@@ -1,131 +1,280 @@
 # Executive Product Spec — RetroPick Markets V1
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
-## 1. Purpose
+---
 
-Define the Polymarket-native Markets product: discovery, execution, portfolio, and analytics for web and Android.
+## 1. Executive summary
 
-## 2. Scope
+RetroPick Markets is a **Polymarket-native** discovery, execution, portfolio, and analytics client for web and Android. Users browse normalized Polymarket events, authorize orders with their own wallets, and hold **Polymarket positions** — not PRISM positions. Polymarket remains venue, settlement, and rules authority (ADR-001).
 
-### In scope
+Markets competes on clarity, speed, mobile continuity, operational reliability, and trustworthy disclosures — not on obscuring where orders settle or implying liquidity beyond the venue.
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+## 2. Product definition
 
-### Out of scope
+### 2.1 What Markets is
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+- A product shell over official Polymarket APIs via a Go BFF anti-corruption layer (ADR-002).
+- Shared versioned OpenAPI contract for web and Android (ADR-004).
+- Native Android with Jetpack Compose (ADR-006).
+- Deterministic, evidence-linked intelligence signals (ADR-008) with **no autonomous copy trading** (ADR-009).
 
-## 3. Prerequisites
+### 2.2 What Markets is not
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+- Not a structured-outcome issuer or custom exchange.
+- Not an extension of legacy epoch APIs (`/api/v1/legacy/markets/*`).
+- Not custodian of user private keys.
+- Not a bypass for geographic restrictions.
 
-## 4. Authoritative sources
+### 2.3 PRISM boundary
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+If a user combines legs that require a distinct RetroPick payoff, route to PRISM in a **separately branded** context. Markets order flows must state they create Polymarket positions.
 
-## 5. Current state
+## 3. Target users and jobs
 
-- Monorepo restructured (R0–R3); Markets BFF stub at `apps/backend/internal/markets/`.
-- OpenAPI stub `schemas/openapi/markets-v1.yaml` exposes eligibility, capabilities, events.
-- Web app `apps/web/` hosts Markets product shell; legacy UI quarantined.
-- Android `apps/android/` is README-only at documentation baseline.
+| User segment | Primary job | V1 phase |
+|---|---|---|
+| New prediction-market user | Understand rules, prices, max loss, redemption | PHASE-1, PHASE-4 |
+| Active trader | Fast book, limit orders, cancel, portfolio | PHASE-3, PHASE-4 |
+| Thematic researcher | Search, watchlists, related markets, history | PHASE-1, PHASE-4 |
+| Mobile-first user | Secure native execution and monitoring | PHASE-5 |
+| Professional (post-V1) | Exports, API, advanced analytics | PHASE-8 |
 
-## 6. Target design
+## 4. Business positioning
 
-Functional parity with supported Polymarket lifecycle via official APIs: catalog, trading, portfolio, funding, redemption, Builder attribution, and shared intelligence signals.
+### 4.1 Differentiation
 
-## 7. Alternatives considered
+| Dimension | RetroPick Markets | Generic wrapper |
+|---|---|---|
+| Venue transparency | Always discloses Polymarket + chain | Often obscured |
+| Rules comprehension | Canonical rules + provenance | Title-only |
+| Execution integrity | Preview=sign binding | Drift risk |
+| Mobile | Native Compose + shared API | WebView |
+| Intelligence | Deterministic + retractable | Opaque scores |
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+### 4.2 Non-goals
 
-## 8. Decisions
+- RetroPick-issued outcome tokens.
+- Internal pooled liquidity or AMM.
+- Changing Polymarket rules or payouts.
+- Promising atomic multi-leg fills without venue primitive.
+- VPN/proxy geoblock bypass.
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+## 5. Revenue model
 
-## 9. Data and control flows
+### 5.1 Primary — Builder Program
 
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+Polymarket Builder Program fees on routed orders. Production must **fetch and disclose** current fee terms before every signature. Values are external and time-sensitive.
+
+Reference: https://docs.polymarket.com/programs/builders/fees
+
+### 5.2 Secondary (post-validation)
+
+- Professional analytics subscription (PHASE-8).
+- API/data products compliant with upstream terms.
+- Clearly labeled sponsored discovery (excluded from best-execution ranking).
+
+### 5.3 Prohibited monetization
+
+- Undisclosed spread.
+- Monetizing failed orders.
+- Treating user balances as RetroPick revenue.
+
+## 6. Unit economics (summary)
+
+```
+Contribution Margin = Builder Fee Revenue + Subscription Revenue
+                    - Relayer Gas - Venue/API/Data Cost
+                    - Variable Infrastructure - Support/Fraud Cost
 ```
 
-## 10. Failure and recovery
+See [03_BUSINESS_MODEL_AND_UNIT_ECONOMICS.md](03_BUSINESS_MODEL_AND_UNIT_ECONOMICS.md) for drivers and KPIs.
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+## 7. V1 capability scope
 
-## 11. Security
+### 7.1 Required V1 (PHASE-0–7)
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+| Capability | Phase |
+|---|---|
+| Event/market catalog, search, watchlists | PHASE-1 |
+| Market rules, resolution source, disclosures | PHASE-1 |
+| Live order book, trades, spread, history | PHASE-1 |
+| Wallet connect, eligibility, funding | PHASE-2 |
+| Limit/marketable-limit orders, cancel | PHASE-3 |
+| Positions, PnL, activity | PHASE-4 |
+| CTF split/merge/redeem, Neg Risk display | PHASE-4 |
+| Deposit/withdrawal with receipts | PHASE-2, PHASE-4 |
+| Notifications (fills, resolution, claimable) | PHASE-4, PHASE-5 |
+| Builder attribution, optional gasless relay | PHASE-2, PHASE-3 |
+| Android feature parity | PHASE-5 |
+| Hardening, CI/CD, SRE | PHASE-6 |
+| Production launch | PHASE-7 |
 
-## 12. Observability
+### 7.2 Feature-gated
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+| Capability | Gate |
+|---|---|
+| Polymarket Combos/RFQ | Official API availability + PHASE-8 ADR |
+| Advanced analytics exports | PHASE-8 subscription |
+| Fiat on-ramps | Provider + jurisdiction review |
 
-## 13. Test strategy
+## 8. Runtime architecture
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+```mermaid
+flowchart TB
+    C[Web or Android client] --> G[Markets API Gateway]
+    G --> Q[Catalog and portfolio query]
+    G --> O[Order orchestration]
+    Q --> DB[Markets projections]
+    O --> VA[Polymarket venue adapter]
+    I[Catalog and chain indexers] --> DB
+    I --> VA
+    VA --> PM[Polymarket APIs CLOB and contracts]
+```
 
-## 14. Rollout and rollback
+### 8.1 Components
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+| Component | Responsibility |
+|---|---|
+| Markets API Gateway | Auth, eligibility, rate limits, stable client contract |
+| Polymarket ACL | Gamma/CLOB normalization, capability discovery |
+| Catalog indexer | Events, markets, tokens, rules, checkpoints |
+| Market-data ingest | Snapshot + sequence WS, gap recovery |
+| Order orchestrator | Preview, validate, submit signed payload, reconcile |
+| Portfolio service | Positions, PnL, claimable, reconcile |
+| Transaction relayer | Builder/relayer with allowlists and budgets |
+| Signal engine | Deterministic alerts, whale feed, wallet profiles |
 
-## 15. Open questions
+## 9. Order flow principles
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+Every trade confirmation shows: venue, chain, market/outcome, side, quantity, price, fees, gas treatment, max loss/payout, book impact, expiry, settlement rules, and explicit Polymarket position statement.
 
-## 16. Acceptance criteria
+Requirements:
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- Recompute preview if price, fee, market state, or expiry changes.
+- Bind signature to chain, maker, token, side, price, size, nonce, expiration, fee, builder field.
+- Store payload hash — never wallet secrets.
+- Marketable orders use explicit worst acceptable price.
+- Multi-leg workflows disclose independent leg risk.
 
-## Product principles
+## 10. Data and API surface
 
-1. Polymarket is venue authority — RetroPick is product + BFF.
-2. No RetroPick outcome tokens in Markets V1.
-3. PRISM remains separate; boundary explicit in UI and APIs.
-4. Fail-closed eligibility; transparent fees and max-loss disclosure.
-5. Android native Kotlin + Jetpack Compose (ADR-006).
+Canonical APIs (shared web/Android):
 
-## User journeys (V1)
+```
+GET  /v1/markets/events
+GET  /v1/markets/events/{id}
+GET  /v1/markets/markets/{id}
+GET  /v1/markets/markets/{id}/orderbook
+POST /v1/markets/orders/preview
+POST /v1/markets/orders/submit
+GET  /v1/markets/capabilities
+GET  /v1/eligibility
+```
 
-| Journey | Primary client | Phase |
-|---------|----------------|-------|
-| Browse events/markets | Web, Android | PHASE-1 |
-| Connect wallet & fund | Web | PHASE-2 |
-| Place/cancel orders | Web | PHASE-3 |
-| Portfolio & redeem | Web | PHASE-4 |
-| Mobile parity | Android | PHASE-5 |
+Source of truth: `schemas/openapi/markets-v1.yaml`. Monetary fields are fixed-point integers.
 
-## Success metrics
+## 11. Security and compliance posture
 
-- Catalog freshness p95 < 60s (PHASE-1 target).
-- Preview-to-sign binding 100% on golden vectors (PHASE-3).
-- Position reconciliation error rate < 0.1% (PHASE-4).
+| Risk | Control |
+|---|---|
+| Order tampering | Preview=sign binding |
+| Key theft | No backend/mobile raw-key custody |
+| Replay | Nonce, expiry, idempotency, venue lookup |
+| Relayer drain | Allowlists, budgets, kill switch |
+| Jurisdiction bypass | Server-authoritative geoblock, fail closed |
+| Stale book | Sequence checks, disable marketable when stale |
+
+Obtain jurisdiction-specific legal advice before production launch (PHASE-7 gate).
+
+## 12. Implementation program
+
+| Phase ID | Name | Goal |
+|---|---|---|
+| PHASE-0 | Discovery and Spec Freeze | Eliminate signing/custody/scope unknowns |
+| PHASE-1 | Foundation and Read Markets | Catalog + read UX, no trading |
+| PHASE-2 | Account Wallet and Funding | Wallet, eligibility, deposit/withdraw design |
+| PHASE-3 | Web Trading Core | Preview, sign, submit, reconcile |
+| PHASE-4 | Portfolio, Redemption, and Withdrawal | Positions, CTF, redeem, intelligence feeds |
+| PHASE-5 | Android Compose Markets | Mobile parity |
+| PHASE-6 | Hardening, CI/CD, and SRE | Security, ops readiness |
+| PHASE-7 | Production Launch | Controlled go-live |
+| PHASE-8 | Post-V1 Advanced Capabilities | Gated post-V1 features |
+
+See [phases/README.md](phases/README.md) for per-phase §16 contracts.
+
+## 13. Success metrics
+
+| Metric | Target | Phase |
+|---|---|---|
+| Catalog freshness p95 | < 60s | PHASE-1 |
+| Order book snapshot age p95 | < 5s | PHASE-1 |
+| Preview-to-sign binding | 100% golden vectors | PHASE-3 |
+| Position reconciliation error rate | < 0.1% | PHASE-4 |
+| API availability | 99.5% monthly | PHASE-6 |
+| Android crash-free users | > 99% | PHASE-5 |
+
+## 14. Current repository state
+
+- Monorepo R0–R3 restructure complete.
+- Markets BFF stub: `apps/backend/internal/markets/`.
+- OpenAPI stub: `schemas/openapi/markets-v1.yaml`.
+- Web shell: `apps/web/src/products/markets/`.
+- Android: README-only scaffold; implementation PHASE-5.
+
+## 15. Key decisions (ADRs)
+
+| ADR | Decision |
+|---|---|
+| ADR-001 | No custom exchange; Polymarket is venue |
+| ADR-002 | BFF anti-corruption layer |
+| ADR-003 | Signer vs account-wallet model |
+| ADR-004 | Shared web/Android API |
+| ADR-005 | Realtime snapshot/gap recovery |
+| ADR-006 | Jetpack Compose for Android |
+| ADR-007 | OSS adoption and clean-room |
+| ADR-008 | Shared signal engine |
+| ADR-009 | No auto copy trading in V1 |
+
+## 16. Open questions and blockers
+
+See [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
+
+| Blocker | Phase |
+|---|---|
+| Geoblock eligibility upstream not wired | PHASE-2 |
+| Android scaffold beyond README | PHASE-5 |
+| pUSD/collateral configuration verify at deploy | PHASE-2 |
+
+## 17. Traceability
+
+Requirements: [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md)
+NFRs: [05_NON_FUNCTIONAL_REQUIREMENTS.md](05_NON_FUNCTIONAL_REQUIREMENTS.md)
+Tasks: [agent-harness/task-graph.yaml](agent-harness/task-graph.yaml)
+
+## 18. Authoritative sources
+
+| Source | URL | Retrieved | Confidence |
+|---|---|---|---|
+| Polymarket docs | https://docs.polymarket.com/ | 2026-07-25 | partially verified |
+| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-25 | partially verified |
+| Builder fees | https://docs.polymarket.com/programs/builders/fees | 2026-07-25 | partially verified |
+| MARKETS baseline | .dev/MARKETS.md | 2026-07-25 | verified |
+| OpenAPI | schemas/openapi/markets-v1.yaml | 2026-07-25 | verified |
+
+## 19. Acceptance criteria (document baseline)
+
+- All PHASE-0–8 specs contain full §16 contract.
+- Requirements mapped to phases and tasks.
+- Cross-document invariants (§23) satisfied.
+- Human approval gates documented before implementation agents execute gated work.
+
+## 20. Related documents
+
+- [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md)
+- [02_SCOPE_AND_CAPABILITY_MATRIX.md](02_SCOPE_AND_CAPABILITY_MATRIX.md)
+- [architecture/TARGET_MONOREPO_ARCHITECTURE.md](architecture/TARGET_MONOREPO_ARCHITECTURE.md)
+- [EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md)

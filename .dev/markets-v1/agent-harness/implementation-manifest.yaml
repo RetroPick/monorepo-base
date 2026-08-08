@@ -1,14 +1,54 @@
 product: retropick-markets
 version: v1
-mode: documentation_baseline
-last_updated: 2026-07-24
-current_phase: PHASE-0
+mode: spec_freeze_ready
+last_updated: 2026-07-25
+current_phase: PHASE-1
+wave: 9
+wave_status: complete
+
+doc_paths:
+  entry: .dev/markets-v1/README.md
+  document_map: .dev/markets-v1/00_DOCUMENT_MAP.md
+  executive_outcome: .dev/markets-v1/EXECUTIVE_OUTCOME.md
+  operating_contract: .dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md
+  task_graph: .dev/markets-v1/agent-harness/task-graph.yaml
+  traceability: .dev/markets-v1/agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md
+  invariant_check: .dev/markets-v1/agent-harness/INVARIANT_CHECK.md
+  blockers: .dev/markets-v1/agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md
+  decision_log: .dev/markets-v1/agent-harness/DECISION_AND_ASSUMPTION_LOG.md
+  openapi: schemas/openapi/markets-v1.yaml
+
+parallelization_rules:
+  - rule: one_owner_per_writable_path
+    description: No two in-progress tasks may share an owned_paths entry
+  - rule: phase_sequential_default
+    description: Phases run in order unless may_run_in_parallel_with is set
+  - rule: contract_first
+    description: OpenAPI and migrations precede client integration
+  - rule: read_before_write
+    description: Catalog read (PHASE-1) precedes wallet/trading (PHASE-2+)
+
 phase_order:
+  - id: WAVE-9
+    name: Agent Harness Completion
+    status: complete
+    spec: .dev/markets-v1/README.md
+    prerequisites: []
+    tasks:
+      - MKT-W9-001
+      - MKT-W9-002
+      - MKT-W9-003
+      - MKT-W9-004
+      - MKT-W9-005
+    exit_gate:
+      - All 121 documents reviewed
+      - 28/28 §23 invariants verified
+      - Task graph and traceability matrix complete
   - id: PHASE-0
     name: Discovery and Spec Freeze
-    status: planned
+    status: complete
     spec: .dev/markets-v1/phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md
-    prerequisites: []
+    prerequisites: [WAVE-9]
     tasks:
       - MKT-P0-001
       - MKT-P0-002
@@ -18,12 +58,18 @@ phase_order:
       - MKT-P0-006
       - MKT-P0-007
       - MKT-P0-008
-    exit_gate: []
+    exit_gate:
+      - 121 documents reviewed per 00_DOCUMENT_MAP.md
+      - ADR-001 through ADR-009 accepted
+      - Requirements baseline in 04_REQUIREMENTS_AND_TRACEABILITY.md
   - id: PHASE-1
     name: Foundation and Read Markets
-    status: planned
+    status: ready
     spec: .dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
-    prerequisites: ['PHASE-0']
+    prerequisites: [PHASE-0]
+    parallel_groups:
+      - [MKT-P1-002, MKT-P1-003]
+      - [MKT-P1-006, MKT-P1-009]
     tasks:
       - MKT-P1-001
       - MKT-P1-002
@@ -35,83 +81,146 @@ phase_order:
       - MKT-P1-008
       - MKT-P1-009
       - MKT-P1-010
-    exit_gate: []
+    exit_gate:
+      - Web renders canonical market from BFF
+      - No signing or fund movement
+      - OpenAPI conformance tests pass
   - id: PHASE-2
     name: Account Wallet and Funding
     status: planned
     spec: .dev/markets-v1/phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md
-    prerequisites: ['PHASE-1']
+    prerequisites: [PHASE-1]
+    parallel_groups:
+      - [MKT-P2-002, MKT-P2-005]
     tasks:
       - MKT-P2-001
-    exit_gate: []
+      - MKT-P2-002
+      - MKT-P2-003
+      - MKT-P2-004
+      - MKT-P2-005
+      - MKT-P2-006
+      - MKT-P2-007
+    exit_gate:
+      - Wallet connect without key custody
+      - eligibility_fail_closed metric green
   - id: PHASE-3
     name: Web Trading Core
     status: planned
     spec: .dev/markets-v1/phases/PHASE-3-WEB-TRADING-CORE.md
-    prerequisites: ['PHASE-2']
+    prerequisites: [PHASE-2]
     tasks:
       - MKT-P3-001
-    exit_gate: []
+      - MKT-P3-002
+      - MKT-P3-003
+      - MKT-P3-004
+      - MKT-P3-005
+      - MKT-P3-006
+    exit_gate:
+      - preview_sign_match metric green
+      - e2e journey J-03 pass
   - id: PHASE-4
     name: Portfolio Redemption and Withdrawal
     status: planned
     spec: .dev/markets-v1/phases/PHASE-4-PORTFOLIO-REDEMPTION-AND-WITHDRAWAL.md
-    prerequisites: ['PHASE-3']
+    prerequisites: [PHASE-3]
+    parallel_groups:
+      - [MKT-P4-002, MKT-P4-003]
     tasks:
       - MKT-P4-001
-    exit_gate: []
+      - MKT-P4-002
+      - MKT-P4-003
+      - MKT-P4-004
+      - MKT-P4-005
+      - MKT-P4-006
+    exit_gate:
+      - Positions reconcile with venue
+      - Redemption and withdrawal flows verified
   - id: PHASE-5
     name: Android Compose Markets
     status: planned
     spec: .dev/markets-v1/phases/PHASE-5-ANDROID-COMPOSE-MARKETS.md
-    prerequisites: ['PHASE-3', 'PHASE-4']
+    prerequisites: [PHASE-3, PHASE-4]
+    parallel_groups:
+      - [MKT-P5-002, MKT-P5-003]
     tasks:
       - MKT-P5-001
-    exit_gate: []
+      - MKT-P5-002
+      - MKT-P5-003
+      - MKT-P5-004
+      - MKT-P5-005
+      - MKT-P5-006
+    exit_gate:
+      - Android V1 parity on internal track
+      - No direct Polymarket API calls from app
   - id: PHASE-6
     name: Hardening CI/CD and SRE
     status: planned
     spec: .dev/markets-v1/phases/PHASE-6-HARDENING-CI-CD-AND-SRE.md
-    prerequisites: ['PHASE-4', 'PHASE-5']
+    prerequisites: [PHASE-4, PHASE-5]
+    parallel_groups:
+      - [MKT-P6-001, MKT-P6-002]
     tasks:
       - MKT-P6-001
-    exit_gate: []
+      - MKT-P6-002
+      - MKT-P6-003
+      - MKT-P6-004
+      - MKT-P6-005
+      - MKT-P6-006
+    exit_gate:
+      - Release verification matrix green
+      - 99.5% uptime SLO in staging
   - id: PHASE-7
     name: Production Launch
     status: planned
     spec: .dev/markets-v1/phases/PHASE-7-PRODUCTION-LAUNCH.md
-    prerequisites: ['PHASE-6']
+    prerequisites: [PHASE-6]
     tasks:
       - MKT-P7-001
-    exit_gate: []
+      - MKT-P7-002
+      - MKT-P7-003
+      - MKT-P7-004
+    exit_gate:
+      - Production deployment with human sign-off
+      - 72h post-launch monitoring green
   - id: PHASE-8
     name: Post-V1 Advanced Capabilities
     status: planned
     spec: .dev/markets-v1/phases/PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md
-    prerequisites: ['PHASE-7']
+    prerequisites: [PHASE-7]
     tasks:
       - MKT-P8-001
-    exit_gate: []
+      - MKT-P8-002
+      - MKT-P8-003
+    exit_gate:
+      - Combos capability-gated
+      - No auto copy trading (ADR-009)
+
 products:
   web:
     enabled: true
     path: apps/web
+    doc: .dev/markets-v1/web/WEB_APPLICATION_ARCHITECTURE.md
   backend:
     enabled: true
     path: apps/backend
     markets_module: apps/backend/internal/markets
+    doc: .dev/markets-v1/backend/BACKEND_ARCHITECTURE.md
   android:
     enabled: true
     ui_stack: Jetpack Compose
     language: Kotlin
     path: apps/android
-    note: README-only at R3 documentation baseline
+    doc: .dev/markets-v1/android/COMPOSE_APP_ARCHITECTURE.md
+    note: README-only at Wave 9; implementation in PHASE-5
   custom_markets_contract:
     enabled: false
+
 external_authorities:
   venue: Polymarket
   chain: Polygon
   collateral: verify_current_pUSD_configuration
+  evidence: .dev/markets-v1/research/evidence-register.yaml
+
 human_approval_gates:
   - production_wallet_creation
   - builder_fee_configuration
@@ -123,10 +232,29 @@ human_approval_gates:
   - destructive_migration
   - production_secret_rotation
   - google_play_production_release
+
 unresolved_blockers:
   - id: BLK-001
     title: Geoblock eligibility upstream not wired
     phase: PHASE-2
+    doc: .dev/markets-v1/backend/AUTH_SESSION_AND_ELIGIBILITY.md
   - id: BLK-002
     title: Android app scaffold beyond README
     phase: PHASE-5
+    doc: .dev/markets-v1/android/GRADLE_MODULE_GRAPH.md
+  - id: BLK-003
+    title: Builder production credentials
+    phase: PHASE-7
+    doc: .dev/markets-v1/polymarket/BUILDER_RELAYER_AND_FEES.md
+  - id: BLK-004
+    title: CLOB integration not implemented
+    phase: PHASE-3
+    doc: .dev/markets-v1/polymarket/ORDER_LIFECYCLE.md
+  - id: BLK-005
+    title: Wallet connect and funding flows not implemented
+    phase: PHASE-2
+    doc: .dev/markets-v1/web/WALLET_AND_TRANSACTION_UX.md
+  - id: BLK-006
+    title: OpenAPI covers stub endpoints only
+    phase: PHASE-1
+    doc: schemas/openapi/markets-v1.yaml

@@ -2,61 +2,1276 @@ openapi: 3.1.0
 info:
   title: RetroPick Markets API
   version: 1.0.0
-  description: |
-    Polymarket-native BFF consumed by web and Android.
-    Implemented handlers live in apps/backend/internal/markets (Phase R3; events proxied from Polymarket Gamma when catalog is enabled).
+  description: 'Polymarket-native BFF consumed by web and Android. Handlers: apps/backend/internal/markets. Status: reviewed
+    (Wave 3, 2026-07-25).'
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
 servers:
-  - url: /api/v1
+- url: /api/v1
+tags:
+- name: policy
+  description: Eligibility and capability discovery
+- name: catalog
+  description: Event and market catalog
+- name: trading
+  description: Order preview, submit, cancel
+- name: wallet
+  description: Wallet accounts and approvals
+- name: funding
+  description: Deposit and withdrawal flows
+- name: portfolio
+  description: Positions, activity, operations
+- name: intelligence
+  description: Signals, whales, wallet profiles, market health
+- name: alerts
+  description: Alert rules and inbox
+- name: journal
+  description: Trade journal entries
 paths:
   /markets/eligibility:
     get:
       operationId: getMarketsEligibility
-      summary: Jurisdiction and policy eligibility (fail-closed)
+      summary: getMarketsEligibility
+      tags:
+      - policy
+      x-phase: 1
       responses:
-        "200":
-          description: Eligibility decision
+        '200':
+          description: Success
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EligibilityResponse"
+                $ref: '#/components/schemas/EligibilityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
   /markets/capabilities:
     get:
       operationId: getMarketsCapabilities
-      summary: Feature flags for this build
+      summary: getMarketsCapabilities
+      tags:
+      - policy
+      x-phase: 1
       responses:
-        "200":
-          description: Capability flags
+        '200':
+          description: Success
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CapabilitiesResponse"
+                $ref: '#/components/schemas/CapabilitiesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
   /markets/events:
     get:
       operationId: listMarketsEvents
-      summary: Normalized Polymarket event catalog
+      summary: listMarketsEvents
+      tags:
+      - catalog
+      x-phase: 1
       parameters:
-        - name: cursor
-          in: query
-          schema:
-            type: string
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 100
+      - name: cursor
+        in: query
+        schema:
+          type: string
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
       responses:
-        "200":
-          description: Event page
+        '200':
+          description: Success
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EventsListResponse"
+                $ref: '#/components/schemas/EventsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
+  /markets/events/{eventId}:
+    get:
+      operationId: getMarketsEvent
+      summary: getMarketsEvent
+      tags:
+      - catalog
+      x-phase: 1
+      parameters:
+      - name: eventId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
+  /markets/markets/{marketId}:
+    get:
+      operationId: getMarketsMarket
+      summary: getMarketsMarket
+      tags:
+      - catalog
+      x-phase: 1
+      parameters:
+      - name: marketId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
+  /markets/markets/{marketId}/orderbook:
+    get:
+      operationId: getMarketsOrderbook
+      summary: getMarketsOrderbook
+      tags:
+      - catalog
+      x-phase: 1
+      parameters:
+      - name: marketId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
+  /markets/markets/{marketId}/history:
+    get:
+      operationId: getMarketsHistory
+      summary: getMarketsHistory
+      tags:
+      - catalog
+      x-phase: 1
+      parameters:
+      - name: marketId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security: []
+  /markets/me/wallets:
+    get:
+      operationId: listMyWallets
+      summary: listMyWallets
+      tags:
+      - catalog
+      x-phase: 2
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/me/balances:
+    get:
+      operationId: listMyBalances
+      summary: listMyBalances
+      tags:
+      - catalog
+      x-phase: 2
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/me/orders:
+    get:
+      operationId: listMyOrders
+      summary: listMyOrders
+      tags:
+      - catalog
+      x-phase: 3
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/me/activity:
+    get:
+      operationId: listMyActivity
+      summary: listMyActivity
+      tags:
+      - catalog
+      x-phase: 3
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/me/positions:
+    get:
+      operationId: listMyPositions
+      summary: listMyPositions
+      tags:
+      - catalog
+      x-phase: 4
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/account-wallet/preview:
+    post:
+      operationId: previewAccountWallet
+      summary: previewAccountWallet
+      tags:
+      - catalog
+      x-phase: 2
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/account-wallet/relay:
+    post:
+      operationId: relayAccountWallet
+      summary: relayAccountWallet
+      tags:
+      - catalog
+      x-phase: 2
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/approvals/preview:
+    post:
+      operationId: previewApproval
+      summary: previewApproval
+      tags:
+      - catalog
+      x-phase: 2
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/approvals/relay:
+    post:
+      operationId: relayApproval
+      summary: relayApproval
+      tags:
+      - catalog
+      x-phase: 2
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/funding/quote:
+    post:
+      operationId: quoteFunding
+      summary: quoteFunding
+      tags:
+      - catalog
+      x-phase: 2
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/funding/track:
+    post:
+      operationId: trackFunding
+      summary: trackFunding
+      tags:
+      - catalog
+      x-phase: 2
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/withdrawals/preview:
+    post:
+      operationId: previewWithdrawal
+      summary: previewWithdrawal
+      tags:
+      - catalog
+      x-phase: 4
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/withdrawals/submit:
+    post:
+      operationId: submitWithdrawal
+      summary: submitWithdrawal
+      tags:
+      - catalog
+      x-phase: 4
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/orders/preview:
+    post:
+      operationId: previewOrder
+      summary: previewOrder
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderPreviewRequest'
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Order preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderPreviewResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/orders/submit:
+    post:
+      operationId: submitOrder
+      summary: submitOrder
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - previewId
+              - signature
+              properties:
+                previewId:
+                  type: string
+                signature:
+                  type: string
+                clientOrderId:
+                  type: string
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/orders/{orderId}/cancel-preview:
+    post:
+      operationId: previewCancelOrder
+      summary: previewCancelOrder
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/orders/{orderId}/cancel:
+    post:
+      operationId: cancelOrder
+      summary: cancelOrder
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/positions/operation-preview:
+    post:
+      operationId: previewPositionOperation
+      summary: previewPositionOperation
+      tags:
+      - catalog
+      x-phase: 4
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/positions/operation-relay:
+    post:
+      operationId: relayPositionOperation
+      summary: relayPositionOperation
+      tags:
+      - catalog
+      x-phase: 4
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/watchlists:
+    post:
+      operationId: createWatchlist
+      summary: createWatchlist
+      tags:
+      - catalog
+      x-phase: 1
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/intelligence/signals:
+    get:
+      operationId: listIntelligenceSignals
+      summary: listIntelligenceSignals
+      tags:
+      - catalog
+      x-phase: 3
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/intelligence/whales:
+    get:
+      operationId: listWhaleActivity
+      summary: listWhaleActivity
+      tags:
+      - catalog
+      x-phase: 3
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/intelligence/wallets/{address}:
+    get:
+      operationId: getWalletIntelligence
+      summary: getWalletIntelligence
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - name: address
+        in: path
+        required: true
+        schema:
+          type: string
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/markets/{marketId}/health:
+    get:
+      operationId: getMarketHealth
+      summary: getMarketHealth
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - name: marketId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security:
+      - bearerAuth: []
+  /markets/markets/{marketId}/flow:
+    get:
+      operationId: getMarketFlow
+      summary: getMarketFlow
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - name: marketId
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+      security:
+      - bearerAuth: []
+  /markets/alerts/rules:
+    post:
+      operationId: createAlertRule
+      summary: createAlertRule
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/alerts/inbox:
+    get:
+      operationId: listAlertInbox
+      summary: listAlertInbox
+      tags:
+      - catalog
+      x-phase: 3
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/me/execution-quality:
+    get:
+      operationId: getMyExecutionQuality
+      summary: getMyExecutionQuality
+      tags:
+      - catalog
+      x-phase: 3
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
+  /markets/me/journal:
+    post:
+      operationId: createTradeJournalEntry
+      summary: createTradeJournalEntry
+      tags:
+      - catalog
+      x-phase: 3
+      parameters:
+      - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      security:
+      - sessionAuth: []
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/UpstreamError'
 components:
+  securitySchemes:
+    sessionAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID for idempotent mutation replay within 24h
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid session
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Eligibility or capability denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    RateLimited:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UpstreamError:
+      description: Polymarket upstream unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    DecimalString:
+      type: string
+      pattern: ^-?[0-9]+(\.[0-9]+)?$
+      description: Decimal value as string (prices, probabilities)
+      examples:
+      - '0.55'
+      - '1000.00'
+    Money:
+      type: object
+      required:
+      - amount
+      - currency
+      - decimals
+      properties:
+        amount:
+          type: string
+          description: Integer string in base units
+          examples:
+          - '1000000'
+        currency:
+          type: string
+          examples:
+          - USDC
+        decimals:
+          type: integer
+          minimum: 0
+          maximum: 18
+          examples:
+          - 6
+    ErrorResponse:
+      type: object
+      required:
+      - error
+      properties:
+        error:
+          type: object
+          required:
+          - code
+          - message
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+            requestId:
+              type: string
     EligibilityResponse:
       type: object
-      required: [eligible, checkedAt]
+      required:
+      - eligible
+      - checkedAt
       properties:
         eligible:
           type: boolean
@@ -69,7 +1284,13 @@ components:
           type: string
     CapabilitiesResponse:
       type: object
-      required: [version, catalog, trading, combos, intelligence, checkedAt]
+      required:
+      - version
+      - catalog
+      - trading
+      - combos
+      - intelligence
+      - checkedAt
       properties:
         version:
           type: string
@@ -90,7 +1311,9 @@ components:
           format: date-time
     EventSummary:
       type: object
-      required: [id, title]
+      required:
+      - id
+      - title
       properties:
         id:
           type: string
@@ -100,17 +1323,67 @@ components:
           type: string
     EventsListResponse:
       type: object
-      required: [events, source, checkedAt]
+      required:
+      - events
+      - source
+      - checkedAt
       properties:
         events:
           type: array
           items:
-            $ref: "#/components/schemas/EventSummary"
+            $ref: '#/components/schemas/EventSummary'
         cursor:
-          type: string
-          nullable: true
+          type:
+          - string
+          - 'null'
+        stale:
+          type: boolean
         source:
           type: string
         checkedAt:
           type: string
           format: date-time
+    OrderPreviewRequest:
+      type: object
+      required:
+      - marketId
+      - side
+      - size
+      - price
+      properties:
+        marketId:
+          type: string
+        side:
+          type: string
+          enum:
+          - buy
+          - sell
+        size:
+          $ref: '#/components/schemas/Money'
+        price:
+          $ref: '#/components/schemas/DecimalString'
+    OrderPreviewResponse:
+      type: object
+      required:
+      - previewId
+      - payloadHash
+      - expiresAt
+      properties:
+        previewId:
+          type: string
+        payloadHash:
+          type: string
+        eip712:
+          type: object
+        expiresAt:
+          type: string
+          format: date-time
+        estimatedFee:
+          $ref: '#/components/schemas/Money'
+jsonSchemaDialect: https://spec.openapis.org/oas/3.1/dialect/base
+x-phase-definitions:
+  '1': Foundation — catalog, eligibility, capabilities
+  '2': Account wallet and funding
+  '3': Trading core and intelligence
+  '4': Portfolio, redemption, withdrawals
+security: []

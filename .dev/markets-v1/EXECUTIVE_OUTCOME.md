@@ -1,7 +1,18 @@
 # Executive outcome — Markets V1 documentation baseline
 
-**Date:** 2026-07-24  
-**Status:** documentation baseline complete (not product implementation)
+**Date:** 2026-07-25
+**Status:** documentation complete — spec freeze ready (no product implementation yet)
+**Wave:** 9 (agent harness) complete
+
+## Honest status
+
+| Dimension | State |
+|-----------|-------|
+| Specification corpus | **Complete** — 121 documents reviewed per [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) |
+| Agent harness | **Complete** — task graph, manifest, traceability, §23 invariant check |
+| Product code | **Not started** — PHASE-1 is first executable implementation phase |
+| Upstream evidence | **Partially verified** — revalidate Polymarket CLOB V2 before trading phases |
+| Human scope sign-off | **Recommended** — PHASE-0 exit gate satisfied by documentation; formal approval still advised |
 
 ## Recommended architecture
 
@@ -60,59 +71,78 @@
 
 ## Documents created
 
-119 files under `.dev/markets-v1/` — see [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md).
+121 files under `.dev/markets-v1/` — see [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md). All marked `reviewed` as of 2026-07-25.
 
 ## Phase plan summary
 
-| Phase | Name | Status |
-|-------|------|--------|
-| PHASE-0 | Discovery and Spec Freeze | **current** |
-| PHASE-1 | Foundation and Read Markets | planned |
-| PHASE-2 | Account Wallet and Funding | planned |
-| PHASE-3 | Web Trading Core | planned |
-| PHASE-4 | Portfolio, Redemption, Withdrawal | planned |
-| PHASE-5 | Android Compose Markets | planned |
-| PHASE-6 | Hardening, CI/CD, SRE | planned |
-| PHASE-7 | Production Launch | planned |
-| PHASE-8 | Post-V1 Advanced | planned |
+| Phase | Name | Doc status | Implementation |
+|-------|------|------------|----------------|
+| PHASE-0 | Discovery and Spec Freeze | **complete** | documentation only |
+| PHASE-1 | Foundation and Read Markets | reviewed | **first executable** |
+| PHASE-2 | Account Wallet and Funding | reviewed | planned |
+| PHASE-3 | Web Trading Core | reviewed | planned |
+| PHASE-4 | Portfolio, Redemption, Withdrawal | reviewed | planned |
+| PHASE-5 | Android Compose Markets | reviewed | planned |
+| PHASE-6 | Hardening, CI/CD, SRE | reviewed | planned |
+| PHASE-7 | Production Launch | reviewed | planned |
+| PHASE-8 | Post-V1 Advanced | reviewed | planned |
 
 ## Critical blockers
 
 ### Implementation blockers
-- Android Gradle project does not exist.
-- CLOB integration, wallet flows, and eligibility geoblock not implemented.
-- OpenAPI covers stub endpoints only.
+
+| ID | Blocker | Phase |
+|----|---------|-------|
+| BLK-001 | Geoblock eligibility upstream not wired | PHASE-2 |
+| BLK-002 | Android Gradle project does not exist | PHASE-5 |
+| BLK-004 | CLOB integration not implemented | PHASE-3 |
+| BLK-005 | Wallet connect and funding flows not implemented | PHASE-2 |
+| BLK-006 | OpenAPI covers stub endpoints only | PHASE-1 |
 
 ### External/upstream blockers
-- Contract addresses and CLOB V2 details require revalidation against live Polymarket docs.
-- Builder Program approval for production attribution.
+
+| ID | Blocker | Notes |
+|----|---------|-------|
+| BLK-010 | Contract addresses require revalidation | evidence register before production |
+| BLK-011 | CLOB V2 details may change | monitor upstream changelog |
+| BLK-003 | Builder Program approval | production attribution |
 
 ### Legal/policy blockers
-- Per-region legal review before production trading enablement.
-- Google Play financial-features declaration for Android.
+
+| ID | Blocker | Notes |
+|----|---------|-------|
+| BLK-020 | Per-region legal review | before production trading |
+| BLK-021 | Google Play financial-features declaration | Android production |
 
 ### Human-approval blockers
-- PHASE-0 exit gate: human approval of V1 scope (see phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md).
+
+| ID | Gate | Phase |
+|----|------|-------|
+| BLK-030 | Production wallet creation | PHASE-2+ |
+| BLK-031 | Real on-chain transaction | PHASE-3+ |
+| BLK-032 | Google Play production release | PHASE-7 |
+| BLK-033 | New jurisdiction enablement | any |
+
+See [agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md](agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md).
 
 ## First executable phase
 
-**PHASE-0** is ready for human review and scope sign-off. Not ready to skip to PHASE-1 until exit gate cleared.
+**PHASE-1 — Foundation and Read Markets** is ready to begin.
 
-**First three agent tasks (do not execute without approval):**
-1. `MKT-P0-001` — Complete evidence register revalidation
-2. `MKT-P0-002` — Finalize capability matrix sign-off
-3. `MKT-P0-003` — ADR review and human approval of V1 scope
+Rationale: specification and harness are complete; PHASE-0 deliverables exist and are reviewed; no signing or fund movement in PHASE-1.
+
+**First three agent tasks (require human acknowledgment before merge):**
+
+1. `MKT-P1-001` — OpenAPI markets-v1 expansion for catalog read models
+2. `MKT-P1-002` — Gamma catalog client hardening in `internal/markets/gamma`
+3. `MKT-P1-003` — Markets database schema v1 (catalog cache, watchlist foundation)
 
 ## Verification summary
 
 | Check | Result |
 |-------|--------|
-| Files in document map | 119/119 present |
-| Harness manifest | PHASE-0–8 populated |
-| Task graph | 18 PHASE-0/1 tasks defined |
-| Cross-document invariants (§23) | See agent-harness/INVARIANT_CHECK.md |
-| Product code implemented | **No** — documentation only |
-
-## Provisional documents
-
-All docs marked `draft` in 00_DOCUMENT_MAP.md. Revalidate upstream claims before PHASE-1 implementation.
+| Files in document map | 121/121 present, all `reviewed` |
+| Harness manifest | PHASE-0–8 populated, `current_phase: PHASE-1` |
+| Task graph | Wave 9 doc-verification + PHASE-0–8 implementation tasks |
+| Cross-document invariants (§23) | 28/28 checked — [INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) |
+| Product code implemented | **No** — documentation and harness only |

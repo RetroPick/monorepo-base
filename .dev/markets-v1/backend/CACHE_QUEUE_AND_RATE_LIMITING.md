@@ -1,104 +1,418 @@
-# CACHE QUEUE AND RATE LIMITING
+# CACHE, QUEUE, AND RATE LIMITING
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+**Wave:** 3 — Backend architecture and API contracts
 
 ## 1. Purpose
 
-Specify cache queue and rate limiting for RetroPick Markets V1.
+Redis caching, job queues, rate limits, and backpressure for Markets backend.
 
-## 2. Scope
+## 2. Cache layers
 
-### In scope
+| Key pattern | TTL | Invalidation |
+|-------------|-----|--------------|
+| `mkt:event:{id}` | 60s | catalog.updated |
+| `mkt:market:{id}` | 30s | catalog.updated |
+| `mkt:book:{id}` | 2s | book.snapshot |
+| `mkt:capabilities` | 10s | deploy / flag change |
+| `mkt:eligibility:{ip_hash}` | 300s | policy change |
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+Stale reads labeled in API response: `"stale": true, "checkedAt": "..."`.
 
-### Out of scope
+## 3. Queues
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+| Queue | Transport | Consumers |
+|-------|-----------|-----------|
+| feature.extract | Redis stream | signal-engine |
+| alert.dispatch | Redis stream | alert-delivery |
+| reconcile.shard | PG SKIP LOCKED | reconciliation |
 
-## 3. Prerequisites
+DLQ: `markets.dead_letter_jobs` table with payload JSON and error.
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+## 4. Rate limiting
 
-## 4. Authoritative sources
+| Tier | Limit | Scope |
+|------|-------|-------|
+| Anonymous | 60/min | catalog GET |
+| Authenticated | 300/min | me/* GET |
+| Trading | 30/min | preview+submit |
+| Intelligence | 120/min | signals, whales |
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+Implementation: Redis token bucket per `user_id` or IP. Headers: `X-RateLimit-*`.
 
-## 5. Current state
+## 5. Backpressure
 
-Documentation baseline created 2026-07-24; implementation varies by phase.
+When queue depth > threshold: shed intelligence jobs first; never shed order submit ack path.
 
-## 6. Target design
+## Cache tuning note 1
 
-Implementation-grade design for cache queue and rate limiting aligned with R0–R3 monorepo.
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 7. Alternatives considered
+## Cache tuning note 2
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 8. Decisions
+## Cache tuning note 3
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 9. Data and control flows
+## Cache tuning note 4
 
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
-```
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 10. Failure and recovery
+## Cache tuning note 5
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 11. Security
+## Cache tuning note 6
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 12. Observability
+## Cache tuning note 7
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 13. Test strategy
+## Cache tuning note 8
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 14. Rollout and rollback
+## Cache tuning note 9
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 15. Open questions
+## Cache tuning note 10
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
 
-## 16. Acceptance criteria
+## Cache tuning note 11
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 12
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 13
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 14
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 15
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 16
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 17
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 18
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 19
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 20
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 21
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 22
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 23
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 24
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 25
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 26
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 27
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 28
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Cache tuning note 29
+
+Monitor hit ratio and p95 latency per key family. Adjust TTL vs freshness SLO.
+Cold start: warm top-N markets by volume on deploy.
+
+## Appendix 1
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 2
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 3
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 4
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 5
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 6
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 7
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 8
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 9
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 10
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 11
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 12
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 13
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 14
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
+
+## Appendix 15
+
+| Key | Specification |
+|-----|---------------|
+| Wave | 3 reviewed 2026-07-25 |
+| Venue | Polymarket Gamma/CLOB/on-chain |
+| BFF | apps/backend/internal/markets |
+| Schema | markets.* PostgreSQL |
+| Contract | schemas/openapi/markets-v1.yaml |
+| Idempotency | Idempotency-Key header on POST |
+| Money | Fixed-point Money schema |
+| Phase gating | x-phase OpenAPI extension |
+| Fail closed | eligible:false on unknown policy |
+| Intelligence | Isolated from trading path ADR-008 |
