@@ -1,19 +1,19 @@
 # Requirements to Task Traceability
 
-**Status:** draft — Phase 1.3 runtime closure in progress
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-31
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
 ## 1. Purpose
 
-Map requirement IDs to architecture components, phases, tasks, tests, and runbooks.
+Comprehensive matrix mapping requirement IDs → authoritative docs → task-graph tasks → acceptance criteria → tests → metrics → runbooks.
 
 ## 2. Scope
 
 ### In scope
 
-- RetroPick Markets V1 (`apps/fe-v1`, Go BFF, native Android Jetpack Compose).
+- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
 
 ### Out of scope
 
@@ -24,125 +24,95 @@ Map requirement IDs to architecture components, phases, tasks, tests, and runboo
 ## 3. Prerequisites
 
 - [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md)
+- [05_NON_FUNCTIONAL_REQUIREMENTS.md](../05_NON_FUNCTIONAL_REQUIREMENTS.md)
+- [02_SCOPE_AND_CAPABILITY_MATRIX.md](../02_SCOPE_AND_CAPABILITY_MATRIX.md)
 - [task-graph.yaml](task-graph.yaml)
+- [implementation-manifest.yaml](implementation-manifest.yaml)
 
-## 4. Authoritative sources
+## 4. Traceability chain
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-31 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-31 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-31 | verified |
-| Phase 1.3 architecture | `docs/architecture/markets-phase-1-3-realtime-intelligence.md` | 2026-07-31 | verified |
-
-## 5. Current state
-
-Phase 1.3 implementation slice landed (PR #8). Runtime closure tasks P13C-000 … P13C-008 are open. See [CURRENT_IMPLEMENTATION_STATE.md](CURRENT_IMPLEMENTATION_STATE.md).
-
-## 6. Target design
-
-Documented in this file and Phase 1.3 architecture spec.
-
-## 7. Alternatives considered
-
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
-| Hash-chain delta semantics for WS | ADR-012: upstream hash is evidence, not chain link |
-
-## 8. Decisions
-
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
-- Snapshot-first reconciler (ADR-012); local delivery ordering (ADR-013).
-- Observation persistence design accepted; transactional wiring pending (ADR-014, P13C-002).
-
-## 9. Data and control flows
-
-```mermaid
-flowchart LR
-  FE[apps/fe-v1] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  BFF --> WS[Polymarket_WS_market]
-  WS --> Reconciler[marketdata/reconciler]
-  Reconciler --> Hub[realtime/hub]
-  Hub --> FE
-  Reconciler -.->|P13C-002 pending| Signals[signals + postgres]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+```
+requirement → evidence → component → phase → task → acceptance criteria → test → metric → runbook
 ```
 
-## 10. Failure and recovery
+## 5. Functional requirements
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- Realtime reconnect forces resnapshot; `deliveryCounter` gaps emit `resync.required`.
-- No silent order resubmission on timeout.
+| REQ-ID | Description | Doc(s) | Phase | Task(s) | Acceptance criteria | Test | Metric |
+|--------|-------------|--------|-------|---------|---------------------|------|--------|
+| MKT-FR-001 | List normalized Polymarket events | [backend/API_AND_REALTIME_CONTRACTS.md](../backend/API_AND_REALTIME_CONTRACTS.md), [02_SCOPE_AND_CAPABILITY_MATRIX.md](../02_SCOPE_AND_CAPABILITY_MATRIX.md) | PHASE-1 | MKT-P1-001, MKT-P1-002 | OpenAPI validates; events paginated; canonical IDs | handler_test, contract | `catalog_freshness_p95` |
+| MKT-FR-002 | Show market rules and resolution source | [web/MARKET_AND_ORDERBOOK_UX.md](../web/MARKET_AND_ORDERBOOK_UX.md), [polymarket/MARKET_DATA_AND_REALTIME.md](../polymarket/MARKET_DATA_AND_REALTIME.md) | PHASE-1 | MKT-P1-004 | Event detail renders rules + resolution source | e2e journey J-01 | `event_detail_render_success` |
+| MKT-FR-010 | Order book snapshot with staleness indicator | [backend/API_AND_REALTIME_CONTRACTS.md](../backend/API_AND_REALTIME_CONTRACTS.md), [ADR-005](../architecture/adr/ADR-005-REALTIME-AND-RECONCILIATION.md) | PHASE-1 | MKT-P1-006, MKT-P1-008 | Stale banner when upstream lag > threshold | contract, ws integration | `orderbook_snapshot_age_p95` |
+| MKT-FR-020 | Wallet connect without key custody | [ADR-003](../architecture/adr/ADR-003-WALLET-AND-SIGNING-MODEL.md), [web/WALLET_AND_TRANSACTION_UX.md](../web/WALLET_AND_TRANSACTION_UX.md) | PHASE-2 | MKT-P2-001, MKT-P2-003 | Connect flow; no T4 data stored | security review, e2e J-02 | `key_custody_incidents` |
+| MKT-FR-021 | Fail-closed eligibility check | [backend/AUTH_SESSION_AND_ELIGIBILITY.md](../backend/AUTH_SESSION_AND_ELIGIBILITY.md) | PHASE-2 | MKT-P2-002 | Unknown region → `eligible: false` | contract, unit | `eligibility_fail_closed` |
+| MKT-FR-030 | Order preview equals signed payload | [polymarket/ORDER_LIFECYCLE.md](../polymarket/ORDER_LIFECYCLE.md), [MKT-SEC-002](#security-requirements) | PHASE-3 | MKT-P3-001 | Preview hash matches EIP-712 payload | golden vector | `preview_sign_match` |
+| MKT-FR-031 | Submit limit order via CLOB V2 | [polymarket/ORDER_LIFECYCLE.md](../polymarket/ORDER_LIFECYCLE.md), [polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md](../polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md) | PHASE-3 | MKT-P3-002, MKT-P3-003 | Order accepted by CLOB; idempotent submit | integration, e2e J-03 | `order_submit_success_rate` |
+| MKT-FR-040 | Positions reconcile with venue | [polymarket/POSITIONS_CTF_AND_REDEMPTION.md](../polymarket/POSITIONS_CTF_AND_REDEMPTION.md), [backend/INDEXING_RECONCILIATION_AND_REORGS.md](../backend/INDEXING_RECONCILIATION_AND_REORGS.md) | PHASE-4 | MKT-P4-001 | BFF positions match CLOB within SLA | reconciliation test | `position_drift_count` |
+| MKT-FR-050 | Watchlist with price-cross alerts | [intelligence/ALERT_RULES_AND_DELIVERY.md](../intelligence/ALERT_RULES_AND_DELIVERY.md), [ADR-008](../architecture/adr/ADR-008-SHARED-SIGNAL-ENGINE.md) | PHASE-1 | MKT-P1-005 | Signal envelope versioned; evidence-linked | unit, signal replay | `alert_delivery_latency_p95` |
+| MKT-FR-060 | Whale/large-trade feed with reason codes | [intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md](../intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md) | PHASE-4 | MKT-P4-003 | Descriptive labels only; no insider claims | unit, content review | `whale_feed_accuracy` |
+| MKT-FR-090 | Combos only when capability flag true | [polymarket/COMBOS_CAPABILITY_GATE.md](../polymarket/COMBOS_CAPABILITY_GATE.md) | PHASE-8 | MKT-P8-001 | UI hidden when `/markets/capabilities` false | feature flag test | `combos_gate_violations` |
 
-## 11. Security
+## 6. Security requirements
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation (Phase 2+).
-- Secrets outside Git; redact in logs and audit.
-- SEC-P13-001: `ROTATION_PENDING_OWNER` blocks production release (P13C-007).
+| REQ-ID | Description | Doc(s) | Phase | Task(s) | Acceptance criteria | Test | Metric |
+|--------|-------------|--------|-------|---------|---------------------|------|--------|
+| MKT-SEC-001 | No raw private key storage | [security/SIGNING_AND_TRANSACTION_INTEGRITY.md](../security/SIGNING_AND_TRANSACTION_INTEGRITY.md), [ADR-003](../architecture/adr/ADR-003-WALLET-AND-SIGNING-MODEL.md) | PHASE-2 | MKT-P2-001, MKT-P2-005 | No T4 classification in stores | security review, SAST | `key_custody_incidents` |
+| MKT-SEC-002 | Preview-before-sign binding | [security/SIGNING_AND_TRANSACTION_INTEGRITY.md](../security/SIGNING_AND_TRANSACTION_INTEGRITY.md) | PHASE-3 | MKT-P3-001, MKT-P3-004 | User sees exact payload before sign | golden vector, e2e | `preview_sign_match` |
 
-## 12. Observability
+## 7. Non-functional and platform requirements
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, realtime coverage ratio, and book state counts are Phase 1.3 critical.
+| REQ-ID | Description | Doc(s) | Phase | Task(s) | Acceptance criteria | Test | Metric |
+|--------|-------------|--------|-------|---------|---------------------|------|--------|
+| MKT-NFR-001 | Catalog freshness p95 < 60s | [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md) | PHASE-1 | MKT-P1-002, MKT-P1-009 | SLO dashboard green in staging | load test | `catalog_freshness_p95` |
+| MKT-NFR-002 | Order book snapshot age p95 < 5s | [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md) | PHASE-1 | MKT-P1-006 | WS snapshot within SLO | integration | `orderbook_snapshot_age_p95` |
+| MKT-NFR-010 | API availability 99.5% monthly | [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md) | PHASE-6 | MKT-P6-004 | Uptime SLO met over 30d | synthetic monitoring | `bff_uptime_monthly` |
+| MKT-NFR-020 | Secrets in env only | [security/SECRETS_KEYS_AND_ACCESS_CONTROL.md](../security/SECRETS_KEYS_AND_ACCESS_CONTROL.md) | PHASE-0 | MKT-P0-007, MKT-W9-003 | No secrets in Git | secret scan | `secret_leak_count` |
+| MKT-NFR-030 | Baseline infra < USD 100/mo | [platform/INFRASTRUCTURE_AND_COST_MODEL.md](../platform/INFRASTRUCTURE_AND_COST_MODEL.md) | PHASE-1 | MKT-P1-009 | Cost estimate documented | review | `infra_cost_monthly` |
+| MKT-NFR-040 | WCAG 2.1 AA critical paths | [web/DESIGN_SYSTEM_AND_ACCESSIBILITY.md](../web/DESIGN_SYSTEM_AND_ACCESSIBILITY.md) | PHASE-3 | MKT-P3-004 | axe/lighthouse pass | a11y audit | `a11y_violations_critical` |
+| MKT-NFR-050 | Android cold start < 2s p75 | [android/ACCESSIBILITY_PERFORMANCE_AND_DEVICES.md](../android/ACCESSIBILITY_PERFORMANCE_AND_DEVICES.md) | PHASE-5 | MKT-P5-004 | Macrobenchmark pass | macrobenchmark | `android_cold_start_p75` |
+| MKT-NFR-060 | Fixed-point money in APIs | [backend/DOMAIN_MODEL_AND_STATE_MACHINES.md](../backend/DOMAIN_MODEL_AND_STATE_MACHINES.md) | PHASE-1 | MKT-P1-001 | No float types in OpenAPI money fields | schema lint | `float_in_money_schema` |
+| MKT-NFR-070 | Backup RPO < 24h | [platform/BACKUP_RESTORE_AND_DISASTER_RECOVERY.md](../platform/BACKUP_RESTORE_AND_DISASTER_RECOVERY.md) | PHASE-6 | MKT-P6-005 | DR drill succeeds | DR exercise | `backup_rpo_hours` |
+| MKT-AND-001 | Jetpack Compose only | [ADR-006](../architecture/adr/ADR-006-ANDROID-JETPACK-COMPOSE.md) | PHASE-5 | MKT-P5-001 | No XML views in app module | lint, review | `compose_only_violations` |
+| MKT-WEB-001 | OpenAPI-generated types | [ADR-004](../architecture/adr/ADR-004-SHARED-WEB-ANDROID-API.md) | PHASE-1 | MKT-P1-001, MKT-P1-004 | Types generated from schema | codegen CI | `manual_type_drift` |
+| MKT-POLY-001 | CLOB V2 only | [polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md](../polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md) | PHASE-3 | MKT-P3-002 | No V1 endpoint references | static analysis | `clob_v1_references` |
 
-## 13. Test strategy
+## 8. Wave 9 harness verification tasks
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
-- Phase 1.3 adds fake upstream E2E (P13C-003) and transactional signal replay (P13C-002).
+| Task | Verifies | Doc(s) | Acceptance criteria |
+|------|----------|--------|---------------------|
+| MKT-W9-001 | Document map completeness | [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md) | 121/121 files present; all `reviewed` |
+| MKT-W9-002 | §23 invariant consistency | [INVARIANT_CHECK.md](INVARIANT_CHECK.md) | 28/28 invariants pass |
+| MKT-W9-003 | Requirements matrix completeness | this file, [04_REQUIREMENTS_AND_TRACEABILITY.md](../04_REQUIREMENTS_AND_TRACEABILITY.md) | Every launch-critical REQ has task + test |
+| MKT-W9-004 | Task graph validity | [task-graph.yaml](task-graph.yaml) | YAML parses; deps acyclic; owned_paths unique per parallel task |
+| MKT-W9-005 | Manifest phase alignment | [implementation-manifest.yaml](implementation-manifest.yaml) | Phase tasks match graph; doc_paths populated |
 
-## 14. Rollout and rollback
+## 9. §23 invariant → doc mapping
 
-- Feature flags via `/markets/capabilities`; `RealtimeEnabled` config gate.
-- Rollback: disable realtime; REST polling and catalog reads remain.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+| Invariant # | Primary enforcement doc | Verification task |
+|-------------|----------------------|-------------------|
+| 1–4 | ADR-001 | MKT-W9-002 |
+| 5–7 | polymarket/*, evidence-register.yaml | MKT-P0-002, MKT-W9-002 |
+| 8–10 | ADR-003 | MKT-P2-001, MKT-P3-001 |
+| 11–12 | ADR-004, ADR-006 | MKT-P1-007, MKT-P5-001 |
+| 13–15 | DOMAIN_MODEL, ORDER_LIFECYCLE | MKT-P1-001, MKT-P3-005 |
+| 16 | AUTH_SESSION_AND_ELIGIBILITY | MKT-P2-002 |
+| 17–18 | phases/*, BLOCKERS_AND_HUMAN_APPROVALS | MKT-W9-005 |
+| 19–20 | ADR-007 | MKT-P0-006 |
+| 21 | ABUSE_FRAUD_AND_RATE_LIMITS | MKT-P2-002 |
+| 22–24, 27–28 | intelligence/*, ADR-008 | MKT-P1-005, MKT-P4-003 |
+| 25–26 | ADR-009, ORDER_LIFECYCLE | MKT-P3-001 |
+| All 28 | INVARIANT_CHECK.md | MKT-W9-002 |
 
-## 15. Open questions
+## 10. Runbook links
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+| Concern | Runbook |
+|---------|---------|
+| Upstream outage | [platform/PRODUCTION_OPERATIONS_RUNBOOK.md](../platform/PRODUCTION_OPERATIONS_RUNBOOK.md) |
+| Incident response | [security/INCIDENT_RESPONSE.md](../security/INCIDENT_RESPONSE.md) |
+| Release rollback | [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md) |
+| Phase exit | [PHASE_GATE_TEMPLATE.md](PHASE_GATE_TEMPLATE.md) |
 
-## 16. Acceptance criteria
-
-- Linked in this file and [task-graph.yaml](task-graph.yaml) P13C tasks.
-
-## Traceability matrix
-
-| Requirement | Component | Phase | Task | Test | Metric |
-|-------------|-----------|-------|------|------|--------|
-| MKT-FR-001 | BFF catalog | PHASE-1 | MKT-P1-001, P1-002, P1-004, P1-006 | OpenAPI, Gamma, catalog, handler tests | catalog freshness and records processed |
-| MKT-FR-002 | rules/provenance | PHASE-1 | MKT-P1-001, P1-004, P1-006 | mapping, rule hash, handler tests | rule-change signal count |
-| MKT-FR-010 | market data | PHASE-1 | MKT-P1-002, P1-005, P1-006 | CLOB, book, API tests | book state and resync count |
-| MKT-FR-010-RT | realtime order book | PHASE-1.3 | MKT-P13-002, MKT-P13-005, P13C-003, P13C-005 | reconciler, hub, E2E tests | books by state, reconnect count |
-| MKT-FR-050-CAT | catalog deterministic signals | PHASE-1 | MKT-P1-008, P1C-008 | replay, dedupe, retraction tests | new_market, rule_changed count |
-| MKT-FR-050-LIVE | live observation signals | PHASE-1.3 | MKT-P13-004, P13C-002 | observation replay, idempotency tests | price_move, liquidity_change count |
-| MKT-NFR-001 | catalog freshness | PHASE-1 | MKT-P1-004, P1-009 | bounded sync and metrics tests | last successful sync timestamp |
-| MKT-NFR-002 | no invalid book labeled live | PHASE-1, 1.3 | MKT-P1-005, MKT-P13-002, P13C-005 | crossed, stale, reconnect tests | books by state |
-| MKT-NFR-003 | single-replica realtime | PHASE-1.3 | P13C-006 | config guard test | replica warning events |
-| MKT-NFR-060 | fixed-point values | PHASE-1, 1.3 | MKT-P1-001, P13 observation schema | decimal boundary tests | validation errors |
-| MKT-FR-021 | eligibility | PHASE-2 | MKT-P2-002 | contract | eligibility_fail_closed |
-| MKT-FR-030 | order preview | PHASE-3 | MKT-P3-001 | golden vector | preview_sign_match |
-| MKT-SEC-001 | wallet | PHASE-2 | MKT-P2-001 | security review | key_custody_incidents |
-| MKT-SEC-P13-001 | exposed credential rotation | PHASE-1.3 | P13C-007 | owner confirmation | rotation gate |
-
-## Signal pipeline split (honesty)
-
-| Signal types | Producer | Transaction boundary | Phase | Status |
-|--------------|----------|---------------------|-------|--------|
-| `new_market`, `rule_changed` | `CatalogSignalProducer` | Inside catalog `ApplyPage` | PHASE-1 (MKT-P1-008) | **done** |
-| `price_move`, `liquidity_change` | `RealtimeSignalProducer` (planned) | Observation + signal + evidence atomic | PHASE-1.3 (P13C-002) | **pending** |
-
-## Rules
+## 11. Rules
 
 - No launch-critical requirement without a task and test mapping.
-- Do not mark MKT-FR-050-LIVE satisfied until P13C-002 evidence exists.
-- Phase 2 may not start until Phase 1.3 closure approved.
 - Update this file when adding requirements or tasks.
+- Re-run MKT-W9-003 after any REQ-ID or task-graph change.

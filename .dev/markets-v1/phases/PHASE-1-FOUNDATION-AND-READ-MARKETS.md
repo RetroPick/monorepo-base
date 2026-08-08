@@ -1,133 +1,409 @@
 # PHASE-1 — Foundation and Read Markets
 
-**Status:** backend-first read slice complete (ADR-010, 2026-07-30)
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-30
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
-## 1. Purpose
+---
 
-Phase specification for **PHASE-1**: Monorepo boundaries, schemas, public catalog, read UX without trading.
+> Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
-## 2. Scope
+## Phase ID and exact name
 
-### In scope
+- **Phase ID:** `PHASE-1`
+- **Exact name:** Foundation and Read Markets
 
-- Backend-first tasks and deliverables assigned to PHASE-1 in
-  [implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
-- Canonical contracts, public Gamma/CLOB adapters, PostgreSQL projections,
-  catalog and market-data ingest foundations, public read handlers, deterministic
-  signals, observability, security controls, and verification.
+## Business outcome
 
-### Out of scope
+Establish schemas, public catalog, market detail, order book, web read experience, Android read foundation without trading.
 
-- Work belonging to other phases unless explicitly pulled forward with ADR.
-- Web and Android UI/modules, wallet identity, funding, trading, portfolio,
-  notification delivery, PRISM, custom contracts, and production deployment.
+## Technical outcome
 
-## 3. Prerequisites
+Web renders canonical market; stale states explicit; no signing or fund movement.
 
-- [phases/README.md](README.md)
-- [agent-harness/task-graph.yaml](../agent-harness/task-graph.yaml)
+## Prerequisites
 
-## 4. Authoritative sources
+PHASE-0 exit gate; ADRs accepted.
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
+- [AGENT_OPERATING_CONTRACT.md](../agent-harness/AGENT_OPERATING_CONTRACT.md)
 
-## 5. Current state
+## Dependencies
 
-Phase 1 backend-first public-read slice is implemented on branch
-`cursor/markets-v1-backend-phase1-5b74`. Handoff:
-`.dev/markets-v1/agent-harness/PHASE-1-BACKEND-HANDOFF.md`. Web and Android
-client work remain deferred.
+- Upstream: PHASE-0 complete.
+- Polymarket docs per evidence register
+- ADRs and OpenAPI baseline
 
-## 6. Target design
+## In scope
 
-Monorepo boundaries, schemas, public catalog, read UX without trading.
+- OpenAPI expansion
+- Gamma client
+- DB cache
+- Web read routes
+- Signal foundation
+- Realtime design
+- Android scaffold plan
+- Contract tests
+- Observability
 
-## 7. Alternatives considered
+## Out of scope
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+- Wallet connect
+- Order submit
+- CTF
+- Production deploy
+- PRISM and legacy epoch APIs
+- Custom exchange (ADR-001)
 
-## 8. Decisions
+## Repository areas affected
 
-- Phase ID `PHASE-1` is locked per master prompt §15.
-- ADR-010 narrows this run to the backend-first public-read slice. ADR-004 still
-  governs future shared web and Android integration.
-- Public realtime uses snapshot hash, timestamp bounds, and forced resnapshot;
-  it does not claim an undocumented monotonic upstream sequence.
+- schemas/openapi/
+- apps/backend/internal/markets/
+- apps/web/src/products/markets/
 
-## 9. Data and control flows
+## New modules/files expected
 
-```mermaid
-flowchart TB
-  Prev[Prior_phase_exit_gate] --> PHASE-1
-  PHASE-1 --> Next[Next_phase]
-```
+- internal/markets/gamma/
+- migrations/*catalog*
+- web markets routes
 
-## 10. Failure and recovery
+## Data migrations
 
-- Phase cannot exit with unresolved blockers in [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md).
+- markets_catalog_events
+- markets_watchlists
+- markets_sync_checkpoints
+Expand→migrate→contract; destructive changes need §18 approval.
 
-## 11. Security
+## API/schema changes
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+- EventDetail
+- MarketSummary
+- OrderBookSnapshot
+- SignalEnvelope
+Source: `schemas/openapi/markets-v1.yaml`.
 
-## 12. Observability
+## External integrations
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+- Polymarket Gamma
+- CLOB read endpoints
 
-## 13. Test strategy
+## On-chain interactions
 
-- Phase verification uses [VERIFICATION_EVIDENCE_TEMPLATE.md](../agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md).
+Read-only indexer design only.
+RetroPick never holds user private keys.
 
-## 14. Rollout and rollback
+## Security controls
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+- Rate limits
+- Input validation
+- Sanitize rules HTML
 
-## 15. Open questions
+## Observability
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+- catalog_freshness_seconds
+- gamma_errors_total
 
-## 16. Acceptance criteria
+## Test plan
 
-- OpenAPI and Go contracts are versioned and conformant.
-- Event/market detail, order-book, history, health, capability, and signal read
-  surfaces are implemented and tested.
-- Catalog writes and checkpoint advancement are atomic.
-- Stale, invalid, unavailable, and resynchronizing books are never labeled live.
-- Deterministic fixtures, migrations, generated-code drift, and build gates pass
-  or limitations are recorded.
-- No signing, custody, fund movement, frontend, Android, PRISM, custom contract,
-  or production mutation occurs.
+- OpenAPI validate
+- go test
+- contract tests
+- web build
+- Unit, contract, integration, E2E per MASTER_TEST_PLAN.md
+- Evidence per VERIFICATION_EVIDENCE_TEMPLATE.md
 
-            ## Deliverables
+## CI/CD changes
 
-    - OpenAPI expansion
-- Gamma and CLOB public-read adapters
-- PostgreSQL read projections and checkpointing
-- backend read routes
-- realtime and deterministic signal foundations
+- CI OpenAPI job
+- conformance tests
 
-    ## Exit gate
+## Deployment sequence
 
-    - backend contract and deterministic verification evidence complete
-- no signing or fund movement
+- Staging BFF
+- expand-only migrations
 
-    ## Rollback
+## Rollback sequence
 
-    - Revert feature flags and migrations introduced in this phase.
-    - Preserve read-only catalog if trading changes are rolled back.
+- Disable ingest
+- stale banner
+- revert migration
+
+## Risks and mitigations
+
+- **Risk:** Gamma rate limits — **Mitigation:** Cache and circuit breaker
+- **Risk:** Schema drift — **Mitigation:** Contract tests
+
+| Failure | Detection | User state | Auto action | Retry | Reconcile | Alert | Runbook |
+|---|---|---|---|---|---|---|---|
+| Upstream 5xx | HTTP 5xx metric | Unavailable banner | Circuit breaker | Idempotent safe | Venue reconcile | P2 | PRODUCTION_OPERATIONS_RUNBOOK.md |
+| Rate limit 429 | Retry-After | Slow down | Backoff | Safe | Pause cursor | P3 | CACHE_QUEUE_AND_RATE_LIMITING.md |
+| Stale order book | Sequence gap | Stale badge | Disable marketable | N/A | Resync snapshot | P2 | INDEXING_RECONCILIATION_AND_REORGS.md |
+| Wallet rejected | Client callback | Retry connect | Clear session | Safe | No order | P3 | WALLET_SIGNING_AND_SECURITY.md |
+| Geoblock unknown | Eligibility timeout | Not available | Fail closed | N/A | Log decision | P1 | AUTH_SESSION_AND_ELIGIBILITY.md |
+| Submit timeout | Timer | Checking status | Reconciliation | Never auto-resubmit | Venue lookup | P1 | ORDER_LIFECYCLE.md |
+| Chain reorg | Indexer event | Updating | Pause settle | N/A | Reindex | P2 | INDEXING_RECONCILIATION_AND_REORGS.md |
+| Android killed signing | Resume missing | Resume CTA | Invalidate preview | Safe | No duplicate | P3 | android/WALLET_SIGNING_AND_SECURITY.md |
+
+## Human approvals
+
+- Optional staging read deploy notice
+See BLOCKERS_AND_HUMAN_APPROVALS.md.
+
+## Task breakdown
+
+| Task ID | Title | Goal | Handoff |
+|---|---|---|---|
+| MKT-P1-001 | OpenAPI markets-v1 expansion | Deliver openapi markets-v1 expansion | MKT-P1-002 |
+| MKT-P1-002 | Gamma catalog client hardening | Deliver gamma catalog client hardening | MKT-P1-003 |
+| MKT-P1-003 | Markets database schema v1 | Deliver markets database schema v1 | MKT-P1-004 |
+| MKT-P1-004 | Web markets read routes | Deliver web markets read routes | MKT-P1-005 |
+| MKT-P1-005 | Signal schema foundation | Deliver signal schema foundation | MKT-P1-006 |
+| MKT-P1-006 | Realtime snapshot and gap recovery design | Deliver realtime snapshot and gap recovery design | MKT-P1-007 |
+| MKT-P1-007 | Android module scaffold plan | Deliver android module scaffold plan | MKT-P1-008 |
+| MKT-P1-008 | Contract conformance tests | Deliver contract conformance tests | MKT-P1-009 |
+| MKT-P1-009 | Observability baseline | Deliver observability baseline | MKT-P1-010 |
+| MKT-P1-010 | PHASE-1 exit gate verification | Deliver phase-1 exit gate verification | MKT-P2-001 |
+
+### MKT-P1-001 — OpenAPI markets-v1 expansion
+
+**Goal:** Implement OpenAPI markets-v1 expansion within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-002 — Gamma catalog client hardening
+
+**Goal:** Implement Gamma catalog client hardening within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-003 — Markets database schema v1
+
+**Goal:** Implement Markets database schema v1 within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-004 — Web markets read routes
+
+**Goal:** Implement Web markets read routes within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-005 — Signal schema foundation
+
+**Goal:** Implement Signal schema foundation within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-006 — Realtime snapshot and gap recovery design
+
+**Goal:** Implement Realtime snapshot and gap recovery design within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-007 — Android module scaffold plan
+
+**Goal:** Implement Android module scaffold plan within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-008 — Contract conformance tests
+
+**Goal:** Implement Contract conformance tests within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-009 — Observability baseline
+
+**Goal:** Implement Observability baseline within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+### MKT-P1-010 — PHASE-1 exit gate verification
+
+**Goal:** Implement PHASE-1 exit gate verification within owned_paths in task-graph.yaml.
+
+**Acceptance:** Tests pass; no path conflicts; evidence filed.
+
+**Commands:** See task-graph.yaml `commands` array.
+
+**Owned paths:** Exclusive during execution per §17.3.
+
+## Parallelization constraints
+
+OpenAPI frozen before parallel backend/web; one owner per path.
+
+§17.3: one owner per path; schemas→clients; migrations→code; read→write; preview→sign.
+
+## Definition of ready
+
+- Prior exit gate signed
+- Tasks in task-graph with owned_paths
+- ADRs accepted
+- No phase blockers
+- Fixtures available
+- Approvals filed
+## Acceptance criteria
+
+- PHASE-1 §15 exit gate met
+- Final task verification complete
+
+| REQ ID | Description | Verify |
+|---|---|---|
+| MKT-FR-001 | List events | Phase tests |
+| MKT-FR-002 | Market rules | Phase tests |
+| MKT-FR-010 | Order book staleness | Phase tests |
+| MKT-FR-050 | Watchlist alerts | Phase tests |
+| MKT-NFR-001 | Catalog freshness p95<60s | Phase tests |
+| MKT-NFR-060 | Fixed-point money | Phase tests |
+| MKT-WEB-001 | OpenAPI types | Phase tests |
+
+## Verification evidence
+
+- CI links
+- Contract report
+- SLO exports
+- Human approvals
+- RELEASE_VERIFICATION_MATRIX rows
+## Definition of done
+
+- All tasks complete
+- Exit gate evidence
+- No open P0/P1 security without acceptance
+- Runbooks updated
+- Manifest updated
+## Handoff to next phase
+
+Begin `PHASE-2` when all PHASE-1 tasks done, evidence archived, manifest updated.
+
+First task: `MKT-P2-001`.
+
+## Authoritative references
+
+| Source | Location | Retrieved | Confidence |
+|---|---|---|---|
+| Polymarket | https://docs.polymarket.com/ | 2026-07-25 | partial |
+| OpenAPI | schemas/openapi/markets-v1.yaml | 2026-07-25 | verified |
+| Master prompt | .dev/RETROPICK_MARKETS_AGENT_DOCS_MASTER_PROMPT(1).md | 2026-07-25 | verified |
+
+## Cross-document invariants (§23)
+
+1. Polymarket is venue
+2. No PRISM positions in Markets
+3. No custom contract default
+4. Signer≠account wallet
+5. No raw key custody
+6. Fixed-point money
+7. Reconcile before retry
+8. Fail closed geoblock
+9. Deterministic signals
+10. No auto copy trade
+
+## Operational detail matrix
+
+### Catalog ingest
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Order preview
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Order submit
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Position reconcile
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### CTF relay
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Push notify
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Eligibility
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+### Signal compute
+
+| Attribute | Value |
+|---|---|
+| Phase | PHASE-1 |
+| Kill switch | capabilities API |
+| Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
+
+## Agent execution notes
+
+- Read AGENT_OPERATING_CONTRACT before tasks.
+- Stay in authorized phase/task.
+- Never invent secrets, addresses, or test results.
+- File verification evidence before completion.

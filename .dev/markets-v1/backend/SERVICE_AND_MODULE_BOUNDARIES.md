@@ -1,104 +1,593 @@
 # SERVICE AND MODULE BOUNDARIES
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+**Wave:** 3 — Backend architecture and API contracts
 
 ## 1. Purpose
 
-Specify service and module boundaries for RetroPick Markets V1.
+Bounded context table per master prompt §9. Defines responsibility, data ownership,
+events, and deployment boundaries for Markets backend modules.
 
-## 2. Scope
+## 2. Context index
 
-### In scope
+### market-catalog
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Normalize Gamma events/markets/outcomes |
+| Owned tables | `catalog_*` |
+| Processes | markets-ingest, public-query |
+| Phase | PHASE-1 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-### Out of scope
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+### market-data-ingest
 
-## 3. Prerequisites
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Books, trades, candles from CLOB/WS |
+| Owned tables | `market_data_*, raw_upstream_events` |
+| Processes | markets-ingest |
+| Phase | PHASE-1 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-## 4. Authoritative sources
+### public-query
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Read APIs for catalog and market data |
+| Owned tables | `read replicas of catalog_*` |
+| Processes | API handlers |
+| Phase | PHASE-1 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-## 5. Current state
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-Documentation baseline created 2026-07-24; implementation varies by phase.
+### order-preview-orchestration
 
-## 6. Target design
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Preview/submit/cancel with ACL |
+| Owned tables | `user_orders, order_attempts` |
+| Processes | API + CLOB ACL |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-Implementation-grade design for service and module boundaries aligned with R0–R3 monorepo.
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-## 7. Alternatives considered
+### account-wallet-metadata
 
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Proxy/Safe linkage, approvals |
+| Owned tables | `wallet_accounts` |
+| Processes | API + relayer ACL |
+| Phase | PHASE-2 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-## 8. Decisions
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+### portfolio-activity-projection
 
-## 9. Data and control flows
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Positions, fills, activity feed |
+| Owned tables | `fills, position_projections` |
+| Processes | reconciliation |
+| Phase | PHASE-4 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
-```
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-## 10. Failure and recovery
+### chain-indexer
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Log ingestion and chain_events |
+| Owned tables | `chain_events, sync_checkpoints` |
+| Processes | markets-ingest |
+| Phase | PHASE-1 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-## 11. Security
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+### reconciliation
 
-## 12. Observability
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Drift detection and repair |
+| Owned tables | `reconciliation_runs` |
+| Processes | reconciliation worker |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-## 13. Test strategy
+### funding-withdrawal-tracking
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | On-ramp quotes and payout state |
+| Owned tables | `funding_operations, withdrawal_operations` |
+| Processes | API + partners |
+| Phase | PHASE-2/4 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-## 14. Rollout and rollback
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+### eligibility-policy
 
-## 15. Open questions
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Geoblock and policy decisions |
+| Owned tables | `eligibility_decisions` |
+| Processes | API middleware |
+| Phase | PHASE-1 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
 
-## 16. Acceptance criteria
+### notifications
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Inbox and delivery receipts |
+| Owned tables | `notifications, alert_deliveries` |
+| Processes | alert-delivery |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### intelligence-ingest
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Feature extraction inputs |
+| Owned tables | `raw_upstream_events (read)` |
+| Processes | markets-ingest |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### signal-engine
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Deterministic signals + evidence |
+| Owned tables | `market_signals, signal_evidence` |
+| Processes | signal-engine |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### wallet-profiler
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Wallet labels and performance |
+| Owned tables | `wallet_profiles, wallet_performance_snapshots` |
+| Processes | signal-engine |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### alert-rules-delivery
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Rule CRUD and fan-out |
+| Owned tables | `alert_rules, alert_deliveries` |
+| Processes | alert-delivery |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### market-health-analytics
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Liquidity/spread snapshots |
+| Owned tables | `market_health_snapshots` |
+| Processes | signal-engine |
+| Phase | PHASE-3 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### relationship-scanner
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Cross-market discrepancies |
+| Owned tables | `market_relationships` |
+| Processes | signal-engine |
+| Phase | PHASE-8 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+### administration-operations
+
+| Dimension | Value |
+|-----------|-------|
+| Responsibility | Kill switches, fee versions |
+| Owned tables | `builder_fee_versions` |
+| Processes | ops CLI |
+| Phase | PHASE-6 |
+| Consumed events | See event catalog below |
+| Emitted events | Context-specific (see BACKEND_ARCHITECTURE) |
+| Upstream dependencies | Polymarket APIs, chain RPC as applicable |
+| Credentials | Service keys; no user private keys in workers |
+| Scaling unit | See BACKEND_ARCHITECTURE worker tables |
+| Failure isolation | Independent deploy; circuit breakers to trading |
+| SLO | Context-specific; catalog < 60s, orders preview < 750ms |
+| Retry/DLQ | At-least-once with idempotent consumers |
+| Idempotency | Natural keys per entity |
+| Deployment unit | `cmd/*` or API route group |
+| Owner | platform-backend / intelligence-team |
+
+**Forbidden couplings:**
+- `signal-engine` MUST NOT call CLOB submit endpoints.
+- `public-query` MUST NOT write trading state except audit.
+- `order-preview-orchestration` MUST NOT import intelligence packages.
+
+    ## Event catalog (internal)
+
+    | Event | Producer | Consumers | Payload |
+    |-------|----------|-----------|---------|
+    | catalog.updated | ingest | API cache, WS | event_id, market_ids |
+    | trade.ingested | ingest | signal-engine | trade_id, market_id, notional |
+    | book.snapshot | ingest | signal-engine, API cache | market_id, sequence |
+    | chain.log | ingest | reconciliation, signal-engine | tx_hash, log_index |
+    | signal.created | signal-engine | alert-delivery | signal_id, type, evidence |
+    | signal.retracted | signal-engine | alert-delivery | signal_id, reason |
+    | notification.sent | alert-delivery | — | delivery_id, channel |
+    | reconciliation.drift | reconciliation | ops alert | entity, delta |
+    | order.submitted | API | reconciliation | order_id, venue_id |
+
+## Module import rules
+
+| Module | May import |
+|--------|------------|
+| handler | service, domain, platform/httpx |
+| service | store, acl, domain |
+| store | sqlc only |
+| acl/* | platform/http client |
+| workers/* | store, acl, domain — NOT handler |
+
+## Anti-corruption notes 1
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 2
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 3
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 4
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 5
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 6
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 7
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 8
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 9
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 10
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 11
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 12
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 13
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 14
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.
+
+## Anti-corruption notes 15
+
+External Polymarket types STOP at `acl/` package boundary. Services consume
+`domain` types only. Version skew handled by adapter translation layer and
+`builder_fee_versions` pinning. Upstream field renames require ACL mapping table
+update + contract test fixture refresh.

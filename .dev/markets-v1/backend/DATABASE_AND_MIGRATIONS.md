@@ -1,104 +1,620 @@
 # DATABASE AND MIGRATIONS
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-24
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+**Wave:** 3 — Backend architecture and API contracts
 
-## 1. Purpose
+    ## 1. Purpose
 
-Specify database and migrations for RetroPick Markets V1.
+    PostgreSQL `markets.*` schema: ER diagram, table specifications, indices, migrations.
+    Per master prompt §9.1.
 
-## 2. Scope
+    ## 2. Schema conventions
 
-### In scope
+    - Schema: `markets`
+    - PK: UUID v7 (`id`)
+    - Money: `BIGINT` base units + `currency` / `decimals` metadata
+    - Prices: `NUMERIC(38,18)` or string transport via `DecimalString`
+    - Timestamps: `TIMESTAMPTZ` UTC
+    - Upstream tuple: UNIQUE(`upstream_source`, `upstream_id`)
+    - No floating point for money
 
-- RetroPick Markets V1 (web, Go BFF, native Android Jetpack Compose).
-
-### Out of scope
-
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
-
-## 3. Prerequisites
-
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
-
-## 4. Authoritative sources
-
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
-
-## 5. Current state
-
-Documentation baseline created 2026-07-24; implementation varies by phase.
-
-## 6. Target design
-
-Implementation-grade design for database and migrations aligned with R0–R3 monorepo.
-
-## 7. Alternatives considered
-
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
-
-## 8. Decisions
-
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
-
-## 9. Data and control flows
+    ## 3. ER diagram
 
 ```mermaid
-flowchart LR
-  Web[apps/web] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+erDiagram
+  catalog_events ||--o{ catalog_markets : contains
+  catalog_markets ||--o{ catalog_outcomes : has
+  catalog_markets ||--o{ market_data_orderbook_snapshots : snapshots
+  catalog_markets ||--o{ market_data_trades : trades
+  wallet_accounts ||--o{ orders : places
+  orders ||--o{ order_attempts : attempts
+  orders ||--o{ fills : generates
+  wallet_accounts ||--o{ position_projections : holds
+  wallet_accounts ||--o{ funding_operations : funds
+  wallet_accounts ||--o{ withdrawal_operations : withdraws
+  market_signals ||--o{ signal_evidence : evidences
+  alert_rules ||--o{ alert_deliveries : delivers
+  watchlists ||--o{ watchlist_items : items
+  reconciliation_runs ||--o{ chain_events : validates
 ```
 
-## 10. Failure and recovery
+    ## 4. Migration strategy
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+    - Tool: `golang-migrate` or `goose` under `apps/backend/migrations/markets/`
+    - Naming: `YYYYMMDDHHMMSS_description.up.sql`
+    - Expand-contract for zero-downtime deploys
+    - Backfill jobs as separate worker tasks
+    - Rollback: down migrations tested in CI
 
-## 11. Security
+### `markets.catalog_venues`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+### `markets.catalog_events`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-## 12. Observability
+### `markets.catalog_markets`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+### `markets.catalog_outcomes`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-## 13. Test strategy
+### `markets.catalog_market_rules`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+### `markets.market_data_orderbook_snapshots`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-## 14. Rollout and rollback
+### `markets.market_data_trades`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+### `markets.market_data_price_candles`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-## 15. Open questions
+### `markets.orders`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+### `markets.order_attempts`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-## 16. Acceptance criteria
+### `markets.fills`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+### `markets.wallet_accounts`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.funding_operations`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.withdrawal_operations`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.position_projections`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.redemption_projections`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.chain_events`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.reconciliation_runs`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.builder_fee_versions`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.eligibility_decisions`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.notifications`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.watchlists`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.watchlist_items`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.wallet_profiles`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.wallet_performance_snapshots`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.wallet_labels`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.large_trade_signals`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.market_signals`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.market_health_snapshots`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.alert_rules`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.alert_deliveries`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.signal_evidence`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.signal_retractions`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.market_relationships`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.execution_quality`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.trade_journal_entries`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.sync_checkpoints`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+### `markets.raw_upstream_events`
+| Field | Type | Constraints | Notes |
+|-------|------|-------------|-------|
+| id | UUID | PK | Internal surrogate key |
+| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
+| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
+| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
+| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
+| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
+| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
+| status | TEXT | NOT NULL | Domain-specific enum |
+| payload_json | JSONB | NULL | Normalized upstream slice |
+**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.

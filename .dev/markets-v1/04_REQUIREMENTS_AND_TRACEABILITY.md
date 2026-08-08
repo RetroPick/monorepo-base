@@ -1,154 +1,281 @@
-# Requirements and Traceability
+# Requirements and Traceability — RetroPick Markets V1
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-31
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+
+---
 
 ## 1. Purpose
 
-Canonical requirement IDs and mapping to phase, task, test, and metric.
+Canonical requirement IDs and full traceability: requirement → evidence → component → phase → task → test → metric → runbook.
 
-## 2. Scope
+## 2. ID namespaces
 
-### In scope
+| Prefix | Category |
+|---|---|
+| MKT-FR-* | Functional |
+| MKT-NFR-* | Non-functional |
+| MKT-SEC-* | Security |
+| MKT-DATA-* | Data |
+| MKT-OPS-* | Operations |
+| MKT-AND-* | Android |
+| MKT-WEB-* | Web |
+| MKT-POLY-* | Upstream Polymarket |
 
-- RetroPick Markets V1 (`apps/fe-v1`, Go BFF, native Android Jetpack Compose).
+## 3. Traceability chain
 
-### Out of scope
-
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
-
-## 3. Prerequisites
-
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
-
-## 4. Authoritative sources
-
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
-
-## 5. Current state
-
-See [EXISTING_REPOSITORY_AUDIT.md](../architecture/EXISTING_REPOSITORY_AUDIT.md).
-
-## 6. Target design
-
-No launch-critical requirement unmapped.
-
-## 7. Alternatives considered
-
-| Alternative | Rejected because |
-|-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
-
-## 8. Decisions
-
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
-
-## 9. Data and control flows
-
-```mermaid
-flowchart LR
-  FE[apps/fe-v1] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  BFF --> WS[Polymarket_WS]
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+```
+requirement → evidence/decision → architecture component → phase → task → test → production metric → runbook
 ```
 
-## 10. Failure and recovery
+No launch-critical requirement may remain unmapped.
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+## Functional requirements (MKT-FR)
 
-## 11. Security
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-FR-001 | List normalized Polymarket events with taxonomy | PHASE-1 | MKT-P1-002 | contract test | catalog_freshness |
+| MKT-FR-002 | Show market rules and resolution source | PHASE-1 | MKT-P1-004 | UI test | N/A |
+| MKT-FR-003 | Search and filter events/markets | PHASE-1 | MKT-P1-004 | integration | search_latency |
+| MKT-FR-004 | Trending and category browse | PHASE-1 | MKT-P1-002 | integration | N/A |
+| MKT-FR-010 | Order book snapshot with staleness indicator | PHASE-1 | MKT-P1-006 | contract | book_age |
+| MKT-FR-011 | Trade history and price candles | PHASE-1 | MKT-P1-006 | contract | N/A |
+| MKT-FR-020 | Wallet connect without key custody | PHASE-2 | MKT-P2-001 | E2E | wallet_connect_rate |
+| MKT-FR-021 | Fail-closed eligibility check | PHASE-2 | MKT-P2-002 | unit | eligibility_latency |
+| MKT-FR-022 | Account wallet discovery/deployment | PHASE-2 | MKT-P2-003 | integration | N/A |
+| MKT-FR-023 | Deposit tracking with state machine | PHASE-2 | MKT-P2-006 | FSM test | deposit_success |
+| MKT-FR-024 | Withdrawal preview and tracking | PHASE-2 | MKT-P2-007 | E2E | withdrawal_success |
+| MKT-FR-030 | Order preview equals signed payload | PHASE-3 | MKT-P3-001 | golden vector | preview_mismatch |
+| MKT-FR-031 | Submit limit order via CLOB V2 | PHASE-3 | MKT-P3-002 | E2E | submit_success |
+| MKT-FR-032 | Disclose builder fee before sign | PHASE-3 | MKT-P3-007 | UI test | N/A |
+| MKT-FR-033 | Cancel open orders | PHASE-3 | MKT-P3-004 | E2E | cancel_success |
+| MKT-FR-034 | Reconcile unknown submit states | PHASE-3 | MKT-P3-005 | integration | reconciliation_lag |
+| MKT-FR-040 | Positions reconcile with venue | PHASE-4 | MKT-P4-001 | reconcile test | position_error_rate |
+| MKT-FR-041 | CTF split/merge with preview | PHASE-4 | MKT-P4-004 | E2E | ctf_success |
+| MKT-FR-042 | Redeem resolved positions | PHASE-4 | MKT-P4-005 | E2E | redemption_success |
+| MKT-FR-050 | Watchlist with price-cross alerts | PHASE-1 | MKT-P1-005 | integration | alert_delivery |
+| MKT-FR-051 | Push notification for fills | PHASE-5 | MKT-P5-008 | E2E | push_latency |
+| MKT-FR-060 | Whale/large-trade feed with reason codes | PHASE-4 | MKT-P4-003 | signal test | signal_latency |
+| MKT-FR-061 | Wallet profile descriptive labels only | PHASE-4 | MKT-P4-007 | unit | N/A |
+| MKT-FR-070 | Android catalog parity with web | PHASE-5 | MKT-P5-004 | contract | N/A |
+| MKT-FR-071 | Android trading parity | PHASE-5 | MKT-P5-006 | E2E | N/A |
+| MKT-FR-090 | Combos only when capability flag true | PHASE-8 | MKT-P8-001 | gate test | N/A |
+| MKT-FR-091 | No autonomous copy trading | ALL | ADR-009 | policy | N/A |
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
 
-## 12. Observability
+## Security requirements (MKT-SEC)
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-SEC-001 | No raw private key storage | PHASE-2 | MKT-P2-001 | security test | N/A |
+| MKT-SEC-002 | Preview-before-sign binding | PHASE-3 | MKT-P3-001 | golden vector | N/A |
+| MKT-SEC-003 | Session binding to wallet | PHASE-2 | MKT-P2-001 | auth test | N/A |
+| MKT-SEC-004 | Fee disclosure before sign | PHASE-3 | MKT-P3-007 | UI test | N/A |
+| MKT-SEC-005 | No undisclosed spread | ALL | policy | audit | N/A |
+| MKT-SEC-006 | Relayer allowlist and budgets | PHASE-2 | MKT-P2-009 | integration | N/A |
+| MKT-SEC-007 | Rate limiting and abuse controls | PHASE-1 | MKT-P1-002 | load test | N/A |
+| MKT-SEC-008 | Geoblock fail closed | PHASE-2 | MKT-P2-002 | unit | N/A |
 
-## 13. Test strategy
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+## Non-functional requirements (MKT-NFR)
 
-## 14. Rollout and rollback
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-NFR-001 | Catalog freshness p95 < 60s | PHASE-1 | MKT-P1-009 | SLO | N/A |
+| MKT-NFR-002 | Order book snapshot age p95 < 5s | PHASE-1 | MKT-P1-006 | SLO | N/A |
+| MKT-NFR-003 | Order preview p95 < 750ms | PHASE-3 | MKT-P3-001 | SLO | N/A |
+| MKT-NFR-010 | API availability 99.5% monthly | PHASE-6 | MKT-P6-004 | SLO | N/A |
+| MKT-NFR-020 | Secrets in env only | PHASE-0 | MKT-P0-007 | audit | N/A |
+| MKT-NFR-030 | Baseline infra < USD 100/mo | PHASE-1 | MKT-P1-009 | cost | N/A |
+| MKT-NFR-040 | WCAG 2.1 AA critical paths | PHASE-3 | MKT-P3-007 | a11y audit | N/A |
+| MKT-NFR-050 | Android cold start p75 < 2s | PHASE-5 | MKT-P5-009 | benchmark | N/A |
+| MKT-NFR-051 | Android crash-free > 99% | PHASE-5 | MKT-P5-009 | Play vitals | N/A |
+| MKT-NFR-060 | Fixed-point money in APIs | PHASE-1 | MKT-P1-001 | schema | N/A |
+| MKT-NFR-070 | Backup RPO < 24h | PHASE-6 | MKT-P6-005 | drill | N/A |
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
 
-## 15. Open questions
+## Data requirements (MKT-DATA)
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-DATA-001 | Immutable activity event log | PHASE-4 | MKT-P4-002 | schema | N/A |
+| MKT-DATA-002 | Upstream raw payload retention policy | PHASE-1 | MKT-P1-003 | policy | N/A |
+| MKT-DATA-003 | Signal evidence envelope | PHASE-1 | MKT-P1-005 | contract | N/A |
 
-## 16. Acceptance criteria
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+## Operations requirements (MKT-OPS)
 
-            ## Functional requirements
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-OPS-001 | Incident runbooks exercised | PHASE-6 | MKT-P6-009 | drill | N/A |
+| MKT-OPS-002 | Launch checklist complete | PHASE-7 | MKT-P7-001 | checklist | N/A |
+| MKT-OPS-003 | Canary rollback tested | PHASE-7 | MKT-P7-007 | drill | N/A |
 
-    | ID | Description | Phase | Task |
-    |----|-------------|-------|------|
-    | MKT-FR-001 | List normalized Polymarket events | PHASE-1 | MKT-P1-002 |
-| MKT-FR-002 | Show market rules and resolution source | PHASE-1 | MKT-P1-001, MKT-P1-004, MKT-P1-006 |
-| MKT-FR-010 | Order book snapshot with staleness indicator (REST) | PHASE-1 | MKT-P1-002, MKT-P1-005, MKT-P1-006 |
-| MKT-FR-010-RT | Realtime order book via BFF WebSocket hub | PHASE-1.3 | MKT-P13-002, MKT-P13-005, P13C-003, P13C-005 |
-| MKT-FR-020 | Wallet connect without key custody | PHASE-2 | MKT-P2-001 |
-| MKT-FR-021 | Fail-closed eligibility check | PHASE-2 | MKT-P2-002 |
-| MKT-FR-030 | Order preview equals signed payload | PHASE-3 | MKT-P3-001 |
-| MKT-FR-031 | Submit limit order via CLOB V2 | PHASE-3 | MKT-P3-002 |
-| MKT-FR-040 | Positions reconcile with venue | PHASE-4 | MKT-P4-001 |
-| MKT-FR-050-CAT | Catalog-sync signals: new_market, rule_changed | PHASE-1 | MKT-P1-008, P1C-008 |
-| MKT-FR-050-LIVE | Live observation signals: price_move, liquidity_change | PHASE-1.3 | MKT-P13-004, P13C-002 |
-| MKT-FR-060 | Whale/large-trade feed with reason codes | PHASE-4 | MKT-P4-003 |
-| MKT-FR-090 | Combos only when capability flag true | PHASE-8 | MKT-P8-001 |
 
-    ## Security requirements
+## Android requirements (MKT-AND)
 
-    | ID | Description | Phase | Task |
-    |----|-------------|-------|------|
-    | MKT-SEC-001 | No raw private key storage | PHASE-2 | MKT-P2-001 |
-    | MKT-SEC-002 | Preview-before-sign binding | PHASE-3 | MKT-P3-002 |
-    | MKT-SEC-P13-001 | Rotate/revoke exposed Polymarket credential | PHASE-1.3 | P13C-007 |
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-AND-001 | Jetpack Compose only | PHASE-5 | MKT-P5-001 | lint | N/A |
 
-    ## Non-functional requirements
 
-    | ID | Description | Phase | Task |
-    |----|-------------|-------|------|
-    | MKT-NFR-001 | Catalog freshness p95 < 60s | PHASE-1 | MKT-P1-004 |
-    | MKT-NFR-010 | API availability 99.5% monthly | PHASE-6 | MKT-P6-001 |
-| MKT-NFR-002 | Invalid, stale, or sequence-ambiguous books are never labeled live | PHASE-1, 1.3 | MKT-P1-005, MKT-P13-002 |
-| MKT-NFR-003 | Single-active-replica realtime ingestion documented and guarded | PHASE-1.3 | P13C-006 |
-| MKT-NFR-060 | Monetary values use base units or decimal strings, never binary floating point | PHASE-1, 1.3 | MKT-P1-001, MKT-P13-004 |
+## Web requirements (MKT-WEB)
 
-    ## Phase dependencies
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-WEB-001 | OpenAPI-generated types | PHASE-1 | MKT-P1-001 | codegen | N/A |
 
-    - **PHASE-2** prerequisite: **PHASE-1.3 closure** (not PHASE-1 alone).
-    - Phase 1.3 is **not complete** until P13C-000 … P13C-008 evidence and ADR-014 transactional wiring (P13C-002).
 
-    ## Traceability chain
+## Polymarket integration requirements (MKT-POLY)
 
-    ```
-    requirement → evidence → component → phase → task → test → metric → runbook
-    ```
+| ID | Description | Phase | Task | Test | Metric |
+|---|---|---|---|---|---|
+| MKT-POLY-001 | CLOB V2 only | PHASE-3 | MKT-P3-002 | contract | N/A |
+| MKT-POLY-002 | Builder attribution on submit | PHASE-3 | MKT-P3-002 | integration | N/A |
+| MKT-POLY-003 | Neg Risk routing when required | PHASE-3 | MKT-P3-008 | golden vector | N/A |
 
-    See [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+
+
+## 4. Phase coverage matrix
+
+| Phase | FR count | SEC | NFR | Launch-critical |
+|---|---|---|---|---|
+| PHASE-0 | 0 | 0 | 1 | N |
+| PHASE-1 | 7 | 1 | 4 | Y |
+| PHASE-2 | 5 | 3 | 0 | Y |
+| PHASE-3 | 5 | 2 | 2 | Y |
+| PHASE-4 | 5 | 0 | 0 | Y |
+| PHASE-5 | 2 | 0 | 2 | Y |
+| PHASE-6 | 0 | 0 | 2 | Y |
+| PHASE-7 | 0 | 0 | 0 | Y |
+| PHASE-8 | 2 | 0 | 0 | N |
+
+## 5. Component mapping
+
+| Component | Requirements |
+|---|---|
+| Catalog indexer | MKT-FR-001–004, MKT-NFR-001 |
+| Market data | MKT-FR-010–011, MKT-NFR-002 |
+| Auth/eligibility | MKT-FR-020–021, MKT-SEC-001,003,008 |
+| Order orchestrator | MKT-FR-030–034, MKT-SEC-002,004, MKT-POLY-001–003 |
+| Portfolio/CTF | MKT-FR-040–042, MKT-DATA-001 |
+| Signals | MKT-FR-050,060–061, MKT-DATA-003 |
+| Android app | MKT-FR-070–071, MKT-AND-001, MKT-NFR-050–051 |
+| Platform/SRE | MKT-NFR-010,070, MKT-OPS-001–003 |
+
+## 6. Test mapping
+
+See [testing/MASTER_TEST_PLAN.md](testing/MASTER_TEST_PLAN.md) and [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+
+## 7. Metric and runbook mapping
+
+| Metric | Runbook |
+|---|---|
+| catalog_freshness | OBSERVABILITY_SLOS_AND_ALERTS.md |
+| preview_mismatch | ORDER_LIFECYCLE.md |
+| position_error_rate | INDEXING_RECONCILIATION_AND_REORGS.md |
+| push_latency | NOTIFICATIONS.md |
+
+## 8. Evidence register linkage
+
+Each MKT-POLY and MKT-SEC requirement links to [research/evidence-register.yaml](research/evidence-register.yaml) entries where external authority is claimed.
+
+## 9. Change control
+
+New requirements require: ID assignment, phase mapping, task mapping, test mapping, and manifest update.
+
+## 10. Acceptance criteria
+
+- All launch-critical requirements mapped to phase, task, and test.
+- No duplicate IDs.
+- Cross-document invariants (§23) satisfied.
+
+## Appendix R.0 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.1 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.2 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.3 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.4 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.5 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.6 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.7 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.8 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.9 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.10 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.11 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.12 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.13 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.14 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.15 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.16 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.17 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.18 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.19 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.20 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.
+
+## Appendix R.21 — traceability audit
+
+Quarterly review ensures no orphan requirements before release.

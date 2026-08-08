@@ -1,25 +1,54 @@
 product: retropick-markets
 version: v1
-mode: implementation_reconciled
-last_updated: 2026-07-31
-current_phase: PHASE-1.3
-phase_1_3_status: runtime_closure_in_progress
-reconciliation:
-  date: 2026-07-31
-  outcome: PASS_WITH_FOCUSED_ADR
-  focused_adr: .dev/markets-v1/architecture/adr/ADR-010-PHASE-1-BACKEND-FIRST-SLICE.md
-  report: .dev/markets-v1/agent-harness/RECONCILIATION_REPORT.md
-  assignment_slice: phase1_3_realtime_intelligence
-  authorization: user_uploaded_implementation_assignment
-  phase_1_3_note: >-
-    Phase 1.3 is NOT complete. ADR-014 transactional observation-to-signal wiring,
-    catalog-backed token registry, and live signal pipeline remain open (P13C-001, P13C-002).
+mode: spec_freeze_ready
+last_updated: 2026-07-25
+current_phase: PHASE-1
+wave: 9
+wave_status: complete
+
+doc_paths:
+  entry: .dev/markets-v1/README.md
+  document_map: .dev/markets-v1/00_DOCUMENT_MAP.md
+  executive_outcome: .dev/markets-v1/EXECUTIVE_OUTCOME.md
+  operating_contract: .dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md
+  task_graph: .dev/markets-v1/agent-harness/task-graph.yaml
+  traceability: .dev/markets-v1/agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md
+  invariant_check: .dev/markets-v1/agent-harness/INVARIANT_CHECK.md
+  blockers: .dev/markets-v1/agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md
+  decision_log: .dev/markets-v1/agent-harness/DECISION_AND_ASSUMPTION_LOG.md
+  openapi: schemas/openapi/markets-v1.yaml
+
+parallelization_rules:
+  - rule: one_owner_per_writable_path
+    description: No two in-progress tasks may share an owned_paths entry
+  - rule: phase_sequential_default
+    description: Phases run in order unless may_run_in_parallel_with is set
+  - rule: contract_first
+    description: OpenAPI and migrations precede client integration
+  - rule: read_before_write
+    description: Catalog read (PHASE-1) precedes wallet/trading (PHASE-2+)
+
 phase_order:
+  - id: WAVE-9
+    name: Agent Harness Completion
+    status: complete
+    spec: .dev/markets-v1/README.md
+    prerequisites: []
+    tasks:
+      - MKT-W9-001
+      - MKT-W9-002
+      - MKT-W9-003
+      - MKT-W9-004
+      - MKT-W9-005
+    exit_gate:
+      - All 121 documents reviewed
+      - 28/28 §23 invariants verified
+      - Task graph and traceability matrix complete
   - id: PHASE-0
     name: Discovery and Spec Freeze
-    status: superseded_by_reconciliation
+    status: complete
     spec: .dev/markets-v1/phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md
-    prerequisites: []
+    prerequisites: [WAVE-9]
     tasks:
       - MKT-P0-001
       - MKT-P0-002
@@ -30,15 +59,17 @@ phase_order:
       - MKT-P0-007
       - MKT-P0-008
     exit_gate:
-      - repository_and_upstream_reconciled
-      - backend_first_scope_authorized
-      - focused_adr_accepted
+      - 121 documents reviewed per 00_DOCUMENT_MAP.md
+      - ADR-001 through ADR-009 accepted
+      - Requirements baseline in 04_REQUIREMENTS_AND_TRACEABILITY.md
   - id: PHASE-1
     name: Foundation and Read Markets
-    status: independent_review_remediation_complete
+    status: ready
     spec: .dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
-    prerequisites: ['PHASE-0']
-    implementation_slice: backend_read_only
+    prerequisites: [PHASE-0]
+    parallel_groups:
+      - [MKT-P1-002, MKT-P1-003]
+      - [MKT-P1-006, MKT-P1-009]
     tasks:
       - MKT-P1-001
       - MKT-P1-002
@@ -51,124 +82,145 @@ phase_order:
       - MKT-P1-009
       - MKT-P1-010
     exit_gate:
-      - openapi_conformance_pass
-      - migrations_and_repositories_verified
-      - deterministic_fixtures_pass
-      - freshness_and_degraded_states_verified
-      - no_signing_or_fund_movement
-  - id: PHASE-1.3
-    name: Realtime Data and Deterministic Intelligence
-    status: runtime_closure_in_progress
-    spec: docs/architecture/markets-phase-1-3-realtime-intelligence.md
-    prerequisites: ['PHASE-1']
-    implementation_slice: realtime_intelligence
-    tasks:
-      - MKT-P13-000
-      - MKT-P13-001
-      - MKT-P13-002
-      - MKT-P13-003
-      - MKT-P13-004
-      - MKT-P13-005
-      - P13C-000
-      - P13C-001
-      - P13C-002
-      - P13C-003
-      - P13C-004
-      - P13C-005
-      - P13C-006
-      - P13C-007
-      - P13C-008
-    exit_gate:
-      - upstream_semantics_evidence_backed
-      - reconnect_resnapshot_proven
-      - no_upstream_sequence_fabricated
-      - slow_clients_cannot_block_ingestion
-      - capability_flags_reflect_runtime_truth
-      - frontend_never_connects_directly_to_polymarket
-      - signals_deterministic_and_idempotent
-      - ci_green
+      - Web renders canonical market from BFF
+      - No signing or fund movement
+      - OpenAPI conformance tests pass
   - id: PHASE-2
     name: Account Wallet and Funding
     status: planned
     spec: .dev/markets-v1/phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md
-    prerequisites: ['PHASE-1.3']
+    prerequisites: [PHASE-1]
+    parallel_groups:
+      - [MKT-P2-002, MKT-P2-005]
     tasks:
       - MKT-P2-001
-    exit_gate: []
+      - MKT-P2-002
+      - MKT-P2-003
+      - MKT-P2-004
+      - MKT-P2-005
+      - MKT-P2-006
+      - MKT-P2-007
+    exit_gate:
+      - Wallet connect without key custody
+      - eligibility_fail_closed metric green
   - id: PHASE-3
     name: Web Trading Core
     status: planned
     spec: .dev/markets-v1/phases/PHASE-3-WEB-TRADING-CORE.md
-    prerequisites: ['PHASE-2']
+    prerequisites: [PHASE-2]
     tasks:
       - MKT-P3-001
-    exit_gate: []
+      - MKT-P3-002
+      - MKT-P3-003
+      - MKT-P3-004
+      - MKT-P3-005
+      - MKT-P3-006
+    exit_gate:
+      - preview_sign_match metric green
+      - e2e journey J-03 pass
   - id: PHASE-4
     name: Portfolio Redemption and Withdrawal
     status: planned
     spec: .dev/markets-v1/phases/PHASE-4-PORTFOLIO-REDEMPTION-AND-WITHDRAWAL.md
-    prerequisites: ['PHASE-3']
+    prerequisites: [PHASE-3]
+    parallel_groups:
+      - [MKT-P4-002, MKT-P4-003]
     tasks:
       - MKT-P4-001
-    exit_gate: []
+      - MKT-P4-002
+      - MKT-P4-003
+      - MKT-P4-004
+      - MKT-P4-005
+      - MKT-P4-006
+    exit_gate:
+      - Positions reconcile with venue
+      - Redemption and withdrawal flows verified
   - id: PHASE-5
     name: Android Compose Markets
     status: planned
     spec: .dev/markets-v1/phases/PHASE-5-ANDROID-COMPOSE-MARKETS.md
-    prerequisites: ['PHASE-3', 'PHASE-4']
+    prerequisites: [PHASE-3, PHASE-4]
+    parallel_groups:
+      - [MKT-P5-002, MKT-P5-003]
     tasks:
       - MKT-P5-001
-    exit_gate: []
+      - MKT-P5-002
+      - MKT-P5-003
+      - MKT-P5-004
+      - MKT-P5-005
+      - MKT-P5-006
+    exit_gate:
+      - Android V1 parity on internal track
+      - No direct Polymarket API calls from app
   - id: PHASE-6
     name: Hardening CI/CD and SRE
     status: planned
     spec: .dev/markets-v1/phases/PHASE-6-HARDENING-CI-CD-AND-SRE.md
-    prerequisites: ['PHASE-4', 'PHASE-5']
+    prerequisites: [PHASE-4, PHASE-5]
+    parallel_groups:
+      - [MKT-P6-001, MKT-P6-002]
     tasks:
       - MKT-P6-001
-    exit_gate: []
+      - MKT-P6-002
+      - MKT-P6-003
+      - MKT-P6-004
+      - MKT-P6-005
+      - MKT-P6-006
+    exit_gate:
+      - Release verification matrix green
+      - 99.5% uptime SLO in staging
   - id: PHASE-7
     name: Production Launch
     status: planned
     spec: .dev/markets-v1/phases/PHASE-7-PRODUCTION-LAUNCH.md
-    prerequisites: ['PHASE-6']
+    prerequisites: [PHASE-6]
     tasks:
       - MKT-P7-001
-    exit_gate: []
+      - MKT-P7-002
+      - MKT-P7-003
+      - MKT-P7-004
+    exit_gate:
+      - Production deployment with human sign-off
+      - 72h post-launch monitoring green
   - id: PHASE-8
     name: Post-V1 Advanced Capabilities
     status: planned
     spec: .dev/markets-v1/phases/PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md
-    prerequisites: ['PHASE-7']
+    prerequisites: [PHASE-7]
     tasks:
       - MKT-P8-001
-    exit_gate: []
+      - MKT-P8-002
+      - MKT-P8-003
+    exit_gate:
+      - Combos capability-gated
+      - No auto copy trading (ADR-009)
+
 products:
-  fe-v1:
+  web:
     enabled: true
-    path: apps/fe-v1
-    package: "@retropick/markets-v1"
-    phase1_implementation: true
-    phase1_2_read_terminal: true
-    phase1_3_realtime_client: true
+    path: apps/web
+    doc: .dev/markets-v1/web/WEB_APPLICATION_ARCHITECTURE.md
   backend:
     enabled: true
     path: apps/backend
     markets_module: apps/backend/internal/markets
-    phase1_implementation: true
+    doc: .dev/markets-v1/backend/BACKEND_ARCHITECTURE.md
   android:
     enabled: true
     ui_stack: Jetpack Compose
     language: Kotlin
     path: apps/android
-    note: README-only at R3 documentation baseline
-    phase1_implementation: false
+    doc: .dev/markets-v1/android/COMPOSE_APP_ARCHITECTURE.md
+    note: README-only at Wave 9; implementation in PHASE-5
   custom_markets_contract:
     enabled: false
+
 external_authorities:
   venue: Polymarket
   chain: Polygon
   collateral: verify_current_pUSD_configuration
+  evidence: .dev/markets-v1/research/evidence-register.yaml
+
 human_approval_gates:
   - production_wallet_creation
   - builder_fee_configuration
@@ -180,31 +232,29 @@ human_approval_gates:
   - destructive_migration
   - production_secret_rotation
   - google_play_production_release
+
 unresolved_blockers:
   - id: BLK-001
     title: Geoblock eligibility upstream not wired
     phase: PHASE-2
+    doc: .dev/markets-v1/backend/AUTH_SESSION_AND_ELIGIBILITY.md
   - id: BLK-002
     title: Android app scaffold beyond README
     phase: PHASE-5
+    doc: .dev/markets-v1/android/GRADLE_MODULE_GRAPH.md
   - id: BLK-003
-    title: Catalog-backed token registry not wired to realtime runtime
-    phase: PHASE-1.3
-    task: P13C-001
-    note: markets-api uses in-memory TokenRegistryMap; CatalogTokenRegistry exists but is not bootstrapped
+    title: Builder production credentials
+    phase: PHASE-7
+    doc: .dev/markets-v1/polymarket/BUILDER_RELAYER_AND_FEES.md
   - id: BLK-004
-    title: Live signal pipeline — observation-to-signal transactional wiring missing
-    phase: PHASE-1.3
-    task: P13C-002
-    note: ADR-014 schema and sqlc queries exist; RealtimeSignalProducer not wired
+    title: CLOB integration not implemented
+    phase: PHASE-3
+    doc: .dev/markets-v1/polymarket/ORDER_LIFECYCLE.md
   - id: BLK-005
-    title: SEC-P13-001 exposed credential rotation pending owner
-    phase: PHASE-1.3
-    task: P13C-007
-    status: ROTATION_PENDING_OWNER
-    doc: .dev/markets-v1/security/SEC-P13-001-ROTATE-EXPOSED-CREDENTIAL.md
+    title: Wallet connect and funding flows not implemented
+    phase: PHASE-2
+    doc: .dev/markets-v1/web/WALLET_AND_TRANSACTION_UX.md
   - id: BLK-006
-    title: Single-active-replica realtime ingestion — no leader election
-    phase: PHASE-1.3
-    task: P13C-006
-    note: Multiple markets-api replicas duplicate upstream WS subscriptions; documented limitation
+    title: OpenAPI covers stub endpoints only
+    phase: PHASE-1
+    doc: schemas/openapi/markets-v1.yaml
