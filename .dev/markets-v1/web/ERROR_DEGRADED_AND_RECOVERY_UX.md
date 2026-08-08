@@ -6,6 +6,78 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the canonical web error, degraded, and recovery UX spec for RetroPick Markets V1. It maps master-prompt journeys—eligibility, discovery, wallet, funding, orders, portfolio, resolution, redeem, withdraw, wrong chain, stale book, outages, geoblock, relayer, and unknown state—to loading / ready / degraded / blocked / unknown screen states.
+
+It sits in Wave 4 as the failure-surface companion to architecture and market/wallet/portfolio UX. Shared components include degraded banners, API errors, eligibility gates, reconnecting overlays, and unknown-order panels. Backend failure-domain semantics remain in architecture docs; this file owns what the user sees and which single recovery action is primary.
+
+Read this whenever a Markets screen handles BFF, WebSocket, or wallet failure, before claiming a journey done, and when backend error codes change. Prefer MARKET, WALLET, and PORTFOLIO UX docs for happy-path composition.
+
+It excludes Android-specific chrome (parity of truth only), inventing fills on timeout, auto-resubmit, and sportsbook-style urgency copy.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Web UX implementers mapping journeys J01–J18; QA writing Playwright cases; agents adding error surfaces that must fail closed on ambiguous orders. |
+| **What** | Canonical web error, degraded, and recovery UX for all master-prompt §10 journeys: eligibility, discovery, wallet, funding, approvals, orders, portfolio, resolution, redeem, withdraw, wrong chain, stale book, outages, geoblock, relayer, unknown state. |
+| **When** | Whenever a Markets screen handles BFF/WS/wallet failure. Before claiming a journey “done.” Cross-check when backend error codes change. |
+| **Where** | Spec: this file (screen-state tables per journey). Shared components: degraded banner, API error, eligibility gate, reconnecting overlay, unknown-order panel. Architecture failure domains: [FAILURE_DOMAINS_AND_DEGRADED_MODES.md](../architecture/FAILURE_DOMAINS_AND_DEGRADED_MODES.md). |
+| **Why** | Prediction-market clients that invent fills or hide geoblocks harm users. One recovery action per error reduces panic-click double submits. Web and Android should tell the same truth even if chrome differs. |
+| **How** | Map each journey to loading / ready / degraded / blocked / unknown. Preserve ticket input on transient errors. Show `requestId` on API failures. WS disconnect → reconnecting, then REST heal. Ambiguous order → Unknown panel + poll—never “filled” guess. |
+
+### Worked example
+
+**Happy path — recoverable API blip on discovery.** Events query fails once → error component with retry; success replaces error; no fabricated markets. User continues to market detail.
+
+**Happy path — order submit then reconcile.** Submit returns accepted; WS drop mid-flight → ReconnectingOverlay; on resume, REST `me/orders` shows open/partial; UI aligns to venue truth.
+
+**Failure / degraded.** J16 unsupported region → EligibilityGate, trading disabled. J14 stale book → banner + submit block. J15 upstream outage → global degraded, read-only where allowed. J18 unknown tx → UnknownOrderPanel until terminal state. Duplicate submit → idempotent replay, same order id. Never toast “success” on timeout.
+
+### Global principles (do not dilute in features)
+
+1. Never fabricate prices or fills.
+2. One primary recovery action per error.
+3. Preserve ticket input on transient errors.
+4. Fail closed on ambiguous order state.
+5. Accessible alerts (role/live region).
+6. Professional Markets copy—no sportsbook jargon.
+
+### Agent workflow
+
+When implementing a feature, find its J-number table here and implement **every** state column, not only happy path. Add Playwright coverage for blocked and unknown rows. If Android lacks a matching state, file parity gap rather than inventing web-only success.
+
+### Component → journey wiring
+
+| Component | Primary journeys |
+|-----------|------------------|
+| `EligibilityGate` | J01, J16 |
+| `MarketsDegradedBanner` | J14, J15 |
+| `ReconnectingOverlay` | J07–J09 realtime |
+| `UnknownOrderPanel` | J18 |
+| `MarketsApiError` | All BFF failures |
+
+### Recovery priority order
+
+1. Correct dangerous misconception (unknown ≠ filled).
+2. Offer one primary action (retry, switch chain, reconnect).
+3. Secondary: support/docs with `requestId`.
+4. Preserve user inputs whenever safe.
+
+### Agent anti-patterns
+
+- Multiple competing toasts for one failure.
+- Auto-resubmit orders.
+- Happy-path-only implementation of a J-table.
+- High-pressure urgency copy that frames markets as entertainment gaming.
+
+### Success signal
+
+QA can walk J01–J18 using only this doc’s state tables and find matching UI for every non-happy cell.
+
 ## 1. Purpose
 
 All 18 master-prompt §10 journeys with screen-state tables.

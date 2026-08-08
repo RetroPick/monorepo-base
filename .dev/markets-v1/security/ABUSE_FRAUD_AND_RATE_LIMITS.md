@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the abuse, fraud-heuristic, and rate-limit authority for RetroPick Markets V1. It defines tiered limits for catalog, auth, order preview/submit, and intelligence; fraud signals such as preview-without-submit storms, geo mismatch, stuffing, and sybil; builder-key metering; intelligence abuse controls; and playbooks from throttle through kill switch to incident response.
+
+It sits in Wave 7 with Redis token buckets per backend cache and rate-limit docs; clients are not the source of truth. When Redis is unavailable, writes fail closed, with generous cached reads only where policy allows. Ops kill switches such as markets.orders.disabled escalate High severity cases.
+
+Read this when wiring Markets HTTP limiter middleware, heuristic scorers, builder volume alerts, abuse incidents, or load tests that simulate bursts. Prefer THREAT_MODEL for STRIDE context and INCIDENT_RESPONSE for containment roles.
+
+It excludes silently raising prod limits to keep tests green, client-only throttles as authority, and treating unlimited writes during Redis blindness as a performance win.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF rate-limit/cache owners (Redis token bucket); abuse/fraud heuristic owners; ops responding to scrape, stuffing, and builder-key burn; intelligence owners preventing signal/alert abuse; security tying geo-mismatch to eligibility re-check. |
+| **What** | Tiered rate limits (catalog, auth, order preview/submit, intelligence), fraud heuristics (preview-without-submit storms, geo mismatch session vs IP, sybil signals), builder-key protection/metering, intelligence abuse controls, and response playbooks (throttle → kill switch → incident). Fail modes: Redis down → **fail closed on writes**, generous cached reads where policy allows. |
+| **When** | On every Markets HTTP path through limiter middleware; continuously on heuristic scorers; when builder volume anomalies fire; during abuse incidents and load tests that simulate bursts. |
+| **Where** | Spec: this file. Implementation: Redis buckets per [CACHE_QUEUE_AND_RATE_LIMITING](../backend/CACHE_QUEUE_AND_RATE_LIMITING.md); eligibility re-run on geo mismatch; ops kill switches such as `markets.orders.disabled`; metrics/alerts in observability docs. Applies to web/Android via BFF—client-only throttles are not source of truth. |
+| **Why** | Catalog scrape burns upstream quota; credential stuffing takes accounts; preview storms cost CPU and confuse integrity telemetry; builder-key abuse violates ToS and burns attribution. Fail-closed writes under Redis loss prevent unbounded trading/auth mutations when the limiter is blind. |
+| **How** | Apply per-route tiers (e.g. order preview 30/min/user, burst 10/10s); return 429 with retry guidance; score heuristics; on geo mismatch force eligibility recompute (server GeoIP—not client locale); meter builder keys; escalate High → kill switch + INCIDENT_RESPONSE. Never weaken limits silently in prod to “keep tests green.” |
+
+### Limit posture
+
+| Class | On limit | Redis unavailable |
+|-------|----------|-------------------|
+| Auth / trading writes | 429 | Fail closed |
+| Catalog reads | 429 / cache | Serve stale cache if policy allows |
+| Intelligence fan-out | Throttle / degrade | Fail closed on new alert-rule writes if configured |
+| Builder upstream | Meter + alert | Pause attributed submits; incident |
+
+### Heuristic triggers (V1 samples)
+
+| Signal | Response |
+|--------|----------|
+| Preview without submit >50/hour | Throttle previews |
+| Geo mismatch session vs IP | Re-run eligibility (fail closed if unknown/denied) |
+| Credential stuffing patterns | Auth rate limits; session revoke path |
+| Builder volume anomaly | Alert + optional key rotate |
+
+### Worked example
+
+**Happy path.** Eligible user previews within 30/min; submits order; buckets refill; builder volume normal. Scraper hits catalog tier → 429; bot score rises; ops optional ban. Geo consistent with session → eligibility cache hit.
+
+**Failure / degraded.** Redis outage during trading hours → order/auth writes **fail closed**; catalog may serve cached reads. Preview storm without submit → throttle. Session country ≠ IP geo → re-run eligibility; geoblock/unknown → deny trading. Builder anomaly → rotate key + High playbook—not “raise limit forever.”
+
+**Load-test note.** Burst scenarios may expect controlled 429s; absence of limiting under abuse is a defect, not a performance win.
+
+**Ops note.** Controlled 429s under abuse or load tests are success signals; unlimited writes when Redis is blind are defects.
+
 ## 1. Purpose
 
 Rate limiting, fraud heuristics, sybil resistance, and abuse response for catalog, trading, and intelligence APIs.

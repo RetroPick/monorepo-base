@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the security test and review plan for RetroPick Markets V1: PR gates such as gitleaks and semgrep, SAST/DAST scopes, pen-test in/out of scope, concrete SEC-T cases (geo header spoof ignored, idempotency body change → 422, preview integrity → 409, burst → 429), launch checklist, and dual sign-off.
+
+It sits in Wave 7 with CI security jobs, staging DAST against /api/v1/markets/*, and backend SEC-T suites. Out of scope: PRISM/legacy and steal-custodied-user-keys scenarios that must not exist. Tests encode fail-closed geo/eligibility and no-key-custody invariants so green CI cannot mean allow when geo unknown.
+
+Read this on every PR, pre-staging DAST, scheduled or pre-launch pen-test, PHASE-7 launch checklist, and after major auth or trading changes. Prefer THREAT_MODEL for residual risk and MASTER_TEST_PLAN for overall exit criteria.
+
+It excludes inverting fail-closed asserts to keep CI green and launching without security owner signature even if eng tests are green.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Security + QA owning SDLC gates; engineers fixing SAST/DAST findings; pen-testers scoped to Markets V1; release signatories for PHASE-7; agents implementing SEC-T-* cases without weakening asserts. |
+| **What** | Security test plan: PR gates (gitleaks, semgrep), SAST/DAST scopes, pen-test in/out of scope, concrete cases (eligibility header spoof ignored, replay idempotency, rate-limit 429, preview integrity), review checklist (secrets manager-only, SBOM archived, IR drill), sign-off. Emphasizes **fail-closed** geo/eligibility and **no key custody** assumptions in tests. |
+| **When** | Every PR; pre-staging DAST; scheduled/pre-launch pen-test; launch checklist before PHASE-7; after major auth/trading changes. |
+| **Where** | Spec: this file. CI security jobs; DAST against staging `/api/v1/markets/*`; unit/integration SEC-T-* in backend tests; evidence in CI artifacts. Out of scope: stealing real user funds via custody (N/A—no custody), PRISM/legacy. |
+| **Why** | Docs alone do not prove controls. Spoofed geo headers, replayed idempotency keys, and hash mismatches are launch blockers. Security tests encode fail-closed behavior so “make the test pass” cannot mean “allow when geo unknown.” |
+| **How** | Keep SAST/secret scan merge-blocking; run DAST on catalog/trading/auth routes; execute SEC-T-003 (eligibility header spoof → server IP), SEC-T-004 (idempotency body change → 422), preview mismatch → 409, burst → 429; complete checklist; dual sign-off security + eng. |
+
+### Must-pass security cases (samples)
+
+| ID | Assert |
+|----|--------|
+| SEC-T-003 | Client geo/eligibility headers ignored; server IP/geo used |
+| SEC-T-004 | Idempotency-Key + different body → 422 |
+| Preview integrity | Hash mismatch → 409, no upstream call |
+| SEC-T-010 | Burst → 429 |
+| Secrets scan | gitleaks clean; no T4 material in repo |
+| Custody invariant | API never accepts or returns user private keys |
+
+### Review checklist (launch)
+
+- [ ] Secrets only in manager (no `.env` in git)
+- [ ] SBOM archived for release tag
+- [ ] IR drill completed
+- [ ] Eligibility fail-closed cases green
+- [ ] Preview integrity cases green
+
+### Worked example
+
+**Happy path.** PR passes gitleaks/semgrep; SEC-T suite green including geo spoof and preview 409; staging DAST no criticals; SBOM archived; IR drill done; security + eng sign launch checklist.
+
+**Failure / degraded.** Test double returns `eligible: true` on GeoIP timeout to “keep CI green” → **reject** (fail-closed inverted). Pen-test finds IDOR on `order_attempts` → SEV fix before launch; no waiver without expiry. Proposal to pen-test “export user seed from API” → N/A (must not exist); instead prove API never accepts or returns key material.
+
+**Sign-off rule.** Missing security owner signature on PHASE-7 checklist → no launch, even if eng tests are green.
+
 ## 1. Purpose
 
 Security testing gates: SAST, DAST, dependency scan, penetration test scope, and review checklist before PHASE-7 launch.

@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the backup, restore, and disaster-recovery authority for RetroPick Markets V1. It sets DR objectives (pre-funding RPO 24h / RTO 4h; tighter post-funding), backup scope (Postgres snapshots and PITR, optional Redis RDB, secrets versioning, images, SBOM and git tags), restore procedures, disaster scenarios, and monthly restore tests.
+
+It sits in Wave 7 with managed Postgres backups, secret-manager versions, container registry artifacts, and staging-first restore then promote. Explicit non-restorables include WebSocket state, expired previews, and venue state (re-fetch Polymarket). User private keys are N/A—they must never have been stored.
+
+Read this for continuous backup verification, monthly restore-to-staging, semi-annual RTO drills, and corruption, ransomware, accidental DROP, or secret-leak scenarios. Prefer INCIDENT_RESPONSE for SEV roles and INFRASTRUCTURE_AND_COST_MODEL for single-region pre-funding honesty.
+
+It excludes restoring straight into prod without staging validation and treating Redis cache as correctness source of truth.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | SRE/DBA owning backups and PITR drills; incident responders during DAT loss; security on secret-manager versioning; eng validating post-restore reconciliation; agents documenting—not unilaterally destroying prod data. |
+| **What** | DR objectives (pre-funding RPO 24h / RTO 4h; post-funding tighter), backup scope (Postgres snapshots+PITR, optional Redis RDB, secrets versioning, images, SBOM/git tags), restore procedures, disaster scenarios, monthly restore tests. Explicit non-restorables: WS state, expired previews, venue state (re-fetch Polymarket). |
+| **When** | Continuous automated backups; monthly restore-to-staging; semi-annual RTO drill; immediately on corruption/ransomware/accidental DROP/secret leak scenarios. |
+| **Where** | Spec: this file. Managed Postgres backups; secret manager versions; container registry; runbooks executed staging-first then promote. Cross-ref INFRASTRUCTURE cost (single-region pre-funding), INCIDENT_RESPONSE, DATABASE_AND_MIGRATIONS. |
+| **Why** | Markets projections and eligibility audit rows are operator-critical even without custodied user keys. Stage-first restore + reconciliation prevents “restored but wrong catalog/orders.” Encrypted backups keep T2/T3 out of cleartext snapshots. |
+| **How** | Verify backup jobs; on incident pick T; PITR to T−1m on new instance; validate row counts; point staging `DATABASE_URL`; run full reconciliation; promote; rotate secrets if leak-related. Accept single-region RTO pre-funding. |
+
+### Pre-funding targets
+
+| Metric | Target |
+|--------|--------|
+| RPO | 24h |
+| RTO | 4h |
+| Retention | 30d |
+| Restore test | Monthly |
+
+### Backup scope (summary)
+
+| Asset | Method | Notes |
+|-------|--------|-------|
+| PostgreSQL | Managed snapshot + PITR | Primary truth for projections |
+| Secrets | Manager versioning | Rotate on leak scenarios |
+| Images / SBOM | Registry + release artifacts | Rebuild compute from digests |
+| Redis cache | Optional RDB | Rebuildable; not correctness source |
+| User private keys | **N/A** | Must never have been stored |
+
+### Worked example
+
+**Happy path.** Monthly drill restores snapshot to staging; app boots; migrations current; catalog/sync counts within ±0.1%; reconciliation clean; evidence attached to ticket.
+
+**Failure / degraded.** Accidental DROP → PITR; CI migration guards reviewed. Ransomware on VM → rebuild from image + DB restore + secret rotation. Engineer expects Redis cache restore for correctness → clarify cache rebuildable; integrity from Postgres + upstream re-fetch. No attempt to “restore user private keys.”
+
+**Never invent.** Restoring into prod without staging validation.
+
 ## 1. Purpose
 
 Backup strategy, RPO/RTO targets, restore procedures, and disaster scenarios for Markets V1 data plane.

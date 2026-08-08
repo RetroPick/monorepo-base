@@ -6,6 +6,59 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document is the formal **exclude** gate for Polymarket Combos (multi-market combinatorial / RFQ requester-maker trading) in Markets V1. It defines what may exist (`combos.enabled: false`, 403 tests, catalog awareness) versus what must not (RFQ submit, maker quotes, silent trading UI). Public Gamma catalog endpoints are not trading permission.
+
+It sits in Wave 2 as policy authority with EV-013 and the capability matrix. Runtime expectation: `/markets/capabilities` advertises Combos off; BFF trade routes return 403; no OpenAPI combo trading routes without a future ADR and the verification checklist in this file. Ordinary CLOB, neg-risk, CTF, and funding features continue under their own docs.
+
+Read this whenever an agent is tempted by combo catalog endpoints, before any Combos-related OpenAPI or UI work, and when upstream announces Combos GA. It is not an enablement playbook for V1 and not a place to invent PositionManager or combo contract addresses.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Orchestrator, `be-api` / `fe-markets` / QA, compliance reviewers, and any agent tempted by Gamma "combo markets" catalog endpoints. |
+| **What** | Formal **exclude** gate for Polymarket Combos (multi-market combinatorial / RFQ requester-maker trading) in Markets V1. Defines what MAY exist (flag false, 403 tests) vs MUST NOT (RFQ submit, maker quotes). |
+| **When** | Always for V1. Re-open only after the verification checklist in this doc is fully checked and an ADR enables `combos.enabled`. |
+| **Where** | Policy: this doc + EV-013. Runtime flag: `/markets/capabilities` → `combos.enabled: false`. Trade routes: BFF must 403. No OpenAPI combo trading routes without ADR. |
+| **Why** | Combos change risk, fees, contracts, and legal posture. Public catalog ≠ trading capability. Premature enablement bypasses Polymarket ACL and RetroPick phase gates. |
+| **How** | Keep flag false in all envs except explicit staging experiments post-checklist; unit/integration tests assert 403; monitor upstream GA; do not wire PositionManager combo modules into V1 trading. |
+
+### Worked example
+
+**Happy path (V1).** Capabilities endpoint returns `combos.enabled: false`. User never sees Combos RFQ UI. QA runs gate tests: any combo trade/RFQ route returns 403. Engineering may still ingest unrelated Gamma catalog fields for ordinary markets. Standard CLOB binary/neg-risk markets trade normally under other docs.
+
+**Failure / Never-V1.** Agent finds `GET combo markets` upstream and implements quote submission "for parity." That violates EV-013 and this gate — revert. Staging with `combos.enabled=true` without legal sign-off, registry verification, E2E split/merge/convert/compress tests, and fee disclosure approval is also reject. Do not invent combo contract addresses to "get ahead."
+
+**Enablement checklist (summary — full list in body)**
+
+1. Legal/compliance sign-off  
+2. Maker/requester API GA confirmed  
+3. Contract registry verified (EV-008) — no invented addresses  
+4. OpenAPI + ADR  
+5. E2E lifecycle tests  
+6. Fee/risk UX approved  
+7. Flag default false everywhere else  
+
+**What V1 may still do**
+
+- Advertise `combos.enabled: false` in capabilities for honest clients.
+- Track upstream changelog for Combos GA announcements.
+- Maintain automated tests that fail the build if trade routes accept combo RFQ payloads.
+- Continue shipping ordinary CLOB, neg-risk, CTF, and funding features under their own docs.
+
+**What V1 must not do**
+
+- Submit combo RFQ quotes or maker liquidity for combinatorial positions.
+- Expose requester trading UI behind a silent flag flip.
+- Treat catalog read endpoints as permission to trade.
+- Copy unverified PositionManager addresses into the registry.
+
+**Related docs:** [CAPABILITY_AND_DEPENDENCY_MATRIX.md](./CAPABILITY_AND_DEPENDENCY_MATRIX.md), [API_SDK_AND_ENDPOINT_REGISTRY.md](./API_SDK_AND_ENDPOINT_REGISTRY.md).
+
 ## 1. Purpose
 Formal gate excluding Combos from V1 with verification checklist for future enablement.
 

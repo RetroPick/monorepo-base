@@ -6,6 +6,55 @@
 
 Agents MUST re-run this checklist before any phase exit gate or product-code merge.
 
+## Description
+
+This file is the merge and phase-exit safety net for all **28** master-prompt §23 cross-document invariants. Treat it as an operational checklist, not optional background reading. The historical clean pass across the corpus is not a free pass — re-run against your diff before merge or phase exit.
+
+Rows cover venue/custody/Android/money/reconcile/eligibility/OSS/intelligence/copy-trading/arb labeling/isolation. Map impacted rows from your paths, run Verification `rg` commands, attach output to a filled `VERIFICATION_EVIDENCE_TEMPLATE`, and stop for ADR+human approval if an invariant must change.
+
+Never merge on a violated row, and never “fix the docs to match the bug.” Phase exit-gate tasks must re-run and reference this checklist from `PHASE_GATE_TEMPLATE` evidence links.
+
+## 0. Developer intent (5W+1H)
+
+This file is the merge and phase-exit safety net for all **28** master-prompt §23 cross-document invariants. Treat it as an operational checklist, not optional background reading. Header **Status: reviewed** and the 2026-07-25 contradiction scan describe a historical clean pass across 121 docs — you must **re-run** against your diff before merge or phase exit.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Every Markets V1 implementation agent; PR reviewers; orchestrator before advancing `current_phase` or approving a phase exit gate. |
+| **What** | The 28-row invariant table (venue/custody/Android/money/reconcile/eligibility/OSS/intelligence/copy-trading/arb labeling/isolation), verification `rg` commands, contradiction-scan practice, and pre-done obligations. |
+| **When** | Before marking any task `done` that touches Markets product docs or code; before phase exit-gate tasks (`MKT-P*-010` / `MKT-P0-008`); before merging Markets product PRs; whenever a change might weaken an ADR boundary. |
+| **Where** | This checklist; primary sources named per row (ADRs, security, intelligence, phase specs, OpenAPI); attach command output to a filled `VERIFICATION_EVIDENCE_TEMPLATE` artifact. |
+| **Why** | Contradictions — PRISM positions in Markets, float money, VPN geoblock bypass, AI-triggered orders, auto copy trading, “guaranteed arb” — are launch-blocking and often invisible in a single-file review. |
+| **How** | Diff → map impacted rows → run Verification commands (+ targeted greps) → attach evidence → stop for ADR+human approval if an invariant must change → never merge on a violated row. |
+
+### How agents use the 28-invariant checklist before merge
+
+1. **Skim all 28 rows** so you do not miss an adjacent boundary (e.g. submit code also touches #15 reconcile-before-retry and #26 fresh eligibility/preview).
+2. **Deep-check rows your paths can break**
+   - Catalog/OpenAPI/money → #13 fixed-point; #1–#4 venue/no custom exchange
+   - Wallet/auth → #8 signer≠account wallet; #9 no raw keys; #16/#21 fail-closed / no VPN bypass
+   - Orders → #10 auth binds action; #15 unknown state reconcile; #26 every order needs fresh checks
+   - Android → #11 Compose; #12 shared versioned APIs
+   - Intelligence → #22–#25, #27–#28 provenance, descriptive labels, no auto copy, no guaranteed arb, isolation from trading
+   - Launch/ops → #17 rollback+evidence; #18 production enablement gates; OSS → #19–#20
+3. **Run the Verification commands** block from repo root; save redacted stdout in verification evidence.
+4. **If an invariant must change**, do not “fix the docs to match the bug.” File an ADR and human approval first (see Agent obligation below the checklist).
+5. **Phase exit**: re-run before exit-gate approval; reference this file from `PHASE_GATE_TEMPLATE` evidence links.
+6. **Honesty**: historical ✅ cells are not a free pass for new code. Your merge re-validates applicability to the diff and related docs.
+
+### What “done” means here
+
+- **Task/PR:** impacted invariants checked; greps attached; no violated row.
+- **Phase exit:** checklist re-run recorded; no open contradiction without accepted risk in blockers.
+- **Invariant change request:** blocked pending ADR + approval — task not marked done.
+
+### Worked example
+
+Agent finishing `MKT-P1-001` (OpenAPI money fields) runs `rg "float64|binary float"` over OpenAPI and backend money docs (#13), greps Markets copy for PRISM-position claims (#1) and “custom exchange” ADR conflicts (#3–#4), pastes results into verification evidence, then marks the task done.
+
+Later, an order-submit change that auto-retries without venue reconcile would fail #15 and #26 — the agent must add reconcile-first behavior (or set `blocked`) before merge, not weaken or delete checklist rows to match broken behavior.
+
+
 ## Checklist (28 invariants)
 
 | # | Invariant | Status | Primary sources |

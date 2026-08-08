@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the master test plan for RetroPick Markets V1: objectives including ADR-003 preview integrity and eligibility fail-closed; pyramid levels from unit through integration, contract, E2E, load/chaos, and security; phase entry criteria; launch exit criteria (P0 journeys, 72h SLO soak, security sign-off); RACI; defect severities; tooling; and requirement traceability.
+
+It sits in Wave 7 as the single RACI and exit source; details live in sibling testing docs, SECURITY_TEST_AND_REVIEW_PLAN, and platform CI. Environments are defined in TEST_PYRAMID_AND_ENVIRONMENTS. Exit criteria bind pyramid, journeys, and SLOs so launch is evidence-based.
+
+Read this at phase entry, continuously in CI, during staging soak before launch, at release verification, and after major trading or eligibility changes. Prefer RELEASE_VERIFICATION_MATRIX for the go/no-go scoreboard.
+
+It excludes marking harness tasks complete because wiring exists and inverting fail-closed asserts to greenwash.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | QA lead + eng owners per test level; security for SEC gates; release manager for exit criteria; RACI participants; agents adding tests that map to requirement IDs without deleting failing asserts or inverting fail-closed behavior. |
+| **What** | Master test plan: objectives (incl. ADR-003 preview integrity, eligibility fail-closed), pyramid levels (unit→integration→contract→E2E→load/chaos→security), phase entry criteria, launch exit criteria (P0 journeys, SLO soak 72h, security sign-off), RACI, defect severities, tooling, traceability to CI JUnit/coverage. |
+| **When** | Per phase entry; continuously in CI; staging soak before launch; release verification; after major trading/eligibility changes. |
+| **Where** | Spec: this file. Details in sibling testing docs + SECURITY_TEST_AND_REVIEW_PLAN + platform CI. Envs per TEST_PYRAMID_AND_ENVIRONMENTS. |
+| **Why** | Single RACI/exit source stops “tests exist somewhere” ambiguity. Exit criteria bind pyramid + journeys + SLOs so launch is evidence-based—not checkbox fiction. |
+| **How** | Map each requirement to cases; enforce level ownership; gate phase exits; publish CI evidence; severity P0/P1 block launch; never invert fail-closed eligibility/integrity to greenwash. |
+
+### Level vs CI expectation
+
+| Level | CI / schedule expectation |
+|-------|---------------------------|
+| Unit | 100% in CI |
+| Integration | testcontainers in CI |
+| Contract | OpenAPI on PR |
+| E2E P0 | Staging/smoke required for release |
+| Load/chaos | Scheduled / pre-launch |
+| Security | PR scanners + SEC-T + pen-test |
+
+### Launch exit criteria (summary)
+
+- P0 journeys green (incl. geo deny + degradation)
+- Preview integrity + idempotency cases green
+- 72h staging soak meets SLO baseline
+- Security checklist signed
+- SBOM + rollback digest recorded |
+
+### Worked example
+
+**Happy path.** PHASE-3 entry met (preview/submit + mocks); unit/contract green; E2E-05 passes web+Android; 72h soak meets SLO baseline; security checklist signed → launch exit green.
+
+**Failure / degraded.** P0 journey red → no launch. SLO soak misses preview p95 → extend soak/optimize, don’t lower SLO silently. Traceability gap (test without requirement ID) → fix mapping before claiming coverage. Weakening SEC-T geo fail-closed asserts → reject.
+
+**Never invent.** Marking harness tasks complete because “wiring exists” without green evidence.
+
 ## 1. Purpose
 
 Consolidated test strategy, ownership, entry/exit criteria, and traceability for Markets V1 quality gates.

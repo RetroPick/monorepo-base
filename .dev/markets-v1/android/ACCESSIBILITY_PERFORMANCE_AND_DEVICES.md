@@ -6,6 +6,73 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the accessibility, performance, and device-matrix authority for the RetroPick Markets V1 Android app (Kotlin + Jetpack Compose). It covers WCAG-aligned TalkBack semantics, touch targets, Macrobenchmark budgets, network-condition testing, chart and GPU limits, battery, and large-screen or foldable adaptive behavior.
+
+It sits in Wave 5 beside Compose architecture and navigation. Semantics attach to composables; benchmarks live in a dedicated module. Inclusive parity with web means equivalent critical information—eligibility, fees, max loss, stale data, unknown order—not identical chrome. Visual tokens for web live in DESIGN_SYSTEM_AND_ACCESSIBILITY.
+
+Read this continuously during 5B–5D UI work and mandatorily before Play production, especially when adding charts, book ladders, or heavy lists. Prefer ANDROID_TEST_STRATEGY for how a11y and perf gates run in CI.
+
+It excludes removing risk text to hit FPS budgets, icon-only controls without descriptions, and using a web a11y pass as a substitute for TalkBack on the order ticket and preview dialog.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android UI engineers, a11y testers, performance owners running Macrobenchmark; agents shipping Compose screens to diverse devices. |
+| **What** | WCAG-aligned Android a11y, Compose semantics patterns, performance budgets, Macrobenchmark suite, device matrix, network condition testing, GPU/chart budgets, battery, large-screen/foldable, web parity of inclusive behavior. |
+| **When** | Continuously during 5B–5D UI work; mandatory before Play production. When adding charts, book ladders, or heavy lists. |
+| **Where** | Spec: this file. Semantics on composables; benchmarks in dedicated module. Devices: phone/tablet/fold as matrix. Web a11y twin: [DESIGN_SYSTEM_AND_ACCESSIBILITY.md](../web/DESIGN_SYSTEM_AND_ACCESSIBILITY.md). |
+| **Why** | Trading UIs are dense; without semantics, TalkBack users cannot safely confirm size/price. Jank on mid-tier devices destroys trust during signing. Foldables need adaptive nav (see navigation doc). |
+| **How** | Content descriptions for YES/NO, prices, stale labels. Touch targets ≥48dp. Prefer lazy lists; virtualize book. Budget startup and frame times via Macrobenchmark. Test TalkBack on order ticket and preview. Respect reduced-motion / animation scales. |
+
+### Worked example
+
+**Happy path — accessible ticket.** TalkBack announces outcome, price in cents, size, max loss, freshness. Focus order matches visual. Preview dialog is modal with announced title; confirm/cancel clearly labeled. Color is not the only stale indicator.
+
+**Happy path — performance.** Discovery scroll stays within jank budget on matrix mid-tier device; chart pauses updates when offscreen; book virtualization keeps 60fps target under normal depth.
+
+**Failure / degraded.** Chart drops frames → simplify path or reduce markers; do not remove max-loss text to “make room.” Semantics missing on icon-only nav → fail a11y test. Huge image headers on mobile web parity excuses → Android still must meet its budgets. ANR from main-thread JSON parse → move to background dispatchers.
+
+### Budgets mindset
+
+Treat budgets in this doc as release-blocking guidance for PHASE-5 exit. If a feature cannot meet them, degrade visually (simpler chart) rather than ship unusable interaction.
+
+### Parity principles (inclusive)
+
+Web and Android may look different; both must expose equivalent critical information: eligibility, fees, max loss, stale data, unknown order state. An accessible web modal and inaccessible Android dialog is a product bug.
+
+### TalkBack critical path
+
+1. Eligibility gate announcement
+2. Book row content description (price, size, side)
+3. Ticket fields + max loss
+4. Preview dialog actions
+5. Unknown/reconciling status
+
+### Device matrix intent
+
+| Class | Why |
+|-------|-----|
+| Mid-tier phone | Perf truth |
+| Large phone | Ticket + book layout |
+| Foldable / tablet | Adaptive nav |
+| Low API in support window | Compat |
+
+### Agent anti-patterns
+
+- Icon-only controls without descriptions
+- Unbounded chart recomposition
+- Testing a11y only on emulators’ default font scale
+- Removing risk text to hit FPS budgets
+
+### Success signal
+
+Macrobenchmark + TalkBack ticket pass are part of definition of done for trading screens, not optional polish.
+
 ## 1. Purpose
 
 Specify a11y semantics, performance budgets, device matrix, and Macrobenchmark requirements.

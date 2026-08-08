@@ -9,6 +9,63 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-3 is web trading core: order preview, CLOB V2 submit, open orders/fills, cancel, reconciliation worker, market health analytics (off critical path), Neg Risk routing, order ticket UX, and web E2E. Strict order is preview → sign/submit; timeout must reconcile via venue lookup — never auto-resubmit.
+
+Duplicate submits, stale books, and preview/sign mismatch are direct user-fund risks. Confirm CLOB V2 registry assumptions before write paths; kill switch `order_submission` / trading_enabled must exist for rollback. Human gates clear before first mainnet order.
+
+Owned code: `internal/markets/orders|clob|reconcile/`, web trade/`OrderTicket.tsx`, orders/fills/previews migrations. Android trading, portfolio redemption/CTF completion, combos, and auto copy trade are out of scope. Exit via `MKT-P3-010` before PHASE-4.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-3 — Web Trading Core**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Orders/CLOB backend agents, fe-markets order-ticket owners, reconcile workers; humans for first mainnet order, Builder prod fees, and prod CLOB credentials. |
+| **What** | Web trading core: order preview, CLOB V2 submit, open orders/fills, cancel, reconciliation worker, market health analytics (off critical path), Neg Risk routing, order ticket UX, web E2E. |
+| **When** | After PHASE-2 exit and CLOB V2 evidence verification. Strict order: preview → sign/submit; reconcile worker before production enablement; canary/flagged deploy only with approvals. |
+| **Where** | `internal/markets/orders|clob|reconcile/`, web trade/`OrderTicket.tsx`, `polymarket/ORDER_LIFECYCLE.md`, migrations for orders/fills/previews. Integrations: CLOB V2 write, Builder headers, matching WS. Client EIP-712 sign; server relays signed orders only. |
+| **Why** | Duplicate submits, stale books, and preview/sign mismatch are direct user-fund risks. Timeout must reconcile via venue lookup — never auto-resubmit. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P3-001`…`MKT-P3-010` including Neg Risk and web E2E
+- Preview hash binding, idempotency keys, trading kill switch, fee disclosure
+- Market health metrics off the submit critical path
+
+### Out of scope (do not implement under this phase authorization)
+
+- Android trading UI, portfolio redemption/CTF completion, combos, auto copy trade
+- PRISM/legacy; custom exchange
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Preview matches signature; Neg Risk vectors pass; timeout path reconciles not resubmits
+- Stale book disables marketable orders; REQ MKT-FR-030/031, MKT-SEC-002, MKT-POLY-001, MKT-NFR-040 evidenced
+- Human gates cleared before real mainnet orders; `MKT-P3-010` done before PHASE-4
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Confirm CLOB V2 registry assumptions (A-003) still valid; else revalidate/block
+2. Ship preview endpoint before submit; bind EIP-712 payload to preview hash
+3. Submit path: idempotent; on uncertainty run reconcile worker first
+4. Kill switch `order_submission` / trading_enabled flag for rollback
+5. E2E with capped staging wallets only; never invent mainnet success
+
+### Worked example
+
+Agent completes `MKT-P3-001` golden vectors for preview binding, then `MKT-P3-002` submit uses that hash. A 30s client timeout triggers “Checking status” + venue lookup (`MKT-P3-005`), not a second submit.
+
+First mainnet order remains blocked until blockers log shows human approval — agent stops and files the gate, even if staging E2E is green.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-3`

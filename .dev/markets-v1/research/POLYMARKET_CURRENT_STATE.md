@@ -5,6 +5,60 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This Wave 0 research note documents the **current** Polymarket platform surface area relevant to RetroPick Markets V1 — the upstream baseline against which the BFF anti-corruption layer (ADR-002) is designed. Deep how-to lives under `../polymarket/`; evidence confidence lives in the evidence register.
+
+Coverage includes CLOB V2 migration, L1/L2 auth, account vs Deposit Wallets, pUSD collateral (unverified addresses until registry pull), Polygon 137, Gamma catalog, Builder fees/relayer, NegRisk/Combos/geoblock posture, and testing constraints (no reliable public testnet).
+
+Read before any venue adapter, funding, or order work. Do not invent contract addresses, resurrect CLOB V1 hosts, conflate maker/funder/signer, or ship client-direct production CLOB that bypasses the BFF ACL. Revalidate when Polymarket docs/changelog move.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before upstream surface sections below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace evidence confidence or polymarket/* implementation specs; if anything conflicts, [evidence-register.yaml](evidence-register.yaml) + those specs win. Do not invent contract addresses.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF agents designing the Polymarket ACL (ADR-002); web/Android agents needing correct wallet/collateral vocabulary; security reviewing L1/L2 auth storage; orchestrators gating PHASE-2/3 on revalidation. |
+| **What** | Wave 0 upstream baseline: CLOB V2 migration, L1/L2 auth, account vs Deposit Wallets, pUSD collateral (unverified addresses), Polygon 137, Gamma catalog, Builder fees/relayer, NegRisk/Combos/geoblock posture, testing constraints (no reliable public testnet). Deep how-to lives under `../polymarket/`. |
+| **When** | Before any venue adapter, funding, or order work. Re-read when Polymarket docs/changelog move, and at every phase gate that lists EV revalidation triggers. |
+| **Where** | This research note + EV-001–EV-024 in the evidence register. Official docs URLs in §4. Code touchpoints later: `apps/backend/internal/markets/` (gamma exists; clob/funding future), never hard-coded `0x` from memory in docs or code. |
+| **Why** | V1 CLOB assumptions and USDC.e mental models are obsolete; maker/funder/signer conflation causes wrong balances and bad signatures. This note freezes “current upstream” so agents do not resurrect V1 hosts or skip fee disclosure. |
+| **How** | Pin SDK/docs versions; design canonical models for signer/account/deposit addresses; store amounts as integer micro-units; disclose builder fee before sign; treat Combos/geoblock per evidence; use fixtures + capped smoke wallets. Escalate unverified registry addresses via blockers. |
+
+### Worked example
+
+**Happy path — catalog read (PHASE-1)**
+
+1. Use Gamma as read-only metadata (`gamma-api.polymarket.com`); existing client pagination patterns.
+2. Do not treat Gamma mid prices as executable CLOB book.
+
+**Happy path — order adapter spike (PHASE-3 prep)**
+
+1. Revalidate CLOB V2 hosts/schemas from docs + EV records.
+2. Golden-vector EIP-712 payloads; L2 keys never in APK/localStorage plaintext.
+3. Preview shows maker/funder/collateral coherently.
+
+**Failure / Never**
+
+- Shipping CLOB V1 code paths.
+- Inventing token addresses for pUSD/USDC.e in markdown.
+- Relayer as unlimited free gas.
+- Client-direct production CLOB bypassing BFF ACL.
+- Geoblock bypass features.
+
+**Agent checklist**
+
+- [ ] EV confidence checked?
+- [ ] CLOB V2 not V1?
+- [ ] Wallet address roles distinct?
+- [ ] Fee disclosure path known?
+- [ ] Deep doc under `polymarket/` opened for implementation detail?
+
+**Reading tip:** §5 Current state is the baseline; implementation algorithms belong in `../polymarket/*`, not invented here.
+
 ## 1. Purpose
 
 Document the **current** Polymarket platform surface area relevant to RetroPick Markets V1 as of Wave 0 discovery. This is the upstream baseline against which the BFF anti-corruption layer (ADR-002) is designed.

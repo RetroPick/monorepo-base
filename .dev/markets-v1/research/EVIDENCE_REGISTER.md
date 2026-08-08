@@ -5,6 +5,58 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This is the human-readable index of time-sensitive upstream and repository claims (EV-001–EV-027) that gate Markets V1 implementation. Each record maps a claim to confidence, consequence, and revalidation trigger. Machine-readable source of truth: [evidence-register.yaml](evidence-register.yaml).
+
+Cover Polymarket API/SDK/contracts/wallets/policies/collateral plus repository baselines (BFF stub, legacy freeze, Android README-only). Do not invent `0x` addresses in docs when confidence is `unverified`. Update YAML and this index together; never paste secrets or Builder credentials into evidence.
+
+Look up EV-ID → read confidence → if unverified/partial, spike or escalate via blockers before trading/funding/contract integration. Treat YAML as canonical IDs/confidence; use this MD for human navigation and consumer flow.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before evidence tables and flows below.
+
+The 5W+1H table below is a **navigation aid** only. Machine-readable source of truth is [evidence-register.yaml](evidence-register.yaml). Do not invent `0x` addresses in docs when confidence is `unverified`.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | All Markets agents whose work depends on upstream or repo baseline claims; phase-gate reviewers; humans updating confidence after registry pulls. |
+| **What** | Human-readable index of time-sensitive claims (EV-001–EV-027): Polymarket API/SDK/contracts/wallets/policies/collateral plus repository baselines (BFF stub, legacy freeze, Android README-only). Each record has confidence, consequence, and revalidation trigger. |
+| **When** | Before phase gates and before any trading/funding/contract integration. Revalidate when `revalidation_trigger` fires or confidence would drop below `partially_verified` for launch-critical claims. |
+| **Where** | This markdown index + `research/evidence-register.yaml`. Upstream: docs.polymarket.com and contract registry URLs cited in records. Repo citations must be file paths for `verified` repository claims. |
+| **Why** | Ad-hoc Slack/blog addresses violate ADR-002 and master prompt §2.5. Unverified collateral/contracts (e.g. EV-008, EV-017–EV-020) must block production assumptions until pulled. |
+| **How** | Look up EV-ID → read confidence → if unverified/partial, spike or escalate via [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md). Update YAML and this index together. Never paste secrets, Builder credentials, or keys into evidence. |
+
+### Worked example
+
+**Happy path — PHASE-1 catalog**
+
+1. Gamma/catalog EV records at partially_verified or better → proceed with ACL normalization tests.
+2. Cite EV-IDs in task handoff.
+
+**Happy path — PHASE-2 funding gate**
+
+1. EV-008 collateral/pUSD still unverified → do not hardcode token address; pull registry; update YAML confidence.
+2. Until verified, keep funding tasks blocked or spike-only per phase spec.
+
+**Failure / Never**
+
+- Hard-coding addresses from tweets into `markets-v1` docs.
+- Skipping YAML mirror updates.
+- Using evidence register for PRISM protocol claims.
+- Clearing blockers without changing confidence + dated retrieval.
+
+**Agent checklist**
+
+- [ ] EV-ID listed for the claim?
+- [ ] Confidence sufficient for this phase?
+- [ ] YAML and MD consistent?
+- [ ] Revalidation trigger understood?
+- [ ] No secrets in the register?
+
+**Reading tip:** Treat YAML as canonical IDs/confidence; use this MD for human navigation and mermaid consumer flow.
+
 ## 1. Purpose
 
 Human-readable index of time-sensitive upstream and repository claims that gate Markets V1 implementation. Each record maps a claim to confidence, consequence, and revalidation trigger. Machine-readable source of truth: [evidence-register.yaml](evidence-register.yaml).

@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, backend-markets, security
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted decision that the Polymarket anti-corruption layer in the Go BFF owns production upstream calls, normalizes to `schemas/openapi/markets-v1.yaml`, hides CLOB version churn, enforces eligibility/capabilities/rate limits, caches for degraded mode, and maps errors—never raw upstream bodies. Production clients must not call Gamma/CLOB directly.
+
+It sits beside ADR-001 (venue authority) and feeds ADR-004 (shared client contract) and ADR-005 (BFF-aggregated realtime). Runtime ownership is `apps/backend/internal/markets/` (handler → service → normalizer → gamma/clob clients + cache). Builder/relayer keys stay server-only; ops kill switches work without app-store releases.
+
+Read this when adding market-data or trading integrations, reviewing PRs that introduce upstream URLs in client code, or migrating CLOB versions. It is not permission to duplicate normalizers in each client “for latency,” expose upstream error JSON verbatim, or put Relayer secrets in `NEXT_PUBLIC_*` / APK resources.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = upstream churn + why direct client calls fail; Decision = BFF owns the ACL; Consequences = credentials, caching, error mapping, kill switches.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, backend-markets, security. Audience: BFF authors in `internal/markets/`; web/Android engineers; agents adding Polymarket HTTP/WS calls. |
+| **What** | **Decision:** Polymarket anti-corruption layer in the Go BFF owns production upstream calls, normalizes to `schemas/openapi/markets-v1.yaml`, hides CLOB version churn, enforces eligibility/capabilities/rate limits, caches for degraded mode, and maps errors—never raw upstream bodies. Production clients **must not** call Gamma/CLOB directly. |
+| **When** | Any new market-data or trading integration; CLOB V1→V2 migrations; adding kill switches without app-store releases; reviewing PRs that introduce upstream URLs in client code. |
+| **Where** | `apps/backend/internal/markets/` (handler → service → normalizer → gamma/clob clients + cache). Clients consume `/api/v1/markets/*` only ([ADR-004](ADR-004-SHARED-WEB-ANDROID-API.md)). Complements [ADR-001](ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md). |
+| **Why** | Context: multi-API volatility, secret distribution risk, inconsistent policy across TS+Kotlin, duplicated caching/tests, need for ops kill switches without client releases. |
+| **How** | Keep adapters behind the service; builder/relayer keys server-only; catalog cache when upstream degrades; RetroPick error codes only; fan-in upstream WS at the BFF ([ADR-005](ADR-005-REALTIME-AND-RECONCILIATION.md)). |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+Need order-book depth on Android.
+
+1. Do **not** embed a CLOB key or open Polymarket WS from the app in production.
+2. Add/extend BFF book endpoints + OpenAPI; normalize in the ACL.
+3. Regenerate the Kotlin client; render from generated types.
+4. Ops can flip capabilities/kill switches server-side without a Play release.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Production web/Android builds bypassing the BFF for Gamma/CLOB.
+- Exposing upstream error JSON verbatim to clients.
+- Relayer secrets in `NEXT_PUBLIC_*` or APK resources.
+- Duplicating normalizers in each client “for latency.”
+
+**Agent checklist**
+
+- [ ] Upstream call only from `internal/markets/`?
+- [ ] OpenAPI types used by both clients?
+- [ ] Errors mapped (no raw upstream body)?
+- [ ] Secrets server-side?
+- [ ] Kill switch / capabilities considered?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 Polymarket exposes multiple upstream APIs with distinct schemas, versioning, and operational characteristics:

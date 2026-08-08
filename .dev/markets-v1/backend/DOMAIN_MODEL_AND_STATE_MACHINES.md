@@ -6,6 +6,62 @@
 **Product:** RetroPick Markets V1
 **Wave:** 3 — Backend architecture and API contracts
 
+## Description
+
+This document is the authority for Markets V1 **domain aggregates and state machines**. It defines consistency boundaries (`Order`, `WalletAccount`, `FundingOperation`, `WithdrawalOperation`, `PositionProjection`, `MarketSignal`, `AlertRule`, `Watchlist`) and From→To tables for orders, funding, withdrawals, signals, and alerts—so handlers and workers share one vocabulary for status and never invent states outside the machines.
+
+It sits in Wave 3 beside database, API/realtime, and indexing/reorg specs. Venue/chain own ownership; DB is projection. Money is fixed-point `Money`; prices are `DecimalString`. Mutating POSTs require idempotency keys; every transition emits audit + metric. Submit timeout → `unknown` (never auto-resubmit); signal `active` → `retracted` on correction/reorg; alert channel failures end in `dead_letter` without rolling back inbox truth. Private keys are never stored.
+
+Read this when changing `status` on orders, funding, withdrawals, signals, or alert deliveries, or when writing transition unit tests. Prefer sibling docs for DDL shapes and OpenAPI paths—not for allowed state edges.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Domain/service authors in `internal/markets/domain` and `service`; handlers implementing OpenAPI POSTs (`orders/preview|submit|cancel`, `funding/quote|track`, `withdrawals/preview|submit`); reconciliation and alert-delivery workers advancing projection states; QA asserting transition tables. |
+| **What** | Aggregate roots and consistency boundaries (`Order`, `WalletAccount`, `FundingOperation`, `WithdrawalOperation`, `PositionProjection`, `MarketSignal`, `AlertRule`, `Watchlist`) plus state machines for orders, funding, withdrawals, signals, and alerts. Principles: venue/chain own ownership; DB is projection; money is fixed-point `Money`; prices are `DecimalString`; every transition audits + metrics; mutating POSTs require idempotency keys. |
+| **When** | Any time a handler or worker would change `status` on orders, funding, withdrawals, signals, or alert deliveries. Especially on submit timeout (`unknown`), cancel in flight, quote TTL, chain confirmation, and `signal.retracted`. Do not invent states outside the machines below. |
+| **Where** | Spec: this file. Persistence shapes: [DATABASE_AND_MIGRATIONS.md](./DATABASE_AND_MIGRATIONS.md) (`markets.orders`, `order_attempts`, `fills`, `funding_operations`, `withdrawal_operations`, `position_projections`, `market_signals`, `alert_*`). HTTP triggers: paths in [API_AND_REALTIME_CONTRACTS.md](./API_AND_REALTIME_CONTRACTS.md) / OpenAPI. Repair of `unknown` / drift: [INDEXING_RECONCILIATION_AND_REORGS.md](./INDEXING_RECONCILIATION_AND_REORGS.md). |
+| **Why** | Clients and ops need one vocabulary for “where is my order / funding / signal?” Projection states that diverge from venue truth must surface as `unknown` / `reconciling`, never as silent success. Fixed-point money and idempotent transitions prevent double-submit and float rounding bugs. Signal retraction protects users from stale intelligence after reorg/correction. |
+| **How** | Encode transitions in domain methods with explicit From→To tables; persist only allowed edges; emit audit + metric per edge. Orders: draft → previewed → signing → submitted → open → (partially_)filled / cancel_pending / expired / rejected / unknown. Funding: quoted → pending → detected → credited (or expired/failed). Withdrawals: previewed → submitted → broadcasting → confirmed (or failed/rejected). Signals: computed → active → retracted|expired. Alerts: matched → queued → delivering → delivered|retrying → dead_letter. Entity notes: keep `upstream_source`/`upstream_id`/`observed_at`; never store private keys. |
+
+### Worked example
+
+**Happy path — order lifecycle.** Client configures size/price as fixed-point `Money` / `DecimalString`. `POST /markets/orders/preview` → `previewed` (optional preview hash stored). Wallet signs EIP-712 (signing is client-side; not a DB-required state). `POST /markets/orders/submit` with `Idempotency-Key` inserts `order_attempts`, ACL posts to CLOB → `submitted` then `open` on venue ACK. Fill events (ingest + reconcile) move to `partially_filled` / `filled`. Cancel: `cancel_pending` → `canceled` on venue ACK. User-visible states match the orders state table below.
+
+**Happy path — funding then withdrawal.** `POST /markets/funding/quote` → `quoted` → user on-ramp → `pending` → deposit observed `detected` → `credited`. Later `POST /markets/withdrawals/preview` → `previewed` → submit → `broadcasting` → `confirmed` after chain confirmations. Amounts stay base-unit integers end-to-end.
+
+**Failure / degraded.** Submit times out: persist `unknown`, show warning; reconciliation polls CLOB by `client_order_id` / payload hash → `open` or `rejected`—**never auto-resubmit**. Duplicate idempotency key returns the original response. Funding quote TTL → `expired`; provider error → `failed`. Upstream correction / reorg: signal `active` → `retracted`; alerts must not keep delivering as fresh. Positions are **projections**—on CLOB/chain disagreement, reconciliation rebuilds; UI shows reconciling until terminal. Alert channel failures retry then `dead_letter` without rolling back inbox truth.
+
+### Aggregate → root table
+
+| Aggregate | Root | Boundary |
+|-----------|------|----------|
+| Order | `markets.orders` | + attempts + fills |
+| WalletAccount | `markets.wallet_accounts` | user + proxy addresses |
+| FundingOperation | `markets.funding_operations` | quote + track |
+| WithdrawalOperation | `markets.withdrawal_operations` | preview + submit |
+| PositionProjection | `markets.position_projections` | per market outcome |
+| MarketSignal | `markets.market_signals` | + evidence |
+| AlertRule | `markets.alert_rules` | + deliveries |
+| Watchlist | `markets.watchlists` | + items |
+
+### Transition rules of thumb
+
+- Every edge: audit event + metric.
+- Mutating POST: `Idempotency-Key` required.
+- Provenance on entities: `upstream_source`, `upstream_id`, `observed_at`.
+- Wallet addresses = sensitive; private keys never stored.
+- Status enums enforced in app layer + CHECK constraints where present.
+
+### Implementer checklist
+
+- Do not invent states outside the mermaid machines in this doc.
+- `draft` / some `signing` UX may be client-only; persist from `previewed`/`submitted` onward as specified.
+- Treat `unknown` and reconciling as first-class user-visible warnings, not bugs to hide.
+
 ## 1. Purpose
 
 Domain aggregates, invariants, and state machines for orders, funding, withdrawals,

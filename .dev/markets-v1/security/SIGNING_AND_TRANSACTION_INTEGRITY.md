@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the preview-before-sign and transaction-integrity authority for RetroPick Markets V1 (ADR-003). It binds previewId, contentHash, humanSummary, and short-lived expiresAt; submit re-hash; chain and contract allowlists; the order_attempts state machine; and idempotency—while the BFF never holds user signing keys.
+
+It sits in Wave 7 over order, wallet, and position preview/submit endpoints, order_attempts persistence, and web/Android trading UIs that must show human-readable preview before the wallet prompt. Upstream is CLOB V2, relayer, and CTF. Fail closed on hash mismatch (409), expiry (410), allowlist miss, or eligibility deny.
+
+Read this for every CLOB limit or cancel, proxy deploy, USDC approval, and redemption flow, and whenever unsigned payload or allowlist changes. Prefer wallet UX docs for client chrome and SECURITY_TEST_AND_REVIEW_PLAN for SEC-T cases.
+
+It excludes server-side signing of user orders, skipping preview in staging shortcuts that can reach CLOB, and silently accepting idempotency-key replay with a different body.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF order/wallet/position preview+submit owners; web/Android trading UX showing human-readable preview before the wallet prompt; security reviewers enforcing ADR-003; QA writing integrity/idempotency cases; agents—who must not invent server-side signing of user orders. |
+| **What** | Preview-before-sign integrity: `previewId` + `contentHash` + `humanSummary` + short-lived `expiresAt` (≤5m); submit re-hashes and binds the signature; chain/contract allowlists (Polygon 137, registry USDC/CTF/relayer); `order_attempts` state machine; idempotency. **BFF never holds user signing keys**—user signs EIP-712/EOA; builder/relayer keys only for approved meta-txs. Fail closed on hash/expiry/allowlist miss. |
+| **When** | On every CLOB limit/cancel, proxy deploy, USDC approval, and redemption flow; whenever unsigned payload or allowlist changes; on the client before the wallet prompt (display + recommended/required hash recompute); on the server before any upstream submit. |
+| **Where** | Spec: this file + ADR-003. Endpoints: `POST /orders/preview`, cancel/deploy/approvals/redeem previews, matching submits. Persistence: `order_attempts`. Allowlists: contract registry + env. Clients: web markets trading UI; Android trading (phase-gated). Upstream: CLOB V2 / relayer / CTF. |
+| **Why** | Without binding preview→sign→submit, XSS/MITM/client bugs can change size/side/market after the user thought they confirmed. Fail-closed hash/expiry checks stop silent wrong orders. The no-custody model keeps private keys off RetroPick while still proving intent and enabling dispute evidence via stored hashes. |
+| **How** | Issue preview with canonical SHA-256 of `unsignedPayload`+metadata; store single-use `previewId`; client shows `humanSummary` (action, market, size, price, fees, chainId); user signs; submit sends `previewId`, `signature`, `contentHash`; server reloads preview, recomputes hash → mismatch 409 / expired 410 / else upstream. `Idempotency-Key`: same key+body → same 2xx; different body → 422. |
+
+### Integrity checklist (fail closed)
+
+| Check | Response / action |
+|-------|-------------------|
+| Hash mismatch | 409 `INTEGRITY_MISMATCH` — no CLOB/relayer call |
+| Preview expired | 410 `PREVIEW_EXPIRED` — re-preview required |
+| Chain/contract not allowlisted | Reject at preview or submit |
+| Maker not wallet-bound | Reject submit |
+| Eligibility false/unknown | Trading middleware deny |
+| Idempotency-Key + new body | 422 |
+
+### Flow types covered
+
+| Flow | Preview | Signature |
+|------|---------|-----------|
+| CLOB limit order | `POST /orders/preview` | EIP-712 order |
+| CLOB cancel | cancel preview | EIP-712 cancel |
+| Proxy deploy / USDC approval | wallet previews | EOA tx via relayer |
+| Redemption | positions redeem preview | EOA / meta |
+
+### Worked example
+
+**Happy path.** User buys 10 USDC @ 0.50 → `POST /orders/preview` returns `previewId`, `contentHash`, human summary, unsigned EIP-712 payload. Client shows summary matching fields; wallet signs; `POST /orders` with same hash → server recomputes OK → CLOB accept → `order_attempts` `accepted`.
+
+**Failure / degraded.** Extension tampers size after preview → client or server hash mismatch → 409, no submit. Preview older than 5m → 410; user must re-preview. Request for BFF to “sign for the user with a hot wallet” → **reject** (no key custody). Allowlist drift (wrong USDC) → preview rejected until registry pin updates via staged change.
+
+**Agent pitfall.** Do not “helpfully” skip preview in tests or staging shortcuts that ship to prod paths—integrity must hold in every environment that can touch CLOB.
+
 ## 1. Purpose
 
 Specifies preview-before-sign, content hashing, chain/contract allowlists, and order submission integrity for Markets V1 per ADR-003.

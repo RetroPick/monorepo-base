@@ -7,6 +7,61 @@
 
 ---
 
+## Description
+
+This is the executive product definition for RetroPick Markets V1: a discovery, execution, portfolio, and analytics **client** over official Polymarket APIs via a Go BFF anti-corruption layer (ADR-002), shared OpenAPI (ADR-004), Compose Android (ADR-006), and deterministic intelligence (ADR-008) — with **no** autonomous copy trading (ADR-009). Positions are Polymarket positions, not PRISM.
+
+It freezes venue transparency, non-custody wallets, preview-before-sign, Builder fee disclosure before signature, and explicit Never-V1 fences (custom exchange, epoch MarketEngine extension, geoblock bypass, silent backend signing). Use it before user-facing copy, custody/signing debates, or phase scoping.
+
+Trace features to MKT-FR IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md). Code homes (later): `apps/backend/internal/markets/`, `apps/web/src/products/markets/`, `apps/android/`, `schemas/openapi/markets-v1.yaml`. Companion scope fence: [02_SCOPE_AND_CAPABILITY_MATRIX.md](02_SCOPE_AND_CAPABILITY_MATRIX.md).
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative product sections below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Purpose, Scope, non-goals, or ADR citations in the body; if anything conflicts, the body of this document wins.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Product/platform orchestrators freezing Markets V1 definition; BFF/web/Android agents aligning UX and API work to “Polymarket-native client”; QA/security checking Never-V1 and PRISM boundary language. |
+| **What** | Executive product definition: Markets is a discovery, execution, portfolio, and analytics **client** over official Polymarket APIs via Go BFF ACL (ADR-002), shared OpenAPI (ADR-004), Compose Android (ADR-006), deterministic intelligence (ADR-008), **no** autonomous copy trading (ADR-009). Positions are Polymarket positions — not PRISM. |
+| **When** | Before writing any user-facing Markets copy, choosing custody/signing posture, debating custom exchange features, or scoping a phase. Re-read when Builder fee disclosure, geoblock, or PRISM routing debates reopen. |
+| **Where** | Spec authority: this file. Boundaries: [02_SCOPE_AND_CAPABILITY_MATRIX.md](02_SCOPE_AND_CAPABILITY_MATRIX.md), ADRs under `architecture/adr/`, research [POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md). Code homes (later): `apps/backend/internal/markets/`, `apps/web/src/products/markets/`, `apps/android/`, `schemas/openapi/markets-v1.yaml`. |
+| **Why** | Agents default to building an exchange, obscuring venue, or extending epoch MarketEngine. This PRD freezes venue transparency, wallet non-custody, preview-before-sign, and “what Markets is not” so implementation cannot silently invent RetroPick-issued outcomes or geoblock bypass. |
+| **How** | Implement only capabilities consistent with §2–§4; disclose Polymarket + chain; fetch/disclose Builder fees before signature (never hardcode); route structured RetroPick payoffs to separately branded PRISM; keep keys out of RetroPick custody. Trace features to MKT-FR IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md). |
+
+### Worked example
+
+**Happy path — market detail + rules**
+
+1. Task needs event catalog + rules provenance (MKT-FR-001/002).
+2. BFF normalizes Gamma → OpenAPI; web/Android render rules and resolution source.
+3. Copy states positions settle on Polymarket; no implied RetroPick liquidity pool.
+
+**Happy path — order path (PHASE-3)**
+
+1. Preview payload must equal signed EIP-712 fields (ADR-003).
+2. Show effective builder fee before wallet prompt.
+3. Submit via CLOB V2 through BFF ACL — not browser-direct production CLOB.
+
+**Failure / Never-V1**
+
+- Custom matching, AMM, or RetroPick outcome tokens for Markets.
+- Extending `/api/v1/legacy/markets/*` or importing `archive/` MarketEngine.
+- Custody of raw private keys; silent backend order signing.
+- VPN/proxy guidance as a product feature to evade geoblock.
+- Auto copy trading or AI→order execution (ADR-009).
+
+**Agent checklist**
+
+- [ ] Is this a Polymarket client feature (not PRISM/exchange)?
+- [ ] Venue/rules disclosed?
+- [ ] ADR-001/002/003/009 respected?
+- [ ] Requirement ID mapped?
+- [ ] Gambling-heavy sportsbook copy avoided?
+
+**Reading tip:** Skim §2.1/§2.2 first as the permanent product fence; use target-user table only for phase prioritization, not to invent Post-V1 features early.
+
 ## 1. Executive summary
 
 RetroPick Markets is a **Polymarket-native** discovery, execution, portfolio, and analytics client for web and Android. Users browse normalized Polymarket events, authorize orders with their own wallets, and hold **Polymarket positions** — not PRISM positions. Polymarket remains venue, settlement, and rules authority (ADR-001).

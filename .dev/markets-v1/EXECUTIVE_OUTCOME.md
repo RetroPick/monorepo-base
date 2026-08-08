@@ -4,6 +4,59 @@
 **Status:** documentation complete — spec freeze ready (no product implementation yet)
 **Wave:** 9 (agent harness) complete
 
+## Description
+
+This is the executive outcome snapshot for Markets V1 documentation baseline (Wave 9 complete as of 2026-07-25): the reviewed corpus and agent harness are ready for spec freeze, but **product code is not started** as executable Markets work — PHASE-1 is the first implementation phase.
+
+It separates documentation completeness from shipping reality, summarizes recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later), custody/signing posture, Polymarket constraints, intelligence tiers, and critical blockers (BLK-*). Use at kickoff, phase-gate reviews, and whenever someone claims “Markets is live.”
+
+Live progress belongs in harness `implementation-manifest.yaml` / `task-graph.yaml` and code stubs under `apps/` — not this narrative alone. Do not clear BLK rows without evidence; do not treat Wave language as staging-live or production trading.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before Honest status and architecture summaries below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace blocker tables or phase plan rows; if anything conflicts, those tables win. Documentation completeness ≠ product implementation.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Executives and orchestrators needing an honest baseline; agents about to start PHASE-1 who must not assume trading/Android already exist; humans deciding formal scope sign-off after Wave 9 harness completion. |
+| **What** | Executive outcome snapshot (2026-07-25): 121 reviewed docs + agent harness complete; **product code not started** as executable Markets work (PHASE-1 first); recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later); custody/signing posture; Polymarket constraints; intelligence tiers; critical blockers (BLK-*). |
+| **When** | At program kickoff, phase-gate reviews, and whenever someone claims “Markets is live.” Re-read after evidence revalidation or when blocker IDs change in [BLOCKERS_AND_HUMAN_APPROVALS.md](agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md). |
+| **Where** | This file + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) + harness manifest/`task-graph.yaml`. Code truth for stubs: `apps/backend/internal/markets/` (partial), `apps/android/` (README-only), OpenAPI stub surface — not this narrative alone. |
+| **Why** | Wave completion language is easy to misread as shipped product. This outcome doc separates spec freeze readiness from implementation reality and lists BLK-001–021 so agents escalate instead of inventing geoblock, CLOB, or Gradle projects ad hoc. |
+| **How** | Treat PHASE-0 docs as complete; start only PHASE-1 ready tasks; revalidate CLOB V2 / contract addresses before trading phases; keep ADR-001 (no custom exchange) and non-custody rules. Do not clear BLK rows without evidence. |
+
+### Worked example
+
+**Happy path — kickoff**
+
+1. Read Honest status: specs/harness complete; code not started.
+2. Confirm first executable phase = PHASE-1 Foundation and Read Markets.
+3. Open task-graph; pick a catalog/OpenAPI task; ignore PHASE-3 trading until deps and BLK-004/006 addressable.
+
+**Happy path — blocker hygiene**
+
+1. Android trading request → BLK-002 (no Gradle project) + PHASE-5 sequencing.
+2. Log/escalate; do not stub a WebView “Android” as completion.
+
+**Failure / Never**
+
+- Claiming staging-live or production trading from documentation alone.
+- Clearing BLK-010/011 without registry pull + smoke proof.
+- Extending legacy epoch to bypass greenfield Markets work.
+- Shipping auto copy trading despite Never-V1 intelligence row.
+
+**Agent checklist**
+
+- [ ] Honest status table acknowledged?
+- [ ] Phase plan: PHASE-1 first executable?
+- [ ] Relevant BLK-* read?
+- [ ] Architecture bullets match ADRs?
+- [ ] Evidence still partially_verified where noted?
+
+**Reading tip:** Start at Honest status + Critical blockers; treat Recommended architecture as the fence, not an invitation to implement all layers at once.
+
 ## Honest status
 
 | Dimension | State |

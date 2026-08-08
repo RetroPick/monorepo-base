@@ -6,6 +6,58 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the contract and conformance authority for RetroPick Markets V1: OpenAPI as source of truth (schemas/openapi/markets-v1.yaml), backend contract tests, CI spectral and breaking-change gates, Polymarket ACL golden files, idempotency matrix, web and Android client conformance, and realtime/WS contract expectations (ADR-004).
+
+It sits in Wave 7 with CI openapi jobs and client packages consuming generated types. Idempotency and error shapes are security-adjacent (same key plus different body → 422). Goldens keep Polymarket ACL clean-room mappings stable. Cross-ref backend API docs and RELEASE_VERIFICATION_MATRIX RV-002.
+
+Read this on every schemas or handler PR that changes response shapes, intentional ACL fixture updates, and client releases. Prefer MASTER_TEST_PLAN for how contract fits the pyramid.
+
+It excludes hand-editing generated clients out of band with OpenAPI and shipping legacy epoch routes from Markets clients.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | API owners of `schemas/openapi/markets-v1.yaml`; BFF contract test authors; web/Android client conformance owners; CI spectral/breaking-change reviewers; agents regenerating clients only from canonical OpenAPI. |
+| **What** | Contract/conformance: OpenAPI source of truth, backend contract tests, CI spectral gates, Polymarket ACL golden files, idempotency contract (`Idempotency-Key` same body→same 2xx; different body→422), web/Android conformance suites, realtime/WS contract expectations. |
+| **When** | On every schemas/PR change; when handlers change response shapes; when ACL fixtures update after intentional upstream mapping changes; client releases. |
+| **Where** | Spec: this file. `schemas/openapi/markets-v1.yaml`; golden ACL files; CI openapi job; client packages consuming generated types. Cross-ref backend API docs, RELEASE_VERIFICATION_MATRIX RV-002. |
+| **Why** | Shared web/Android API (ADR-004) breaks silently without contract gates. Idempotency and error shapes are security-adjacent (replay). Goldens keep Polymarket ACL clean-room mappings stable. |
+| **How** | Lint OpenAPI; run handler contract tests against server; fail on breaking diff without review; update goldens deliberately; assert idempotency matrix; run client conformance against staging/contract env. |
+
+### Idempotency contract (mutations)
+
+| Replay | Expected |
+|--------|----------|
+| Same key + same body | Same 2xx + same body |
+| Same key + different body | 422 |
+| Missing key on required POST | 400-class per OpenAPI |
+
+### Conformance surfaces
+
+| Surface | Must prove |
+|---------|------------|
+| Web client | Uses Markets OpenAPI paths/types only |
+| Android client | Same shared API; no legacy epoch routes |
+| Realtime | Envelope/op codes match WS contract |
+| ACL goldens | Stable Polymarket mapping fixtures |
+
+### CI expectation
+
+Contract and spectral jobs are merge blockers for `schemas/**` and handler PRs that change response envelopes. Goldens update only with an intentional ACL change note in the PR.
+
+### Worked example
+
+**Happy path.** Field added optional to OpenAPI → spectral clean → backend test updated → web/Android types regenerate → conformance green.
+
+**Failure / degraded.** Breaking rename merges without notice → CI breaking-change gate fails. Client ships hardcoded legacy path `/api/v1/legacy/markets` → conformance reject. Idempotency replay with altered preview hash body → 422, not a second upstream submit.
+
+**Never invent.** Hand-editing generated clients out of band with OpenAPI.
+
 ## 1. Purpose
 
 OpenAPI contract tests, Polymarket ACL golden files, and client conformance requirements for web and Android.

@@ -6,6 +6,60 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the release, rollback, and change-management authority for RetroPick Markets V1: release types, versioning, pre-prod checklist (tests, SBOM, rollback artifact), rollback procedures for backend image, migration caution, Vercel instant rollback, and Android forward-fix, change windows, kill switches, and communication.
+
+It sits in Wave 7 linked to CI/CD artifacts, Vercel deployment IDs, container digests, Play tracks, and ops flags such as markets.orders.disabled. Agents may prepare checklists but must never auto-merge, push, or deploy without human approval. Android’s irreversible user updates force forward-fix discipline.
+
+Read this on each staging→prod promote, hotfix, flag flip, error-budget or SEV-driven rollback, and announced change windows for risky migrations. Prefer RELEASE_VERIFICATION_MATRIX for go/no-go evidence rows.
+
+It excludes prod promote without a recorded rollback digest and force-pushing release branches.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Release managers, on-call tech leads, CI/CD owners, Android forward-fix owners, agents preparing checklists but **never** auto-merging/pushing/deploying without human approval. |
+| **What** | Release types, versioning, checklist (tests, SBOM, rollback artifact), rollback procedures (backend image, migration caution, Vercel instant rollback, Android forward-fix), change windows, kill switches (`markets.orders.disabled`, etc.), communication. |
+| **When** | Each staging→prod promote; hotfixes; flag flips; when error budget or SEV demands rollback; during announced change windows for risky migrations. |
+| **Where** | Spec: this file. Linked CI_CD_PIPELINE artifacts; Vercel deployment IDs; container digests; Play tracks; ops flags. Cross-ref RELEASE_VERIFICATION_MATRIX, INCIDENT_RESPONSE, OBSERVABILITY budgets. |
+| **Why** | Fast rollback limits blast radius of bad previews, auth, or config. Kill switches provide **fail-closed** trading stops without needing custodian intervention. Android’s irreversible user updates force forward-fix discipline. |
+| **How** | Complete checklist; deploy with known rollback digest; on failure rollback app first; migrate down only if safe; use Vercel rollback for web; for Android ship fix forward; communicate; exercise kill switches when integrity/abuse demands. |
+
+### Rollback order (typical)
+
+1. Enable kill switch if user-harming trading/integrity bug
+2. Rollback app/container or Vercel deployment
+3. Consider migration reverse only if expand/contract safe
+4. Verify SLO/journey smoke
+5. Postmortem if SEV warrants
+
+### Kill switches (ops)
+
+| Flag | Effect |
+|------|--------|
+| `markets.orders.disabled` | Block new submits; previews optional per policy |
+| Capability flags | Disable trading/funding/intel surfaces |
+| Maintenance eligibility | Fail closed trading via eligibility |
+
+### Checklist anchors (pre-prod)
+
+- [ ] Required CI + contract gates green
+- [ ] SBOM archived for the release artifact
+- [ ] Rollback digest / prior Vercel deployment ID recorded
+- [ ] Kill-switch owners reachable for the change window
+
+### Worked example
+
+**Happy path.** Release tag with SBOM + prior digest recorded → prod deploy → smoke RV gates → monitor 1h. Minor web bug → Vercel rollback to previous deployment ID in minutes.
+
+**Failure / degraded.** Bad migration applied → app rollback first; down migration only with DBA approval. Preview integrity regression → `markets.orders.disabled` kill switch (**fail closed** submits) + hotfix. Agent force-pushes release branch → forbidden; human change management only.
+
+**Never invent.** Prod promote without recorded rollback digest.
+
 ## 1. Purpose
 
 Release process, versioning, rollback procedures, and change classification for Markets V1.

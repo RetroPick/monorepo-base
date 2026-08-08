@@ -6,6 +6,64 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the quantitative authority for **wallet profiling** in RetroPick Markets V1 trader intelligence. It defines public wallet aggregates (30d trades/volume, concentration HHI, active markets), Beta-Binomial shrunk win rate with a 90% credible interval when sample gates pass, and quantile-only labels (`high_volume`, `consistent`, `concentrated`, `recently_active`)—so clients can show honest wallet context without inventing “smart money” or insider badges on device.
+
+It sits in Wave 6 beside the trader-intelligence registry, whale scoring, alert rules, and signal-provenance specs. Compute belongs in `apps/backend/internal/markets/intelligence/`; shrinkage priors and `n_min` live under `intelligence_params_v1.yaml`. Golden vectors in this file gate posterior means. Public win rate requires `n ≥ 15`; optional internal `smart_money_score` / leaderboard stay behind `intelligence.leaderboard` (V1.1). The doc explicitly rejects `insider` / `smart_money_insider` labels, auto-copy trading, and any path from a profile score to an order (ADR-009 / Never V1).
+
+Read this when implementing TI-V1-013 (MKT-FR-060), wiring `wallet_whale_prior` into WhaleScore, or shipping `GET /markets/intelligence/wallets/{addr}`. Prefer sibling docs for WhaleScore math, alert delivery, and the capability registry—not for shrinkage or label policy.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF wallet-profile workers; web wallet profile pages (Android gated per product registry); whale scoring consumers of `wallet_whale_prior`; ops calibrating Beta prior / n_min; agents implementing TI-V1-013 (MKT-FR-060) and optionally TI-V11-002 leaderboard behind flag. |
+| **What** | Public wallet aggregates (30d trades/volume, concentration HHI, active markets) and Beta-Binomial shrunk win rate with 90% credible interval when sample gates pass. Quantile-only labels (`high_volume`, `consistent`, `concentrated`, `recently_active`). **Not** `insider` / `smart_money_insider` labels, auto-copy, or AI→orders. Internal `smart_money_score` is optional V1.1 behind `intelligence.leaderboard`. |
+| **When** | After resolved positions with non-zero stake exist for a wallet; recompute on resolution/profile refresh cadence. Public win rate only if `n ≥ 15`; leaderboard gate `n ≥ 30` (V1.1). Applies when shipping `GET /markets/intelligence/wallets/{addr}` and whale prior hooks. Golden vectors gate shrinkage math. |
+| **Where** | Spec authority: this doc. Compute: `apps/backend/internal/markets/intelligence/`. Params: `intelligence_params_v1.yaml` (α₀/β₀, n_min). API: wallets profile path in product registry. Downstream: whale component `wallet_prior`. Clients render metrics/labels only — never “follow this insider.” |
+| **Why** | Traders want transparent wallet context with honest uncertainty (shrinkage + CI) without RetroPick promoting copy trading or accusing addresses of insider activity. Small-n raw win rates are misleading; null + `insufficient_sample` is the correct V1 behavior. |
+| **How** | For wins `k` of `n` resolved: prior α₀=2, β₀=2; posterior `p̂_shrunk = (α₀+k)/(α₀+β₀+n)`; CI via BetaInv 5%/95%. Below n_min show `win_rate: null`. Optional `pnl_weighted_win_rate` uses stake weights with same prior per market cluster. Labels from quantiles only. Never place or suggest autonomous orders from a profile score. |
+
+### Label policy (V1)
+
+**Allowed:** `high_volume`, `consistent`, `concentrated`, `recently_active` — quantile-derived only.
+
+**Forbidden:** `insider`, `smart_money_insider`, or any copy implying privileged information.
+
+`smart_money_score` (internal, optional V1.1) = weighted z-score of shrunk win rate, Sharpe-like PnL stability, and calibration — gated behind `intelligence.leaderboard`.
+
+### Sample gates
+
+| field | rule |
+|-------|------|
+| `n_min_public` | 15 resolved markets |
+| `n_min_leaderboard` | 30 (V1.1) |
+| below minimum | `win_rate: null`, badge `insufficient_sample` |
+
+### Shrinkage anchors
+
+```
+α₀ = 2, β₀ = 2
+α = α₀ + k
+β = β₀ + (n - k)
+p̂_shrunk = α / (α + β)
+p_low  = BetaInv(0.05, α, β)
+p_high = BetaInv(0.95, α, β)
+```
+
+Worked wallet rows later in this doc are golden-vector fixtures — do not “simplify” to raw `k/n`.
+
+### Worked example
+
+**Happy path.** Wallet with n=20 resolved, k=14 → α=16, β=8, `p̂_shrunk = 0.667`, 90% CI from BetaInv — profile API returns shrunk rate + interval, labels maybe `consistent` / `recently_active` from quantiles. Whale scorer reads `wallet_whale_prior` in [0,1] derived from profiler — descriptive feed context only.
+
+**Insufficient sample.** Wallet n=10, k=9 → raw 90% would mislead; API returns `win_rate: null`, badge `insufficient_sample`. UI must not show a fake “smart money” badge.
+
+**Failure / Never-V1 / degraded.** Label `insider` or `smart_money_insider` → hard reject. Leaderboard / internal `smart_money_score` must stay behind `intelligence.leaderboard` (V1.1). Profile cards must not offer auto-copy or LLM-triggered orders (ADR-009). Do not display raw `k/n` as the primary win rate when shrinkage is specified — tests lock posterior means for the worked wallet rows below.
+
 ## 1. Purpose
 
 Wallet aggregate metrics with Beta-Binomial shrinkage for win-rate display. No insider labels.

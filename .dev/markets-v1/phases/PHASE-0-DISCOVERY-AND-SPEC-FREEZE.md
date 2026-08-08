@@ -9,6 +9,67 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-0 is the documentation-only discovery and spec-freeze phase. It produces repository inventory, evidence register, capability matrix, ADR set, requirements/traceability baseline, OSS provenance, threat model, cost baseline, and an exit review — eliminating unknowns that would invalidate signing, custody, deployment, or product scope.
+
+Header **Status: reviewed** means this phase *spec* was reviewed; it is not a claim the phase exited. Live state lives only in `implementation-manifest.yaml` and `task-graph.yaml`. No runtime API or trading/funding implementation is authorized here.
+
+Exit only via `MKT-P0-008` after ADRs/scope approval with evidence. Downstream PHASE-1 must not start from speculation. Never invent contract addresses, secrets, or “verified” upstream facts without evidence-register rows.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-0 — Discovery and Spec Freeze**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Platform orchestrator, docs/research/security agents drafting ADRs and inventories; product owner for V1 scope human sign-off (see blockers log). |
+| **What** | Documentation-only freeze: repository inventory, evidence register, capability matrix, ADR set, requirements/traceability baseline, OSS provenance, threat model, cost baseline, and PHASE-0 exit review — eliminating unknowns that would invalidate signing, custody, deployment, or product scope. |
+| **When** | First program phase (no upstream phase). Enter after documentation baseline and master-prompt acceptance. Exit only via `MKT-P0-008` after ADRs/scope approval. Downstream PHASE-1 must not start from speculation. |
+| **Where** | `.dev/markets-v1/` (research, architecture/adr, agent-harness), plus referenced maps (`00_DOCUMENT_MAP.md`, `AGENT_OPERATING_CONTRACT.md`). No runtime API changes; OpenAPI path is noted as source of truth for later phases only. |
+| **Why** | Unverified addresses, signer ambiguity, or unclear V1 scope poison every later phase. Freezing evidence and ADRs first is cheaper than rewriting trading/custody code. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- Repository inventory and R0–R3 audit (`MKT-P0-001`)
+- Evidence register bootstrap; capability matrix and scope freeze
+- ADR set acceptance; requirements and traceability baseline
+- Open-source provenance audit; threat model draft
+- PHASE-0 exit gate review with human V1 scope approval filed
+
+### Out of scope (do not implement under this phase authorization)
+
+- Production wallets, real transactions, trading or funding implementation
+- Android product implementation; PRISM positions; legacy epoch API features
+- Custom RetroPick exchange or default custom Markets contracts (ADR-001)
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- All `MKT-P0-001`…`MKT-P0-008` tasks `done` with evidence (no invented addresses)
+- §15 exit themes met: stakeholders approve V1 scope with evidence-backed ADRs, requirements, threat model
+- `INVARIANT_CHECK.md` re-run clean for doc edits; blockers/approvals updated
+- Handoff names `MKT-P1-001`; orchestrator may then point execution at PHASE-1 in the manifest
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Read operating contract + this phase + task-graph entry for exactly one `MKT-P0-*` task
+2. Work only in owned documentation paths; cite retrieval date/confidence for Polymarket claims
+3. Never invent contract addresses, secrets, or “verified” upstream facts without evidence-register rows
+4. Run listed verification (link checks / YAML validation as tasked); attach VERIFICATION_EVIDENCE
+5. Complete handoff; for exit gate, ensure human V1 scope approval is in BLOCKERS_AND_HUMAN_APPROVALS
+
+### Worked example
+
+Agent authorized for `MKT-P0-002` bootstraps `research/evidence-register.yaml` with Polymarket doc URLs, retrieval dates, and confidence (`partial`/`verified`), leaving address fields empty or marked unverified rather than guessing.
+
+At `MKT-P0-008`, the same program refuses exit while signer-vs-account-wallet ADR-003 is missing: exit gate stays rejected, remediation listed on a filled PHASE_GATE_TEMPLATE copy, and PHASE-1 tasks remain untouched.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-0`

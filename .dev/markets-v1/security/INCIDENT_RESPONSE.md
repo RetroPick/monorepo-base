@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the incident response playbook for RetroPick Markets V1: incident types, severity matrix that remains custody-aware (SEV-1 still applies to signing/preview integrity and mass auth breach), roles, response phases, containment tools, evidence preservation, communication templates, postmortem, and drills.
+
+It sits in Wave 7 with execution via on-call, secret rotation, deploy rollback, dashboards, and status templates. Cross-links ABUSE_FRAUD_AND_RATE_LIMITS, SECRETS_KEYS_AND_ACCESS_CONTROL, OBSERVABILITY_SLOS_AND_ALERTS, and PRODUCTION_OPERATIONS_RUNBOOK. Agents may draft runbook steps but must not auto-approve, merge, push, or rotate secrets outside human process.
+
+Read this from alert or human report through contain, eradicate, recover, and postmortem; during IR drills; and whenever markets.orders.disabled flips. Prefer RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT for mechanical rollback digests.
+
+It excludes under-ranking integrity bugs because RetroPick is non-custodial, pasting T3 secrets into tickets or chat, and skipping drills.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | On-call engineers, incident commander, tech lead (mitigation/rollback), security for SEC types, comms/status-page owners, postmortem facilitators. Agents assist with runbooks but do not auto-approve, merge, push, or rotate secrets without human process. |
+| **What** | Incident types (SEC/AVL/DAT/…), severity matrix (note: RetroPick does **not** custody funds—SEV-1 fund risk means widespread preview tampering or signing vulnerability), roles, response phases, containment (revoke builder key, kill switches, rollback), evidence preservation, postmortem, drills. |
+| **When** | From alert/page or human report through contain→eradicate→recover→postmortem; during scheduled IR drills; whenever kill switch `markets.orders.disabled` flips. |
+| **Where** | Spec: this file. Execution: Slack/status templates, secret manager rotation, deploy rollback per platform RELEASE_ROLLBACK, logs/metrics dashboards, chain tx hashes for disputes. Cross-ref ABUSE, SECRETS, OBSERVABILITY, PRODUCTION_OPERATIONS_RUNBOOK. |
+| **Why** | Speed and correctness under stress: wrong “we don’t hold funds so SEV-1 never applies” thinking under-ranks signing/preview integrity bugs. Structured IR keeps geo/eligibility kill decisions fail-closed and evidence usable without leaking T3 secrets into tickets. |
+| **How** | Classify type+severity; page IC; contain (disable trading, rotate keys, revoke sessions); communicate internal/external templates; preserve redacted logs + `order_attempts` ids + tx hashes; restore; blameless postmortem with action items; run drills on cadence. |
+
+### Severity anchor (custody-aware)
+
+| SEV | Markets meaning |
+|-----|-----------------|
+| SEV-1 | Signing/preview integrity break, mass auth breach, or orders kill-switch crisis |
+| SEV-2 | Major availability / upstream trading outage, elevated 5xx |
+| SEV-3 | Degraded catalog freshness, single-feature failure |
+| Note | No custodian wallet on RetroPick—fund SEV framed as integrity/abuse blast radius |
+
+### Containment toolbox
+
+| Action | Typical trigger |
+|--------|-----------------|
+| `markets.orders.disabled` | Integrity bug, abuse flood |
+| Revoke builder key | Key leak / anomalous volume |
+| Session mass revoke | Auth compromise |
+| App/image rollback | Bad release |
+| Status page update | User-visible impact |
+
+### Worked example
+
+**Happy path.** `UpstreamCLOBDown` → SEV-2: IC named, trading UI degraded, status page updated, no secret rotation needed, recover when CLOB healthy, short postmortem on dependency SLI.
+
+**Failure / degraded.** Suspected builder key leak → SEC SEV-1/2: revoke key in manager, enable order kill switch if needed, rotate, audit volume, preserve evidence **without** pasting secrets into Slack. Preview tampering bug in prod → treat as fund-risk-class SEV-1 despite no custody; rollback + integrity hotfix; **fail closed** on submits until hash path verified.
+
+**Drill expectation.** Tabletop or staging drill proves pages, templates, and rollback digests are findable under time pressure.
+
 ## 1. Purpose
 
 Incident classification, escalation, communication, and recovery procedures for Markets V1 security and availability events.

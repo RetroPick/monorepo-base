@@ -6,6 +6,67 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the **product-level capability registry** for RetroPick Markets V1 trader intelligence. It locks V1 IDs (TI-V1-001…019), gates V1.1 behind named feature flags, lists Post-V1 research/reject rows, and records shared architecture (ADR-008 compute in BFF), documented API surfaces, and NFR targets (signal pipeline, whale-feed lag, retraction p95)—so agents and clients know what may ship without inventing endpoints or promoting gated work to default-on.
+
+It sits at the head of Wave 6; normative formulas live in sibling specs (whale, alerts, health, wallet, UV, provenance, relationship, OSS adoption). Compute home is `apps/backend/internal/markets/intelligence/`. Documented paths include `/markets/intelligence/*` and `/markets/alerts/rules`—do not invent others without OpenAPI alignment. The registry explicitly rejects autonomous copy trading (TI-PV-005 / ADR-009), insider-wallet labels, AI-triggered orders, and geoblock bypass.
+
+Read this first when starting any trader-intelligence task, deciding V1 vs flag-gated vs research, or tracing MKT-FR requirements. Prefer sibling docs for WhaleScore math, alert DSL, evidence envelopes, and health formulas—not for tier/scope decisions.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Orchestrator and intelligence-lead sequencing Wave 6; BFF/web/Android agents mapping TI-V1 / TI-V11 / TI-PV IDs to code; QA tracing MKT-FR requirements; security reviewing Never-V1 rejects. Consumers of the capability registry before implementing any intelligence surface. |
+| **What** | Product-level capability registry: V1 locked (TI-V1-001…019), V1.1 gated (feature flags), Post-V1 research/reject list, shared architecture (ADR-008 compute in BFF), API endpoint tier table, and NFR targets (pipeline lag, whale feed lag, retraction p95). **Not** permission to ship auto-copy, insider labels, AI→orders, or geoblock bypass. |
+| **When** | Read first when starting any trader-intelligence task; use to decide tier (V1 vs flag-gated vs research) before coding. Re-check when promoting V1.1 flags or proposing Post-V1 items. Applies across the whole Wave 6 intelligence pack. |
+| **Where** | Spec authority: this doc (registry). Normative formulas live in sibling specs (whale, alerts, health, wallet, UV, provenance, relationship, OSS map). Compute home: `apps/backend/internal/markets/intelligence/` per ADR-008. Documented API paths: `/markets/intelligence/*`, `/markets/alerts/rules`. Clients render signals only. |
+| **Why** | Without a single registry, agents invent endpoints, ship gated features as V1, or blur Never-V1 lines. This doc is the scope gate for master prompt §6A / capability matrix — formulas and delivery details defer to sibling docs. |
+| **How** | Implement only V1-locked IDs without flags; gate V1.1 behind named flags (`intelligence.unusual_activity`, `intelligence.discrepancy_scanner`, etc.); treat Post-V1 as research unless explicitly tasked; keep NFRs (signal p95 under 8s, whale feed under 15s, retraction under 30s). Trace work to MKT-FR IDs. Never add autonomous copy (TI-PV-005 reject) or LLM→order paths. |
+
+### Architecture rule (ADR-008)
+
+All intelligence compute runs in BFF `apps/backend/internal/markets/intelligence/`. Clients **render signals only** — no client-side WhaleScore / UV reimplementation that bypasses envelopes.
+
+### Registry quick map
+
+| Tier | IDs | Ship rule |
+|------|-----|-----------|
+| V1 locked | TI-V1-001…019 | Default-on when Markets V1 intelligence ships |
+| V1.1 gated | TI-V11-001…009 | Named feature flags required |
+| Post-V1 | TI-PV-001…005 | Research / explore / **reject** per row |
+
+Sibling formula docs: WHALE…, ALERT_RULES…, MARKET_HEALTH…, WALLET_PROFILING…, UNUSUAL_ACTIVITY…, SIGNAL_PROVENANCE…, RELATIONSHIP…, OPEN_SOURCE_ADOPTION_MAP.
+
+### Documented API surfaces (do not invent)
+
+| Path | Tier |
+|------|------|
+| GET /markets/intelligence/signals | V1 |
+| GET /markets/intelligence/whales | V1 |
+| GET /markets/intelligence/wallets/{addr} | V1 |
+| GET /markets/intelligence/markets/{id}/health | V1 |
+| CRUD /markets/alerts/rules | V1 |
+
+### NFR targets
+
+| Metric | Target |
+|--------|--------|
+| Signal pipeline p95 | under 8s |
+| Whale feed lag | under 15s |
+| Retraction propagation p95 | under 30s |
+
+### Worked example
+
+**Happy path — V1.** Agent tasked with whale feed implements TI-V1-012 / TI-V1-009 per WHALE_AND_LARGE_TRADE_DETECTION + ALERT_RULES, exposes `GET /markets/intelligence/whales` and signal inbox (TI-V1-010), meets whale feed lag under 15s. Clients render cards; no order side effects.
+
+**Happy path — V1.1 gate.** Unusual activity (TI-V11-001) stays behind `intelligence.unusual_activity` with shadow mode per UNUSUAL_ACTIVITY_HEURISTICS before push enable. Discrepancy scanner (TI-V11-006) stays read-only “Price gap” per RELATIONSHIP_AND_ARBITRAGE_SCANNER.
+
+**Failure / Never-V1 / degraded.** Proposal to ship TI-PV-005 autonomous copy trading → hard reject (ADR-009). AI context summaries (TI-PV-003) remain read-only narration of envelopes — never classification that triggers orders. Do not invent API paths beyond the registry table without OpenAPI alignment. If pipeline p95 exceeds 8s, fix workers/index lag — do not weaken NFR rows to match broken behavior.
+
 ## 1. Purpose
 
 Registry of trader intelligence capabilities across V1 locked, V1.1 gated, and Post-V1 research per master prompt §6A.

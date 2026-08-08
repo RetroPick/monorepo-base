@@ -6,6 +6,53 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document is the implementation-grade funding specification for Markets V1 Wave 2: distinct operations to fund a wallet, wrap to **pUSD**, approve venue contracts, trade elsewhere, unwrap/offramp, and withdraw—via Bridge API, direct Polygon transfer, CollateralOnramp, reconciliation, and UI state machines. Polymarket bridge and collateral contracts are authority; RetroPick orchestrates and reconciles only.
+
+It sits in Wave 2 after wallet ACL and before order readiness. V2 trading collateral is pUSD; bridged USDC.e is not “ready to trade.” Token addresses come from the contract registry—never invented. polymarket.com-hosted deposit UX may be an external handoff, not a silent RetroPick API substitute.
+
+Read this before any balance shows ready-to-trade, when building deposit/withdraw UX, or when migrating off legacy USDC.e trading paths. It is not order matching, not CTF redeem semantics, and not custodial balance invention by the BFF.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Funding BFF owners, `fe-wallet` / web funding UI, Android fund flows, ops monitoring Bridge/onramp, agents implementing Phase 2 funding without custodial shortcuts. |
+| **What** | Distinct ops: fund wallet → wrap to pUSD → approve → trade (elsewhere) → unwrap/offramp → withdraw. Bridge API, direct Polygon transfer, CollateralOnramp wrap, reconciliation, UI state machines. V2 collateral is **pUSD**. |
+| **When** | Before any balance shows "ready to trade"; on deposit/withdraw UX; when migrating off legacy USDC.e trading paths; when Bridge or onramp upstream changes (EV-007, EV-009). |
+| **Where** | Spec: this doc. Runtime: BFF Bridge/onramp clients; on-chain wrap/approve (user sign or relayer); UI state machine. Polymarket.com deposits remain external alternative. |
+| **Why** | Users confuse "bridged USDC" with "tradable pUSD." RetroPick must not custody inventively or skip approvals. Polymarket bridge/collateral contracts are authority; RetroPick orchestrates and reconciles only. |
+| **How** | Model six operations separately; proxy Bridge via BFF; wrap via documented onramp; approve Exchange/CTF; reconcile indexed balances; never invent token addresses — use [CONTRACT_ABI_AND_ADDRESS_REGISTRY.md](./CONTRACT_ABI_AND_ADDRESS_REGISTRY.md). |
+
+### Worked example
+
+**Happy path.** User requests Bridge deposit address via BFF → Bridge API. After funds arrive on Polygon, UI prompts wrap USDC.e → pUSD (`wrap()`), then approvals for Exchange V2 / CTF (relayer-assisted when authorized). Balances endpoint shows tradable pUSD; order ticket unlocks. Withdrawal: unwrap/offramp then Bridge out; each step has explicit UI state and reconciliation polls.
+
+**Failure / degraded.** Showing "funded" on pre-wrap USDC.e while CLOB expects pUSD → blocked preview with reason. Bridge API down → degrade to documented direct transfer instructions; do not fabricate deposit addresses. Relayer approval failure → offer signed fallback, not silent skip. Reconciliation mismatch → `unknown` funding state, freeze withdraw/trade until resolved. Combos funding paths stay out of scope.
+
+**Operation vs authority**
+
+| Operation | Authority | RetroPick role |
+|-----------|-----------|----------------|
+| Bridge quote/address | Polymarket Bridge | BFF proxy + UI |
+| pUSD wrap/unwrap | Collateral onramp contracts | Trigger + status |
+| Approvals | User/relayer + venue contracts | Orchestrate |
+| Trade collateral lock | CLOB/Exchange | Order lifecycle doc |
+
+**UI state machine (orientation)**
+
+1. `needs_deposit` — no/low Polygon assets for the account wallet.
+2. `needs_wrap` — USDC.e (or equivalent) present, pUSD insufficient.
+3. `needs_approval` — pUSD/CTF allowances missing for Exchange.
+4. `ready_to_trade` — collateral + allowances OK (orders still need geoblock/auth).
+5. `withdraw_pending` / `reconciling` — never show success until Bridge/on-chain evidence.
+
+Agents must not treat polymarket.com-hosted deposit UX as a RetroPick API substitute without documenting the external handoff. Pair with wallet ACL doc before moving funds.
+
+**Related docs:** [AUTHENTICATION_AND_ACCOUNT_WALLETS.md](./AUTHENTICATION_AND_ACCOUNT_WALLETS.md), [BUILDER_RELAYER_AND_FEES.md](./BUILDER_RELAYER_AND_FEES.md), [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md).
 
 ## 1. Purpose
 

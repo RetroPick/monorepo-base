@@ -5,6 +5,59 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This Wave 0 OSS reference audit gates third-party repository reuse for Markets V1 per ADR-007: adoption modes (`official_dependency`, `selective_port`, `clean_room_reimplementation`, `behavioral_reference_only`, `reject`) for Polymarket official and community repos. Machine-readable registry: [open-source-provenance.yaml](open-source-provenance.yaml).
+
+No-LICENSE repos forbid code/layout/string/asset copy; blind forks import key-custody or geoblock-bypass patterns. Prefer official MIT SDKs as tooling references; Go CLOB path is clean-room/behavioral vs TypeScript clients. RetroPick implementations land in monorepo modules — not as git submodules of reference apps.
+
+Choose mode from the table → follow ADR-007 → pin SHA + NOTICE when selective_port → clean-room rewrite when no LICENSE → reject prohibited patterns. Update YAML provenance and SBOM paths when real dependencies enter.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before adoption-mode and repository audit tables below.
+
+The 5W+1H table below is a **navigation aid** only. Machine-readable registry: [open-source-provenance.yaml](open-source-provenance.yaml). ADR-007 is normative for clean-room vs dependency choices.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Agents tempted to vendor GitHub “reference” apps; security/supply-chain reviewers; intelligence implementers choosing whale/alert heuristics; Android agents studying Compose UX references. |
+| **What** | Wave 0 OSS reference audit: adoption modes (`official_dependency`, `selective_port`, `clean_room_reimplementation`, `behavioral_reference_only`, `reject`) for Polymarket official and community repos (Viewer, Alerts, whales, Oracle3, ts-sdk, clob-client-v2, etc.). States no third-party product source is vendored into `apps/`/`packages/` beyond placeholder types at audit date. |
+| **When** | Before any copy/port/import from external repos; when adding intelligence algorithms inspired by community tools; at license re-check when pinning commit SHAs on first import. |
+| **Where** | This audit + YAML provenance + [ADR-007](../architecture/adr/ADR-007-OSS-ADOPTION-AND-CLEAN-ROOM.md) + [security/SUPPLY_CHAIN_AND_SBOM.md](../security/SUPPLY_CHAIN_AND_SBOM.md). RetroPick implementations land in `internal/markets/intelligence/`, `apps/android/`, etc. — not as git submodules of no-LICENSE apps. |
+| **Why** | No-LICENSE repos (PolymarketViewer, PolymarketAlerts) forbid code/layout/string/asset copy. Blind forks import key-custody or geoblock-bypass patterns. The audit makes reject/clean-room explicit before monorepo contamination. |
+| **How** | Choose mode from the table → follow ADR-007 → pin SHA + NOTICE when selective_port → clean-room rewrite for no LICENSE → reject prohibited patterns. Prefer official MIT SDKs as tooling references; Go CLOB path is clean-room/behavioral vs TypeScript clients. |
+
+### Worked example
+
+**Happy path — whale thresholds**
+
+1. `al1enjesus/polymarket-whales` is MIT → selective_port after security scan.
+2. Reimplement WhaleScore-style pipeline in Go under intelligence module; keep attribution/NOTICE if snippets used.
+3. Reject any geoblock-bypass commentary from references.
+
+**Happy path — Android discovery UX**
+
+1. PolymarketViewer has **No LICENSE** → clean-room only.
+2. Recreate patterns inside modular Compose graph; no copied XML/Compose files or assets.
+
+**Failure / Never**
+
+- Vendoring Streamatico/Syavaman trees into `apps/`.
+- Pixel-for-pixel Polymarket UI clone.
+- Adopting reference code that custodies keys or bypasses geo restrictions.
+- Treating Oracle3 as a V1 dependency (Post-V1 behavioral reference).
+
+**Agent checklist**
+
+- [ ] Repo listed with adoption mode?
+- [ ] LICENSE verified at import time?
+- [ ] Clean-room vs port decision explicit in PR?
+- [ ] YAML provenance updated?
+- [ ] SBOM path known for real dependencies?
+
+**Reading tip:** Adoption modes (§6.1) are the gate; per-repo subsections are evidence — do not “just submodule it.”
+
 ## 1. Purpose
 
 Gate third-party repository reuse for Markets V1 per ADR-007 and master prompt §2.3. Defines adoption mode, license posture, and explicit rejections before any code enters the monorepo.

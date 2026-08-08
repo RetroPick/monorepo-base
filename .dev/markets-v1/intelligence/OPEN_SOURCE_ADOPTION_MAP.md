@@ -6,6 +6,61 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the intelligence-scoped **open-source adoption map** for RetroPick Markets V1. It records which external repos may be selectively ported, clean-room referenced, behavioral-referenced, or rejected—aligned with ADR-007 and `research/open-source-provenance.yaml`—so agents learn from Polymarket-adjacent OSS without importing unclear licenses or Never-V1 capabilities.
+
+It sits in Wave 6 beside the formula specs and capability registry. Mode tags (`selective_port`, `clean_room`, `behavioral_ref`, `reject`) are normative: MIT selective ports require NOTICE + pinned commit SHA; clean-room means rewrite from behavior/docs only; behavioral_ref informs later heuristics without code import. Port targets named in the map include `internal/markets/intelligence/whale`, `internal/markets/intelligence/alerts`, and Android Glance (V1.1). Hard rejects include `insider_labels`, `geoblock_bypass`, `autonomous_copy_trading`, and source copy from no-LICENSE repos (ADR-009 / Never V1).
+
+Read this before any external intelligence code or UX pattern enters RetroPick, when updating `THIRD_PARTY_NOTICES.md`, or during security review of candidate repos. Prefer sibling docs for WhaleScore / alert DSL formulas—not for license/mode decisions.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Intelligence-lead and security reviewers approving ports; BFF agents implementing whale/alerts under `apps/backend/internal/markets/intelligence/`; docs-curator maintaining `THIRD_PARTY_NOTICES.md` and `research/open-source-provenance.yaml`; agents tasked with OSS adoption for Wave 6. |
+| **What** | Intelligence-scoped adoption map: which external repos may be selectively ported, clean-room referenced, behavioral-referenced, or rejected — aligned with ADR-007 and provenance YAML. **Not** a license to copy source from no-LICENSE repos, port insider labels, geoblock bypass, or autonomous copy trading. |
+| **When** | Before any external intelligence code or UX pattern enters RetroPick; at NOTICE updates when an MIT selective_port lands; during security review of candidate repos. Re-check when bumping adoption commit SHAs. |
+| **Where** | Spec authority: this doc. Provenance ledger: `research/open-source-provenance.yaml`. NOTICE sink: `THIRD_PARTY_NOTICES.md`. Port targets named in the map (e.g. `internal/markets/intelligence/whale`, `internal/markets/intelligence/alerts`, Android Glance V1.1). Cross-ref ADR-007 / ADR-009. |
+| **Why** | RetroPick may learn from Polymarket-adjacent open source without importing unsafe capabilities or unclear licenses. Clear mode tags (`selective_port`, `clean_room`, `behavioral_ref`, `reject`) prevent silent scope creep into Never-V1 features. |
+| **How** | For each candidate: confirm license + mode from the map; selective_port only MIT (or explicitly allowed) with NOTICE + commit SHA; clean_room means rewrite from behavior/docs only — no source paste; behavioral_ref informs heuristics post-V1/V1.1 without copying; reject list is hard. Run clean-room checklist before merge. Never port insider_labels, geoblock_bypass, or autonomous_copy_trading. |
+
+### Mode semantics (normative for agents)
+
+| Mode | Meaning | Allowed artifact |
+|------|---------|------------------|
+| `selective_port` | Small, reviewed port of ideas/helpers under a clear license | RetroPick-owned code + NOTICE + pinned commit SHA |
+| `clean_room` | Study behavior/docs; rewrite from scratch | Original RetroPick implementation only |
+| `behavioral_ref` | Inspiration for later heuristics; no code import | Design notes / future tickets — not V1 source |
+| `reject` | Do not use | Nothing from that repo |
+
+### Hard rejection rules (repeat of §5 — non-negotiable)
+
+- `insider_labels` → never port
+- `geoblock_bypass` → never port
+- `autonomous_copy_trading` → never port
+- `source_copy` from no-LICENSE repos → never
+
+### Clean-room checklist (before merge)
+
+- [ ] No copied source from no-LICENSE repos
+- [ ] MIT NOTICE preserved with package name + commit SHA
+- [ ] Security review for geoblock bypass patterns
+- [ ] Reject insider label terminology in UI/copy/reason codes
+- [ ] Provenance YAML row updated; oss_audit items tracked
+
+### Worked example
+
+**Happy path — selective_port.** Agent implements WhaleScore thresholds/dedup ideas inspired by `al1enjesus/polymarket-whales` (MIT, selective_port → `internal/markets/intelligence/whale`). Implementation is RetroPick-owned Go under ADR-008 formulas in WHALE_AND_LARGE_TRADE_DETECTION; NOTICE entry records package name + commit SHA at adoption; provenance YAML updated. No UI “insider” copy.
+
+**Happy path — clean_room.** Alert rule DSL shape informed by `Syavaman/PolymarketAlerts` (none / clean_room): RetroPick authors its own JSON DSL and evaluation engine per ALERT_RULES_AND_DELIVERY — no source files copied from the reference repo.
+
+**Behavioral_ref deferral.** `mailtolemos/polymarket-whale-tracker` (unverified / behavioral_ref) may inform V1.1 unusual_activity ideas only after clean-room rewrite and UV shadow calibration — not a V1 vendor drop.
+
+**Failure / Never-V1 / reject.** Attempt to vendor `Serj8772/polymarket-cabinet` (unverified, reject — raw keys) → hard stop. Attempt to copy source from a no-LICENSE repo → reject. Any PR introducing geoblock bypass, insider wallet labels, or auto-copy trading from an OSS reference fails review regardless of license. `pmxt-dev/pmxt` multi-venue remains Post-V1 reject for V1 scope. `oracle3` constraint taxonomy stays behavioral_ref for Post-V1 scanner work.
+
 ## 1. Purpose
 
 Intelligence-specific open-source adoption decisions aligned with ADR-007 and provenance YAML.

@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document catalogs launch-critical end-to-end journeys for RetroPick Markets V1: browse, eligibility allow/deny (geo), wallet connect, preview and submit, cancel, portfolio, redeem/deposit/withdraw (P1), alerts, intelligence, degraded upstream banner (P0), and session expiry—with detailed steps for trading core (E2E-05) and degradation (E2E-13).
+
+It sits in Wave 7 under apps/web/e2e/markets/, Android e2e trees, and optional shared e2e paths. Staging only for funded paths; CI may run a mocked subset per the pyramid doc. Signing stays in the wallet under test—no RetroPick key custody. Evidence includes Playwright screenshots, JUnit XML, and optional redacted HAR.
+
+Read this for staging smoke on deploy, full P0 before release, and regression on trading or eligibility changes. Prefer TEST_PYRAMID_AND_ENVIRONMENTS for layer choice and web/Android error UX docs for screen-state detail.
+
+It excludes production user wallets in automation and skipping geo-deny or degradation coverage.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | QA + web/Android eng implementing Playwright / UI Automator journeys; staging wallet operators (test EOAs only); release verifiers requiring P0 greens; agents extending catalog without inventing gambling-heavy UX copy. |
+| **What** | Launch-critical E2E catalog: browse, eligibility allow/deny (**geo**), wallet connect, preview+submit, cancel, portfolio, redeem/deposit/withdraw (P1), alerts, intelligence, **degraded upstream banner (P0)**, session expiry. Detailed steps for E2E-05 trading core and E2E-13 degradation; evidence artifacts. |
+| **When** | Staging smoke on deploy; full P0 before release; regression on trading/eligibility changes; scheduled Android where phase-gated. |
+| **Where** | Spec: this file. `apps/web/e2e/markets/`, Android e2e tree, optional `tests/e2e/markets/`. Staging only for funded paths; CI may run subset with mocks per pyramid doc. |
+| **Why** | Journeys prove cross-stack wiring CI units cannot: cookie/session, geo deny UX, human preview, wallet sign, portfolio. P0 geo-deny and degradation prevent “happy path only” launches. No RetroPick key custody—signing stays in wallet under test. |
+| **How** | Automate steps/expected; seed eligible vs geo-denied users; assert preview fields before sign; assert `order_attempts`/CLOB; capture screenshots/JUnit; reconcile test wallet daily; never use real user wallets in automation. |
+
+### P0 journey set
+
+| ID | Journey |
+|----|---------|
+| E2E-01 | Catalog → event detail |
+| E2E-02 | Eligibility allowed |
+| E2E-03 | Eligibility denied (geo) |
+| E2E-04 | Connect wallet |
+| E2E-05 | Preview + submit limit order |
+| E2E-07 | Portfolio positions |
+| E2E-13 | Upstream down banner / trading disabled |
+
+### Evidence artifacts
+
+| Artifact | Use |
+|----------|-----|
+| Playwright screenshot on failure | Debug UX |
+| JUnit XML | CI gate |
+| Redacted HAR (optional) | API debugging |
+
+### Worked example
+
+**Happy path.** E2E-05: open market → buy 10 USDC @ 0.50 → preview modal matches → wallet sign → 201 → portfolio lists order; `order_attempts=accepted`.
+
+**Failure / degraded.** E2E-03: geo-denied user sees ineligible; trading controls disabled—not a client bypass. E2E-13: Gamma 503 via toxiproxy → banner “market data delayed”; submit disabled/clear error; restore clears <2min. Staging wallet over cap → stop run; reconcile.
+
+**Never invent.** Using production user wallets or skipping geo-deny coverage.
+
 ## 1. Purpose
 
 User journey E2E test specifications for Markets V1 launch-critical paths across web and Android.

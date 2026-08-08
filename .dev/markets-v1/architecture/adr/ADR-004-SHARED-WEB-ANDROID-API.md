@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, web-markets, android-markets, backend-markets
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted decision that `schemas/openapi/markets-v1.yaml` is the canonical Markets V1 client contract. All V1 client network calls use `/api/v1/markets/*` as specified; TypeScript and Kotlin clients are generated; the BFF conforms; CI contract-tests; breaking changes require major version / `markets-v2.yaml`.
+
+It sits downstream of ACL normalization (ADR-002) and beside Android Compose (ADR-006) and realtime supplements (ADR-005). Web and Android correlate through OpenAPI—not through legacy epoch schemas or hand-maintained parallel DTO layers. Spec changes belong in the same change set as handlers, with both clients regenerated.
+
+Read this before any new Markets route or wire field, when web and Android disagree on names, or after ACL normalizer changes affecting response shape. It does not authorize ad-hoc JSON fields only in Next, a separate “Android API,” or skipping contract tests for “just a rename.”
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = dual-client drift; Decision = single OpenAPI hub; Consequences = codegen discipline and parity-by-construction.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, web-markets, android-markets, backend-markets. Audience: anyone adding Markets HTTP fields, client DTOs, or contract tests. |
+| **What** | **Decision:** `schemas/openapi/markets-v1.yaml` is the canonical contract. All V1 client network calls use `/api/v1/markets/*` as specified; TS and Kotlin clients are generated; BFF conforms; CI contract-tests; breaking changes require major version / `markets-v2.yaml`. |
+| **When** | Before any new Markets route or wire field; when web and Android disagree on names; after ACL normalizer changes affecting response shape; when adding realtime supplements ([ADR-005](ADR-005-REALTIME-AND-RECONCILIATION.md)). |
+| **Where** | Spec → Go handlers; web codegen; Android OpenAPI Generator/Ktor models; contract tests; optional `schemas/events/markets/` for WS. Downstream of ACL normalization ([ADR-002](ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)). |
+| **Why** | Context: divergent field names, one-sided features, inconsistent eligibility/errors, duplicate integration tests. Monorepo rule: web↔Android correlate through OpenAPI, not legacy epoch code. |
+| **How** | Change the spec first (or same PR as handlers); run `pnpm markets:codegen` and Android `openApiGenerate`; never hand-maintain a parallel Android DTO layer that drifts from web. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+Web needs `primaryFeedId` for chart subscribe.
+
+1. Add the field to OpenAPI.
+2. Implement BFF normalizer/handler.
+3. Regenerate TypeScript **and** Kotlin clients.
+4. Update both UIs from generated types—parity by default.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Ad-hoc JSON fields only in the Next data layer.
+- Separate “Android API” forks of Markets.
+- Typing Markets payloads from legacy epoch schemas.
+- Skipping contract tests for “just a rename.”
+
+**Agent checklist**
+
+- [ ] Spec changed in the same change set as handlers?
+- [ ] Both clients regenerated?
+- [ ] Contract tests updated/green?
+- [ ] Breaking change → version policy followed?
+- [ ] WS extras documented if needed?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 RetroPick Markets V1 ships on **two primary clients**:

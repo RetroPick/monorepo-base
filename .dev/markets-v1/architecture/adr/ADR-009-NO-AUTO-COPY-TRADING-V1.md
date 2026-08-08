@@ -6,6 +6,68 @@
 **Deciders:** platform-orchestrator, legal, product, security
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted decision that Markets V1 has **no automated copy trading**. Prohibited: server submit from others’ trades/signals without fresh preview+sign; auto-follow while backgrounded/closed; batch copy from one signature; background order workers; notification one-tap execute. Allowed: informational whale alerts; deep link with editable pre-fill; preview shortcut that still requires preview+sign; watchlist without order linkage.
+
+It sits with ADR-003 (user signing) and ADR-008 (informational signals) as a hard Never-V1 boundary. OpenAPI must not expose `POST /markets/copy/*` or `capabilities.autoCopy: true`; notification actions are `VIEW_MARKET` only; no pre-signed orders in alert payloads. Phase 8 evaluation criteria are not approval to build auto copy now.
+
+Read this for any signal→trade UX, notification action, background job, or marketing claim about follow/mirror trading. It does not invent a delegated-signing exception; product insistence on automation requires a later ADR + legal clearance—not silent Decision edits in this file.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = copy-trading demand vs custody/legal/harm; Decision = **no automated copy in V1**; Consequences = manual ticket only + API/client guards. Post-V1 evaluation criteria are **not** approval to build auto copy now.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, legal, product, security. Audience: intelligence + notifications engineers; web/Android order-ticket owners; agents implementing follow-wallet or one-tap trade-from-alert. |
+| **What** | **Decision:** No automated copy trading in V1. Prohibited: server submit from others’ trades/signals without fresh preview+sign; auto-follow while backgrounded/closed; batch copy from one signature; background order workers; notification one-tap execute. **Allowed:** informational whale alerts; deep link with editable pre-fill; preview shortcut that still requires preview+sign; watchlist without order linkage. |
+| **When** | Any signal→trade UX, notification action, WorkManager/job, OpenAPI `copy`/`follow`/`mirror` proposal, or marketing claim. Binding for V1 until an explicit later ADR + legal clearance (Phase 8 evaluates only). |
+| **Where** | No `POST /markets/copy/*` in V1 OpenAPI; no pre-signed orders in alert payloads; `capabilities` must not expose `autoCopy: true`; notification actions `VIEW_MARKET` only. Reinforces [ADR-003](ADR-003-WALLET-AND-SIGNING-MODEL.md) and [ADR-008](ADR-008-SHARED-SIGNAL-ENGINE.md). |
+| **Why** | Context: auto-exec needs delegated signing (violates ADR-003); regulatory/advice risk; latency harm; pump-group abuse; SEV1 mass orders; Play Store scrutiny. V1 intelligence is informational, not executional. Alternatives A–C rejected. |
+| **How** | Signal → notify → market screen → **manual** ticket → preview → user signs → submit. CI greps `autoCopy`/`followWallet`/`mirrorTrade`; E2E asserts manual-only journey. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+Push: “Large buy on Market X.”
+
+1. Tap opens market detail with editable side suggestion—not an order submit.
+2. Preview stays gated until the user confirms/edits.
+3. User signs; BFF submits the user-signed order only.
+4. Watchlist may track the wallet with **zero** order linkage.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- 24h session-key auto-trade.
+- One-tap `PLACE_ORDER` from the notification shade.
+- Pre-signed order blobs inside alert payloads.
+- Marketing that claims “auto copy” for Markets V1.
+- Background workers submitting orders without confirmation UI.
+
+**Agent checklist**
+
+- [ ] OpenAPI free of copy endpoints?
+- [ ] Notification action is `VIEW_MARKET` only?
+- [ ] No `autoCopy` capability?
+- [ ] CI grep / E2E manual-only journey green?
+- [ ] Copy avoids auto-copy claims?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 Trader intelligence features ([ADR-008](ADR-008-SHARED-SIGNAL-ENGINE.md)) surface **whale trades**, **smart money wallets**, and **arbitrage opportunities**. A natural product extension is **copy trading**: automatically replicate another wallet's trades in the user's account.

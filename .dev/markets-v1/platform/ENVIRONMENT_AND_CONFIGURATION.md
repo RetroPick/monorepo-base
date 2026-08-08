@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the environment and configuration authority for RetroPick Markets V1: env matrix (dev/staging/prod), config layers (build-time NEXT_PUBLIC_*, deploy-time env, runtime markets.capabilities, secrets), required BFF vars, web and Android flavor maps, feature flags and kill switches, and fail-fast boot validation.
+
+It sits in Wave 7 with process env and ops DB flags; clients read GET /api/v1/markets/capabilities. Secrets never live in git—only .env.example shapes. Geo provider keys and ENVIRONMENT=production guards keep eligibility fail-closed and debug endpoints off in prod. Cross-ref SECRETS_KEYS_AND_ACCESS_CONTROL and auth eligibility.
+
+Read this for local bootstrap, staging/prod deploy, trading/funding/intelligence flag flips, and geo key rotation. Prefer CI_CD_PIPELINE for how env is injected at deploy.
+
+It excludes putting T3 secrets in Next public env, client-side eligibility as source of truth, and committing local .env files.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF/web/Android configurators; ops toggling runtime capability flags; DevOps injecting deploy-time env from secret manager; agents bootstrapping local docker compose without inventing prod secrets or disabling geo fail-closed behavior. |
+| **What** | Environment matrix (dev/staging/prod), config layers (build-time `NEXT_PUBLIC_*`, deploy-time env, runtime `markets.capabilities`, secrets), required BFF vars (`DATABASE_URL`, `REDIS_URL`, `JWT_SIGNING_KEY`, Polymarket URLs, OAuth, `GEO_PROVIDER_API_KEY`, `ENVIRONMENT`, …), web/Android flavor maps, feature flags/kill switches, fail-fast validation on boot. |
+| **When** | Local bootstrap; staging/prod deploy; flag flips for trading/funding/intelligence; before enabling `ENVIRONMENT=production` (debug endpoints off); whenever geo/eligibility provider keys rotate. |
+| **Where** | Spec: this file. Runtime: process env + ops DB flags; clients read `GET /api/v1/markets/capabilities`. Secrets never in git—only `.env.example` shapes. Cross-ref SECRETS_KEYS, RELEASE kill switches, AUTH eligibility geo provider. |
+| **Why** | Mis-set `NEXT_PUBLIC_PRODUCT`, wrong chain id, or missing geo key silently breaks eligibility **fail-closed** behavior or points clients at the wrong product. Layering prevents “runtime secret in Next public env” and keeps custody boundaries clear. |
+| **How** | Validate required vars at BFF boot (fail closed); keep T3 in secret manager; expose only public capabilities to clients; use flavors for Android API URLs; gate trading with flags + `markets.orders.disabled` kill switch; document local compose from examples only. |
+
+### Config layering
+
+| Layer | Mutable | Examples |
+|-------|---------|----------|
+| Build-time | No | `NEXT_PUBLIC_PRODUCT=markets`, version |
+| Deploy-time | Redeploy | `DATABASE_URL`, API URLs |
+| Runtime flags | Ops yes | `trading.enabled`, whale intel |
+| Secrets | Rotate only | JWT, OAuth, builder, geo |
+
+### Required BFF vars (non-exhaustive)
+
+| Variable | Why it matters |
+|----------|----------------|
+| `GEO_PROVIDER_API_KEY` | Server-authoritative eligibility/geo |
+| `JWT_SIGNING_KEY` | Session integrity |
+| `REDIS_URL` | Rate limits / cache (writes fail closed if down) |
+| `ENVIRONMENT` | Prod disables debug endpoints |
+| Polymarket URLs + builder key | Upstream trading attribution |
+
+### Worked example
+
+**Happy path.** Staging deploy injects managed secrets; BFF validates env; clients fetch capabilities; ops enables `trading.enabled` for launch window; geo key present so eligibility can fail closed correctly on unknown IP.
+
+**Failure / degraded.** Missing `GEO_PROVIDER_API_KEY` in prod → boot fail (prefer fail closed over open eligibility). `NEXT_PUBLIC_*` accidentally includes builder key → reject in review. Production with debug endpoints left on → config guard disables. Local `.env` committed → secret incident path, rotate.
+
+**Never invent.** Client-side-only eligibility flags as source of truth.
+
 ## 1. Purpose
 
 Environment tiers, configuration variables, feature flags, and secrets binding for Markets V1 deploy units.

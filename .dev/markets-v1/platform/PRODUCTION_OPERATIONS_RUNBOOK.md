@@ -6,6 +6,63 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the production operations runbook for RetroPick Markets V1: on-call duties, health/ready/live endpoints, common issue playbooks for catalog stale, API latency, order submit failures, and reconciliation drift, scaling and restart examples, log locations, maintenance cadence, and user-facing degradation modes.
+
+It sits in Wave 7 tying OBSERVABILITY_SLOS_AND_ALERTS to concrete steps without custodial fund-recovery theater. Runtime surfaces include /health* endpoints, systemd or docker workers such as markets-ingest, log aggregators, and ops flags. Cross-ref INCIDENT_RESPONSE, BACKUP_RESTORE_AND_DISASTER_RECOVERY, and indexing/reconciliation docs.
+
+Read this on alert acknowledgment, during degraded modes, at weekly or monthly maintenance, and whenever kill switches or upstream outages hit. Prefer INCIDENT_RESPONSE when SEV rises.
+
+It excludes unticketed prod schema edits, pasting builder keys into Slack, and disabling the rate limiter in prod as a shortcut when Redis is down.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | On-call engineers executing production ops; IC during incidents; worker/API owners; DBAs for cautious SQL; agents drafting steps but not applying prod schema changes without tickets or auto-disabling security controls. |
+| **What** | Production operations runbook: on-call duties, health/ready/live endpoints, common issue playbooks (catalog stale, API latency, order submit failures, reconciliation drift), scaling/restart examples, log locations, maintenance cadence, user-facing degradation modes. Ties alerts to concrete steps without custodial fund-recovery theater. |
+| **When** | Alert acknowledgment within SLA; during degraded modes; weekly/monthly maintenance (budget review, patches, secret rotation, backup restore tests); whenever kill switches or upstream outages hit. |
+| **Where** | Spec: this file. Runtime: `/health`, `/health/ready`, `/health/live`; systemd/docker workers (`markets-ingest`, etc.); log aggregator; dashboards from OBSERVABILITY doc; flags in ops config. Cross-ref INCIDENT_RESPONSE, BACKUP_RESTORE, INDEXING_RECONCILIATION. |
+| **Why** | Consistent ops prevents ad-hoc prod SQL and silent limit disabling. Clear degradation keeps geo/eligibility and trading **fail closed** when dependencies die, instead of serving false “healthy trading” UX. |
+| **How** | Ack → diagnose via dashboard/logs → execute section steps → escalate if SEV rises → document timeline. Prefer restart/scale/reconcile over manual data edits; never paste secrets into tickets. |
+
+### First checks (any page)
+
+1. `GET /health/ready` (DB+Redis)
+2. Error rate + latency dashboard
+3. Upstream Gamma/CLOB status
+4. Kill-switch flags (`markets.orders.disabled`)
+5. Ingest lag / reconciliation drift
+
+### Common playbooks (index)
+
+| Issue | Start here |
+|-------|------------|
+| Catalog stale | Ingest logs → Gamma → restart → `sync_checkpoints` |
+| High API latency | Pool/Redis/traces → scale or cache |
+| Order submit failures | CLOB errors → builder key → kill switch → `order_attempts` |
+| Reconciliation drift | Manual reconcile → compare projections → ticket |
+
+### Maintenance cadence (ops)
+
+| Task | Frequency |
+|------|-----------|
+| Error budget review | Weekly |
+| Dependency/OS patches | Monthly |
+| Backup restore test | Monthly |
+| Secret rotation (non-auto) | Quarterly |
+
+### Worked example
+
+**Happy path.** `CatalogStale` → check ingest logs → Gamma OK → restart `markets-ingest` → `sync_checkpoints` advances → alert clears; optional status note.
+
+**Failure / degraded.** Order submit failures with valid builder key → check `markets.orders.disabled` and CLOB error rate; if integrity alerts, escalate SEC path. Redis down → expect rate-limit **fail-closed** writes; communicate degraded trading; do not “disable limiter in prod” as a shortcut. Drift → run reconciliation job; file bug if systematic—no unticketed UPDATE on balances/projections.
+
+**Never invent.** Unticketed prod schema edits or pasting builder keys into Slack.
+
 ## 1. Purpose
 
 Day-2 operations: health checks, common failures, scaling knobs, and on-call procedures for Markets V1.

@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document is the single traceability matrix for RetroPick Markets V1 Wave 2 Polymarket integration: each product capability maps to Polymarket upstream, RetroPick owner (BFF/web/Android), signature/relayer needs, legal/policy gates, phase, and test coverage. Row status must reach `verified` before a capability is claimed shipped.
+
+It sits at the hub of the `polymarket/` suite and links peer specs, OpenAPI, and the evidence register. Polymarket is the venue; RetroPick is BFF+UI. Gaps (stub CLOB, unwired Bridge) stay explicit. Combos RFQ, Perps, and a custom RetroPick exchange are excluded rows—not deferred “parity” work (ADR-001, EV-013).
+
+Read this at task intake, PR review, phase gates, and before marking harness tasks complete. Prefer sibling docs for order state machines, wallet ACL detail, or contract addresses; this file answers “may we ship this capability, against which upstream, with which tests?”
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Orchestrator, phase owners (`be-api`, `be-indexer`, `fe-markets`, `fe-wallet`, `qa-integration`), and any agent claiming a Wave 2 capability is "done." |
+| **What** | Single traceability matrix: product capability → Polymarket upstream → RetroPick owner → signature/relayer needs → legal/policy gates → phase → tests. Row status must reach `verified` before ship. |
+| **When** | At task intake, PR review, phase gates, and before marking harness tasks complete. Revisit when upstream ACL or Combos policy changes. |
+| **Where** | Spec authority: this file. Cross-links: peer `polymarket/*.md`, OpenAPI, evidence register. Implementation lives in BFF/web/Android — never invent a RetroPick exchange row. |
+| **Why** | Without matrix rows, agents ship half-wired CLOB/Bridge/Relayer paths or enable Combos accidentally. Polymarket is venue; RetroPick is BFF+UI. Gaps (stub CLOB, unwired Bridge) must stay explicit. |
+| **How** | Add/update a matrix row before coding; wire only listed upstreams; refuse capabilities marked excluded (Combos EV-013, Perps, custom matching); attach test IDs; degrade per row policy when upstream fails. |
+
+### Worked example
+
+**Happy path.** Agent implements "place limit order." Matrix row lists CLOB V2 + L1/L2 + geoblock + builder field, owners `be-api`/`fe-markets`, phase for trading UI, tests for preview/sign/submit/reconcile. Implementer reads [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md) and [AUTHENTICATION_AND_ACCOUNT_WALLETS.md](./AUTHENTICATION_AND_ACCOUNT_WALLETS.md), implements BFF only, clients sign locally. Row moves toward `verified` with evidence tags.
+
+**Failure / degraded.** Shipping Android direct-to-CLOB without a matrix row and without BFF proxy fails review (ADR-002). Enabling Combos RFQ because Gamma lists combo markets fails EV-013 — matrix says excluded; only gate tests. Marking "Bridge complete" while client is unwired is forbidden — current-state table still shows gap. Geoblock or registry verification failure → trading capabilities degrade to read-only per matrix.
+
+**V1 boundary reminders**
+
+| Capability class | V1 stance |
+|------------------|-----------|
+| Gamma catalog, CLOB trade, Data positions, Bridge fund, Relayer gasless, CTF redeem, Neg risk | In scope when matrix row verified |
+| Combos RFQ / requester trading | Excluded — [COMBOS_CAPABILITY_GATE.md](./COMBOS_CAPABILITY_GATE.md) |
+| Custom RetroPick orderbook / outcome mint | Never (ADR-001) |
+| Perps | Out of scope |
+
+**How to use this doc in a PR**
+
+1. Name the capability and find/add the matrix row.
+2. Confirm upstream interface and evidence ID exist.
+3. Confirm signature/relayer/geoblock requirements.
+4. Implement only RetroPick layers listed (BFF/web/Android).
+5. Attach automated test IDs; leave status below `verified` until they pass.
+6. If upstream is stubbed, keep product flag/UX degraded — do not claim staging-live.
+
+**Orchestrator rule:** harness task completion requires a matrix row at `verified` (or an explicit deferred status with degraded UX). Docs-only wiring without tests does not count.
+
+**Related docs:** all peers in this folder; [COMBOS_CAPABILITY_GATE.md](./COMBOS_CAPABILITY_GATE.md) for the hard exclude.
 
 ## 1. Purpose
 

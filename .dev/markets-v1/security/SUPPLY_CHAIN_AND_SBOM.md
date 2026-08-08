@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the supply-chain and SBOM policy for RetroPick Markets V1: license allowlisting, CVSS≥7 release blocks unless time-boxed waiver, SPDX/CycloneDX SBOMs for Go backend, web, Android, and container images, lockfile scanning, cosign-signed digest-pinned images, third-party service risk, and ADR-007 clean-room rules.
+
+It sits in Wave 7 with CI gates in the platform CI/CD pipeline, provenance under research/, NOTICE files, and release artifacts retained (about two years for SBOM). Fail-closed means missing SBOM, unsigned or latest prod images, incompatible licenses, or unwaived critical CVEs block merge or promote.
+
+Read this on every PR security job, every production backend or web release, dependency upgrades, critical CVE publication, and waiver expiry. Prefer SECURITY_TEST_AND_REVIEW_PLAN for SDLC checklist rows.
+
+It excludes promoting without SBOM upload, pasting incompatible OSS into product code, and open-ended waivers without CVE ID, expiry ≤90d, and security approver.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | DevOps/CI owners generating and archiving SBOMs; security reviewing CVE/license gates; engineers adding Go/npm/Gradle deps; release managers attaching SBOM to prod artifacts; ADR-007 clean-room reviewers. |
+| **What** | Supply-chain policy: identifiable commercial-compatible licenses; CVSS≥7 blocks release unless waived; SBOM (SPDX/CycloneDX) for Go backend, web, Android, container images; lockfile scanning (govulncheck, osv, npm audit); cosign-signed digest-pinned images; third-party service risk; time-boxed waivers (≤90d). |
+| **When** | On every PR security job; on every production backend/web release; when adding/upgrading dependencies; when critical CVE publishes; at waiver expiry. |
+| **Where** | Spec: this file. CI gates in [CI_CD_PIPELINE](../platform/CI_CD_PIPELINE.md); provenance YAML under research/; NOTICE files; registry image digests; release artifacts retained (SBOM ~2y). Cross-ref ADR-007, SECURITY_TEST_AND_REVIEW_PLAN. |
+| **Why** | Compromised deps or copy-paste from incompatible OSS can poison Markets without touching user keys. SBOM + scanners make **fail-closed** release decisions evidence-based; clean-room rules prevent accidental license/IP contamination. |
+| **How** | Lock deps; run scanners as merge blockers; generate syft/Gradle SBOM; upload artifact; sign images; pin digests (no `latest` in prod); record waivers with CVE, justification, expiry, security approver. Reject incompatible license imports. |
+
+### Release supply-chain gates
+
+| Gate | Fail closed meaning |
+|------|---------------------|
+| Critical CVE unwaived | Block release |
+| License not allowlisted | Block merge/release |
+| SBOM missing for prod tag | Block promote |
+| Unsigned / unpinned image | Block prod deploy |
+| ADR-007 clean-room violation | Block merge; rewrite |
+
+### Ecosystem scan map
+
+| Ecosystem | Lockfile | Primary scanners |
+|-----------|----------|------------------|
+| Go | `go.sum` | govulncheck, osv-scanner |
+| npm/pnpm | lockfile | npm audit, osv |
+| Gradle | `gradle.lockfile` | dependency-check |
+| Container | image digest | syft + cosign |
+
+### Worked example
+
+**Happy path.** PR adds Go module → govulncheck/osv clean → merge. Release tag builds image, syft SBOM uploaded, cosign sign, digest pinned in deploy manifest, NOTICE updated for Apache dep.
+
+**Failure / degraded.** CVSS 9.1 in transitive npm dep → release blocked; patch or ≤90d waiver with security owner. Engineer pastes GPL snippet from research OSS → ADR-007 reject; rewrite clean-room. CI green but SBOM upload failed → **do not** promote to prod until artifact exists.
+
+**Waiver hygiene.** Every waiver needs CVE ID, justification, expiry ≤90d, and security approver—expired waivers re-block release.
+
 ## 1. Purpose
 
 Software supply chain controls: SBOM generation, dependency scanning, OSS provenance, and release integrity for Markets V1 monorepo.

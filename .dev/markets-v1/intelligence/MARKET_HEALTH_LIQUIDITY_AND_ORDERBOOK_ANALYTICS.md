@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the quantitative authority for **market-health, liquidity, and orderbook analytics** in RetroPick Markets V1 trader intelligence. It defines deterministic `spread_bps`, depth bands (1%/2%/5%), book imbalance, pre-trade slippage walks for display notionals, composite health (0–100), and snapshot cadence/staleness flags—so clients can show evidence-linked liquidity context without inventing fills or guaranteeing execution quality on device.
+
+It sits in Wave 6 beside whale detection, alert rules, and the capability registry. Compute belongs in `apps/backend/internal/markets/intelligence/`; health weights and band thresholds live under `intelligence_params_v1.yaml`. API surface (product registry): `GET /markets/intelligence/markets/{id}/health`. Downstream consumers include whale `τ_liquidity` (`depth_2pct`), alert DSL spread/depth conditions, and TI-V1-016 pre-trade scenario UI. Golden vectors gate formula changes. The doc explicitly rejects auto-copy, insider labels, AI→orders, and executable-arbitrage claims (ADR-009 / Never V1).
+
+Read this when implementing TI-V1-005 / TI-V1-014 / TI-V1-016 (MKT-FR-060 / MKT-FR-030), calibrating health weights, or wiring liquidity alert inputs. Prefer sibling docs for WhaleScore scoring, alert delivery, and relationship discrepancy terminology—not for spread/depth/health math.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF market-health / book-analytics workers; web/Android market intelligence dashboard and pre-trade scenario UI; ops calibrating `intelligence_params_v1.yaml` health weights; agents implementing TI-V1-005 / TI-V1-014 / TI-V1-016 (MKT-FR-060 / MKT-FR-030). |
+| **What** | Deterministic spread_bps, depth bands (1%/2%/5%), book imbalance, pre-trade slippage walk, composite health score (0–100), and snapshot cadence/staleness flags. **Not** auto-copy, insider labels, AI→orders, or executable-arbitrage claims. |
+| **When** | Continuously on book snapshots: 1s for top 200 markets by volume, 10s for long tail; mark stale if age > 3× cadence. Applies when shipping market health API, liquidity alert conditions (`spread_bps`, `depth_band`), and pre-trade simulator bands. Golden vectors gate every formula change. |
+| **Where** | Spec authority: this doc. Compute: `apps/backend/internal/markets/intelligence/`. Params: `intelligence_params_v1.yaml` (health weights, band thresholds). API surface (product registry): `GET /markets/intelligence/markets/{id}/health`. Downstream consumers: whale τ_liquidity (`depth_2pct`), alert DSL, slippage display bands. Clients render only. |
+| **Why** | Traders need evidence-linked liquidity context (can I size here? is the book one-sided?) without RetroPick automating orders or overstating fill quality. Health/slippage are advisory metrics; intelligence failures must stay isolated from balances, orders, and settlement (invariant 28). |
+| **How** | From best bid/ask and depth levels: compute mid, `spread_bps`, `depth_band_usd`, `imbalance`, `slippage_bps(q)` for display notionals `{100, 500, 2000}` USD; compose `health = 100 * (0.4*f_spread + 0.35*f_depth + 0.25*f_balance)`. Empty side → `spread_bps: null`, flag `one_sided_book`. Alert if `|imbalance| > 0.65` for 5 consecutive snapshots. Never place or suggest autonomous orders from a health score. |
+
+### Scope boundaries
+
+- **In scope (V1):** spread, depth bands, imbalance, slippage walk for display bands, composite health, cadence/staleness, market_sample golden rows.
+- **Out of scope (V1):** claiming guaranteed fills; executable cross-market arbitrage (see RELATIONSHIP scanner, V1.1/Post-V1); wallet accusations from thin books.
+- **Downstream consumers:** WHALE_AND_LARGE_TRADE_DETECTION (`τ_liquidity` / book thinness); ALERT_RULES (`spread_bps`, `depth_band`); TI-V1-016 pre-trade scenario UI.
+- **Params freeze:** weights `0.4 / 0.35 / 0.25` and band percentages live in `intelligence_params_v1.yaml` — bump params_version on material changes per provenance spec.
+
+### Formula anchors (do not invent)
+
+```
+mid = (best_bid + best_ask) / 2
+spread_bps = 10000 * (best_ask - best_bid) / mid
+imbalance = (depth_2pct_bid - depth_2pct_ask) / (depth_2pct_bid + depth_2pct_ask + ε)
+slippage_bps(q) = 10000 * (vwap_exec(q) - mid) / mid
+health = 100 * (0.4*f_spread + 0.35*f_depth + 0.25*f_balance)
+```
+
+Cadence: 1s top-200 by volume; 10s long tail; stale if age > 3× cadence.
+
+### Worked example
+
+**Happy path.** Book snapshot: best bid 0.48, best ask 0.52 → mid 0.50, `spread_bps = 800`. Depth within 2% is thin on ask; `imbalance` ≈ −0.70 for five consecutive 1s snapshots → liquidity alert candidate via ALERT_RULES. Health components: wide spread lowers `f_spread`, thin `depth_2pct_total` lowers `f_depth`, imbalance lowers `f_balance` → health in the low range. Pre-trade simulator walks asks for q ≈ 500 USD notional and shows `slippage_bps` with evidence snapshot IDs — descriptive only (“Estimated slippage for this size”).
+
+**Whale / τ linkage.** Whale detection reads `depth_at_2pct_usd` from this analytics plane for `τ_liquidity = 0.10 * depth_at_2pct_usd`. If the book is missing, consumers must use documented fallbacks (e.g. whale `vwap_fallback`) and keep evidence flags — do not invent depth.
+
+**Failure / Never-V1 / degraded.** One-sided book → `spread_bps: null`, flag `one_sided_book`; do not fabricate mid or claim “healthy liquidity.” Stale snapshots must surface a stale banner; clients must not treat stale health as live for sizing. Health score must never open a copy-trade, label wallets, or feed an LLM→order path (ADR-009). Slippage bands are illustrative walk-the-book estimates, not guaranteed fills.
+
 ## 1. Purpose
 
 Spread, depth bands, imbalance, slippage estimation, and composite market health score.

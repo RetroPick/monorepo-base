@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the STRIDE threat model for RetroPick Markets V1 across trust boundaries: client→BFF, BFF→Polymarket, BFF→Postgres/Redis, user→wallet, and operator→ops. It scores likelihood×impact, records residual-risk acceptance (score >12 needs written accept), and ties mitigations to fail-closed eligibility/geo, preview-before-sign integrity, session hardening, and no user key custody.
+
+It sits in Wave 7 as security-spec authority, with boundary definitions in architecture trust-boundary docs and mitigations in sibling security and backend docs. Decomposition includes web, Android, cmd/api middleware, workers, markets.*, Redis, Polymarket Gamma/CLOB, and user wallets—not a custom-exchange or PRISM/legacy model.
+
+Read this before designing or changing auth, trading, eligibility, builder-key usage, or ops surfaces; on Wave 7 reviews; and before pen-test scope freeze and launch sign-off. Prefer SECURITY_TEST_AND_REVIEW_PLAN to trace high residuals to SEC-T cases.
+
+It excludes server custody of EOA or seeds, client-only geoblock, and fail-open eligibility when GeoIP is unknown.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Security owners and architects applying STRIDE across Markets trust boundaries; BFF middleware owners (auth, eligibility, rate-limit); web/Android engineers who keep signing in the user wallet; ops/incident responders scoring residual risk; pen-testers and agents mapping threats before PHASE-7. Not custodians—RetroPick never holds user EOA/seed material. |
+| **What** | Markets V1 threat model: STRIDE per trust-boundary crossing (client→BFF, BFF→Polymarket, BFF→Postgres/Redis, user→wallet, operator→ops), likelihood×impact scoring, residual-risk acceptance (score >12 needs explicit accept), and mitigations aligned to **fail-closed** eligibility/geo, preview-before-sign integrity, session hardening, and **no user key custody**. Covers spoofing, preview tampering, session theft, geo bypass, builder-key abuse, DoS—not a custom-exchange or PRISM/legacy model. |
+| **When** | Before designing or changing auth, trading, eligibility, builder-key usage, or ops surfaces; on every wave-7 security review; when residual risk changes after a mitigation lands; before pen-test scope freeze and launch sign-off. Re-score when a new worker, third party, or client surface appears. |
+| **Where** | Spec authority: this file. Boundary definitions: [SYSTEM_CONTEXT_AND_TRUST_BOUNDARIES.md](../architecture/SYSTEM_CONTEXT_AND_TRUST_BOUNDARIES.md). Mitigations: sibling security docs (secrets, signing, abuse, incidents) plus backend auth/rate-limit docs. Decomposition includes `apps/web`, `apps/android`, `cmd/api` middleware, workers, `markets.*`, Redis, Polymarket Gamma/CLOB, user wallets. |
+| **Why** | Polymarket-native Markets still faces real STRIDE threats even without custodian fund vaults. Explicit modeling stops “we don’t hold keys so we’re safe.” Fail-closed geo and integrity controls protect users and the operator when policy, GeoIP, or upstream state is unknown. Residual scoring makes launch risk a decision, not a vibe. |
+| **How** | Decompose the system; enumerate STRIDE per boundary; score L×I; attach mitigations (TLS, HttpOnly sessions, server GeoIP + Polymarket geoblock, `contentHash` preview bind, Redis rate limits fail-closed on writes, least-privilege DB roles, audited break-glass). Never store EOA/seed server-side. Residual >12 → written acceptance or block launch. Trace each high residual to a case in SECURITY_TEST_AND_REVIEW_PLAN. |
+
+### Trust posture (non-negotiable)
+
+| Rule | Meaning for implementers |
+|------|--------------------------|
+| No key custody | User signing keys stay in wallet; BFF prepares unsigned payloads only |
+| Fail closed | Unknown eligibility, geo, or integrity → deny trading writes |
+| Server-authoritative geo | Client GPS/locale/headers never grant eligibility |
+| Infrastructure ≠ user keys | Builder/relayer keys are T3 secrets, not user signing EOAs |
+| Residual risk gate | Score >12 needs written acceptance before PHASE-7 |
+
+### Boundary → primary controls
+
+| Boundary | Primary controls |
+|----------|------------------|
+| Client → BFF | TLS 1.2+, session cookie/JWT, CSRF on cookie auth, rate limits |
+| BFF → Polymarket | Schema validation, credential metering, timeout/degrade |
+| BFF → Postgres/Redis | Network policy, least-privilege roles, no raw PII in logs |
+| User → Wallet | Preview-before-sign; no key export to RetroPick |
+| Operator → Ops | SSO, read-only default, break-glass audited |
+
+### Worked example
+
+**Happy path.** Architect maps Client→BFF spoofing (stolen cookie) → HttpOnly/Secure/SameSite + short TTL + refresh rotation; residual Low. Preview UI tampering → CSP + server re-hash on submit → 409 on mismatch. Geo eligibility evaluated server-side (GeoIP + Polymarket geoblock); allowed region → `eligible: true`; user signs only in wallet. All residuals ≤12 or accepted; linked SEC-T cases green.
+
+**Failure / degraded.** Attacker spoofs `X-Forwarded-For` or client claims “allowed country” → ignored; server geo used; unknown GeoIP → **fail closed** (`eligible: false`). Preview JSON altered between preview and submit → hash mismatch → no CLOB call. Builder key leak → SEC incident (rotate + meter), not framed as custodian loss—but still SEV-capable via abuse/ToS blast radius. Residual >12 without acceptance → launch blocked.
+
+**Never invent.** Server-side custody of user keys, client-only geoblock, or “fail open when GeoIP times out” are out of model and must be rejected in design review.
+
 ## 1. Purpose
 
 STRIDE threat model for Markets V1 custody, signing, eligibility, upstream integration, and intelligence surfaces. Defines threats, mitigations, and residual risk for launch gating.

@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the pre-release verification matrix for RetroPick Markets V1: gates for CI, OpenAPI, preview integrity 409, E2E P0 including geo deny, security, SBOM, and SLO/ops mapped to roles and release-record fields including rollback digest, plus waiver process and a one-hour post-release verification window.
+
+It sits in Wave 7 as the launch scoreboard over evidence from CI, Playwright, SEC tests, SBOM store, and staging soak. Cross-ref RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT, MASTER_TEST_PLAN, SECURITY_TEST_AND_REVIEW_PLAN, and OBSERVABILITY_SLOS_AND_ALERTS. Agents must attach real artifact links—not checkbox fiction.
+
+Read this on every production promote, after hotfixes, when waiving a non-P0 with expiry, and during the first hour post-release. Prefer RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT for mechanical revert steps.
+
+It excludes marking RV rows green without artifacts and shipping with red P0 geo or trading journeys or a missing rollback digest.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Release manager deciding go/no-go; QA collecting journey evidence; security/CI providing gate proofs; on-call watching post-release 1h; agents filling matrix rows with real artifact links—not checkbox fiction. |
+| **What** | Pre-release verification matrix mapping gates (CI, OpenAPI, preview integrity 409, E2E P0, security, SBOM, SLO/ops) to roles and release record fields (including rollback digest). Waiver process; post-release verification window. |
+| **When** | Every production promote; after hotfixes; when waiving a non-P0 with expiry; first hour post-release. |
+| **Where** | Spec: this file. Evidence from CI, Playwright, SEC tests, SBOM store, staging soak. Cross-ref RELEASE_ROLLBACK, MASTER_TEST_PLAN, SECURITY_TEST_AND_REVIEW_PLAN, OBSERVABILITY. |
+| **Why** | Matrix is the launch scoreboard: pyramid + journeys + security + ops in one decide. Prevents shipping with red P0 geo/trading journeys or missing rollback digest. |
+| **How** | Walk RV-* rows; attach evidence; block on required fails; record waivers with owner/expiry; confirm rollback digest; execute 1h post-release checks; stop/rollback if burn or P0 regress. |
+
+### Gate groups (required vs discretionary)
+
+| Gate | Required for prod |
+|------|-------------------|
+| CI green + OpenAPI spectral | Yes |
+| Preview hash mismatch 409 | Yes |
+| E2E P0 journeys (incl. geo deny) | Yes |
+| SBOM archived | Yes |
+| Security checklist / SEC-T | Yes |
+| Load/chaos latest run | Pre-launch / major |
+
+### Release record must include
+
+| Field | Why |
+|-------|-----|
+| Evidence links for RV rows | Auditability |
+| Rollback digest / Vercel ID | Fast revert |
+| Waiver list + expiry | Time-boxed risk |
+| Post-release 1h notes | Early burn detection |
+
+### Worked example
+
+**Happy path.** All required RV rows green with links; rollback digest recorded; release proceeds; 1h post checks (error rate, preview p95, no unexpected kill switch) pass.
+
+**Failure / degraded.** RV-004 E2E-05 red → no-go. Waiver requested on SBOM → reject or time-box with security owner—prefer **fail closed**. Post-release integrity alerts → kill switch + rollback per change management; update matrix evidence for hotfix release.
+
+**Never invent.** Marking RV rows green without artifacts.
+
 ## 1. Purpose
 
 Pre-release checklist matrix mapping journeys, contracts, security, and ops gates to release decision.

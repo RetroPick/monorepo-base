@@ -3,6 +3,61 @@
 **Last updated:** 2026-07-25
 **Status column:** `draft` | `reviewed` | `stale`
 
+## Description
+
+This document map is the **canonical inventory** of Markets V1 documentation paths with category and status (`draft` | `reviewed` | `stale`). Start here after the README when you need the right authority for a claim — PRDs, research evidence, architecture/ADRs, polymarket, intelligence, backend/web/android design, security/platform/testing, phases, or agent-harness.
+
+It complements [README.md](README.md) (consume order) without duplicating phase math or task status. Machine harness paths are under `agent-harness/*.yaml`; product code is never listed as “spec complete.” When adding a new `.md`, append it here and give it `## Description` then `## 0. Developer intent (5W+1H)`.
+
+**How to navigate:** find the category → open the reviewed path → read that doc’s Description and §0 intent → follow Purpose/Scope. Prefer ADRs for decisions, research for time-sensitive EV claims, phases for sequencing, and harness files for tasks.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before using the index table below.
+
+**Documentation convention:** every Markets V1 markdown under `.dev/markets-v1/` starts with `## Description` then `## 0. Developer intent (5W+1H)`, immediately after title and metadata, before the first body heading. Indexes (this document map, [README.md](README.md)) are navigation-focused; deep specs carry domain-specific descriptions and 5W+1H tables.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Status values (`draft` | `reviewed` | `stale`) or the numbered path inventory; if anything conflicts, the table rows win for “does this file exist / what category.”
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Agents locating the right reviewed doc before coding; orchestrators checking corpus coverage; reviewers verifying a change has a home category (PRD, architecture, polymarket, intelligence, backend, web, android, research, phases, harness). |
+| **What** | Canonical inventory of Markets V1 documentation paths with category and status. Starts with root PRDs (01–05), research evidence pack, architecture/ADRs, polymarket integration, intelligence, backend/web/android design, security/platform/testing, phases, and agent-harness. Complements [README.md](README.md) (consume order) without duplicating phase math. |
+| **When** | After README orientation, before deep-reading a phase or ADR. Re-check when adding a new `.md` (must appear here and carry §0 intent), when marking `stale`, or when an agent cannot find an authority for a claim. |
+| **Where** | This file: `.dev/markets-v1/00_DOCUMENT_MAP.md`. Linked relatives are under `.dev/markets-v1/**`. Machine harness paths: `agent-harness/*.yaml`. Product code is never listed as authority for “spec complete.” |
+| **Why** | A 100+ doc corpus without an index causes agents to invent APIs, miss research evidence (EV-IDs), or edit the wrong product tree. The map makes category and review status explicit so scope debates resolve to a path. |
+| **How** | Find the category → open the reviewed path → read that doc’s §0 intent → follow its Purpose/Scope. Prefer ADRs for decisions, research for time-sensitive claims, phases for sequencing, harness for tasks. Do not remove or reorder existing table rows casually; append new numbered entries when docs are added. |
+
+### Worked example
+
+**Happy path — “where is CLOB order lifecycle?”**
+
+1. Scan Category = `polymarket` → [polymarket/ORDER_LIFECYCLE.md](polymarket/ORDER_LIFECYCLE.md).
+2. Confirm Status = `reviewed`.
+3. Read that doc’s §0 + Purpose; cross-check evidence in [research/EVIDENCE_REGISTER.md](research/EVIDENCE_REGISTER.md) / YAML before implementing PHASE-3 tasks.
+
+**Happy path — “is Android in scope for this task?”**
+
+1. Root PRD [02_SCOPE_AND_CAPABILITY_MATRIX.md](02_SCOPE_AND_CAPABILITY_MATRIX.md) for tier.
+2. Design rows under `design/android` + research [ANDROID_AND_PLAY_CURRENT_STATE.md](research/ANDROID_AND_PLAY_CURRENT_STATE.md).
+3. Implementation only if `current_phase` / task-graph authorizes PHASE-5 work.
+
+**Failure / Never**
+
+- Treating an absent path as license to invent endpoints not in [schemas/openapi/markets-v1.yaml](../../schemas/openapi/markets-v1.yaml).
+- Using `stale` docs as launch authority without revalidation.
+- Skipping research EV records for contract addresses or collateral claims.
+
+**Agent checklist**
+
+- [ ] Path present in map?
+- [ ] Status reviewed (or explicitly accepted draft)?
+- [ ] Right category for the claim?
+- [ ] Linked §0 intent read?
+- [ ] Harness task still required?
+
+**Reading tip:** Treat this file as a library card catalog — navigate, then deep-read. Keep the existing numbered table intact; the convention note above is the durable rule for new markdown.
+
 | # | Path | Category | Status |
 |---|------|----------|--------|
 | 1 | [README.md](README.md) | root | reviewed |

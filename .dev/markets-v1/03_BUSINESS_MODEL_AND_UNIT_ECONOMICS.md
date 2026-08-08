@@ -7,6 +7,60 @@
 
 ---
 
+## Description
+
+This PRD frames Markets V1 monetization and unit economics: primary revenue is Polymarket Builder Program fees on routed notional with **pre-signature disclosure**; secondary Pro/API ideas stay PHASE-8 hypotheses. Cost drivers include relayer gas, Gamma/CLOB, RPC, and push; MVP infra targets **< USD 100/month** (MKT-NFR-030).
+
+It locks allowed revenue and excluded streams (hidden spread, fees on failed submits, interest on user collateral) so agents do not “optimize” by obscuring venue economics. Fee rates are external — fetch live Builder terms; never hardcode production percentages from memory.
+
+Use before fee UI, relayer budgets, subscription surfaces, or infra spend claims. Cost detail lives in [platform/INFRASTRUCTURE_AND_COST_MODEL.md](platform/INFRASTRUCTURE_AND_COST_MODEL.md); order UX must show the same fee fields defined in polymarket/order and web wallet specs.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before revenue, cost, and KPI sections below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace fee formulas, cost tables, or MKT-NFR-030; if anything conflicts, the body wins. Fee rates are external — never hardcode production percentages from memory.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Platform/product leads validating monetization posture; backend agents wiring Builder attribution disclosure; SRE/cost owners keeping MVP infra under baseline; reviewers rejecting undisclosed spread or custody-interest models. |
+| **What** | Business model and unit-economics frame for Markets V1: primary revenue = Polymarket Builder Program fees on routed notional with pre-signature disclosure; secondary Pro/API hypotheses gated to PHASE-8; cost drivers (relayer gas, Gamma/CLOB, RPC, push); MVP infra target **< USD 100/month** (MKT-NFR-030). |
+| **When** | Before implementing fee UI, relayer budgets, subscription surfaces, or infra spend claims. Re-read when Polymarket publishes fee-schedule changes or when PHASE-2/3 attribution work starts. |
+| **Where** | This PRD + https://docs.polymarket.com/programs/builders/fees (fetch at deploy). Cost detail: [platform/INFRASTRUCTURE_AND_COST_MODEL.md](platform/INFRASTRUCTURE_AND_COST_MODEL.md). Order UX must show fee fields defined in polymarket/order and web wallet UX specs — not invented ticker labels. |
+| **Why** | Monetization mistakes (hidden spread, charging failed submits, interest on user collateral) break trust and policy. This doc locks allowed revenue and excluded streams so agents do not “optimize” by obscuring venue economics. |
+| **How** | Fetch and disclose current Builder terms before every signature; compute `filled_notional × effective_builder_fee_rate` only with live terms; budget relayer gas with kill switches; keep secrets/credentials out of Git. Do not ship Pro subscription as a V1 launch blocker. |
+
+### Worked example
+
+**Happy path — order preview fee line (PHASE-3)**
+
+1. BFF loads current Builder fee terms (versioned).
+2. Preview response includes effective rate + estimated fee amount in collateral units.
+3. Web/Android show the same numbers the user will sign; mismatch fails closed.
+
+**Happy path — MVP cost gate**
+
+1. PHASE-1 deploy stays on single-region VPS + Postgres within MKT-NFR-030.
+2. Shared ingest/cache reduces Gamma/CLOB poll cost; no premature multi-region.
+
+**Failure / Never**
+
+- Hardcoding fee bps from a blog post.
+- Undisclosed spread between preview and venue.
+- Revenue on cancelled/failed order attempts.
+- Interest income on user balances (RetroPick does not custody trading balances).
+- Treating PHASE-8 Pro pricing hypotheses as committed SKUs.
+
+**Agent checklist**
+
+- [ ] Fee source fetched, not invented?
+- [ ] Disclosure before sign?
+- [ ] Cost driver mapped to phase?
+- [ ] Excluded revenue avoided?
+- [ ] Infra baseline still honest?
+
+**Reading tip:** Primary stream (§3.1) and Excluded revenue (§3.3) are the gates; secondary subscription is intentionally TBD until usage validation.
+
 ## 1. Purpose
 
 Document revenue hypotheses, cost drivers, unit economics, and KPI framework for Markets V1 pre-funding MVP (baseline infra < USD 100/month).

@@ -6,6 +6,55 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document covers outcome-token identity (ERC-1155 / CTF position IDs), position sources (Data API, CLOB balances, on-chain), split/merge/redeem, resolution lifecycle, and PnL display semantics for Markets V1 Wave 2. Settlement is via Polymarket CTF—not a RetroPick vault or custom outcome issuer (ADR-001).
+
+It sits in Wave 2 after fills and alongside funding (pUSD) and neg-risk convert. Token IDs come from venue market metadata—never guessed from outcome names. CTF writes use user signature or Relayer when authorized; redeem is gated on resolution state. PnL is descriptive (cost vs redemption), not custodial P&L authority.
+
+Read this when building portfolio UI, after trades fill, on resolution, or when offering merge/redeem. Prefer [FUNDS_DEPOSIT_AND_WITHDRAWAL.md](./FUNDS_DEPOSIT_AND_WITHDRAWAL.md) for collateral wrap/withdraw and [NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](./NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md) for convert—not for inventing token IDs or Combos position managers.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Portfolio BFF, indexer/projection owners, web/Android positions UI, agents implementing split/merge/redeem and resolution UX. |
+| **What** | Outcome token identity (ERC-1155 / CTF position IDs), position sources (Data API, CLOB balances, on-chain), split/merge/redeem, resolution lifecycle, PnL display semantics — settlement via Polymarket CTF, not a RetroPick vault. |
+| **When** | After trades fill; on resolution; when offering merge/redeem; when Data API or CTF docs change. |
+| **Where** | Spec: this doc. Reads: Data API `/positions`, CLOB balances, indexer. Writes: CTF ops via user signature or Relayer (EV-009). Token IDs from market metadata — never guessed. |
+| **Why** | Guessed `token_id`s corrupt portfolios. Redeem before resolution fails. PnL must not imply RetroPick custodial P&L authority. Neg-risk convert interacts with positions ([NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](./NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md)). |
+| **How** | Resolve instruments via Gamma/CLOB metadata; refresh positions on schedule; gate redeem on resolution state; use relayer for gasless CTF when authorized; reconcile on-chain vs API views. |
+
+### Worked example
+
+**Happy path.** User's buy fills; Data API shows open position with condition/token ids from metadata. Pre-resolution they may merge full sets back to pUSD. Market resolves; UI enables redeem; relayer submits redeem; collateral returns to account wallet; portfolio marks settled. PnL shown as informative based on cost vs redemption — not a RetroPick bank balance.
+
+**Failure / degraded.** Data API down → show last projection with stale banner; block redeem if on-chain resolution unknown. Agent computes token id from outcome name string → forbidden. Redeem while `unresolved` → upstream revert; UI must disable. Relayer failure → signed direct CTF path or retry; no fake "redeemed" local state. Combos position managers stay gated off.
+
+**CTF ops vs trading**
+
+| Op | When | Gas |
+|----|------|-----|
+| split | Collateral → outcomes | User or relayer |
+| merge | Full set → collateral | User or relayer |
+| redeem | Post-resolution | User or relayer |
+| convert (neg risk) | Per neg-risk doc | User or relayer |
+
+**Identity rules**
+
+- Position IDs derive from CTF collection/condition/indexSet relationships published by venue metadata.
+- BFF stores upstream token ids; OpenAPI may expose `instrumentId` but must round-trip to the same token.
+- Portfolio UI should label resolution states from Polymarket/oracle flow, not invent RetroPick "settled" without redeem/merge evidence.
+- Funding doc covers pUSD; this doc covers outcome inventory after split/trade.
+
+**Reconciliation priority:** on-chain balances win disputes for redeemable inventory; Data API wins for activity UX when chain lag is known and flagged. Never mark `redeemed` from a client optimistic click alone.
+
+**PnL copy:** descriptive only ("estimated vs redemption"); no withdrawal button that bypasses Bridge/offramp docs. Outcome tokens are venue CTF inventory, not RetroPick IOUs.
+
+**Related docs:** [FUNDS_DEPOSIT_AND_WITHDRAWAL.md](./FUNDS_DEPOSIT_AND_WITHDRAWAL.md), [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [CONTRACT_ABI_AND_ADDRESS_REGISTRY.md](./CONTRACT_ABI_AND_ADDRESS_REGISTRY.md).
+
 ## 1. Purpose
 Outcome tokens, positions, split/merge/redeem, resolution lifecycle, PnL semantics.
 

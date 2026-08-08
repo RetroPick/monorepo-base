@@ -5,6 +5,52 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This is the stop-and-log register for unresolved blockers (BLK-*) and human approval gates. Agents must not improvise around these entries — no fake prod creds, no allow-all geoblock, no silent mainnet. Header **Status: reviewed** does not mean blockers are cleared.
+
+Scan Active blockers and gates before starting a task; when work cannot proceed safely, log the blocker, set task `blocked`, and hand off with unblock criteria. Cleared-by roles record clearance with required evidence; keep history.
+
+§18 gates exist because custody, legal, Builder fees, and real chain writes are irreversible or compliance-bound. Invented clearance is a process/security failure. This file complements the decision/assumption log — it does not replace ADRs or phase specs.
+
+## 0. Developer intent (5W+1H)
+
+Stop-and-log register for unresolved blockers and human approval gates. Agents **must not improvise** around these entries (no fake prod creds, no allow-all geoblock, no silent mainnet). Header **Status: reviewed** does not mean blockers are cleared — read the Active blockers table and gate list below.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Any agent hitting a missing dependency or `human_approval_required` task; humans in Cleared-by roles; orchestrator tracking `unresolved_blockers` alongside the manifest. |
+| **What** | Active blockers (IDs BLK-*), human approval gates (V1 scope, production wallet, real txs, Builder fees, withdrawals, prod deploy, Play prod, jurisdictions, destructive migrations), resolved Wave 9 blockers, escalation path. |
+| **When** | Before starting a task (scan Active blockers + gates); when work cannot proceed safely; when a human clears a gate (update status with evidence — keep history). |
+| **Where** | This file; cross-links to auth/wallet/order/Play/evidence docs; task-graph `blocked` status; `DECISION_AND_ASSUMPTION_LOG.md` for related assumptions. |
+| **Why** | §18 human gates exist because custody, legal, Builder fees, and real chain writes are irreversible or compliance-bound. Invented clearance is a process/security failure. |
+| **How** | Scan → if blocked, add/update Active blockers with evidence → set task `blocked` → handoff with unblock criteria → record assumption if needed → wait for named Cleared-by role. |
+
+### In / out for agents
+
+- **In:** Logging BLK rows; referencing gate evidence requirements; stopping cleanly; preparing rehearsal evidence that helps humans decide.
+- **Out:** Marking gated tasks `done` without clearance; committing secrets to “unblock” yourself; deleting open blockers without resolution notes; bypassing geoblock/eligibility because BLK-001 is annoying.
+
+### What “done” means
+
+- **Blocked agent:** Blocker ID logged, task not `done`, handoff states unblock criteria.
+- **Gated task after clearance:** Gate row shows evidence + clearer; only then continue commands that touch prod/mainnet/Play.
+
+### How (escalation procedure)
+
+1. Log blocker in Active blockers (ID, title, phase, owner, status, doc link).
+2. Record related assumption in the decision log if upstream truth is time-sensitive.
+3. Set task status to `blocked` in `task-graph.yaml`.
+4. Complete `AGENT_HANDOFF_TEMPLATE` with explicit unblock criteria.
+5. Do not resume until the gate’s Cleared-by role records clearance with the evidence the gate table requires.
+
+Examples of gates that always stop agents: production wallet creation, real on-chain transaction, Builder fee configuration, Play production release, new jurisdiction enablement, destructive migration.
+
+### Worked example
+
+Agent reaching CLOB submit sees BLK-004 (CLOB not implemented) / BLK-010 (addresses need revalidation) and a human gate for real on-chain transactions. They implement only what the task allows in sandbox/fixtures; if mainnet is required, they set `blocked`, cite BLK-004/BLK-010 in handoff, and leave verification evidence without fabricated mainnet success. When ops clears the gate, a new agent resumes from the handoff rather than rediscovering the gap from chat.
+
+
 ## 1. Purpose
 
 Track unresolved blockers and human approval gates. Agents MUST stop and log here rather than improvising around blockers.

@@ -6,6 +6,58 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the secrets, keys, and operator access-control authority for RetroPick Markets V1. It taxonomizes infrastructure credentials—JWT, DB, OAuth, FCM, builder/relayer, geo—versus user signing material, mandates secret-manager storage with env separation, rotation cadences, least-privilege DB roles, break-glass, and offboarding, while forbidding RetroPick custody of user EOA or seeds.
+
+It sits in Wave 7 with runtime injection from cloud secret manager into BFF and workers (never git), CI OIDC preferred over long-lived cloud keys, and operator SSO/RBAC. Production boot must fail closed if required secrets, including geo, are missing. Cross-ref auth eligibility, ABUSE builder metering, INCIDENT_RESPONSE, and SUPPLY_CHAIN_AND_SBOM.
+
+Read this at environment bootstrap, on deploy secret injection, scheduled rotation, compromise, or employee leave. Prefer ASSET_AND_DATA_CLASSIFICATION for tier labels.
+
+It excludes secrets via ops UI, committed .env, keystores, or PEMs, and server hot wallets that hold user signing keys for convenience.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Platform/security owners wiring secret managers and rotation; BFF/worker deployers consuming JWT, DB, OAuth, FCM, builder/relayer, and geo provider keys; ops RBAC implementers; DBAs defining least-privilege roles (`markets_migrate` CI-only); auditors reviewing break-glass and offboarding. **Not** user-wallet custodians—EOA/seed keys never enter RetroPick custody. |
+| **What** | Secret taxonomy (user signing keys vs session/JWT, DB, upstream builder/relayer, OAuth, push), secret-manager storage with staging/prod versioning, rotation cadences (e.g. JWT/DB ~90d, builder on compromise + ~180d), operator RBAC (secrets never via UI), least-privilege DB roles, break-glass procedure, and offboarding/compromise rotation. Enforces infrastructure credentials ≠ user signing material. |
+| **When** | At environment bootstrap; on every deploy that injects secrets; on scheduled rotation; immediately on compromise or employee leave; before production promote if any secret appeared in CI logs or git. |
+| **Where** | Spec: this file. Runtime: cloud secret manager → BFF/worker env (never git). CI: OIDC to deploy role preferred over long-lived cloud keys. Operator SSO + RBAC matrix in §6. Cross-ref AUTH_SESSION_AND_ELIGIBILITY, ABUSE (builder metering), INCIDENT_RESPONSE, SUPPLY_CHAIN. |
+| **Why** | Markets V1 has no custodian fund vault, but session keys, builder keys, and DB credentials still enable account takeover, upstream abuse, and data exfil. Clear taxonomy stops agents from “storing user keys for convenience.” Production must **fail closed** on boot if required secrets (including geo) are missing. |
+| **How** | Classify every credential; put T3 in secret manager only; inject at deploy; rotate per table; meter builder keys; deny Secrets capability in ops UI; DDL only via `markets_migrate` in CI; break-glass = ticket → time-boxed elevate → rotate → access review. Never commit `.env`, keystores, or PEMs. |
+
+### Custody boundary
+
+| Material | Allowed location | Forbidden |
+|----------|------------------|-----------|
+| User EOA / seed | User wallet only | Server, logs, backups, CI, ops UI |
+| Session JWT signing key | Secret manager → BFF | Repo, client bundles |
+| Builder / relayer API keys | Secret manager; env-scoped | Shared across env; frontend |
+| Geo provider key | Secret manager → eligibility path | Client-exposed |
+| OAuth / FCM | Secret manager | App source, tickets, chat |
+
+### Rotation & access quick rules
+
+| Concern | Rule |
+|---------|------|
+| Operator default | Read-only ops; elevate with audit |
+| Secrets via UI | Never |
+| Prod boot | Fail closed if required vars missing |
+| Compromise | Rotate immediately + IR ticket |
+| Offboarding | Revoke SSO same day; rotate if exposure risk |
+| Env separation | Distinct builder/JWT/DB secrets per environment |
+
+### Worked example
+
+**Happy path.** Staging bootstrap pulls versioned secrets; BFF boots after validation; operator remains read-only by default; builder key is per-env with volume alerts. Quarterly JWT/DB rotation via manager version bump + rolling restart. Employee offboard: SSO revoke same day; shared secrets rotated if needed.
+
+**Failure / degraded.** Missing `JWT_SIGNING_KEY` or `GEO_PROVIDER_API_KEY` in production → **fail closed** (process refuses start). Suspected builder leak → open SEC incident, revoke/rotate, kill anomalous volume, audit `order_attempts`. Proposal to keep a server-side “user hot wallet” for gas sponsorship of user funds → **reject**: user signing keys remain out of custody; only approved meta-tx builder paths use infra keys.
+
+**Break-glass path.** Ticket opened → time-boxed elevate → action completed → privileges revoked → secrets rotated if copied → access review logged. Skipping the ticket is itself an incident.
+
 ## 1. Purpose
 
 Defines secret storage, key rotation, RBAC for operators, and separation between user signing keys and infrastructure credentials.

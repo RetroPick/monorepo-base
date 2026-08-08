@@ -7,6 +7,59 @@
 
 ---
 
+## Description
+
+This document defines measurable non-functional requirements for Markets V1: catalog/book freshness, preview/submit latency, BFF uptime, RTO, security gates (secrets, TLS, SBOM, pen-test), cost (MKT-NFR-030), WCAG/TalkBack, Android cold-start/crash/ANR, and data integrity. Every NFR needs a numeric or boolean target plus phase/task/metric path.
+
+Principles force runbook response on breach and keep intelligence failure domains isolated from trading (ADR-008). Soft “make it fast” language is not enough — do not weaken targets to match broken behavior, and do not invent unofficial dashboard metric names without updating this doc.
+
+Deep observability lives in [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](platform/OBSERVABILITY_SLOS_AND_ALERTS.md); test strategy under [testing/](testing/). Re-read before PHASE-6 hardening and PHASE-7 launch evidence packs.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before performance, availability, and cost NFR tables below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace numeric targets or phase/task columns; if anything conflicts, the NFR tables win. Do not weaken targets to match broken behavior.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Backend/web/Android implementers accepting latency/uptime budgets; SRE defining SLOs and runbooks; QA designing load/contract tests; intelligence agents ensuring signal lag failures do not block trading (ADR-008). |
+| **What** | Measurable non-functional requirements: catalog/book freshness, preview/submit latency, BFF uptime, RTO, security gates (secrets, TLS, SBOM, pen-test), cost (MKT-NFR-030), WCAG/TalkBack, Android cold-start/crash/ANR, data integrity. Every NFR needs numeric/boolean target plus phase/task/metric path. |
+| **When** | When sizing caches, choosing poll intervals, writing load tests, or negotiating “good enough” launch bars. Re-read before PHASE-6 hardening and PHASE-7 launch evidence packs. |
+| **Where** | This file for NFR IDs. Observability detail: [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](platform/OBSERVABILITY_SLOS_AND_ALERTS.md). Test strategy: [testing/](testing/). Metrics names in tables (e.g. `orderbook_snapshot_age_seconds`) are the contract — do not invent parallel unofficial names in dashboards without updating this doc. |
+| **Why** | Soft “make it fast” language lets agents ship without SLOs, or silently drop safety when upstream is slow. Principles here force runbook response on breach and keep intelligence failure domains isolated from trading. |
+| **How** | Implement against the Target column; emit the Measurement metric; attach phase-gate evidence. On upstream outage, prefer documented read-only degradation (MKT-NFR-011) over inventing optimistic fills. Keep baseline infra under MKT-NFR-030 until explicitly revised. |
+
+### Worked example
+
+**Happy path — order book age**
+
+1. MKT-NFR-002: p95 book snapshot age < 5s.
+2. PHASE-1 task wires ingest + `orderbook_snapshot_age_seconds`; contract tests assert staleness flags in API.
+3. UI shows stale state instead of pretending live.
+
+**Happy path — intelligence lag**
+
+1. Signal compute exceeds budget: degrade intelligence cards; trading preview/submit paths remain available (ADR-008).
+2. Fix workers/indexer lag — do not delete the NFR row.
+
+**Failure / Never**
+
+- Shipping without metric instrumentation for launch-critical NFRs.
+- Silently disabling geoblock/TLS to “hit latency.”
+- Claiming 99.5% uptime without PHASE-6 observability.
+- Raising cost baseline in code comments without updating MKT-NFR-030 and cost model docs.
+
+**Agent checklist**
+
+- [ ] NFR ID and target known?
+- [ ] Metric name matches table?
+- [ ] Phase/task alignment?
+- [ ] Breach → runbook path exists?
+- [ ] Safety controls still fail closed?
+
+**Reading tip:** Principles (§2) apply to every table; performance numbers are useless without the Measurement column wired in code.
+
 ## 1. Purpose
 
 Performance, availability, security, cost, accessibility, operability, and mobile NFRs with measurable targets and verification phases.

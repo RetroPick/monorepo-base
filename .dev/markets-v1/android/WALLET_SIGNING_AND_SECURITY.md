@@ -6,6 +6,73 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the Android wallet, signing, and device-security authority for RetroPick Markets V1 (Kotlin + Compose): trust model, WalletCoordinator, Keystore usage, biometric app gates that are not custody replacement, payload verification checklist, signing-path order state machine, FLAG_SECURE, root and debug posture, and web parity.
+
+It sits in PHASE-5C trading. Wallet module stays isolated from UI widgets. External wallets own EIP-712 and order authority (ADR-003); app Keystore may hold session material only. Web twin is WALLET_AND_TRANSACTION_UX. RetroPick never accepts server-side silent signing of user orders.
+
+Read this whenever a new signable payload appears—order, approval, redeem—before enabling biometric shortcuts, and on wallet SDK upgrades. Prefer STATE_DATA_OFFLINE_AND_REALTIME for reconciling after submit and ANDROID_PRODUCT_SCOPE for non-goals.
+
+It excludes mnemonic or import UI, treating biometric success as order authorization, screenshotable seed backup screens, and debug bypass of preview on release paths.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android security-minded engineers; `WalletCoordinator` implementers; agents wiring WalletConnect/external wallets; Play security reviewers. |
+| **What** | Trust model, `WalletCoordinator` abstraction, Keystore usage, biometrics for app gates (not custody replacement), payload verification checklist, signing-path order state machine, threat controls, session vs wallet, FLAG_SECURE, root/debug posture, web parity. |
+| **When** | PHASE-5C trading and anytime a new signable payload appears (order, approval, redeem). Before enabling biometric shortcuts. On wallet SDK upgrades. |
+| **Where** | Spec: this file. Wallet module isolated from UI widgets. Keys: Android Keystore where app holds material (session), external wallet for EIP-712/order authority (ADR-003). Web twin: [WALLET_AND_TRANSACTION_UX.md](../web/WALLET_AND_TRANSACTION_UX.md). |
+| **Why** | Silent signing or raw key import is a critical failure. Users must verify domain, amounts, and max loss before approving. Android-specific threats (overlay, screenshots, rooted hooks) need explicit controls. |
+| **How** | All sign requests through `WalletCoordinator` after BFF preview. Verify payload fields against preview. Biometric re-auth may gate app session actions—never replace wallet confirmation for orders. Secure window on sensitive screens. Fail closed if verification mismatches. |
+
+### Worked example
+
+**Happy path — EIP-712 order.** Ticket → preview use case → UI checklist (market, side, price, size, fees, max loss, exchange domain) → user confirms → coordinator invokes wallet → signature → submit to BFF → reconciling UI. No private key touches app storage.
+
+**Happy path — biometric app unlock.** User enables biometric to open the app or reveal portfolio; subsequent order still requires wallet prompt. Session cookie/token remains BFF-auth; wallet remains separate authority.
+
+**Failure / degraded.** Payload mismatch vs preview → abort sign, show error. User rejects in wallet → return to ticket. Overlay attack heuristics / insecure display → warn or block per policy. Debug build talking to prod BFF with relaxed TLS → forbidden in release. Server-side signing API → hard reject (ADR-003).
+
+### Verification checklist (agents)
+
+- [ ] Preview id / hash binds to what is signed.
+- [ ] Chain id and contract domain correct (standard vs neg-risk).
+- [ ] No mnemonic/import UI.
+- [ ] Logging redacts signatures and auth tokens.
+- [ ] Web and Android show the same critical risk fields pre-sign.
+
+### Threat reminders
+
+Malicious dApp WebView, clipboard seed phishing, and accessibility-abuse patterns are out of scope as product features—they are attacks to resist, not roadmaps to build.
+
+### Trust boundaries
+
+| Boundary | Trusted for |
+|----------|-------------|
+| External wallet | Signature authority |
+| BFF | Preview assembly, session, projections |
+| App Keystore | Local session/biometric gates only |
+| Push/deep link | Untrusted input |
+
+### Logging redaction
+
+Never log: mnemonics, raw private keys, full auth cookies, complete signatures, full PANs if any fiat partner fields appear later. Prefer addresses truncated + request ids.
+
+### Agent anti-patterns
+
+- Server silent sign
+- Screenshotable seed backup screens
+- Bypass preview when `BuildConfig.DEBUG`
+- Treating biometric success as order authorization
+
+### Success signal
+
+Security review can trace every signable payload from BFF preview → on-screen checklist → wallet prompt with no alternate path.
+
 ## 1. Purpose
 
 Specify Keystore, biometrics, wallet coordinator, and EIP-712 payload verification before sign.

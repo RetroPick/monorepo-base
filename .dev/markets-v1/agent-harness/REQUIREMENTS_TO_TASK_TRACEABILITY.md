@@ -5,6 +5,52 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This is the authoritative matrix mapping requirement IDs → docs → phase → tasks → acceptance → tests → metrics (and related runbooks). Use it to prove a change satisfies a requirement and to find the correct task — not to invent ad-hoc REQ IDs or skip phase sequencing.
+
+Tables cover functional (MKT-FR-*), security (MKT-SEC-*), and NFR/platform (MKT-NFR-*, MKT-AND-*, MKT-WEB-*, MKT-POLY-*) rows plus Wave 9 harness verification. Companion ID catalog: `../04_REQUIREMENTS_AND_TRACEABILITY.md`.
+
+Locate the REQ → confirm Phase matches manifest authorization → execute only listed tasks → attach test/metric proof in VERIFICATION_EVIDENCE → update this matrix in the same change if mappings shift. Do not claim adjacent REQs from unrelated work.
+
+## 0. Developer intent (5W+1H)
+
+Authoritative matrix mapping requirement IDs → docs → phase → tasks → acceptance → tests → metrics (and related runbooks). Use it to prove a change satisfies a requirement and to find the correct task — not to invent ad-hoc REQ IDs or skip phase sequencing.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Agents selecting work; QA mapping tests; orchestrator auditing coverage at phase exit. |
+| **What** | Functional (MKT-FR-*), security (MKT-SEC-*), NFR/platform (MKT-NFR-*, MKT-AND-*, MKT-WEB-*, MKT-POLY-*) tables; Wave 9 harness verification rows; chain `requirement → evidence → component → phase → task → acceptance → test → metric → runbook`. |
+| **When** | Before starting a task (confirm REQ mapping); when adding/renaming tests; when updating acceptance; during phase exit coverage review; when handoff claims a REQ is satisfied. |
+| **Where** | This file plus `../04_REQUIREMENTS_AND_TRACEABILITY.md`, NFR/scope docs, `task-graph.yaml`, phase acceptance tables, verification evidence artifacts. |
+| **Why** | Untethered code cannot pass §16 acceptance or prove SLOs/security properties. Missing traceability is how preview-before-sign or fail-closed eligibility regress unnoticed. |
+| **How** | Locate REQ row → read linked docs → execute only listed tasks for your authorization → attach test/metric proof in VERIFICATION_EVIDENCE → update this matrix in the same change if mappings shift. |
+
+### In scope / out of scope (product)
+
+- **In:** RetroPick Markets V1 — web, Go BFF, native Android Jetpack Compose.
+- **Out:** PRISM protocol / `contracts/prism/`; legacy epoch MarketEngine extension; custom RetroPick exchange (ADR-001).
+
+### What “done” means
+
+Your task’s REQ IDs have passing tests cited in evidence; matrix rows remain accurate (or were updated with the change); you did not claim adjacent REQs (e.g. positions `MKT-FR-040`) from unrelated work (e.g. preview-only).
+
+### How (procedure)
+
+1. Grep this file for the REQ or feature keyword.
+2. Confirm Phase matches manifest authorization (`current_phase` / task ready).
+3. Open Task(s); implement within `owned_paths`.
+4. Name tests to match Acceptance/Test columns where practical.
+5. Record metric hooks if the row lists one (`catalog_freshness_p95`, `preview_sign_match`, …).
+6. Link evidence from handoff; update matrix if you split/merge tasks with orchestrator agreement.
+
+Phase exit reviewers should sample REQ rows for the phase and confirm each listed task either `done` with evidence or explicitly deferred with a blocker — gaps are exit-gate defects.
+
+### Worked example
+
+Agent assigned order preview finds `MKT-FR-030` / `MKT-SEC-002` → PHASE-3 → `MKT-P3-001`, implements preview hash binding, runs the golden vector test referenced by the matrix, records `preview_sign_match` in evidence, and updates handoff. They do not mark `MKT-FR-040` (position reconcile) satisfied from preview-only work.
+
+
 ## 1. Purpose
 
 Comprehensive matrix mapping requirement IDs → authoritative docs → task-graph tasks → acceptance criteria → tests → metrics → runbooks.

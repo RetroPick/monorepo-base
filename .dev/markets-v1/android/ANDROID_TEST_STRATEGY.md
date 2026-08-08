@@ -6,6 +6,75 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the Android test pyramid for RetroPick Markets V1 (Kotlin + Compose): JVM unit, repository integration, OpenAPI contract tests, Compose UI, a11y, staging E2E, Macrobenchmark, security and redaction tests, manual release matrix, and CI gates—with web parity expectations via shared fixtures.
+
+It sits in Wave 5 under `apps/android-markets/` modules. Contract fixtures share OpenAPI examples with web and backend. Staging E2E uses the Markets BFF; production keys must not appear in CI logs. PHASE-5 definition of done requires evidence beyond `assembleDebug`.
+
+Read this on every Android PR, before promoting Play tracks, and when OpenAPI changes force regen. Prefer END_TO_END_CRITICAL_JOURNEYS for P0 journey catalogs and WEB_TEST_STRATEGY for the web twin—not as a substitute.
+
+It excludes permanently ignoring stale-book failures, inventing filled state on timeout, recording secrets into androidTest resources, and claiming production readiness from CI alone.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android QA/engineering agents; CI owners; harness reviewers deciding PHASE-5 DoD; anyone writing Compose UI tests or contract tests against OpenAPI. |
+| **What** | Android test pyramid: JVM unit, repository integration, contract tests, Compose UI, a11y, staging E2E, Macrobenchmark, security tests, manual release matrix, CI gates, web parity expectations. |
+| **When** | Every Android PR; before promoting Play tracks; when OpenAPI changes (regen + contract). Do not mark PHASE-5 complete on compile-only evidence. |
+| **Where** | Spec: this file. Tests under `apps/android-markets/` modules. Contract fixtures share OpenAPI examples with web/backend. Staging E2E uses Markets BFF—not production keys in CI logs. |
+| **Why** | Greenfield apps fail when only happy paths are demoed. Order reconciliation, stale guards, and wallet cancel paths need automated proof. Weakening tests to match bugs is forbidden by project norms. |
+| **How** | Prefer JVM tests for use cases/FSM. Compose tests for ticket/gates. Contract tests decode BFF fixtures. Emulators for critical UI; Macrobenchmark on controlled hardware/CI. Security tests for logging redaction and debug flags. Manual matrix for real wallets. |
+
+### Worked example
+
+**Happy path — order preview PR.** Unit tests for tick validation + freshness disable; Compose test that max loss appears from preview fixture; contract test that preview response matches OpenAPI example; CI runs unit+Compose on PR; staging E2E optional nightly with wallet harness.
+
+**Happy path — OpenAPI breaking field.** Contract tests fail → update codegen + mappers + UI; Android and web both fixed before merge.
+
+**Failure / degraded.** Flaky emulator test → stabilize with idling resources, do not `@Ignore` permanently without issue. Asserting `Filled` on timeout to go green → reject. Skipping a11y tests because “TalkBack is hard” → not acceptable for ticket/preview. Claiming parity because web Playwright passed → still need Android contract/UI proof.
+
+### DoD snapshot (PHASE-5)
+
+- Pyramid layers exist for trading-critical paths.
+- Contract tests in CI.
+- Stale book / unknown order covered.
+- Crash-free / ANR monitored on pre-prod.
+- Manual wallet matrix executed before production track.
+
+### Web parity testing
+
+Shared fixtures beat duplicated mocks. When a journey exists in web ERROR doc (Jxx), Android should have an analogous automated or matrix row—or an explicit waived gap with owner.
+
+### Mapping to journeys
+
+| Risk area | Test layer |
+|-----------|------------|
+| Tick / money parse | JVM unit |
+| Freshness disables submit | JVM + Compose |
+| Preview → sign abort | Compose + fake wallet |
+| OpenAPI shape | Contract |
+| Navigation deep link | Instrumented |
+| Startup jank | Macrobenchmark |
+
+### CI vs human
+
+CI owns deterministic layers. Humans own real wallet vendors, Play track uploads, and jurisdiction checks. Agents must not claim production readiness from CI alone.
+
+### Agent anti-patterns
+
+- `@Ignore` on failing stale-book test
+- Recording secrets into androidTest resources
+- Duplicating OpenAPI fixtures out of sync with YAML
+- Marking harness complete when only `assembleDebug` passes
+
+### Success signal
+
+PHASE-5 DoD checklist in this doc is evidenced with CI links + manual matrix notes before Play production.
+
 ## 1. Purpose
 
 Specify unit, integration, contract, Compose, E2E, and manual release test matrices.

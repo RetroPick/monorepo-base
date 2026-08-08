@@ -6,6 +6,76 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document defines Markets-only product scope for the RetroPick Markets V1 Android app (Kotlin + Jetpack Compose + Material 3): jobs-to-be-done, V1 feature inventory versus V1.1+, explicit non-goals, personas, success metrics, release phases 5A–5D, and backend phase dependencies.
+
+It sits at the front of Wave 5. Code home is greenfield `apps/android-markets/` (not the placeholder `apps/android/`). API is the shared BFF `/api/v1/markets/*` (ADR-004). Baseline companion: `.dev/ANDROID_MARKETS.md`. Implementation detail lives in COMPOSE_APP_ARCHITECTURE, STATE_DATA_*, WALLET_*, NAVIGATION_*, and related specs.
+
+Read this before greenfield module work or feature proposals, and when `/markets/capabilities` gains flags. Use it to say no quickly rather than expanding V1 silently.
+
+It excludes PRISM, legacy epoch APIs, direct Polymarket production calls from the device, raw key import, embedded unrestricted WebView trading, autonomous background trading, and Android-only order semantics.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android product/engineering owners and harness agents (`fe-markets` mobile track) scoping PHASE-5; Play/compliance partners; anyone tempted to add PRISM or venue-bypass into the app. |
+| **What** | Markets-only Android product scope: jobs-to-be-done, V1 feature inventory vs V1.1+, explicit non-goals, success metrics, personas, release phases 5A–5D, and backend phase dependencies. Baseline companion: [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md). |
+| **When** | Before greenfield module work or feature proposals. Re-check when `/markets/capabilities` gains flags (e.g. combos) or when web ships CTF ops that Android might lag. |
+| **Where** | Spec: this file. Code home: `apps/android-markets/` (greenfield; `apps/android/` is README placeholder). API: shared BFF `/api/v1/markets/*` (ADR-004). Out: `contracts/prism/`, legacy epoch APIs, direct Polymarket production calls from the device. |
+| **Why** | Mobile scope creep (background trading, raw keys, WebView dApps) creates security and policy failures. Android is a distribution channel for Markets—not a second exchange. Clear non-goals keep agents from “helpfully” building the wrong product. |
+| **How** | Ship 5A shell → 5B read (discovery, detail, cache, links) → 5C trading (wallet, orders, portfolio) → 5D notifications/Play packaging. Gate trading on backend PHASE-3 contract tests in staging. Prefer Compose feature modules per GRADLE_MODULE_GRAPH. Measure funnel and crash-free users—not notification spam. |
+
+### Worked example
+
+**Happy path — scoped V1 trader journey.** Eligible user discovers markets, opens detail, connects external wallet, previews max loss, signs order, watches fills, checks portfolio PnL, optionally redeems when claimable. Push alert deep-links to ticket in ≤3 taps. All HTTP via BFF; OpenAPI types generated into Android modules.
+
+**Happy path — phase discipline.** 5B ships read-only offline cache with stale labels while 5C wallet work continues. Capabilities hide order submit until backend ready—no fake local matching.
+
+**Failure / degraded.** Proposal for PRISM creation in-app → reject (non-goal). Direct CLOB SDK in the APK → reject (ADR-002). Autonomous background trading worker → reject. Play financial declaration incomplete → block production track (see Play compliance doc). Scope argument “web has it” for CTF ops → V1.1+ unless explicitly tasked.
+
+### Scope checklist for agents
+
+- [ ] Feature appears in V1 inventory or is explicitly tasked.
+- [ ] Uses shared BFF operations only.
+- [ ] Kotlin + Jetpack Compose + Material 3.
+- [ ] No gambling-sportsbook copy in product strings.
+- [ ] Web parity of **semantics** (states, money, eligibility), not necessarily identical navigation chrome.
+- [ ] Metrics/instrumentation planned without PII abuse.
+
+### Reading tip
+
+Use this doc to say **no** quickly. Implementation detail lives in COMPOSE_APP_ARCHITECTURE, STATE_DATA_*, WALLET_*, NAVIGATION_*, etc. If a task is outside this inventory, stop and escalate rather than expanding V1 silently.
+
+### Backend coupling
+
+| Android phase | Needs backend |
+|---------------|---------------|
+| 5A shell | PHASE-1 OpenAPI stable enough to generate |
+| 5B read | Catalog/market/book projections |
+| 5C trading | PHASE-3 orders + wallet session |
+| 5D alerts/Play | Alerts + push registration APIs |
+
+### Explicit non-goals (repeat for agents)
+
+- PRISM, legacy epoch, custom exchange
+- Raw key import / embedded unrestricted WebView trading
+- Android-only order semantics
+- Autonomous background trading
+
+### Agent anti-patterns
+
+- Starting CTF UI before V1.1 tasking.
+- Adding Combos because web mocks it—wait on capabilities.
+- Scope docs edited to fit an unapproved feature.
+
+### Success signal
+
+Stakeholders can point to the V1 inventory row for every merged Android feature.
+
 ## 1. Purpose
 
 Define Markets-only Android product scope, metrics, and non-goals. See [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md).

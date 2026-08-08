@@ -6,6 +6,78 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the navigation and deep-link authority for RetroPick Markets V1 Android (Compose Navigation): route catalog, bottom nav, deep-link matrix, App Links verification, back stack, adaptive nav, wallet return path, and notification → destination rules with web path parity.
+
+It sits in Wave 5 with the nav host in the app module. Shared URLs mirror web IA—markets, event, market, portfolio, orders, funding—per WEB_PRODUCT_INFORMATION_ARCHITECTURE. Push payloads are untrusted input; eligibility still applies after navigation.
+
+Read this during 5B read experience, whenever alert or share URLs change, before enabling App Links in Play, and when wiring wallet connect activity results. Prefer NOTIFICATIONS_AND_BACKGROUND_WORK for FCM categories and WALLET_SIGNING_AND_SECURITY for post-return sign security.
+
+It excludes open redirects from push url fields, secrets in query params, PRISM routes in the Markets graph, and web-only path renames without Android updates.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android navigation owners; FCM/deep-link implementers; agents aligning App Links with web IA paths; QA of back stack and wallet return. |
+| **What** | Compose Navigation route catalog, bottom nav, deep link matrix, App Links verification, deep-link security, back stack, adaptive nav, wallet return path, notification → destination rules, web parity. |
+| **When** | During 5B read experience and anytime alert/share URLs change. Before enabling App Links in Play. When adding wallet connect activity results. |
+| **Where** | Spec: this file. Nav host in app module; routes mirror web where shared (`markets`, event, market, portfolio, orders, funding). Web map: [WEB_PRODUCT_INFORMATION_ARCHITECTURE.md](../web/WEB_PRODUCT_INFORMATION_ARCHITECTURE.md). |
+| **Why** | Broken deep links drop alert conversion. Insecure links can open untrusted destinations. Wallet flows that lose back stack frustrate signing completion. Shared URLs with web are a product promise. |
+| **How** | Type-safe routes; auth-aware nav graphs. Verify Digital Asset Links. Validate deep link params (ids) before navigate. On notification tap, route through nav with single clear task affinity policy as specified. Return from wallet to prior ticket/funding screen with state restored. |
+
+### Worked example
+
+**Happy path — alert to market.** FCM payload includes market id → user taps → App Link/`retropick://` resolves → nav to market detail with order ticket affordance if eligible. Bottom nav highlights Discover/Markets appropriately without duplicating entries on back stack.
+
+**Happy path — wallet return.** User on order ticket → Connect wallet external activity → on success, navigate back to ticket with draft inputs restored (savedHandle/state). Chain switch deep path shows blocking UI then resumes.
+
+**Failure / degraded.** Unverified http link → do not auto-open arbitrary URLs from push data; only allowlisted hosts/paths. Unknown market id → in-app not-found, not crash. Logged-out user hits portfolio link → auth gate then continue. Duplicate navigations from rapid notification taps → debounce / single top. Web path renamed without Android update → parity bug; fix both.
+
+### Security rules
+
+1. Never put secrets in deep link query params.
+2. Treat push payload as untrusted input.
+3. Eligibility still enforced after navigation.
+4. No PRISM routes in Markets graph.
+5. Copy on destinations uses Markets language (order ticket, positions).
+
+### Parity table (mental model)
+
+| Web | Android |
+|-----|---------|
+| `/markets/m/{id}` | Market detail route |
+| `/markets/portfolio` | Portfolio tab/route |
+| `/markets/funding` | Funding route |
+| Alert query context | Nav args / saved state |
+
+### Auth-aware navigation
+
+| Destination | If logged out | If ineligible |
+|-------------|----------------|---------------|
+| Discover/detail | Allow | Allow read; block trade |
+| Portfolio/orders | Auth gate + return | Eligibility gate |
+| Funding | Auth gate | Eligibility gate |
+| Ineligible | — | Destination itself |
+
+### Wallet return
+
+Save draft ticket in `SavedStateHandle` / draft store before leaving; restore on `onResume`/callback. Do not rely on process staying alive.
+
+### Agent anti-patterns
+
+- Open redirects from push `url` fields
+- Multiple back-stack copies of the same market
+- Hard-coded web-only query parsers that drop Android args
+- Combo/multi-leg builder routes outside capabilities gates
+
+### Success signal
+
+Cold start from a verified App Link lands on the correct market with eligibility applied and back stack sensible (exit does not loop the link).
+
 ## 1. Purpose
 
 Specify Navigation Compose routes, App Links, deep link security, and adaptive layouts.

@@ -5,6 +5,59 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This research snapshot captures official Android architecture/Compose/modularization guidance and Google Play financial/crypto/blockchain policy constraints that shape Markets native client design (ADR-006) and release gating. `apps/android/` is README-only until PHASE-5 builds it (EV-027).
+
+It maps platform guidance to RetroPick modular `feature/*`, `data/*`, `core/*` intent and keeps signing with external/approved wallet flows — Keystore for app secrets only; BiometricPrompt ≠ order signing. Shared API remains `schemas/openapi/markets-v1.yaml` (ADR-004).
+
+Use before scaffolding Gradle modules, choosing wallet SDKs, or filing Play declarations. Clean-room only for no-LICENSE reference apps; no iOS/PRISM mobile under this note. Track BLK-021 for production Play uploads.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before Android/Play constraint sections below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace ADR-006, Play policy URLs, or `android/*` design docs; if anything conflicts, those authorities win. `apps/android/` is README-only until PHASE-5 builds it.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android-lead and PHASE-5 agents; security reviewing Keystore/network config; release managers planning Play financial/crypto declarations; orchestrators refusing early Android trading parity. |
+| **What** | Research snapshot of official Android architecture/Compose/modularization guidance plus Google Play financial features, blockchain, crypto wallet/exchange, and payments policy constraints that gate Markets native release. Maps guidance to RetroPick modular `feature/*`, `data/*`, `core/*` intent. |
+| **When** | Before scaffolding Gradle modules, choosing wallet SDK integration, or filing Play declarations. Re-read when Play policy URLs change or when BLK-002/BLK-021 move. |
+| **Where** | This file + [ADR-006](../architecture/adr/ADR-006-ANDROID-JETPACK-COMPOSE.md) + [android/PLAY_STORE_COMPLIANCE_AND_RELEASE.md](../android/PLAY_STORE_COMPLIANCE_AND_RELEASE.md) + [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md). Evidence: EV-027 (README-only). Shared API: `schemas/openapi/markets-v1.yaml` (ADR-004). |
+| **Why** | Agents may copy no-LICENSE reference apps, store seeds in Keystore “for convenience,” or ship WebView wrappers. This research separates platform guidance from RetroPick decisions and keeps signing with external/approved wallet flows. |
+| **How** | Plan single-activity Compose + Navigation; UI/Domain/Data layers; api/impl modules; Keystore for app secrets only; BiometricPrompt ≠ order signing; TLS via Network Security Config; defer Play Integrity as risk signal. No iOS/PRISM mobile in this scope. |
+
+### Worked example
+
+**Happy path — PHASE-5 scaffold**
+
+1. Confirm task-graph PHASE-5 authorization and web trading stability expectations.
+2. Create Gradle graph per `android/GRADLE_MODULE_GRAPH.md`; consume OpenAPI models in data layer.
+3. Wallet connect via approved SDK; RetroPick never stores seed phrases.
+
+**Happy path — Play gate**
+
+1. Read financial-features + blockchain policy URLs in §4.
+2. Track BLK-021; do not upload production builds without declarations/compliance checklist in Play release doc.
+
+**Failure / Never**
+
+- Pixel/layout copy from Streamatico PolymarketViewer (no LICENSE — clean-room only).
+- Using BiometricPrompt as the sole authorizer for EIP-712 orders.
+- Claiming Android trading complete without a real Gradle project.
+- iOS work under this research note.
+
+**Agent checklist**
+
+- [ ] EV-027 / README-only acknowledged?
+- [ ] ADR-006 + ANDROID_MARKETS read?
+- [ ] Module dependency rules held?
+- [ ] Play policy links reviewed for release phase?
+- [ ] Shared OpenAPI only (no private Android API)?
+
+**Reading tip:** Repository §5.1 first — platform guidance is useless if you pretend the app already exists on disk.
+
 ## 1. Purpose
 
 Capture official Android platform guidance and Google Play policy constraints that shape RetroPick Markets native client design (ADR-006) and release gating.

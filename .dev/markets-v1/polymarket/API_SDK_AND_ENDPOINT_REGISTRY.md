@@ -6,6 +6,53 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document is the authoritative catalog of Polymarket upstream interfaces used by RetroPick Markets V1 Wave 2: hosts (Gamma, CLOB V2, Data API, Bridge, Relayer, WebSocket, geoblock), auth models, rate limits, SDK packages, BFF routing, health/retry/cache policy, and **client-forbidden** classifications. RetroPick OpenAPI (`schemas/openapi/markets-v1.yaml`) is the only public client surface; production web/Android must not call upstream hosts directly.
+
+It sits in the Wave 2 Polymarket integration suite beside auth, order lifecycle, and capability-matrix peers. Runtime ownership is the Go BFF under `apps/backend/internal/markets/`; evidence and revalidation live with the research evidence register and [UPSTREAM_CHANGE_MANAGEMENT.md](./UPSTREAM_CHANGE_MANAGEMENT.md). Polymarket remains venue and settlement authority (ADR-001); this registry is the anti-corruption boundary that prevents ACL drift and invented endpoints (ADR-002).
+
+Read this before adding any upstream call, SDK bump, or client fetch, and when scaffolding Wave 2 clients. It is not a matching-engine design, not a Combos RFQ enablement guide, and not a place to invent base URLs—unverified WS paths stay unverified until evidence follow-up.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Go BFF owners (`apps/backend/internal/markets/`), web/Android client teams, `be-api` / `fe-markets` / `fe-wallet` agents, and security reviewers enforcing client-forbidden upstream access. |
+| **What** | Authoritative catalog of Polymarket upstream hosts (Gamma, CLOB V2, Data API, Bridge, Relayer, WS, geoblock), auth models, rate limits, SDK packages, BFF routing, and **client-forbidden** classifications. RetroPick OpenAPI is the only public surface. |
+| **When** | Before adding any upstream call, SDK bump, or client fetch; at Wave 2 client scaffolding; whenever docs.polymarket.com or SDK versions change (see [UPSTREAM_CHANGE_MANAGEMENT.md](./UPSTREAM_CHANGE_MANAGEMENT.md)). |
+| **Where** | Spec authority: this doc + [research/EVIDENCE_REGISTER.md](../research/EVIDENCE_REGISTER.md). Runtime: BFF markets module. Public contract: `schemas/openapi/markets-v1.yaml`. Clients consume RetroPick routes only. |
+| **Why** | Polymarket is venue and settlement authority (ADR-001). RetroPick must not embed a custom exchange or leak upstream URLs/keys to production clients (ADR-002). A single registry prevents silent ACL drift and invented endpoints. |
+| **How** | Implement BFF adapters per host row; mark production client direct access **FORBIDDEN** except wallet EIP-712 signing; attach health probes, retries, and cache TTLs from the registry; revalidate WS/base URLs from official docs before shipping. |
+
+### Worked example
+
+**Happy path.** Web needs market catalog + book. Client calls RetroPick `GET /markets/...` and BFF WebSocket/SSE. BFF reads Gamma (public) and CLOB REST (server credentials / L2 as required), normalizes to OpenAPI types, caches per TTL, and never returns raw upstream hostnames in client bundles. Order preview uses CLOB fee/market info via BFF; the wallet signs EIP-712 locally; submit goes BFF → CLOB. Relayer and Builder keys stay server-side. Combos RFQ routes remain gated off ([COMBOS_CAPABILITY_GATE.md](./COMBOS_CAPABILITY_GATE.md)).
+
+**Failure / degraded.** If a client ships a production build that calls `https://clob.polymarket.com` directly, that violates ADR-002 / this registry — reject in review and CI allowlists. If Gamma is 5xx, BFF serves stale cache within TTL and marks catalog degraded; trading remains blocked if CLOB geoblock or auth fails. Unverified WS URLs stay `unverified` until EV follow-up — do not hard-code guessed paths. Perps and custom RetroPick matching engines are out of scope forever for V1.
+
+**ACL summary for agents**
+
+| Actor | May call | Must not |
+|-------|----------|----------|
+| Production web/Android | RetroPick HTTP/WS only; local EIP-712 sign | Upstream hosts, Relayer keys, Builder secrets |
+| Go BFF | Gamma/CLOB/Data/Bridge/Relayer per matrix | Silent-sign user orders; invent addresses |
+| Ops / CI | Health probes + registry verification | Bypass geoblock in product code |
+
+**Host classes (orientation)**
+
+1. **Public read** — Gamma / much of Data API: BFF still proxies in production for cache, shaping, and ACL consistency.
+2. **Credentialed trade** — CLOB V2 L1/L2: BFF holds L2; client only signs typed data.
+3. **Privileged infra** — Relayer / Builder: server-only; never in OpenAPI or mobile binaries.
+4. **Policy** — Geoblock: must be consulted before trade submit; failures fail closed.
+
+**Non-goals encoded here:** no RetroPick matching engine; no client SDK that talks CLOB in prod; no Combos RFQ; no invented base URLs. When in doubt, add an evidence row before coding the adapter.
+
+**Implementation order hint:** registry row → evidence tag → BFF client stub with health probe → OpenAPI mapping → forbid client direct access in CI → only then wire UI. Skipping the registry row is how ACL regressions enter review.
+
+**Related docs:** [AUTHENTICATION_AND_ACCOUNT_WALLETS.md](./AUTHENTICATION_AND_ACCOUNT_WALLETS.md), [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [CAPABILITY_AND_DEPENDENCY_MATRIX.md](./CAPABILITY_AND_DEPENDENCY_MATRIX.md).
 
 ## 1. Purpose
 

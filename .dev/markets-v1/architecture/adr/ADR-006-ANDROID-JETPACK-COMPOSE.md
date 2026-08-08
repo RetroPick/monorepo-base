@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, android-markets, design
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted decision that Markets Android V1 is **Kotlin + Jetpack Compose only** in `apps/android-markets/` (from the `apps/android` scaffold): UDF ViewModel+StateFlow, Navigation Compose, Hilt, OpenAPI-generated network (ADR-004), min SDK API 26. No XML for new features; React Native, Flutter, and WebView-shell are rejected as the product app.
+
+It sits with ADR-004’s rule that clients share **API not UI**: web remains Next.js; design tokens align Material 3. Feature parity comes through the shared OpenAPI spec and BFF, not by embedding the website. Unavoidable View SDKs wrap in `AndroidView`.
+
+Read this for any new Android UI, navigation, or module work, and for order-book performance or WalletConnect/offline cache scaffolding. It does not authorize introducing RN/Flutter for delivery speed, hand-rolled models that drift from OpenAPI/web, or XML layouts for “just one” new feature.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = UI technology options; Decision = Kotlin + Compose exclusively; Consequences = no shared UI with web—share API via OpenAPI.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, android-markets, design. Audience: Android feature authors, Gradle module owners, agents scaffolding screens. |
+| **What** | **Decision:** Markets Android V1 is **Kotlin + Jetpack Compose only** in `apps/android-markets/` (from `apps/android` scaffold). UDF ViewModel+StateFlow; Navigation Compose; Hilt; OpenAPI-generated network ([ADR-004](ADR-004-SHARED-WEB-ANDROID-API.md)); min SDK API 26. No XML for new features; reject RN/Flutter/WebView-shell as the product app. |
+| **When** | Any new Android UI, navigation, or module; order-book performance work; WalletConnect/offline cache; Play financial-app compliance UI. |
+| **Where** | `apps/android-markets/` per module graph: Compose UI → ViewModel → UseCase → Repository → OpenAPI client + Room. Web remains Next.js; design tokens align Material 3. |
+| **Why** | Context: 60fps book scrolling, wallet UX, offline catalog, Play compliance. Cross-platform UI stacks fight native + OpenAPI codegen; ADR-004 shares **API not UI**. |
+| **How** | Implement screens in Compose; wrap unavoidable View SDKs in `AndroidView`; keep feature parity through the shared spec and BFF, not by embedding the website. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+New market detail with live book.
+
+1. Compose screen + ViewModel collecting StateFlow.
+2. Repository uses generated OpenAPI client + Room cache.
+3. Realtime follows snapshot/gap rules ([ADR-005](ADR-005-REALTIME-AND-RECONCILIATION.md)).
+4. No WebView of the Next.js route; no new XML Fragment layouts.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Introducing React Native/Flutter for delivery speed.
+- Hand-rolled models that drift from OpenAPI/web.
+- Assuming shared React components satisfy Android parity.
+- XML layouts for “just one” new feature.
+
+**Agent checklist**
+
+- [ ] Compose-only for new UI?
+- [ ] ViewModel + StateFlow UDF?
+- [ ] OpenAPI client regenerated?
+- [ ] Module graph respected?
+- [ ] Min/target SDK policy met?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 RetroPick Markets V1 requires a **native Android application** for Play Store distribution. Android UI technology options:

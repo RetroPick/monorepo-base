@@ -6,6 +6,74 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the web wallet and transaction UX authority for RetroPick Markets V1. It covers connect (wallet → SIWE → `/me/wallets`), connector set, chain switching, signer vs trading/proxy address disclosure, mandatory preview-before-sign, approvals, relayer degraded paths, and security copy—without silent server-side signing (ADR-003).
+
+It sits in Wave 4 with `fe-wallet` / `fe-markets` code under Markets wallet features and wagmi config. Session cookies trust the Markets BFF; on-chain authority remains the user wallet. Android parity is WALLET_SIGNING_AND_SECURITY. Both clients call the same preview, submit, and relay operations—no web-only signing endpoints.
+
+Read this for PHASE-2 account/wallet and PHASE-3 order signing, and on wagmi upgrades, new chains, or relayer capability flags. Prefer MARKET_AND_ORDERBOOK_UX for ticket fields and ERROR_DEGRADED_AND_RECOVERY_UX for unknown-order panels.
+
+It excludes seed or mnemonic import UI, treating relayer pending as a confirmed fill, skipping preview for power users, and mixing PRISM chain configs into Markets wagmi.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `fe-wallet` / `fe-markets` implementing connect, chain guard, preview modals, and signing handoff; security reviewers of web wallet UX; agents aligning with Android `WalletCoordinator` (ADR-003). |
+| **What** | Connect sequence (wallet → SIWE → `/me/wallets`), connector set, chain switching, signer vs trading/proxy address disclosure, mandatory preview before sign, approvals and relayer UX, security copy. |
+| **When** | PHASE-2 account/wallet and PHASE-3 order signing. Re-read on wagmi upgrades, new chains, or relayer capability flags. Never implement silent server-side signing. |
+| **Where** | Spec: this file. Code: Markets wallet feature + wagmi config in product `lib/`. Session cookies against Markets BFF. On-chain: user wallet only. Android: [WALLET_SIGNING_AND_SECURITY.md](../android/WALLET_SIGNING_AND_SECURITY.md). |
+| **Why** | Users must understand what they sign and which address holds funds. Confusing signer vs proxy causes support failures and lost funds. Preview-before-sign is the primary safety rail (ADR-003). |
+| **How** | Connect → request accounts → SIWE → load wallet projection. Wrong chain → blocking switch CTA. Every mutating path: BFF preview → human-readable modal → wallet prompt → submit/relay. Show truncated addresses; never ask for seed phrases. Relayer unavailable → explicit degraded path (J17). |
+
+### Worked example
+
+**Happy path — connect and first approval.** User clicks Connect, picks connector, approves accounts, signs SIWE. UI shows connected signer and account-wallet/proxy from `GET /me/wallets`. For trading allowances, preview approval tx → user signs → track status. Capabilities/eligibility gate trading CTAs until ready.
+
+**Happy path — order sign.** After order preview, modal lists side, price, size, fees, max loss, and domain/exchange. User confirms → EIP-712 prompt in wallet → submit to BFF with signature + idempotency key. UI enters reconciling until CLOB truth known.
+
+**Failure / degraded.** User rejects signature → return to editable ticket, inputs preserved. Wrong chain → no silent wrong-network submit. Relayer down → show pending/manual guidance; do not claim success. Ambiguous tx → Unknown order panel (J18), poll REST, never mark filled. Phishing-style “enter private key” UI → forbidden.
+
+### Security UX checklist
+
+- [ ] Preview modal mandatory before any wallet prompt for orders/approvals/funding ops that require sign.
+- [ ] Distinguish **signer** vs **trading address** in UI.
+- [ ] No raw key import, mnemonic paste, or embedded unrestricted dApp browser.
+- [ ] Error codes mapped to actionable recovery (switch chain, reconnect, retry preview).
+- [ ] Copy matches Android seriousness; vendor-specific wallet quirks handled without inventing order states.
+
+### Shared API reminder
+
+Web and Android both call the same preview/submit/relay operations. Do not add web-only signing endpoints. Session cookies/tokens stay on BFF trust model documented in backend auth docs.
+
+### Address disclosure pattern
+
+Always show:
+
+1. Connected signer (what signs).
+2. Trading / proxy / funder address from `/me/wallets` when distinct.
+3. Active chain name + id.
+
+### Signing FSM (UI-facing)
+
+`idle → previewing → awaiting_wallet → submitting → reconciling → terminal`
+
+Map wallet rejection and timeout into non-terminal recovery, not success.
+
+### Agent anti-patterns
+
+- Skipping preview modal “for power users.”
+- Storing seed phrases or private keys.
+- Treating relayer pending as confirmed fill.
+- Mixing PRISM chain configs into Markets wagmi.
+
+### Success signal
+
+A first-time user can explain which address is signing and what max loss is before confirming in their wallet.
+
 ## 1. Purpose
 
 Connect, chain switch, preview modals, signing handoff per ADR-003.

@@ -6,6 +6,78 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the web test strategy for RetroPick Markets V1: Vitest, Testing Library, and Playwright pyramid; E2E priority including wallet flows; CI gates; coverage targets; chaos and staleness tests; visual regression; a11y checks; and OpenAPI-tied fixtures.
+
+It sits in Wave 4 as the web-specific twin of the cross-stack testing docs. Tests live colocated or under Markets web test trees; E2E may hit staging BFF or mocked contract fixtures from `schemas/openapi/markets-v1.yaml`. Android has a separate pyramid—green Android does not waive web proof.
+
+Read this before marking Wave 4 UX tasks complete, on every PR touching Markets web, and before release candidates. Prefer ERROR_DEGRADED_AND_RECOVERY_UX for which journey rows to automate and MASTER_TEST_PLAN for launch exit criteria.
+
+It excludes weakening freshness or unknown-order asserts to go green, committing private keys for E2E, claiming coverage from skipped tests, and treating staging wallet smoke as optional when release requires it.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `qa-integration` / `fe-markets` adding Vitest, Testing Library, Playwright, and a11y checks; CI owners of web Markets jobs; agents proving journeys without weakening assertions. |
+| **What** | Web test pyramid, E2E priority (including wallet flows), CI gates, coverage targets, chaos/staleness tests, visual regression, fixture strategy tied to OpenAPI examples. |
+| **When** | Before marking Wave 4 UX tasks complete; on every PR touching Markets web; before release candidates. Contract fixtures update when OpenAPI changes. |
+| **Where** | Spec: this file. Tests colocated or under web Markets test trees; E2E against staging BFF or mocked contract fixtures. Shared schemas: `schemas/openapi/markets-v1.yaml`. Android has a separate pyramid—do not skip web because Android passed. |
+| **Why** | Wallet and money paths regress easily. Tests encode fail-closed rules (stale book, unknown order, eligibility). Green CI is evidence—not a substitute for staging smoke with real connect where required. |
+| **How** | Unit: decimals, mappers, FSM helpers. Component: ticket, book, gates. E2E priority: eligibility, discover, connect (harness), preview/sign mock, portfolio. Mock wallet where CI cannot open extensions; keep a manual wallet matrix. Fail CI on a11y critical violations for touched flows. |
+
+### Worked example
+
+**Happy path — PR with ticket change.** Unit tests for price tick validation; component test that stale freshness disables submit; Playwright journey from market page to preview modal with fixture orderbook + preview response. OpenAPI example JSON drives mocks so Android contract tests stay aligned.
+
+**Happy path — OpenAPI bump.** Regenerate types; update fixtures; contract consumer tests fail until handlers/UI updated—fix UI or follow backend, do not loosen fixture.
+
+**Failure / degraded.** Flaky WS E2E → prefer deterministic REST+fake WS clock over sleep. Weakening expect(filled) to pass on timeout → forbidden; assert unknown/reconciling instead. Visual snapshots failing from intentional token change → update snapshots consciously in same PR.
+
+### Coverage expectations (guidance)
+
+| Layer | Focus |
+|-------|--------|
+| Unit | `Money`/`DecimalString`, freshness, idempotency header helpers |
+| Component | Gates, ticket, errors J14/J18 |
+| E2E | J01, J03, J07 happy + unknown, funding track happy |
+| A11y | Preview modal, eligibility, degraded banner |
+| Visual | Tokens on ticket/book |
+
+### Release gate mindset
+
+Do not mark harness tasks complete because “wiring exists.” Tests must exercise degraded rows from ERROR_DEGRADED_AND_RECOVERY_UX. Staging wallet smoke remains a human gate when CI uses mocks.
+
+### Fixture sources of truth
+
+1. OpenAPI `examples` in `schemas/openapi/markets-v1.yaml`
+2. Realtime JSON schema fixtures for WS frames
+3. Recorded staging redacted traces (optional, no secrets)
+
+### CI job expectations
+
+| Job | Blocks merge |
+|-----|--------------|
+| Unit + component | Yes |
+| Lint/typecheck | Yes |
+| Playwright smoke (mocked wallet) | Yes when markets paths touched |
+| Visual | As configured; update deliberately |
+| Manual wallet matrix | Release gate |
+
+### Agent anti-patterns
+
+- Deleting failing assertions on freshness.
+- Committing `.env` with private keys for E2E.
+- “Snapshot everything” without reviewing diffs.
+- Claiming coverage from skipped tests.
+
+### Success signal
+
+A ticket regression that allows submit on stale books fails CI before merge.
+
 ## 1. Purpose
 
 Unit, integration, contract, E2E, a11y, visual regression for Markets web.

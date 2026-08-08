@@ -6,6 +6,59 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document defines the RetroPick Markets V1 test pyramid targets and environment catalog: many unit tests, fewer integration and contract tests, about 5% E2E on critical journeys; local, CI, staging, and prod-read-only topology; Wiremock versus limited real staging; test data rules; flake policy; and Playwright sharding.
+
+It sits in Wave 7 as the which-layer and which-env guide for MASTER_TEST_PLAN and E2E/contract siblings. Local uses docker compose; CI uses ephemeral PG/Redis/Wiremock; staging is shared with capped test wallets; prod is read-only verification only. Fail-closed geo and integrity must still be proven in unit/integration—not only happy-path E2E.
+
+Read this when adding any test, when CI flakes, when promoting a journey to E2E, and when staging wallet data needs refresh. Prefer END_TO_END_CRITICAL_JOURNEYS for P0 step lists.
+
+It excludes pushing all coverage into brittle E2E, unlimited mainnet wallets in CI, and mocks that always return geo-allow for fail-closed cases.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | All eng writing tests; QA designing env topology; CI owners provisioning ephemeral PG/Redis/Wiremock; Android/web e2e authors; agents choosing the correct layer instead of leaping to brittle E2E for every change. |
+| **What** | Pyramid targets (~many unit, fewer integration/contract, ~5% E2E critical journeys), environment catalog (local/ci/staging/prod-read-only), mocking strategy (Wiremock Polymarket in CI; limited real staging), test data rules, flake policy, parallelization (Playwright shard by journey). |
+| **When** | When adding any test; when CI flakes; when promoting a journey from integration to E2E; when staging wallet data needs refresh. |
+| **Where** | Spec: this file. Local docker compose; CI ephemeral; staging shared; prod not for destructive tests. Mocks for Gamma/CLOB/geo as appropriate per env. Cross-ref MASTER_TEST_PLAN, E2E journeys, CONTRACT tests. |
+| **Why** | Right-layer testing keeps feedback fast and journeys meaningful. CI must still prove **fail-closed** geo/integrity via unit/integration—not only happy-path E2E. |
+| **How** | Default new logic to unit; boundary I/O to integration/testcontainers; schema to contract; P0 user paths to E2E; quarantine flakes with owner+SLA; synthetic markets in CI fixtures only; stub signer locally, capped test wallet in staging. |
+
+### Pyramid sketch
+
+```text
+        /  E2E  \        ~5%  — critical journeys
+       / Contract \      OpenAPI + ACL goldens
+      / Integration \    testcontainers + Wiremock
+     /    Unit       \   majority — pure + handler tests
+```
+
+### Environment catalog
+
+| Env | Upstream | Data |
+|-----|----------|------|
+| local | Mocks / forks | Docker PG/Redis |
+| ci | Wiremock | Ephemeral |
+| staging | Prod read + limited writes | Shared; capped test wallets |
+| prod | Real | Read-only verification only |
+
+### Flake policy (summary)
+
+Quarantine with owner + SLA; do not delete the assertion. Re-enable or rewrite within the SLA—silent skip debt is a release risk.
+
+### Worked example
+
+**Happy path.** Hash mismatch handled in unit; eligibility middleware integration with stub geo (allow + deny + timeout); OpenAPI contract on PR; E2E-05 only for full preview→sign→submit on staging.
+
+**Failure / degraded.** Flaky E2E without quarantine → blocks unrelated PRs; apply flake policy. CI uses real mainnet unlimited wallet → forbid; use capped test EOA. Mock geo always returns allow → **invalid** for fail-closed tests; include timeout/deny fixtures.
+
+**Never invent.** Pushing all coverage into E2E while unit layers stay empty.
+
 ## 1. Purpose
 
 Test pyramid distribution, environment topology, test data, and mocking strategy for Markets V1.

@@ -9,6 +9,62 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-7 is controlled production launch: legal compliance pack, Builder production verify, web/backend canary, Android staged rollout, on-call activation, launch metrics, rollback rehearsal, evidence archive, and post-launch smoke. Agents prepare checklists and evidence; humans clear Play/Builder/legal gates before any prod write.
+
+Ordering is legal → Builder verify → canary (1→5→25→100%) → Android staged % → smoke/archive. No silent jurisdiction expansion. Fake “staging-live success” without registry/on-chain proof is forbidden.
+
+Scan BLK-003/020/021 and related gates before deploy steps. Rehearse rollback (kill switches + image revert + halt Play rollout). Exit only with legal/store approval, healthy canary, proven rollback, archived evidence, and green smoke — then PHASE-8 still waits on 30d SLO stability.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-7 — Production Launch**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Ops/SRE release engineers, legal, product, Android release owners. Agents prepare checklists, configs, and evidence; humans clear Play/Builder/legal gates before any prod write. |
+| **What** | Controlled production launch: legal compliance pack, Builder production verify, web/backend canary, Android staged rollout, on-call activation, launch metrics, rollback rehearsal, evidence archive, post-launch smoke. |
+| **When** | Only after PHASE-6 exit. Ordering: legal → Builder verify → canary (1→5→25→100%) → Android staged % → smoke/archive. No silent jurisdiction expansion. |
+| **Where** | `infra/production/`, deploy configs, Play tracks, monitoring/canary dashboards, pinned prod OpenAPI. Real user txs only with disclosed fees and cleared gates. |
+| **Why** | Launch without legal/Builder/rollback readiness creates regulatory, fee, and incident exposure. Fake “staging-live success” without registry/on-chain proof is forbidden by project norms. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P7-001`…`MKT-P7-010` legal through exit gate
+- Canary + Android staged rollout machinery; on-call; launch metrics; rollback rehearsal; evidence archive; smoke
+
+### Out of scope (do not implement under this phase authorization)
+
+- Post-V1 feature build-out; combos without capability gate; new jurisdictions without legal
+- PRISM/legacy; custom exchange; auto-merge/deploy/push without explicit human approval
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Legal/store approved; canary healthy; rollback proven; evidence archived; smoke green
+- Human gates cleared in blockers log (Play prod, Builder creds, legal)
+- REQ MKT-OPS-002/003 evidenced; handoff to PHASE-8 only after V1 launch exit — still subject to 30d SLO prerequisite before post-V1 work
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Scan BLK-003/020/021 and approval gates; stop if open
+2. Prepare canary and smoke commands; pin prod OpenAPI
+3. Execute only authorized deploy steps; capture real CI/canary links
+4. Rehearse rollback (kill switches + image revert + halt Play rollout)
+5. Archive evidence; never fabricate Alfajores/mainnet/Play success
+
+### Worked example
+
+Agent working `MKT-P7-003` drafts canary checklist and wiring but finds BLK-003 Builder prod credentials still open: task set `blocked`, handoff cites unblock criteria, no verification evidence claims prod canary passed.
+
+After credentials clear, canary proceeds with auto-rollback criteria documented from PHASE-6 drills.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-7`

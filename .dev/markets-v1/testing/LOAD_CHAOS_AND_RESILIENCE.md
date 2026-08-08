@@ -6,6 +6,62 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the load, chaos, and resilience test authority for RetroPick Markets V1: load goals at 2× launch peak with SLO validation and limiter under abuse, baseline RPS model, k6 scenarios including order_preview_burst, chaos experiments such as Redis down → fail-closed writes, DB blip, and upstream 503, resilience assertions, and schedule.
+
+It sits in Wave 7 preferably on staging with toxiproxy or faults, measured against OBSERVABILITY_SLOS_AND_ALERTS. Cross-ref ABUSE_FRAUD_AND_RATE_LIMITS, failure-domain architecture, and indexing/reconciliation. The point is honest degrade and fail-closed behavior under loss—not only that happy-path RPS fits.
+
+Read this pre-launch, on major trading path changes, and for periodic staging chaos—not ad-hoc against production users. Prefer ABUSE_FRAUD_AND_RATE_LIMITS for limiter tiers and PRODUCTION_OPERATIONS_RUNBOOK for ops response.
+
+It excludes removing asserts so chaos passes, treating unlimited writes during Redis outage as success, and destructive prod chaos without change control.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | SRE/QA running k6 and chaos; backend owners of limiter/reconcile paths; on-call validating alerts under stress; agents scripting experiments without targeting prod destructively. |
+| **What** | Load goals (2× launch peak, SLO validation, limiter under abuse), baseline RPS model, k6 scenarios (incl. `order_preview_burst`), chaos (Redis down → rate-limit **fail-closed writes**, DB blip, upstream 503), resilience assertions (degraded modes, reconciliation repair), schedule. |
+| **When** | Pre-launch; on major trading path changes; periodic staging chaos; not ad-hoc against production users. |
+| **Where** | Spec: this file. Staging (preferred) with toxiproxy/faults; metrics vs OBSERVABILITY SLOs; cross-ref ABUSE rate limits, FAILURE_DOMAINS, INDEXING_RECONCILIATION. |
+| **Why** | Proves the system fails closed and degrades honestly under loss—not only that happy-path RPS fits. Redis-down write fail-closed is a security/ops invariant under load. |
+| **How** | Establish baseline; run k6 scenarios; inject faults; assert SLO/limiter/banner/reconcile behaviors; file defects for silent corruption or open-on-failure limiter behavior. |
+
+### Chaos expectations (samples)
+
+| Experiment | Expected |
+|------------|----------|
+| Redis down | Writes fail closed; reads may cache |
+| Gamma 503 | Degraded banner; trading gated |
+| Upstream recovery | Reconciliation repairs drift |
+| Preview burst | Controlled 429s acceptable; no 5xx storm |
+
+### Baseline intent (pre-funding)
+
+| Route class | Goal |
+|-------------|------|
+| Catalog reads | Hold p95 SLO at 2× launch estimate |
+| Order preview | Burst without integrity collapse |
+| Auth | Stuffing-shaped load → 429 not outage |
+
+### Schedule posture
+
+| Cadence | Activity |
+|---------|----------|
+| Pre-launch | Full k6 suite + core chaos set |
+| Major trading change | Targeted preview/submit load |
+| Periodic staging | Redis/upstream fault drill |
+
+### Worked example
+
+**Happy path.** `order_preview_burst` spike: p95 <1s or controlled 429s; no 5xx storm; SLOs hold at 2× baseline.
+
+**Failure / degraded.** Redis stopped → submits/previews **fail closed** (not unlimited). Chaos “passes” only because asserts removed → reject. After CLOB outage, drift remains → reconciliation must repair; else P1 defect before launch.
+
+**Never invent.** Running destructive chaos against production without change control.
+
 ## 1. Purpose
 
 Load testing scenarios, chaos experiments, and resilience validation for Markets V1.

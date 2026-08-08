@@ -6,6 +6,72 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the structural spine for RetroPick Markets V1 web: product isolation (`NEXT_PUBLIC_PRODUCT=markets`), RSC vs client boundaries, provider stack, TanStack Query defaults, wallet connector placement, OpenAPI-generated client, realtime book hooks, CSP, and deploy unit. All other Wave 4 UX docs assume this layout.
+
+It sits over `apps/web/src/products/markets/` and target `app/(markets)/` routes, with shared contract `schemas/openapi/markets-v1.yaml` and deploy under `deploy/web-markets/`. Android consumes the same BFF—never a web-only API path. If a later UX doc conflicts with RSC/client or Query rules here, this document wins for structure.
+
+Read this before adding routes, providers, or trading UI, and when migrating Vite routes to App Router, regenerating OpenAPI types, or changing cache TTLs. Prefer WEB_PRODUCT_INFORMATION_ARCHITECTURE for route maps and DESIGN_SYSTEM_AND_ACCESSIBILITY for tokens.
+
+It excludes PRISM or legacy product folders, direct Gamma/CLOB browser calls (ADR-002), float math on money fields, and auto-retry of preview or submit on timeout.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `fe-markets` / `fe-wallet` agents and web engineers owning `apps/web/src/products/markets/`; Next.js App Router migrators; OpenAPI codegen owners; agents wiring TanStack Query + wagmi without inventing a second API. |
+| **What** | Normative web application architecture for Markets V1: product isolation (`NEXT_PUBLIC_PRODUCT=markets`), RSC vs client boundaries, provider stack, Query defaults, wallet connector placement, OpenAPI-generated client, realtime book hooks, CSP/deploy unit. This is the structural spine for all Wave 4 UX docs. |
+| **When** | Before adding routes, providers, or trading UI. Re-read when migrating Vite `marketsRoutes.tsx` → `app/(markets)/`, regenerating OpenAPI types, changing cache TTLs, or introducing wallet/realtime. Do not start PHASE-3 ticket UI until this layout and client stack exist. |
+| **Where** | Spec: this file. Code: `apps/web/src/products/markets/` (hooks, features, lib) and target `apps/web/src/app/(markets)/`. Shared contract: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). Deploy: `deploy/web-markets/`. Android consumes the same BFF—never a web-only path. |
+| **Why** | Without clear RSC/client and Query/wallet boundaries, financial UI drifts into float math, silent retries, or Polymarket-direct calls. One Markets product folder keeps PRISM/legacy out of the bundle. Shared OpenAPI (ADR-004) prevents web/Android divergence. |
+| **How** | Keep catalog first-paint in RSC where SEO/LCP matter; put wallet, ticket, and WS in client components. Generate types from OpenAPI; parse `Money` / `DecimalString` via dedicated helpers—never `Number()`. Route all Markets HTTP through the BFF origin. Feature-flag phase-gated surfaces via `GET /markets/capabilities`. Fail closed on ambiguous order state. |
+
+### Worked example
+
+**Happy path — platform shell → discovery.** Build with `NEXT_PUBLIC_PRODUCT=markets`. Layout mounts eligibility + capabilities queries. RSC (or PHASE-1 `MarketsHomePage`) loads events from BFF; client hydrates Query cache. User navigates to a market route; detail page composes chart (client), book (WS+REST), and ticket shell (gated until PHASE-3). OpenAPI types ensure response shapes match Android.
+
+**Happy path — codegen + wallet prep.** Run OpenAPI generate into `api/generated/`; hooks import generated types. Wagmi config lives in Markets `lib/` only—no PRISM chains. Provider stack order: Query → wagmi → Markets session. Capabilities false for trading → ticket CTA disabled with clear copy, not a broken form.
+
+**Failure / degraded.** BFF unreachable → bounded error with request guidance; do not invent catalog rows. Stale Query data past freshness → banner, not silent “live” prices. Wallet connect fails → recoverable empty wallet state; never store private keys. CSP violation or wrong API origin → hard fail in staging. Direct Gamma/CLOB from browser → reject in review (ADR-002).
+
+### Implementer checklist
+
+- [ ] Change lives under `products/markets/` (or `app/(markets)/`), not PRISM/legacy.
+- [ ] New endpoint exists in OpenAPI before client code.
+- [ ] Financial fields use string/fixed-point helpers.
+- [ ] Mutating calls send `Idempotency-Key` when the op requires it.
+- [ ] Realtime is reconciliation aid; REST remains source for user orders/positions.
+- [ ] Android parity considered for any new operation shape.
+
+### Related Wave 4 docs
+
+IA routes, design tokens, market/ticket UX, wallet UX, portfolio/funding UX, error journeys, and web test strategy all assume this architecture. If a later UX doc conflicts with RSC/client or Query rules here, **this document wins** for structure; file an open question rather than forking stacks.
+
+### Layering map (web)
+
+| Layer | Owns | Must not own |
+|-------|------|--------------|
+| `app/(markets)/` routes | URL, SEO metadata, RSC fetch | Wallet private state |
+| `features/*` | Journey UI + hooks | Direct Gamma/CLOB HTTP |
+| `api/` + generated types | Transport + DTO parse | Business copy |
+| `lib/queryClient` | Cache defaults, staleTimes | Order matching |
+| `lib/wagmiConfig` | Chains/connectors | SIWE secret storage beyond session |
+
+### Agent anti-patterns
+
+- Creating `products/markets-v2` beside Markets instead of extending this tree.
+- Using `any` for OpenAPI money fields “temporarily.”
+- Auto-retrying `orders/preview` or `orders/submit` on timeout.
+- Importing legacy epoch clients into Markets providers.
+- Shipping ticket UI before eligibility + capabilities hooks exist.
+
+### Success signal
+
+A new engineer can add a catalog-only page by copying an existing RSC route, wiring one generated GET, and remaining phase-safe without touching wallet code.
+
 ## 1. Purpose
 
 Define RetroPick Markets web architecture: Next.js App Router under `apps/web/src/products/markets/`, RSC vs client boundaries, TanStack Query, wagmi wallet connector, and OpenAPI client generation.

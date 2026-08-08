@@ -6,6 +6,55 @@
 **Product:** RetroPick Markets V1
 **Wave:** 3 — Backend architecture and API contracts
 
+## Description
+
+This document is the topology and process map for the RetroPick Markets V1 **greenfield Go BFF**. It defines one horizontally scaled `cmd/api` plus workers (`markets-ingest`, `signal-engine`, `alert-delivery`, `reconciliation`) sharing `apps/backend/internal/markets/`, PostgreSQL `markets.*` projections, Redis cache/queues, and OpenAPI as the contract—so implementers place features in the right process without inventing binaries or coupling trading to intelligence.
+
+It sits in Wave 3 beside service boundaries, database, and API/realtime specs. Polymarket/CLOB/chain remain venue authority (ADR-001); RetroPick projects catalog, books, orders, and positions. Middleware order is request-ID → auth → eligibility → rate limit → handler. Money is fixed-point (`Money` / `BIGINT` base units)—never float. Intelligence must fail open relative to trading (ADR-008). Out of scope: PRISM, legacy epoch routes, custom exchange, and private-key custody.
+
+Read this when adding a process, package, env var, or failure mode, or when sequencing Phase 1–4 rollout. Prefer sibling docs for per-context ownership, DDL, and OpenAPI operation semantics—not for inventing new topology.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Go BFF owners (`be-api`, `be-indexer`, `be-realtime`, `be-keeper`-adjacent markets workers), platform-backend and intelligence-team owning `cmd/api`, `markets-ingest`, `signal-engine`, `alert-delivery`, and `reconciliation`; web/Android clients consuming `/api/v1/markets/*`; agents implementing Markets V1 phases without touching legacy epoch or PRISM. |
+| **What** | Topology and process map for the Markets greenfield backend: one horizontally scaled API plus four workers sharing `apps/backend/internal/markets/`, PostgreSQL `markets.*` **projections**, Redis cache/queues, and OpenAPI as the contract. Bounded contexts (catalog, market-data, public-query, order-preview, wallet metadata, portfolio projection, chain-indexer, reconciliation, funding/withdrawal tracking, eligibility, notifications, signal-engine, etc.). **Not** a custom exchange, not ownership of venue balances/positions (Polymarket/CLOB/chain remain authority per ADR-001), and not legacy epoch routes. |
+| **When** | Wave 3 architecture is the map for all Markets backend work. Phase 1 ships catalog + eligibility + capabilities; Phase 2 wallets/funding; Phase 3 trading + intelligence + alerts; Phase 4 portfolio/withdrawals/CTF ops. Use this doc when adding a process, package, env var, or failure mode—before inventing a new binary or coupling trading to intelligence. |
+| **Where** | Spec: this file + [SERVICE_AND_MODULE_BOUNDARIES.md](./SERVICE_AND_MODULE_BOUNDARIES.md), [DATABASE_AND_MIGRATIONS.md](./DATABASE_AND_MIGRATIONS.md), [API_AND_REALTIME_CONTRACTS.md](./API_AND_REALTIME_CONTRACTS.md). Code: `apps/backend/cmd/{api,markets-ingest,signal-engine,alert-delivery,reconciliation}` and `internal/markets/{handler,service,store,domain,acl,workers,realtime}`. Contract: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). Current R3 handlers live in `internal/markets/handler.go` (Eligibility, Capabilities, ListEvents); target split is per-handler packages listed in §6. |
+| **Why** | Clients need a single BFF that projects venue state safely, degrades independently per worker, and never confuses Redis/PG cache with settlement truth. Intelligence must fail open relative to trading (ADR-008). Clear topology prevents accidental private-key custody, silent order resubmit, or importing legacy domain into `internal/markets`. |
+| **How** | Mount routes at `/api/v1/markets/*` with middleware chain request-ID → auth → eligibility → rate limit → handler. Ingest: lease `sync_checkpoints` → fetch → validate schema → immutable `raw_upstream_events` → UPSERT projections → Redis publish → enqueue `feature.extract`. Trading: preview → EIP-712 client sign → idempotent submit via CLOB ACL → persist `order_attempts`/`orders`. On upstream outage: serve stale catalog with labels; trading 503 when CLOB down; shed intelligence before order ack. Money always fixed-point (`Money` / `BIGINT` base units); never float. |
+
+### Worked example
+
+**Happy path — catalog + book tick.** `markets-ingest` acquires the Gamma stream lease on `sync_checkpoints`, fetches since cursor, validates schema version, inserts immutable `raw_upstream_events`, UPSERTs `catalog_*` and a book snapshot in one transaction, publishes `catalog.updated` / `book.snapshot`, and enqueues `feature.extract`. `cmd/api` `ListEvents` / orderbook handlers read Redis (`mkt:event:*`, `mkt:book:*`) or PG projections and return OpenAPI-shaped JSON with `DecimalString` prices and fixed-point `Money` where applicable. Signal-engine may later emit `signal.created`; the trading path is untouched.
+
+**Happy path — order preview/submit.** Middleware runs request-ID → auth → eligibility → rate limit. Handler calls service → CLOB ACL validation → optional preview record → EIP-712 payload to client. Submit is idempotent: insert `order_attempts`, post signed order via ACL, persist `venue_order_id` on `orders`. Client watches WS `user.orders` / REST `me/orders` for projection updates; venue remains authority.
+
+**Failure / degraded.** Gamma unavailable: API returns last good catalog with `"stale": true` and a banner; ingest freezes the checkpoint and retries with backoff (DLQ after 10 failures). CLOB unavailable: book ingest pauses and trading endpoints return 503—never invent fills. Redis down: API falls back to PG; queues spill to PG fallback / `dead_letter_jobs`. Signal-engine outage: intelligence routes 503; order preview/submit continue (ADR-008). Reconciliation stalled: user-visible `reconciling`; never silent resubmit of timed-out orders (`unknown` until reconcile). Kill switch `MARKETS_KILL_TRADING` stops submit without stopping catalog reads.
+
+### Projection vs authority (read before coding)
+
+| Concern | Authority | RetroPick role |
+|---------|-----------|----------------|
+| Event/market catalog | Gamma | Normalize + project `catalog_*` |
+| Books/trades | CLOB WS/REST | Project `market_data_*` |
+| Open orders / fills | CLOB | Project `orders` / `fills`; reconcile drift |
+| Positions / CTF balances | CLOB + chain | Project `position_projections`; never user-edit as truth |
+| Eligibility | Server policy + geoblock | Decide + audit; fail closed |
+| Signals / alerts | Derived intelligence | Isolated; retractable; not an order path |
+
+### Implementer checklist
+
+- New process? Document binary, owned tables, events, SLO, DLQ, idempotency (match worker tables in §7–10).
+- New package? Stay under `internal/markets/{handler,service,store,domain,acl,workers,realtime}`; no legacy epoch imports.
+- Config via env vars in §13 (`MARKETS_*`); secrets in secret manager, not repo.
+- Acceptance: four workers specified; OpenAPI ops with `x-phase`; degraded modes tested.
+- Observability: `markets_*` metrics namespace; propagate trace context API → ACL → upstream.
+- Rollout: respect phase table (1 catalog → 2 wallets/funding → 3 trading/intelligence → 4 portfolio).
+
 ## 1. Purpose
 
 Go BFF and worker architecture for RetroPick Markets V1: HTTP API, ingest, signal-engine,

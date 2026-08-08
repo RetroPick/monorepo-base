@@ -6,6 +6,58 @@
 **Product:** RetroPick Markets V1
 **Wave:** 1 (architecture freeze)
 
+## Description
+
+This document defines the target monorepo layout for RetroPick Markets V1 within the broader RetroPick repository: directory ownership, import boundaries, package dependencies, and isolation among Markets, PRISM, and frozen legacy epoch. Markets issues no RetroPick outcome tokens and must not create `contracts/markets/`.
+
+It sits in Wave 1 architecture freeze aligned with `docs/ARCHITECTURE.md` phases R0–R4 and ADRs for shared OpenAPI (ADR-004), Compose Android (ADR-006), and the Polymarket ACL (ADR-002). Clients share OpenAPI—not UI. Markets code belongs only in Markets paths; Markets→legacy/PRISM settlement imports are forbidden.
+
+Read this when creating packages, moving modules, writing import boundaries, reviewing cross-product PRs, or answering “which folder?” before coding. Prefer deployment architecture for release units and the repository audit for what already exists as stub vs real—not for inventing a Markets matching engine or sharing React UI into Android as API parity.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+Use this document to answer “which folder?” before writing code. Import boundaries are part of the architecture, not style nits.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Purpose, Scope, or later normative sections; if anything conflicts, the body of this document wins.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Monorepo owners; Markets web/BFF/Android; package and codegen maintainers; agents choosing directories and dependency edges for new files. |
+| **What** | Target layout after R0–R4: Markets trees (`products/markets`, `internal/markets`, `android-markets`, `packages/polymarket`, `schemas/openapi/markets-v1.yaml`, Markets deploy units) isolated from PRISM (`contracts/prism`, prism packages/routes) and frozen legacy (`archive/`, `internal/legacy`). Markets issues **no** RetroPick outcome tokens. |
+| **When** | When creating packages, moving modules, writing import boundaries, reviewing cross-product PRs, or aligning with [docs/ARCHITECTURE.md](../../../docs/ARCHITECTURE.md). Apply at Wave 1 freeze and whenever structure drifts. |
+| **Where** | Spec: this file. Physical tree under `retropick/apps`, `packages`, `schemas`, `deploy`, `contracts` (PRISM/legacy only). Clients share **OpenAPI**, not UI ([ADR-004](adr/ADR-004-SHARED-WEB-ANDROID-API.md), [ADR-006](adr/ADR-006-ANDROID-JETPACK-COMPOSE.md)). |
+| **Why** | Shared toolchain ≠ shared product. Without hard boundaries, Markets inherits epoch settlement or PRISM contracts—violating [ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)—or duplicates APIs per client. |
+| **How** | Place Markets code only in Markets paths; share via OpenAPI/codegen and approved packages; forbid Markets→legacy/PRISM settlement imports; keep ACL upstream calls in `internal/markets/` ([ADR-002](adr/ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)); never create `contracts/markets/`. |
+
+### Worked example
+
+**Happy path**
+
+1. Add a catalog field to `schemas/openapi/markets-v1.yaml`.
+2. Implement normalizer/handler in `internal/markets/`; regenerate TS and Kotlin clients.
+3. Render in `products/markets` and Compose screens.
+4. No PRISM contract touch; no `archive/` import.
+
+**Failure / Never-V1**
+
+- Creating `contracts/markets/` or matching logic in `packages/polymarket`.
+- Importing `packages/legacy` / MarketEngine into Markets trading paths.
+- Sharing React UI into Android as a substitute for OpenAPI parity.
+- Calling Gamma/CLOB directly from Next in production to skip the BFF.
+
+**Agent checklist**
+
+- [ ] Correct product directory?
+- [ ] Illegal cross-product import?
+- [ ] Spec updated before clients?
+- [ ] Markets vs PRISM vs legacy clearly labeled?
+- [ ] Deploy unit ownership clear?
+
+**Reading tip:** Skim Who/What first, confirm Where paths exist in the repo, then implement How. Use Never-V1 as a PR self-review gate before marking harness tasks complete.
+
+
 ## 1. Purpose
 
 Define the **target monorepo layout** for RetroPick Markets V1 within the broader RetroPick repository. This document specifies directory ownership, import boundaries, package dependencies, and isolation rules between **Markets**, **PRISM**, and **legacy epoch v1** product lines.

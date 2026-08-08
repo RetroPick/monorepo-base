@@ -6,6 +6,77 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the normative design-system and accessibility authority for RetroPick Markets V1 on web. It defines `--rp-*` tokens, WCAG 2.1 AA expectations, component patterns, responsive and dark-mode rules, motion policy, and anti-clone guardrails so Markets UI stays RetroPick-branded rather than a Polymarket pixel copy (ADR-007).
+
+It sits in Wave 4 beside the web application architecture and journey UX specs. Tokens and CSS variables live under the Markets product styles; companion UX docs for the order ticket, book, portfolio, and errors consume these semantic roles. Android uses its own Material 3 system—parity of meaning for YES/NO, danger, and stale, not identical pixels.
+
+Read this before introducing new UI primitives, restyling trading surfaces, or adding YES/NO outcomes, warning banners, price monospace, or motion that could trigger vestibular issues. Prefer sibling UX docs for journey copy and WEB_APPLICATION_ARCHITECTURE for RSC/client structure.
+
+This file does not own Android Material themes, backend error-code catalogs, or permission to ship Polymarket trademarked chrome or palette as RetroPick brand.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Web UI engineers and `fe-markets` agents building Markets components; a11y reviewers; anyone adding color, type, or motion to `apps/web/src/products/markets/`. |
+| **What** | RetroPick design tokens, WCAG 2.1 AA expectations, component patterns, responsive/dark-mode rules, and anti-clone guardrails so Markets looks like RetroPick—not a Polymarket pixel copy (ADR-007). |
+| **When** | Before introducing new UI primitives or restyling trading surfaces. Re-check when adding YES/NO outcomes, stale/warning banners, price monospace, or motion that could trigger vestibular issues. |
+| **Where** | Spec: this file. Tokens/CSS variables under Markets product styles; shared Tailwind usage in `MarketsHomePage` as interim. Companion UX docs consume these tokens. Android has its own Material 3 system—visual parity of meaning (YES/NO, danger), not identical pixels. |
+| **Why** | Financial UI without contrast and focus order fails users and audits. Cloning Polymarket visuals creates legal/brand risk. Consistent tokens keep ticket, book, and portfolio coherent across phases. |
+| **How** | Use `--rp-*` tokens for brand, YES/NO, warning, danger. Body text ≥4.5:1. Mono for prices and addresses. Prefer reduced-motion respect. Components expose accessible names; errors use live regions. Never use Polymarket green as primary brand. |
+
+### Worked example
+
+**Happy path — market ticket styling.** Order ticket uses brand CTA for primary submit, `--rp-yes` / `--rp-no` for outcome toggles, mono for price/size, and prominent max-loss using danger/warning tokens. Focus moves logically: side → price → size → preview → sign. Screen reader announces preview totals and errors.
+
+**Happy path — stale book.** Warning token + banner copy; book rows dim but remain readable. No celebratory motion on fills that could distract from risk copy.
+
+**Failure / degraded.** Insufficient contrast on muted book levels → fix tokens, do not “fix” by lowering AA. Decorative motion without `prefers-reduced-motion` → gate or disable. Copying Polymarket layout chrome or trademarked marks → reject. Android Material colors diverge slightly but must keep the same semantic roles (error, stale, YES/NO).
+
+### Token & a11y checklist
+
+- [ ] New color is a token, not a one-off hex in a feature file.
+- [ ] Interactive controls have visible focus and 44px-class hit targets on mobile web.
+- [ ] Status is not color-only (icon/text for stale, error, filled).
+- [ ] Dialogs/modals trap focus and restore on close (wallet/preview).
+- [ ] Charts expose text alternatives or data tables where required.
+- [ ] Gambling-adjacent slang avoided in UI strings.
+
+### Relationship to other docs
+
+Architecture owns structure; this doc owns look-and-feel and a11y. Error UX owns journey copy; still must use these alert/banner components. Visual regression tests in WEB_TEST_STRATEGY should snapshot tokenized components, not ad-hoc styles.
+
+### Semantic color roles
+
+| Role | Token family | Typical surfaces |
+|------|--------------|------------------|
+| Brand | `--rp-brand` | Primary CTA, links |
+| Affirmative outcome | `--rp-yes` | YES side, positive affordance |
+| Negative outcome | `--rp-no` | NO side |
+| Caution | `--rp-warning` | Stale, reconciling |
+| Critical | `--rp-danger` | Errors, max loss emphasis |
+
+### Motion policy
+
+- Prefer opacity/position under 200ms for status.
+- No infinite attention-grabbing pulse on money fields.
+- Honor `prefers-reduced-motion`.
+
+### Agent anti-patterns
+
+- Hard-coding Polymarket palette.
+- Status by color alone on book rows.
+- Custom modal without focus trap for preview/sign.
+- Emotive “you’re gonna win” microcopy.
+
+### Success signal
+
+Ticket, book, and portfolio can be operated via keyboard and screen reader with the same risk information sighted users see.
+
 ## 1. Purpose
 
 RetroPick design tokens, WCAG 2.1 AA, original visual identity — not a Polymarket pixel clone.

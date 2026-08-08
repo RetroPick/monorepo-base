@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the shared authority for **signal provenance, calibration, and retractions** across RetroPick Markets V1 trader intelligence. It defines the mandatory `evidenceEnvelope` schema, lifecycle states (`draft` → `active` → `stale` / `retracted` / `superseded`), provenance IDs, params versioning, calibration holds, and auto-retraction triggers—so every committed score stays evidence-linked and false positives disappear from feeds and unread counts honestly.
+
+It sits in Wave 6 as the cross-cutting contract for whale, UV, health-linked, and alert-derived signals. Compute and persistence belong in `apps/backend/internal/markets/intelligence/` plus `market_signals` (and related); params refs follow shapes like `intelligence_params_v1.yaml#whale_score`. Events include `signal.retracted` and WS `signal_update` `op: retract`. NFR: retraction propagation p95 under 30s. The doc explicitly rejects any path from signal → order, insider labels, and AI reclassification that mutates scores into trades (ADR-008 / ADR-009 / Never V1).
+
+Read this when implementing the shared signal engine, wiring retraction UX, or changing weights/thresholds (`params_version` bumps). Prefer sibling docs for WhaleScore / UV formulas and alert delivery DSL—not for envelope schema or lifecycle semantics.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | All BFF intelligence workers that commit signals; notification/WS fan-out; web/Android feeds and inbox that render lifecycle states; ops running monthly calibration and false-positive retraction; agents implementing shared signal engine (ADR-008) and NFR retraction p95 under 30s. |
+| **What** | Mandatory `evidenceEnvelope` schema, signal lifecycle (`draft` → `active` → `stale` / `retracted` / `superseded`), provenance IDs, params versioning, calibration holds, and retraction protocol (including auto-retraction triggers). **Not** a path from signal → order, not insider labels, not AI classification that mutates scores into trades. |
+| **When** | On every signal commit (whale, alerts-derived, UV, health-linked, etc.); on reorg/invalidation; when `computedAt` exceeds stale threshold; monthly backtest for precision@k vs follow-through; whenever weights/thresholds change (`params_version` bump). |
+| **Where** | Spec authority: this doc. Compute/persist: `apps/backend/internal/markets/intelligence/` + `market_signals` (and related). Params refs like `intelligence_params_v1.yaml#whale_score`. Events: `signal.retracted`, WS `signal_update` `op: retract`. Cross-ref NOTIFICATIONS.md, ADR-008, ADR-009. Clients MUST honor lifecycle UX. |
+| **Why** | Intelligence is only trustworthy if every score is evidence-linked, stale/retracted states are honest, and false positives disappear from unread counts quickly. Provenance + calibration keep formulas auditable without automating trading. Failures must stay isolated from balances, orders, and settlement (invariant 28). |
+| **How** | Embed/reference envelope (`version`, `signalType`, `inputs`, `metrics`, `paramsRef`, `reasonCodes`, `hash`); derive `provenanceId = sha256(signalType || canonical_inputs || params_version)`; transition states per table; on retract set `retractedAt`, emit notification + WS, clients clear unread within 1 sync. Auto-retract on trade reorg, pre-resolution reclassification after resolve, or provenance hash mismatch on recompute. Calibration: ±10% `τ_global` without version bump; larger changes bump `params_version`. Never place or suggest autonomous orders from a signal. |
+
+### Lifecycle states (client contract)
+
+| state | meaning | client UX |
+|-------|---------|-----------|
+| `draft` | worker computed, not yet committed | hidden |
+| `active` | visible in feeds/inbox | normal render |
+| `stale` | `computedAt` age > stale_threshold | banner “may be outdated” |
+| `retracted` | `retractedAt` set | strike-through + removal |
+| `superseded` | newer version same logical key | link to successor |
+
+### Envelope minimum fields
+
+Every committed signal MUST carry or reference: `version`, `signalType`, `computedAt`, `inputs` (trade/market/snapshot ids), `metrics`, `paramsRef`, `reasonCodes`, content `hash`. Missing envelope → do not publish `active`.
+
+### Auto-retraction triggers (v1)
+
+- Upstream trade reorg / invalidation
+- Market resolved and trade pre-resolution reclassified
+- Provenance hash mismatch on recompute
+
+NFR: retraction propagation p95 under 30s (product registry).
+
+### Worked example
+
+**Happy path.** Whale worker computes score 82.4, builds envelope with trade/market/snapshot IDs, metrics, `paramsRef`, reason codes, content hash; commits `active`. Feed shows card with evidence. Later, monthly calibration finds precision@k drift; ops adjust `τ_global` by 8% (within ±10%) without `params_version` bump; golden vectors still green.
+
+**Retraction path.** Upstream trade reorg invalidates `tradeId` in envelope inputs → auto-retraction: `retractedAt` set, `signal.retracted` + WS `op: retract`. Client strikes through / removes card and decrements unread within one sync. Supersede path: new signal same logical key → prior state `superseded` with link to successor.
+
+**Failure / Never-V1 / degraded.** Hash mismatch on recompute must retract or supersede — do not silently leave a lying `active` card. Stale signals show “may be outdated”; clients must not treat them as fresh for decisioning UI. Retraction must never trigger compensatory orders. AI may narrate envelope metrics but must not reclassify or fire orders (ADR-009). Old signals remain addressable after `params_version` bumps for audit.
+
 ## 1. Purpose
 
 Evidence envelope schema, signal lifecycle, calibration, and retraction semantics.

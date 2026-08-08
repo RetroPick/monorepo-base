@@ -9,6 +9,63 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-6 is production readiness without new product features: security review, load/chaos, CI/CD completion, SLO dashboards, backup/restore drill, kill-switch exercise, SBOM, signal load tests, and incident runbook drills. Feature freeze applies for load tests; security findings block PHASE-7 launch.
+
+Untested backups, fatiguing alerts, and unproven kill switches turn the first prod incident into prolonged outage or fund risk. Emergency capability flags are in scope; new trading features and the launch itself are not.
+
+Paths include `.github/workflows/`, `platform/`, `security/`, `testing/`, and dashboards/DR runbooks. Exit via `MKT-P6-010` only when restore/rollback drills, kill-switch evidence, and P0/P1 security closure/acceptance are real.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-6 — Hardening, CI/CD, and SRE**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | devops-sre, security, qa-integration; on-call designers; humans for residual risk acceptance and destructive migration rehearsal approval. |
+| **What** | Production readiness without new features: security review, load/chaos, CI/CD completion, SLO dashboards, backup/restore drill, kill-switch exercise, SBOM, signal load tests, incident runbook drills. |
+| **When** | After PHASE-4/5 staging complete. Feature freeze for load tests; security findings block PHASE-7 launch. This phase is not the launch itself. |
+| **Where** | `.github/workflows/`, `platform/`, `security/`, `testing/`, dashboards/DR runbooks, emergency capability flags in OpenAPI/capabilities API. Integrations: paging (e.g. PagerDuty) and all prod dependency contracts under test. |
+| **Why** | Untested backups, fatiguing alerts, and unproven kill switches turn first prod incident into prolonged outage or fund risk. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P6-001`…`MKT-P6-010` security through exit gate
+- Signed containers, migration gates, full SLI catalog, synthetics
+- Emergency capability flags only — not new trading features
+
+### Out of scope (do not implement under this phase authorization)
+
+- New product features, combos, production canary/launch execution (PHASE-7)
+- PRISM/legacy; custom exchange
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Reproducible artifacts; restore/rollback drills pass; kill switches exercised with evidence
+- P0/P1 security fixed or explicitly accepted; REQ MKT-NFR-010/070, MKT-OPS-001 evidenced
+- `MKT-P6-010` complete before PHASE-7 canary authorization
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Run security review and track findings to closure/acceptance
+2. Load/chaos against frozen build; capture SLO dashboards
+3. Backup restore drill with measured RPO; document gaps
+4. Exercise kill switches (e.g. order_submission) end-to-end in staging
+5. SBOM + signal isolation load tests; incident drill with runbooks
+
+### Worked example
+
+Agent on `MKT-P6-006` toggles the trading kill switch, verifies clients fail closed, captures metrics and runbook steps in verification evidence, then restores the flag.
+
+They reject a teammate’s “while we’re in CI” feature PR as out of scope for PHASE-6.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-6`

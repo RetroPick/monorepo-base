@@ -9,6 +9,63 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-5 ships native Android V1 parity on shared OpenAPI: Gradle modules, Kotlin client, Compose navigation, catalog, wallet handoff, trading, portfolio/alerts, widgets/notifications, plus performance and accessibility gates. ADR-006 requires Compose; ADR-004 forbids a parallel private Android API.
+
+Process-death during signing and stale-preview submit are mobile-specific fund risks — resume CTA, invalidate previews, never sign unbound payloads. Sequence: read/catalog → wallet handoff → trading → portfolio. Do not start from a greenfield parallel API or Flutter/React Native.
+
+`apps/android/` is the implementation home; stop for Play/FCM/signing human gates rather than inventing store approval. Exit via `MKT-P5-010` before PHASE-6 treats mobile as in-scope for hardening.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-5 — Android Compose Markets**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Android/Compose and Kotlin client agents; devops for Play internal CI; humans for Play closed track, prod signing key, FCM production. |
+| **What** | Native Android V1 parity on shared OpenAPI: Gradle modules, Kotlin client, Compose navigation, catalog, wallet handoff, trading, portfolio/alerts, widgets/notifications, performance and accessibility. |
+| **When** | After PHASE-3/4 APIs are stable and codegen documented. Sequence: read/catalog → wallet handoff → trading → portfolio. Do not start from a greenfield parallel API. |
+| **Where** | `apps/android/` modules (`markets-feature|data|wallet`), `.dev/markets-v1/android/` specs. Integrations: FCM, Play internal, WalletConnect mobile. Optional local Room cache only. |
+| **Why** | Process-death during signing and stale-preview submit are mobile-specific fund risks. Non-Compose stacks violate ADR-006; drifting from OpenAPI breaks web/Android parity (ADR-004). |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P5-001`…`MKT-P5-010` scaffold through exit gate
+- Compose UDF; cert pinning; secure handoff; stale preview block; privacy-safe widgets
+- FCM token registration aligned with OpenAPI
+
+### Out of scope (do not implement under this phase authorization)
+
+- Combos; on-device wallet classification; Flutter/React Native
+- PRISM/legacy; custom exchange; embedding recovery keys in the app
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Compose-only; contract tests; wallet resume; no stale preview sign
+- Perf/a11y gates (e.g. cold start p75 target) evidenced; Play internal path ready pending human gates
+- `MKT-P5-010` done before PHASE-6 treats mobile as in-scope for hardening
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Scaffold Gradle modules; generate Kotlin client from `markets-v1.yaml`
+2. Catalog screens before trading; wallet handoff with resume CTA after process death
+3. Invalidate previews on resume; never sign unbound payloads
+4. Widgets/notifications without PII leakage; run unit/Compose/instrumented tests
+5. Stop for Play/FCM/signing human gates — do not invent store approval
+
+### Worked example
+
+Agent on `MKT-P5-005` implements handoff + resume: if the process dies mid-sign, UI offers Resume, preview is re-fetched/invalidated, and no duplicate order is created.
+
+`MKT-P5-006` trading screens stay disabled until handoff acceptance criteria pass.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-5`

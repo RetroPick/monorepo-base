@@ -6,6 +6,58 @@
 **Product:** RetroPick Markets V1
 **Wave:** 1 (architecture freeze)
 
+## Description
+
+This document defines failure domains, blast radius, and degraded operating modes for RetroPick Markets V1: Client, BFF Core, Trading Path, Intelligence, and Notifications—plus independence rules, kill switches, stale/read-only UX, and recovery expectations. Intelligence or notification outages must not force unsafe orders; trading outages must not be “fixed” by auto-executing signals (ADR-009).
+
+It sits in Wave 1 architecture freeze beside system trust boundaries and ADRs for realtime reconciliation (ADR-005) and the shared signal engine (ADR-008). Markets is an experience and policy layer over Polymarket; degraded modes fail closed on eligibility/capabilities and show delayed UX rather than inventing venue truth.
+
+Read this when designing anything that touches CLOB, signals, or push; when adding kill switches; or when reviewing PRs where one subsystem could cascade into unsafe trading. It is not a full incident-response playbook and not a license for signal→submit paths.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+**Purpose** here is blast radius and degraded modes. Map every feature to a domain before coding side effects across trading, intelligence, or notifications.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Purpose, Scope, or later normative sections; if anything conflicts, the body of this document wins.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF, realtime, intelligence, and notification owners; web/Android engineers implementing stale/read-only UX; SRE defining kill switches; agents designing cross-cutting features. |
+| **What** | Five failure domains (Client, BFF Core, Trading Path, Intelligence, Notifications), independence rules, degraded modes (read-only catalog, kill switches, stale badges), recovery expectations, and client behavior. Not a full incident-response playbook. |
+| **When** | When designing anything that touches CLOB, signals, or push; adding kill switches; writing SEV paths; reviewing PRs where one subsystem could cascade into unsafe trading. |
+| **Where** | Spec: this file. Runtime: Markets API + Postgres/Redis; CLOB preview/submit; signal engine; alert/push workers; clients. Cross-read [ADR-005](adr/ADR-005-REALTIME-AND-RECONCILIATION.md), [ADR-008](adr/ADR-008-SHARED-SIGNAL-ENGINE.md), [ADR-009](adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md). |
+| **Why** | Intelligence or notification outages must not force unsafe orders; trading outages must not be “fixed” by auto-executing signals. Isolation keeps Markets an experience layer without cascading user harm. |
+| **How** | Encode independence in APIs/workers: signals read-only; alerts never submit orders; WS gaps trigger REST resync; capabilities/kill flags fail closed; clients show delayed/read-only UX instead of inventing venue truth. |
+
+### Worked example
+
+**Happy path**
+
+1. CLOB WebSocket flaps (Trading Path / FD3).
+2. Critical screens fall back to REST poll (e.g. every 5s) per degraded matrix.
+3. BFF Core still serves cached catalog; intelligence may mark signals stale; notifications retry.
+4. No backlog of auto-orders drains when CLOB returns—preview+sign resumes manually.
+
+**Failure / Never-V1**
+
+- Auto-placing orders when a whale signal fires during trading degradation ([ADR-009](adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
+- Push workers invoking order submit “to catch up.”
+- Collapsing intelligence failure into a global Markets API outage unless BFF Core is down.
+- Hiding stale books without a delayed/stale indicator when snapshot age exceeds policy.
+
+**Agent checklist**
+
+- [ ] Which failure domain?
+- [ ] What still works in degraded mode?
+- [ ] What is fail-closed?
+- [ ] Any path from signal/alert → submit? (Must be **none**.)
+- [ ] Client UX for stale/read-only defined?
+
+**Reading tip:** Skim Who/What first, confirm Where paths exist in the repo, then implement How. Use Never-V1 as a PR self-review gate before marking harness tasks complete.
+
+
 ## 1. Purpose
 
 Define **failure domains**, **blast radius**, and **degraded operating modes** for RetroPick Markets V1. The architecture deliberately separates **trading**, **intelligence**, and **notifications** so that failures in one domain do not cascade into unsafe behavior in another.

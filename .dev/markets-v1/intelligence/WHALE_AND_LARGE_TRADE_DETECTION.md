@@ -6,6 +6,33 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the quantitative authority for **whale and large-trade detection** in RetroPick Markets V1 trader intelligence. It defines how the BFF turns a normalized trade (plus book, volume, and optional wallet priors) into a deterministic **WhaleScore**, dynamic notional thresholds, reason codes, dedup fingerprints, and whale-feed ordering—so clients can show evidence-linked large-flow awareness without inventing scores on device.
+
+It sits in Wave 6 beside the trader-intelligence registry, alert rules, wallet profiling, and signal-provenance specs. Compute belongs in `apps/backend/internal/markets/intelligence/`; parameters live under `intelligence_params_v1.yaml#whale_score`. Golden vectors in this file gate formula changes. The doc explicitly rejects auto-copy trading, insider-wallet labels, and any path from a whale signal to an order (ADR-009 / Never V1).
+
+Read this when implementing TI-V1-009 / TI-V1-012 (MKT-FR-060), calibrating whale thresholds, or reviewing whale-feed / watched-wallet alert UX. Prefer sibling docs for alert delivery DSL, evidence envelopes, and the capability registry—not for WhaleScore math.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF intelligence workers that score trades; web/Android whale-feed and alert UIs; ops calibrating `intelligence_params_v1.yaml`; agents implementing TI-V1-009 / TI-V1-012 (MKT-FR-060). |
+| **What** | Deterministic WhaleScore v1, dynamic notional thresholds, reason codes, dedup fingerprints, and feed ordering for large-trade awareness. **Not** auto-copy trading, insider-wallet labels, or any path from score → order. |
+| **When** | After a normalized trade exists with book/volume priors (and optional wallet prior). Applies when shipping whale feed / watched-wallet alerts; golden vectors gate every formula change. |
+| **Where** | Spec authority: this doc. Compute: `apps/backend/internal/markets/intelligence/`. Params: `intelligence_params_v1.yaml#whale_score`. Persistence/API: `market_signals` + whale feed query params. Clients render only. |
+| **Why** | Traders need evidence-linked large-flow context without RetroPick accusing wallets of insider activity or automating copy trades. Intelligence failures must stay isolated from balances, orders, and settlement (invariant 28). |
+| **How** | Implement `WhaleScore(t)` + τ_market; classify candidates; attach reason codes + evidence envelope; dedupe by fingerprint; sort feed; serve filters. Run golden vectors. Never place or suggest autonomous orders from a signal. |
+
+### Worked example
+
+**Happy path.** Normalized trade `t`: `notional_usd = 12500`, mid moves 31 bps in 30s, depth at 2% is thin, wallet prior `0.6`. τ_market resolves to `max(5000, …) = 5000`, so the trade is a whale candidate. Components yield `WhaleScore ≈ 82` with codes `WHALE_NOTIONAL_THRESHOLD` and `WHALE_PRICE_IMPACT`. Worker commits an `active` signal with evidence envelope hash; whale feed (sort `trade_ts DESC`, then score) shows a card: “Large trade by dollar size / Moved price more than typical” — descriptive only.
+
+**Failure / Never-V1.** Same signal must not open a copy-trade or label the wallet “insider.” A duplicate fingerprint within 15 minutes is suppressed. If book snapshots are missing, impact uses `vwap_fallback` and stays evidence-flagged; AI may narrate the envelope metrics but must not classify or trigger orders (ADR-009).
+
 ## 1. Purpose
 
 Quantitative specification for whale/large-trade detection, WhaleScore v1, reason codes, and feed semantics.

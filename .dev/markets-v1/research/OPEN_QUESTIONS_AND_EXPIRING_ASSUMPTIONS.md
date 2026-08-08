@@ -5,6 +5,57 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This tracker holds unresolved Polymarket/Builder/legal/Android/OSS questions and **time-boxed assumptions** that must be revalidated or escalated before they block phase gates. Silent expired assumptions become production incidents (wrong collateral, premature Combos, Play rejection).
+
+Link EV-IDs and escalation paths; close only with dated evidence. Weekly sweep assumptions expiring within 14 days; every PHASE gate checklist must include an assumption ID sweep. Companion decision/assumption log: [DECISION_AND_ASSUMPTION_LOG.md](../agent-harness/DECISION_AND_ASSUMPTION_LOG.md).
+
+Before coding on a risky dependency, find the assumption/question ID → check expiry → revalidate or escalate. Do not close legal/Play questions inside agent-only PRs without human approval. Out of scope: PRISM design and legacy epoch migration.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before open-question and assumption tables below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace dated assumption rows, expiry dates, or blocker/decision logs; if anything conflicts, those tables and [DECISION_AND_ASSUMPTION_LOG.md](../agent-harness/DECISION_AND_ASSUMPTION_LOG.md) win.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Orchestrators running phase gates; implementers about to rely on an unverified upstream behavior; humans who must answer legal/Builder/Play questions agents cannot close. |
+| **What** | Tracker for unresolved Polymarket/Builder/legal/Android/OSS questions and **time-boxed assumptions** that expire. Links EV-IDs and escalation paths. Out of scope: PRISM design, legacy epoch migration. |
+| **When** | Weekly (assumptions expiring within 14 days) and at every PHASE gate checklist sweep. Re-read when an assumption’s expiry date passes or evidence confidence changes. |
+| **Where** | This file + [evidence-register.yaml](evidence-register.yaml) + [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) + decision/assumption log. Do not bury new assumptions only in chat. |
+| **Why** | Silent expired assumptions become production incidents (wrong collateral, premature Combos, Play rejection). Time-boxing forces revalidation or escalation before gates turn green. |
+| **How** | Before coding on a risky dependency, find the assumption/question ID → check expiry → revalidate or escalate. Close only with dated evidence. PHASE gate must include assumption ID sweep (see §13). |
+
+### Worked example
+
+**Happy path — assumption still green**
+
+1. Task depends on CLOB V2 host assumption with future expiry.
+2. Confirm date + EV confidence; proceed; cite IDs in handoff.
+
+**Happy path — expired assumption**
+
+1. Gate checklist finds assumption past expiry.
+2. Re-fetch Polymarket docs / registry; update evidence + this tracker; or open BLK human approval — do not “hope.”
+
+**Failure / Never**
+
+- Implementing Combos because an old assumption said “probably fine.”
+- Closing legal/Play questions inside agent-only PRs without human approval.
+- Letting weekly expiry report rot without owner action.
+
+**Agent checklist**
+
+- [ ] Related open question IDs checked?
+- [ ] Assumption expiry in the future?
+- [ ] EV-ID linked where applicable?
+- [ ] Escalation path known?
+- [ ] Decision log updated if resolved?
+
+**Reading tip:** Purpose + acceptance criteria define the operating loop; the tables below are the live queue — keep them dated.
+
 ## 1. Purpose
 
 Track unresolved upstream/product decisions and **time-boxed assumptions** that must be revalidated or escalated before they block phase gates.

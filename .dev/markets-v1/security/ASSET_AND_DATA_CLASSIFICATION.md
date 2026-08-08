@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document defines RetroPick Markets V1 data and asset classification tiers T0–T4—from public catalog copy through restricted secrets to prohibited user private keys and seeds, which must not exist on RetroPick. It covers asset inventory, encryption in transit and at rest, retention and deletion, PII pseudonymization such as IP to /24 hash in eligibility, and third-party sharing rules.
+
+It sits in Wave 7 beside SECRETS_KEYS_AND_ACCESS_CONTROL, auth/eligibility, and backup/DR. Data planes include markets.*, Redis, secret manager, Android Keystore and web HttpOnly cookies, and encrypted backups. Classification drives access control, log redaction, backup scope, and incident evidence handling.
+
+Read this when adding tables, log fields, analytics exports, backups, or subprocessors, and before enabling new geo, OAuth, or push vendors. Prefer SECRETS_KEYS_AND_ACCESS_CONTROL for rotation and RBAC mechanics.
+
+It excludes logging full JWTs or raw geo IPs, marketing-export of eligibility IPs, custodial storage of user EOA or seeds (T4), and exporting unclassified fields without review.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Backend/schema owners labeling columns and logs; client engineers storing session tokens; ops/backup owners scoping encrypted snapshots; privacy reviewers; agents choosing what may appear in logs, exports, or third-party shares (geo provider, Polymarket, FCM). |
+| **What** | Classification tiers T0–T4: public → internal → confidential → restricted secrets → **prohibited user private keys/seeds (must not exist on RetroPick)**. Inventory of client/server/infra assets, encryption in transit/rest, retention/deletion, PII pseudonymization (IP → /24 hash in eligibility), and third-party sharing rules. |
+| **When** | When adding tables, log fields, analytics exports, backups, or subprocessors; at schema review; before enabling a new geo/OAuth/push vendor; during incident evidence collection (redact by tier). |
+| **Where** | Spec: this file. Data: `markets.*` (incl. `eligibility_decisions`), Redis, secret manager, Android Keystore / web HttpOnly cookies, encrypted backups. Cross-ref SECRETS_KEYS, AUTH_SESSION_AND_ELIGIBILITY, backup/DR. |
+| **Why** | Without tiers, agents log JWTs, raw geo IPs, or invent server custody of seeds. Correct classification drives access control, redaction, backup scope, and legal/ops handling—especially fail-closed eligibility rows that store hashed IP/region for audit without raw PII sprawl. |
+| **How** | Assign tier per asset; T3 only in secret manager; T4 forbidden everywhere; encrypt Android tokens; TLS everywhere; backups encrypted with separate KMS; eligibility stores /24 hash not full IP; never marketing-export eligibility IPs; label schemas/code comments with tier where helpful. |
+
+### Tier quick reference
+
+| Tier | Examples | Handling |
+|------|----------|----------|
+| T0–T1 | Public catalog copy, internal ops metrics | Least sensitive |
+| T2 | Session tokens, eligibility decisions, positions | Access-controlled; redact in logs |
+| T3 | Builder keys, DB creds, OAuth secret | Secret manager only |
+| T4 | User private keys, seeds | **Must not exist** on RetroPick |
+
+### Handling checklist
+
+| Activity | Rule |
+|----------|------|
+| Application logs | No full JWT, no builder secrets, no raw geo IP |
+| Eligibility audit | Hashed IP (/24) + region code; retention per §10 |
+| Backups | Encrypted; scoped to PG + secret versions—not T4 |
+| Third parties | DPA + minimum data (geo vendor: IP only) |
+| Unknown new field | Treat as ≥T2 until classified; no export |
+
+### Worked example
+
+**Happy path.** New `eligibility_decisions` field stores region + IP hash (T2); logs use `request_id` + hashed user id; backup includes PG encrypted snapshot; builder key stays T3 in manager. Android refresh token in Keystore.
+
+**Failure / degraded.** PR adds logging of full JWT or seed “for debug” → reject (T2/T4 violation). Proposal to custodially store user EOA on server for “faster signing” → **T4 forbidden**. Geo vendor share is IP only under DPA; raw IP not copied into product analytics. Unknown classification → treat as T2+ until reviewed (**fail closed** on export).
+
+**Incident evidence.** Preserve redacted logs and `order_attempts` ids; never paste T3 secret values into tickets or chat.
+
 ## 1. Purpose
 
 Inventory and classification of data assets, retention, encryption, and handling rules for Markets V1. Drives access control, logging redaction, and backup scope.

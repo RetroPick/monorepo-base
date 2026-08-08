@@ -6,6 +6,49 @@
 **Wave:** 9 harness complete
 **Source:** Master prompt §17.1
 
+## Description
+
+This is the mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Read it before selecting a task or editing product code. It binds reading order, scope discipline, evidence honesty, human stop conditions, implementation ordering, verification, handoff, R0–R3 repo boundaries, and §23 invariant themes.
+
+Executable product work is sequenced by live `current_phase` in `implementation-manifest.yaml` (confirm the file — harness materials reference PHASE-1 as first executable after Wave 9). Without this contract, agents invent addresses/test greens, edit PRISM/legacy, collide on paths, or jump phases.
+
+Execute: checklist → one ready task → `owned_paths` only → smallest coherent change → run commands → evidence + decision log + handoff → invariant greps at exits. Production wallets, Builder prod creds, real txs, Play prod, and similar §18 gates escalate via blockers — never improvise clearance.
+
+## 0. Developer intent (5W+1H)
+
+Mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Read this before selecting a task or editing product code. Wave 9 harness completion is recorded in harness metadata; executable product work is sequenced by `current_phase` in `implementation-manifest.yaml` (confirm the live value — harness materials reference PHASE-1 as the first executable product phase after Wave 9).
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | All implementation agents (`be-*`, `fe-*`, `qa-*`, `devops-sre`, `security`, Android owners, orchestrator when sequencing). |
+| **What** | Binding rules: before-you-act reading order, scope discipline, evidence/honesty, human stop conditions, implementation ordering, verification, handoff, R0–R3 repo boundaries, and §23 invariant themes. |
+| **When** | Before any Markets product or harness execution change; when resuming after `blocked`; at every task handoff; before phase exit invariant re-check. |
+| **Where** | This contract plus `implementation-manifest.yaml`, `task-graph.yaml`, phase specs under `../phases/`, `INVARIANT_CHECK.md`, root `AGENTS.md`, `docs/ARCHITECTURE.md`, `.dev/MARKETS.md`. |
+| **Why** | Without a shared contract, agents invent addresses/test greens, edit PRISM/legacy, collide on paths, or jump phases (wallet/trading before read foundation). |
+| **How** | Execute §2 checklist → one ready task → `owned_paths` only → smallest coherent change → run commands → evidence + decision log + handoff → invariant greps at exits. |
+
+### In scope under this contract
+
+- Authorized phase/task only; Markets greenfield under `apps/backend/internal/markets/`.
+- Web markets product routes; OpenAPI `schemas/openapi/markets-v1.yaml` as shared web+Android contract.
+- Harness doc updates when the task owns those paths.
+- Contract-first ordering: schemas → clients; migrations → dependent code; read → write; preview → sign.
+
+### Out of scope / stop conditions
+
+- PRISM (`contracts/prism/`); legacy epoch feature extension (`/api/v1/legacy/markets/*`).
+- Editing the master prompt plan file; cross-phase “while you’re here” work.
+- Production wallets, Builder prod creds, real txs, Play prod, destructive migrations, new jurisdictions, custom contract deploy — escalate via `BLOCKERS_AND_HUMAN_APPROVALS.md` (see also §5 below).
+
+### What “done” means
+
+Verification evidence + handoff filed; `owned_paths` match the diff; no new §23 contradictions; task `done` only with proof. Blocked work stays `blocked` with criteria — never marked complete. Phase advance is orchestrator-only after a filled phase gate.
+
+### Worked example
+
+Agent reads the manifest (`current_phase: PHASE-1`), selects `MKT-P1-002` (Gamma client), confirms no path conflict with parallel tasks, implements cache/circuit-breaker hardening, runs graph commands, fills verification evidence and handoff, updates traceability if mappings changed, and refuses to start WalletConnect (PHASE-2) in the same session even if the UI looks incomplete without it.
+
+
 ## 1. Purpose
 
 Bind all implementation agents to safe, evidence-based execution of Markets V1 work within authorized phases and tasks. This contract is mandatory before any product-code change.

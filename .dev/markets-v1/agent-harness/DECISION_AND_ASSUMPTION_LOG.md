@@ -5,6 +5,51 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This chronological ledger records non-obvious decisions and **expiring** assumptions for Markets V1 so later work does not re-litigate ADRs or silently trust stale upstream facts (pUSD collateral, CLOB V2 shapes, Builder availability).
+
+Append Decision rows with ADR/doc + task ID; Assumptions with Expiry + Revalidation; Rejected alternatives with rationale. Never resolve open questions by invention — log an assumption or blocker instead. Scope changes require ADR + human approval first.
+
+Use before marking a task `done` if you made an architecture/product choice or relied on time-sensitive upstream claims. Companion open questions live in `../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md`. This log is not a substitute for `BLOCKERS_AND_HUMAN_APPROVALS.md`.
+
+## 0. Developer intent (5W+1H)
+
+Chronological ledger of non-obvious decisions and **expiring** assumptions for Markets V1. Agents record choices here so later work does not re-litigate ADRs or silently trust stale upstream facts (pUSD collateral, CLOB V2 shapes, Builder availability).
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Implementing agents (append rows); orchestrator/reviewers (audit); humans for scope-changing decisions. |
+| **What** | Decisions table (ID, ADR/doc, task), Assumptions with expiry + revalidation path, Rejected alternatives, pointer to open-questions research doc. |
+| **When** | Before marking a task `done` if you made an architecture/product choice or relied on time-sensitive upstream claims; when rejecting an alternative; when an assumption’s Expires date is near or upstream changelogs move. |
+| **Where** | This log; ADRs under `../architecture/adr/`; open questions in `../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md`. |
+| **Why** | Trading/launch phases fail when PHASE-0 assumptions silently expire. Guessing answers to open questions creates false confidence and invariant risk. |
+| **How** | Add Decision with ADR link + task ID; add Assumption with Expires + Revalidation; never resolve open questions by invention — log assumption or blocker instead. Scope changes require ADR + human approval first. |
+
+### In / out
+
+- **In:** Recording D-*/A-* rows tied to tasks; linking ADRs; noting rejected alternatives with rationale; citing IDs from handoffs/evidence.
+- **Out:** Quietly changing ADR-001 venue model in code without a decision row; deleting expired assumptions without revalidation notes; treating this log as a substitute for `BLOCKERS_AND_HUMAN_APPROVALS.md`.
+
+### What “done” means for an agent using this log
+
+Any non-obvious choice from your task is already present or newly appended; assumptions you depended on are still within Expires or were revalidated/escalated; handoff mentions new D-*/A-* IDs when created.
+
+### How (procedure)
+
+1. Before coding a contested approach, search Decisions / Rejected alternatives.
+2. If choosing among options, prefer an existing ADR; else draft ADR + Decision row.
+3. If relying on Polymarket upstream detail, ensure an Assumption row exists with expiry.
+4. On upstream change, revalidate and update the row (or open a blocker).
+5. Reference Decision/Assumption IDs from verification evidence when relevant.
+
+Existing rows such as D-001 (no custom exchange) and A-003 (CLOB V2 registry) illustrate the expected density — match that style rather than vague prose.
+
+### Worked example
+
+Agent preparing CLOB submit checks A-003 (CLOB V2 endpoint registry). Upstream changelog moved a path: they revalidate against the evidence register, update A-003’s Expires/Revalidation, and if still ambiguous file a research blocker rather than hardcoding a guessed URL. They do not reopen D-001 “no custom exchange” in a drive-by refactor — that remains ADR-001.
+
+
 ## 1. Purpose
 
 Chronological log of decisions and expiring assumptions. Agents MUST record non-obvious choices here before marking tasks done.

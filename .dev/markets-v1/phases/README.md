@@ -8,6 +8,57 @@
 
 PHASE-0…PHASE-8 per master prompt §15. Each file implements §16 contract.
 
+## Description
+
+This index maps PHASE-0…PHASE-8 for RetroPick Markets V1: exact phase names, dependency edges, §16 contract expectations, `MKT-P0-001`…`MKT-P8-010` task ranges, parallelization rules, and human gates. Open it to navigate, then open the matching phase file — it does **not** replace live `current_phase` in `implementation-manifest.yaml` or task statuses in `task-graph.yaml`.
+
+V1 delivery is PHASE-0–7; PHASE-8 is post-V1 under explicit gates. Parallelization reminders include schemas→clients, migrations→code, read→write, preview→sign, Android after stable web trading, and launch after hardening.
+
+**How to use:** confirm manifest `current_phase` → find the phase in the registry → open its spec → pick one ready task in range → obey owned-path and human-gate rules. Exit-gate proof lives on the phase file + `PHASE_GATE_TEMPLATE`, not checkboxes on this README.
+
+## 0. Developer intent (5W+1H)
+
+This index is the map of PHASE-0…PHASE-8 for RetroPick Markets V1. Use it to navigate exact phase names, dependencies, §16 contract expectations, task ID ranges, parallelization rules, and human gates — then open the matching phase file. It does **not** replace live execution state in `implementation-harness` files.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Platform orchestrator sequencing work; any Markets V1 agent choosing the next authorized phase/task; reviewers checking dependency order. |
+| **What** | Phase registry table, dependency flowchart, §16 contract checklist, `MKT-P0-001`…`MKT-P8-010` ranges, §17.3 parallelization rules, §18 human gates, links to requirements/tests/rollback, and the V1 boundary note (PHASE-0–7 = V1; PHASE-8 = post-V1). |
+| **When** | Before starting work in a phase; when assigning task IDs; when checking whether Android may proceed (after stable web trading); when confirming launch-after-hardening ordering; at exit when ensuring the next phase’s prerequisites exist. |
+| **Where** | `.dev/markets-v1/phases/` (this index + per-phase specs). Authoritative progress: `../agent-harness/implementation-manifest.yaml` (`current_phase`) and `../agent-harness/task-graph.yaml`. Do not treat this README’s **Status: reviewed** as “all phases complete.” |
+| **Why** | Wrong phase order, colliding owned paths, or silent PHASE-8 features inside V1 create custody, eligibility, and scope failures that ADRs already forbid. |
+| **How** | Read registry → open one phase spec → confirm manifest authorization → pick one task in range → obey parallelization and human gates → leave exit-gate proof to the phase file + `PHASE_GATE_TEMPLATE`. |
+
+### In scope for this index
+
+- Navigation and naming only: exact phase IDs/names, depends-on edges, task ID namespaces.
+- Reminders of §16 sections every phase file must cover (business/technical outcome through handoff).
+- Parallelization constraints (schemas→clients, migrations→code, read→write, preview→sign, Android after stable web trading, launch after hardening).
+- Human gates list (production wallet, Builder fees, relayer prod creds, real on-chain tx, custom contract deploy, new jurisdiction, embedded key recovery, destructive migration, secret rotation, Play production, remove rollback, accept critical risk).
+
+### Out of scope for this index
+
+- Declaring which phase is currently executing or inventing exit-gate approvals.
+- Rewriting per-phase acceptance criteria, commands, or owned paths (those live in phase files + task-graph).
+- Approving §18 gates; clearing blockers; merging/deploying.
+
+### What “done” means when using this doc
+
+An agent is “done” with this index when they can: name the correct next phase after a prior exit gate; cite the right `MKT-P*-*` range; open the phase markdown; and confirm manifest `current_phase` before editing product code. Completing a phase still requires that phase’s Definition of done + gate approval — not a checkbox on this README.
+
+### How (procedure)
+
+1. Open `implementation-manifest.yaml` and note `current_phase` (do not invent it).
+2. Find that phase in the registry; open its spec; skim In/Out of scope and exit gate.
+3. Select exactly one task from `task-graph.yaml` in `planned`/`ready` within the phase range.
+4. Obey §17.3: one owner per writable path; no cross-phase “while you’re here” edits.
+5. At phase end, use the phase exit task + `PHASE_GATE_TEMPLATE`; only orchestrator advances `current_phase`.
+
+### Worked example
+
+An agent is asked to “add wallet connect.” This index shows wallet work is PHASE-2 (`MKT-P2-001…010`) depending on PHASE-1. They check the manifest: if `current_phase` is still `PHASE-1`, they refuse wallet implementation, point at PHASE-1 read-markets tasks instead, and do not invent a PHASE-2 authorization. If later authorized for PHASE-2, they open `PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md` and take a single ready `MKT-P2-*` task.
+
+
 ## Phase registry
 
 | Phase ID | Exact name | Spec | Depends | Exit gate |

@@ -6,6 +6,55 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document defines the process to detect, assess, and respond to Polymarket upstream changes that affect Markets V1: docs/changelog, SDK releases, contract registry diffs, rate limits, and geoblock policy—with evidence refresh, severity classification, and deploy freezes. V1 has no custom exchange to absorb protocol drift.
+
+It sits across the Wave 2 suite as the operational companion to the API and contract registries and `research/EVIDENCE_REGISTER.md`. Breaking API or address changes trigger 24h assessment and trading-deploy freezes; rate-limit tightening is tuned within policy, not evaded. Combos GA announcements do not auto-enable Combos—the capability gate still applies.
+
+Read this for weekly/monthly watch cadence, before any “just update the URL” shortcut, and when agents refresh evidence after changelog events. It is not a place to invent fallback hosts or hot-patch addresses from unofficial sources.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Platform/docs owners, backend SDK consumers, compliance (geoblock), release managers, agents updating evidence after Polymarket changelog events. |
+| **What** | Process to detect, assess, and respond to upstream changes: docs/changelog, SDK releases, contract registry diffs, rate limits, geoblock policy — with evidence refresh and deploy freezes. |
+| **When** | Weekly watches (docs, SDK, registry, llms.txt); monthly geoblock; immediately on breaking API or address changes (24h assess). Before any "just update the URL" shortcut. |
+| **Where** | Watch sources listed in this doc; evidence in `research/EVIDENCE_REGISTER.md` / yaml; registries in [CONTRACT_ABI_AND_ADDRESS_REGISTRY.md](./CONTRACT_ABI_AND_ADDRESS_REGISTRY.md) and [API_SDK_AND_ENDPOINT_REGISTRY.md](./API_SDK_AND_ENDPOINT_REGISTRY.md). |
+| **Why** | Polymarket can change ACL, fees, domains, or contracts without RetroPick commits. Stale evidence causes invented endpoints/addresses and production outages. V1 has no custom exchange to absorb protocol drift. |
+| **How** | Diff watch sources; classify severity; freeze deploy on breaking changes; re-fetch authoritative URLs; bump evidence dates/confidence; ADR if architectural; re-run conformance; keep Combos excluded until gate reopened. |
+
+### Worked example
+
+**Happy path.** Weekly job diffs docs changelog + contract page. New fee field documented → update fee section in Builder/Fees doc, refresh EV dates, adjust BFF fee preview, run order lifecycle tests. SDK minor bump → conformance suite green → dependabot merge. Registry address unchanged, bytecode still matches → no action.
+
+**Failure / degraded.** CLOB breaking auth change mid-release → 24h assess, freeze trading deploy, patch BFF, revalidate geoblock. New contract address on docs → update registry with evidence, verify bytecode, do **not** hot-patch from Twitter. Rate-limit tightening → tune token buckets within 48h; degrade traffic rather than ban evasion. Agent "fixes" by inventing fallback host → reject. Combos GA announcement → does **not** auto-enable; still [COMBOS_CAPABILITY_GATE.md](./COMBOS_CAPABILITY_GATE.md).
+
+**Response SLAs (summary)**
+
+| Category | Response |
+|----------|----------|
+| Breaking API | 24h assess; freeze; patch |
+| New contract address | 24h; registry + bytecode |
+| Rate limits | 48h tune |
+| SDK major | ~1 week conformance |
+| Deprecation | Plan to upstream timeline |
+
+**Evidence refresh protocol (orientation)**
+
+1. Re-fetch the authoritative URL (not a mirror).
+2. Update evidence `retrieved` date and confidence.
+3. If a claim changed, patch the owning polymarket doc and bump matrix/OpenAPI as needed.
+4. File an ADR when trust boundaries or architecture shift.
+5. Refuse merges that introduce hosts/addresses without evidence IDs.
+
+This process protects wallets, order lifecycle, CTF, funding, fees, neg-risk routing, and the Combos gate alike — every peer doc assumes evidence freshness.
+
+**Related docs:** every peer in `polymarket/`; evidence register; capability matrix for ship gates.
+
 ## 1. Purpose
 Process for detecting, assessing, and responding to Polymarket upstream changes affecting RetroPick Markets V1.
 

@@ -6,6 +6,57 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the observability, SLO, and alerting authority for RetroPick Markets V1: metrics, logs, and traces pillars; golden signals; SLO table for API availability, catalog and preview latency, WS success, freshness, and alert delivery; error budget; critical dashboards; alert→runbook map; and log redaction standards.
+
+It sits in Wave 7 with Prometheus/OTel, log aggregation, Grafana-class dashboards, and alert manager to on-call. Cross-ref failure-domain architecture, INCIDENT_RESPONSE, and PRODUCTION_OPERATIONS_RUNBOOK. Logs must never contain private keys, full JWTs, builder secrets, or raw geo IP.
+
+Read this continuously in staging and prod, at weekly error-budget review, monthly SLO tune, post-incident SLI gaps, and when adding critical routes that need latency and error metrics. Prefer PRODUCTION_OPERATIONS_RUNBOOK for first operational steps.
+
+It excludes silently lowering SLO targets to greenwash a release and debug logging of raw IP plus JWT.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | SRE/on-call owning SLOs and alert routes; backend adding OTel metrics/logs/traces; web/Android contributing vitals/crash breadcrumbs; product reviewing error budgets; IR using dashboards during incidents. |
+| **What** | Observability pillars (metrics/logs/traces), golden signals, SLO table (API 99.5%/30d, catalog p95 <500ms, preview p95 <800ms, WS 99%, freshness <120s, alert delivery 95%<60s), error budget (~3.6h/mo), critical dashboards, alert→runbook map, log redaction standards (**never** log private keys, full JWT, builder secrets, raw geo IP). |
+| **When** | Continuously in staging/prod; weekly error-budget review; monthly SLO tune; post-incident SLI gap analysis; when adding new critical routes (must emit latency/error metrics). |
+| **Where** | Spec: this file. Backend Prometheus/OTel; log aggregator; Grafana (or equiv) dashboards; alert manager → on-call. Cross-ref FAILURE_DOMAINS, INCIDENT_RESPONSE, PRODUCTION_OPERATIONS_RUNBOOK. |
+| **Why** | SLOs turn “is it up?” into user-journey health (eligibility→preview→submit). Redaction prevents T3/T4 leakage through the observability plane. Alerts without runbooks create pages that do not fail closed into known ops actions. |
+| **How** | Emit golden signals with `request_id`/route; define SLI queries; page on burn/threshold with severity; link runbooks; review budget before risky releases; scrub geo to hash/region in logs; propagate `traceparent` optionally with BFF root spans to Polymarket calls. |
+
+### Launch SLO anchors
+
+| SLI | Target | Window |
+|-----|--------|--------|
+| API availability | 99.5% | 30d |
+| Catalog read p95 | <500ms | 7d |
+| Order preview p95 | <800ms | 7d |
+| WS connect success | 99% | 7d |
+| Catalog freshness | <120s lag | 7d |
+| Alert delivery | 95% <60s | 7d |
+
+### Alert → first action (samples)
+
+| Alert | Severity | First action |
+|-------|----------|--------------|
+| APIHighErrorRate | SEV-2 | Runbook + error budget check |
+| CatalogStale | SEV-3 | Restart/check ingest |
+| UpstreamCLOBDown | SEV-2 | Degrade trading UI |
+| OrderKillSwitchOn | SEV-1 | Incident commander |
+
+### Worked example
+
+**Happy path.** Preview p95 400ms; availability inside budget; `CatalogStale` fires at lag>300s → on-call restarts ingest per runbook; logs show hashed user id + `request_id` only.
+
+**Failure / degraded.** Error budget exhausted → freeze non-essential releases. Alert `OrderKillSwitchOn` → SEV-1 IR. Engineer adds log of raw client IP + JWT for “debug SLO” → reject; use hashed IP/region consistent with eligibility. Upstream CLOB errors → degrade trading UI per failure-domain doc, keep catalog read path if healthy.
+
+**Never invent.** Lowering SLO targets silently to greenwash a release.
+
 ## 1. Purpose
 
 Metrics, logs, traces, SLO definitions, and alerting rules for Markets V1 launch.

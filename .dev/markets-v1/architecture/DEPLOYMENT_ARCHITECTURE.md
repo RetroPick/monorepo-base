@@ -6,6 +6,59 @@
 **Product:** RetroPick Markets V1
 **Wave:** 1 (architecture freeze)
 
+## Description
+
+This document specifies how RetroPick Markets V1 is built, configured, deployed, and released across development, staging, and production: three deploy units (`deploy/web-markets/`, `deploy/backend/`, `deploy/android/`), environment matrix, `NEXT_PUBLIC_PRODUCT=markets` isolation, one Markets BFF for all clients, Play tracks, and secrets boundaries.
+
+It sits in Wave 1 architecture freeze beside system context, monorepo layout, and ADRs for shared OpenAPI (ADR-004) and the Polymarket ACL (ADR-002). Upstream builder/relayer and Polymarket credentials stay on the BFF only. Markets release trains must not pull in PRISM deploy trees or legacy epoch infrastructure, and must not invent a second trading API per client (ADR-001).
+
+Read this when adding or renaming env vars, choosing client rebuild vs BFF-only deploy, opening a Play track, or wiring Polymarket credentials into a runtime. Prefer cost-model and incident-response docs for pricing or SEV playbooks—not for embedding secrets in Next.js or APK/AAB bundles.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+This document’s **Purpose** states deploy/release semantics; **Scope** lists deploy units and exclusions. Use 5W+1H to pick the correct lever before editing env files or CI.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Purpose, Scope, or later normative sections; if anything conflicts, the body of this document wins.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | DevOps/SRE and release owners; web (Vercel), Go BFF (container/VM), and Android (Play) engineers; harness agents editing `deploy/web-markets/`, `deploy/backend/`, `deploy/android/`; operators promoting staging → production. |
+| **What** | How Markets V1 is **built, configured, deployed, and released** across development, staging, and production: three deploy units, environment matrix, `NEXT_PUBLIC_PRODUCT=markets` isolation, **one BFF** for all Markets clients, Play tracks, and secrets boundaries. Out of scope: PRISM deploy trees, legacy epoch infrastructure, detailed cost modeling. |
+| **When** | Wave 1 architecture freeze and every subsequent release. Apply when adding/renaming env vars, changing public origins, choosing client rebuild vs BFF-only deploy, opening a Play track, or wiring Polymarket credentials into a runtime. |
+| **Where** | Spec authority: this file. Artifacts: `deploy/web-markets/`, `deploy/backend/`, `deploy/android/`. Clients use the Markets BFF origin for their tier; Polymarket APIs stay external. Companion: shared OpenAPI ([ADR-004](adr/ADR-004-SHARED-WEB-ANDROID-API.md)), ACL ([ADR-002](adr/ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)). |
+| **Why** | Without one promotion story, Markets bleeds into PRISM/legacy, secrets leak into client bundles, and web/Android diverge. Server-side deploy authority preserves kill switches without app-store waits and keeps Markets free of custom-exchange deploys ([ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)). |
+| **How** | Ship three deploy units; configure tiers from the env matrix; keep builder/relayer and upstream keys on the BFF only; promote through staging with contract tests; advance Android Internal → Closed → Open → Production. |
+
+### Worked example
+
+**Happy path**
+
+1. Extend OpenAPI + BFF for a new read-only capability; set the flag in **staging** BFF env.
+2. Deploy `deploy/backend` only. Web/Android consume the same `/api/v1/markets/*` on next session.
+3. Rebuild Vercel/Play **only** if `NEXT_PUBLIC_*` or native constants changed.
+4. Smoke staging origins from the matrix; run contract tests; promote the same pattern to production.
+5. Optional: ship Android copy tweaks on Internal testing while BFF is already live.
+
+**Failure / Never-V1**
+
+- Polymarket API keys or builder secrets in Next.js or the APK/AAB.
+- A second “trading API” beside the Markets BFF for one client.
+- PRISM contracts or legacy epoch stacks under Markets release trains.
+- Treating green `localhost` as production proof without staging promotion.
+
+**Agent checklist**
+
+- [ ] Which deploy unit changes?
+- [ ] Which tier (dev/staging/prod)?
+- [ ] Where does the secret live (must be server-side if upstream)?
+- [ ] Do clients need rebuild?
+- [ ] Staging evidence before prod?
+
+**Reading tip:** Skim Who/What first, confirm Where paths exist in the repo, then implement How. Use Never-V1 as a PR self-review gate before marking harness tasks complete.
+
+
 ## 1. Purpose
 
 Specify how RetroPick Markets V1 is **built, configured, deployed, and released** across development, staging, and production environments. This document covers deploy units, environment variables, release tracks, and operational boundaries for web, BFF, and Android.

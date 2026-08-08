@@ -6,6 +6,83 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the Android data-layer authority for RetroPick Markets V1 (Kotlin + Compose): Room and DataStore storage, freshness model, stale guards for orders, realtime client (ADR-005), offline behavior matrix, merge and conflict rules, typed money, and degraded mode.
+
+It sits in Wave 5 across MarketsDatabase, repositories, and the realtime module. Event envelopes follow schemas/events/markets-realtime-v1.json; REST shapes follow OpenAPI. Web uses Query and WS differently but must share freshness semantics. Offline is read-mostly with honest labels—submits require connectivity and venue truth.
+
+Read this for 5B cache work and 5C trading reconciliation, and on every WebSocket envelope or projection shape change. Prefer COMPOSE_APP_ARCHITECTURE for UiState wiring and web error UX for user-visible degraded copy.
+
+It excludes silent offline submit queues that fire later without re-preview, treating cache as live book, dropping idempotency keys on process death, and client-invented fills or balances.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android data-layer engineers; agents implementing Room/DataStore, repositories, WS client, paging, and freshness labels; reviewers of offline trading claims. |
+| **What** | Storage architecture, Room schema, DataStore prefs, freshness model, **stale guards for orders**, realtime client (ADR-005), offline behavior matrix, merge/conflict rules, money types, degraded mode. |
+| **When** | 5B cache work and 5C trading reconciliation. On every change to WS envelope or projection shapes. Before enabling any “trade offline” misconception. |
+| **Where** | Spec: this file. `MarketsDatabase`, realtime client module, repositories. Events schema: `schemas/events/markets-realtime-v1.json`. REST: OpenAPI. Web uses Query+WS differently but same freshness semantics. |
+| **Why** | Mobile networks drop constantly. Showing cached book as live causes bad orders. Offline must be read-mostly with honest labels; submits require connectivity and venue truth. |
+| **How** | Cache catalog/positions with timestamps. WS for book/user streams with resume/`Last-Event-ID`. On gap, REST resync. Block or warn order submit when freshness exceeds threshold. Persist draft ticket locally; never persist fabricated fills. Money as typed fixed-point. |
+
+### Worked example
+
+**Happy path — flaky subway ride.** User browsed markets online; cache serves discovery with “updated Xm ago”. Opens market: if book stale, UI labels stale and disables submit. Connectivity returns → WS reconnect + snapshot → live ladder → preview/sign allowed.
+
+**Happy path — fill reconciliation.** Submit succeeds; app backgrounds; WS missed event → foreground refresh of `me/orders` + `me/positions` merges into Room; UI shows venue state, not optimistic filled.
+
+**Failure / degraded.** Airplane mode submit → clear offline error, queue **not** silently auto-send later without user intent. Clock skew → trust server timestamps where provided. Corrupt cache → wipe partition + full refresh. Treating DataStore as source of truth for balances → forbidden; BFF projections win.
+
+### Offline matrix (summary for agents)
+
+| Surface | Offline |
+|---------|---------|
+| Discovery cache | Read + stale label |
+| Order book | Stale / unavailable |
+| Order submit | Blocked |
+| Portfolio cache | Read + lag label |
+| Signing | Requires wallet + network for preview/submit |
+
+### Invariants
+
+1. Never fabricate prices or fills.
+2. Freshness visible on trading surfaces.
+3. Idempotency keys survive process death for in-flight submits.
+4. Degraded mode follows architecture failure domains.
+5. Same error codes surfaced as web where applicable.
+
+### Merge precedence
+
+1. Explicit user draft inputs (ticket fields)
+2. Confirmed BFF REST projections for orders/positions
+3. WS events (hints) reconciled against REST
+4. Room cache with timestamps
+5. Never: client-invented fills
+
+### Freshness labels (UI)
+
+| Label | Meaning |
+|-------|---------|
+| Live | Within SLA |
+| Delayed | Usable read; warn on trade |
+| Stale | Block submit |
+| Unavailable | Show error/empty |
+
+### Agent anti-patterns
+
+- “Offline submit queue” that fires later without re-preview
+- Using cached book midpoints as executable prices
+- Dropping idempotency keys on process death
+- Dual sources of balance without lag disclosure
+
+### Success signal
+
+Turning on airplane mode mid-ticket preserves inputs, blocks submit, and resumes cleanly when online without duplicate orders.
+
 ## 1. Purpose
 
 Specify Room, DataStore, realtime WS recovery, and stale guards blocking offline order signing.

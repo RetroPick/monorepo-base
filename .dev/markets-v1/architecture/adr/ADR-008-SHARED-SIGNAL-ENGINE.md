@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, intelligence-product, backend-markets
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted decision that trader intelligence is computed once in a shared signal engine at `apps/backend/internal/markets/intelligence/`, persisted with `computedAt`, `provenanceId`, and `version`, and delivered via REST, WebSocket (`markets:signals:*`), and push. There is **no** client-side signal generation in production; clients render only. Signals are informational—not an order path (ADR-009).
+
+It sits with ADR-004 (parity), ADR-005 (realtime delivery), and the normative specs under `.dev/markets-v1/intelligence/`. Intelligence is an independent failure domain: kill or stale-mark signals without disabling order preview/submit. Retractions use `retractedAt`; tier-gating applies at serve time.
+
+Read this when shipping whale/unusual-activity/health/relationship signals, calibrating weights, ensuring web/Android parity, or implementing retractions. It does not authorize reimplementing production scoring in Kotlin/TS for snappier UI, auto-trading on thresholds, or notification workers calling order submit.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = TI surfaces needing parity; Decision = compute-once in BFF; Consequences = clients render only; independent failure domain; no auto-exec ([ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, intelligence-product, backend-markets. Audience: signal workers; web/Android signal UIs; notification workers; agents implementing scanners/alerts. |
+| **What** | **Decision:** Shared signal engine at `apps/backend/internal/markets/intelligence/`. Compute once server-side; store with `computedAt`, `provenanceId`, `version`; deliver REST + WS (`markets:signals:*`) + push; retract via `retractedAt`; tier-gate; **no client-side signal generation in production**. |
+| **When** | Shipping whale/unusual-activity/health/relationship signals; calibrating weights; ensuring web/Android parity; implementing retractions; degrading intelligence without blocking trading. |
+| **Where** | Feed → workers → `markets_signals` Postgres → API/WS/push → clients. Normative specs under `.dev/markets-v1/intelligence/`. Realtime delivery aligns with [ADR-005](ADR-005-REALTIME-AND-RECONCILIATION.md). |
+| **Why** | Context: CPU/data-heavy heuristics; client parity ([ADR-004](ADR-004-SHARED-WEB-ANDROID-API.md)); failure-domain independence; centralized provenance/retraction. Signals are informational, not an order path. |
+| **How** | Ingest trade/book feeds → score → persist evidence envelope → serve/filter → clients render. Kill or stale-mark intelligence without disabling order preview/submit. Never wire signal → CLOB submit. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+WhaleScore weights change.
+
+1. Update server params + golden vectors in the BFF engine.
+2. Both clients display new reason codes from API/WS—no local rescoring in production.
+3. Notifications deep-link to a manual ticket only ([ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
+4. Retractions clear or strike-through on both clients.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Reimplementing production scoring in Kotlin/TS for “snappier” UI.
+- Auto-trading when score crosses a threshold.
+- Omitting retraction handling.
+- Notification workers calling order submit.
+
+**Agent checklist**
+
+- [ ] Compute only in `internal/markets/intelligence/`?
+- [ ] Provenance/version persisted?
+- [ ] REST/WS/push consumers render-only?
+- [ ] Retraction handled?
+- [ ] No path to order submit?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 Markets V1 includes a **trader intelligence** product surface ([intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](../../intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md)):

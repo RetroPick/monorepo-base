@@ -9,6 +9,64 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-1 is the first executable product phase: read-only Markets foundation — OpenAPI expansion, Gamma catalog client, DB cache/migrations, web read routes, signal schema foundation, realtime snapshot/gap-recovery design, Android scaffold *plan*, contract conformance, and observability. No wallet signing or fund movement.
+
+Catalog/detail/book with explicit staleness is the trust base for later trading. Freeze OpenAPI before parallel backend/web work. Complete `MKT-P1-010` before any PHASE-2 wallet/funding authorization.
+
+Owned paths center on `schemas/openapi/`, `apps/backend/internal/markets/` (gamma/catalog), catalog migrations, and `apps/web/src/products/markets/`. External reads: Polymarket Gamma + CLOB **read** endpoints only. Do not invent phase progress from this file’s reviewed status.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-1 — Foundation and Read Markets**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | be-api / be-indexer / be-data, fe-markets, schema owners; qa for contract tests; orchestrator for `MKT-P1-010`. Manifest currently lists `current_phase: PHASE-1` as the first executable product phase after Wave 9 — still confirm the live file before acting. |
+| **What** | Read-only Markets foundation: OpenAPI expansion, Gamma catalog client, DB cache/migrations, web read routes, signal schema foundation, realtime snapshot/gap-recovery design, Android scaffold *plan*, contract conformance, observability — **no** signing or fund movement. |
+| **When** | Only after PHASE-0 exit gate. Freeze OpenAPI before parallel backend/web. Complete `MKT-P1-010` before any PHASE-2 wallet/funding authorization. |
+| **Where** | `schemas/openapi/`, `apps/backend/internal/markets/` (gamma/catalog), migrations `*catalog*`, `apps/web/src/products/markets/`, design notes under `.dev/markets-v1/`. External: Polymarket Gamma + CLOB **read** endpoints. |
+| **Why** | Catalog/detail/book with explicit staleness is the trust base for later trading. Wallet or submit code in this phase would violate read-before-write and preview-before-sign sequencing. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P1-001`…`MKT-P1-010`: OpenAPI, Gamma client, schema v1, web read routes, signals, realtime design, Android scaffold plan, contracts, observability, exit gate
+- Types/events such as EventDetail, MarketSummary, OrderBookSnapshot, SignalEnvelope
+- Expand-only migrations (catalog events, watchlists, sync checkpoints)
+
+### Out of scope (do not implement under this phase authorization)
+
+- Wallet connect, order submit, CTF operations, production deploy
+- PRISM / legacy epoch feature work; custom exchange
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Web renders canonical market; stale states explicit in UX/API
+- OpenAPI validate + go/web/contract tests green per task commands
+- REQ rows (e.g. MKT-FR-001/002/010, MKT-NFR-001/060, MKT-WEB-001) evidenced
+- Exit gate task complete; handoff to `MKT-P2-001` only after orchestrator advance
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Confirm PHASE-0 exited and manifest allows PHASE-1; pick one ready task
+2. Schemas/migrations before dependent clients; one owner per writable path
+3. Implement read paths with rate limits, validation, sanitized rules HTML
+4. Instrument catalog_freshness / gamma_errors as tasked; never fake SLO exports
+5. File evidence + invariant greps (money fixed-point, venue boundaries) before done
+
+### Worked example
+
+Agent on `MKT-P1-004` builds web read routes consuming frozen OpenAPI types, shows a stale badge when book age exceeds threshold, runs web build + contract tests, and attaches evidence.
+
+They explicitly do not add WalletConnect or order ticket submit — those belong to PHASE-2/3 — even if the UI mock looks incomplete without them.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-1`

@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, security, markets-engineering
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted non-custodial, user-signed model for Markets V1: RetroPick never stores, transmits, or uses user private keys or seeds; every asset-moving action needs an explicit wallet signature; the BFF prepares unsigned payloads; preview digest must match submit; session tokens are API auth only. Builder/relayer keys may sign infrastructure relay—not user order intent without user signature.
+
+It sits with ADR-009 (no auto copy) as the custody/signing invariant for deposits, proxy wallets, orders, and redemptions. The binding flow is preview → human-readable preview → wallet approve → signed payload + contentHash → BFF submits to Polymarket. JWT alone never authorizes on-chain movement.
+
+Read this for any deposit, order, redemption, or proposal for session keys, server-side trading, or skipping preview. It does not invent a new custodial model; conflicts require formal ADR change—not “one-click” silent BFF submit or batch-signing many copied orders under one approval in V1.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = custody/regulatory threats; Decision = non-custodial preview-before-sign; Consequences = UX friction, no silent server signing, session ≠ chain authority.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, security, markets-engineering. Audience: web/Android wallet integrators; BFF preview/submit authors; agents designing one-click or delegated trading. |
+| **What** | **Decision:** Non-custodial, user-signed model. RetroPick never stores/transmits/uses user private keys or seeds. Every asset-moving action needs an explicit wallet signature. BFF prepares unsigned payloads; preview digest must match submit; session tokens are API auth only. Builder/relayer keys may sign infrastructure relay—not user order intent without user signature. |
+| **When** | Any deposit, proxy-wallet, order, or redemption; any proposal for session keys, server-side trading, or skipping preview. Reinforced by [ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md). |
+| **Where** | Client wallets (extension, WalletConnect, Android SDK); BFF preview/submit APIs; `security/SIGNING_AND_TRANSACTION_INTEGRITY.md`; shared web+Android contract ([ADR-004](ADR-004-SHARED-WEB-ANDROID-API.md)). |
+| **Why** | Context: key custody is a SEV1 target; custodial models expand legal burden; Polymarket CLOB expects client-signed orders; RetroPick must not move user funds unilaterally. |
+| **How** | `POST` preview → human-readable preview → user approves in wallet → `POST` signed payload + contentHash → BFF submits to Polymarket. Verify hash, chain ID, allowlisted contracts on client and server. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+Product asks: “After a whale alert, the server places a matching order.”
+
+1. Refuse silent BFF submit and refuse 24h session-key trading while backgrounded.
+2. Deep-link to a pre-filled ticket; user must still preview and sign.
+3. JWT alone never authorizes on-chain movement.
+4. Align notification actions with [ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md) (`VIEW_MARKET` only).
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Persisting seeds/private keys in Postgres or misusing Keystore as a hot trading wallet.
+- Batch-signing many copied orders under one approval in V1.
+- Treating builder/relayer keys as user trading keys.
+- Skipping preview because “mobile friction.”
+
+**Agent checklist**
+
+- [ ] Preview before every asset-moving submit?
+- [ ] contentHash verified end-to-end?
+- [ ] No raw key material server-side?
+- [ ] Session token not used as signing authority?
+- [ ] Chain ID / contract allowlists enforced?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 RetroPick Markets involves on-chain asset movements: USDC deposits, proxy wallet deployment, outcome token trades, and redemptions on Polygon. Signing authority must be assigned clearly to meet:

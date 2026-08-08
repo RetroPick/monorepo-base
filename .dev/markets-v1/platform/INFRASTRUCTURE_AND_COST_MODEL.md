@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the pre-funding infrastructure and cost model for RetroPick Markets V1: Vercel web plus single VM/Fly BFF and workers, managed small Postgres/Redis, free-tier observability, roughly $45–82/mo under a <$100/mo cap, deferred HA/K8s/WAF/multi-region, and upgrade triggers for latency, storage, DAU, and bill.
+
+It sits in Wave 7 with topology CDN → API VM → PG/Redis and co-located workers. Cross-ref deployment architecture, observability free tiers, CI minutes, and environment sizes. Cost discipline must not excuse dropping fail-closed geo, rate limits, or secret-manager usage.
+
+Read this for capacity planning, before adding always-on services, when upgrade triggers trip, and at monthly bill review. Prefer OBSERVABILITY_SLOS_AND_ALERTS for SLO numbers and BACKUP_RESTORE_AND_DISASTER_RECOVERY for RTO honesty under single-region.
+
+It excludes premature multi-region active-active and saving money by disabling eligibility, SBOM, or secret manager.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Platform/SRE choosing hosting within budget; finance/founders tracking <$100/mo pre-funding; eng placing workers on the single VM; agents proposing architecture that must fit cost + SLO constraints without dropping fail-closed security. |
+| **What** | Pre-funding infra/cost model: Vercel web + single VM/Fly BFF+workers + managed small Postgres/Redis + free-tier observability; ~$45–82/mo estimate; deferred HA/K8s/WAF/multi-region; upgrade triggers (latency, storage, DAU, bill); egress awareness to Polymarket/RPC. |
+| **When** | Capacity planning; before adding always-on services; when upgrade triggers trip; monthly bill review; when SLO breaches suggest scale vs optimize. |
+| **Where** | Spec: this file. Topology: CDN→API VM→PG/Redis; workers co-located pre-funding. Cross-ref DEPLOYMENT_ARCHITECTURE, OBSERVABILITY (free tiers), CI minutes, ENVIRONMENT sizes. |
+| **Why** | Prevents premature Kubernetes and duplicate environments that blow the cap while still supporting launch SLOs for <1k DAU. Cost discipline must not excuse dropping fail-closed geo, rate limits, or secret-manager usage. |
+| **How** | Prefer managed small tiers; co-locate workers with CPU shares; cache catalog to cut egress; document triggers (p95>800ms, Redis>80%, DAU>1k, bill>$90); scale vertically first; revisit HA only at thresholds. |
+
+### Budget posture
+
+| Constraint | Value |
+|------------|-------|
+| Cap (pre-seed) | <$100/mo (excl. Polymarket fees/user gas) |
+| Scale assumption | <1k DAU, <50 concurrent WS, single-region |
+| Ops preference | Managed > self-hosted K8s |
+| Est. monthly | ~$45–82 + buffer for geo/API spikes |
+
+### Upgrade triggers
+
+| Metric | Threshold | Action |
+|--------|-----------|--------|
+| API p95 | >800ms sustained | Scale VM / read replica |
+| Postgres storage | >80% | Archive / resize |
+| Redis memory | >80% | Increase tier |
+| Monthly bill | >$90 | Cost review |
+| DAU | >1k | Revisit HA architecture |
+
+### Worked example
+
+**Happy path.** Month runs ~$70; SLOs green; ingest+API on one VM within memory table; upgrade triggers not hit; defer multi-AZ.
+
+**Failure / degraded.** Bill >$90 from uncached catalog scrape → enable rate limits/abuse controls (not “remove geo checks”). p95 API >800ms sustained → scale VM / add read replica per triggers—not silence alerts. Proposal for multi-region active-active pre-funding → defer with documented trigger; keep RTO expectations honest in DR doc.
+
+**Never invent.** Saving money by disabling eligibility, SBOM, or secret manager.
+
 ## 1. Purpose
 
 Pre-funding infrastructure topology and monthly cost budget targeting **under $100/month** for Markets V1 MVP operations.

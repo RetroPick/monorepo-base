@@ -6,6 +6,74 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the product information architecture for RetroPick Markets V1 web: route map, public vs auth surfaces, desktop sidebar and mobile tabs, SEO metadata, deep links, breadcrumbs, empty states, and hard cross-product isolation (no PRISM in the Markets build).
+
+It sits in Wave 4 with interim `marketsRoutes.tsx` and target `app/(markets)/markets/**`. Auth and eligibility gates come from the BFF session model. Android App Links should mirror shared path patterns per NAVIGATION_AND_DEEP_LINKS. Phase columns on the route map gate what ships.
+
+Read this before creating pages or nav items, and whenever alert deep links, funding or redeem routes, or Android share URLs change. Prefer WEB_APPLICATION_ARCHITECTURE for provider and RSC rules, and journey UX docs for screen internals.
+
+It excludes auth-gating public discovery, advertising out-of-scope products in Markets chrome, web-only path aliases that break notification landings, and empty states without a Discover CTA.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `fe-markets` implementing Markets routes/nav; SEO owners; deep-link and alert-landing authors; agents aligning web paths with Android Navigation routes for shared URLs. |
+| **What** | Product information architecture: route map, public vs auth surfaces, desktop sidebar / mobile tabs, SEO metadata, deep links, breadcrumbs, empty states, and hard cross-product isolation (no PRISM in Markets build). |
+| **When** | Before creating pages or nav items. Revisit when adding alert deep links, funding/redeem routes, or Android App Links that must mirror web paths. Phase columns on the route map gate what ships. |
+| **Where** | Spec: this file. Interim routes: `marketsRoutes.tsx`. Target: `app/(markets)/markets/**`. Parity: [android/NAVIGATION_AND_DEEP_LINKS.md](../android/NAVIGATION_AND_DEEP_LINKS.md). Auth gates: backend eligibility + session. |
+| **Why** | Users (and agents) need one mental model of Markets space. Wrong auth on public catalog blocks SEO; missing auth on portfolio leaks PII. Shared path patterns with Android make notification and share URLs trustworthy. |
+| **How** | Register every route in the map with auth + phase. Public: discovery, event, market read, ineligible. Auth+eligible: portfolio, orders, funding, wallet, redeem, alerts. Generate metadata only on public routes; `robots` disallow private. Deep links land on market/event with optional query (`alert=`). Empty states push toward Discover, not dead ends. |
+
+### Worked example
+
+**Happy path — discover → event → market.** User opens `/markets`, filters via `/markets/search`, opens `/markets/events/{eventId}`, then `/markets/m/{marketId}`. Breadcrumb Discover > Event > Market. Unauthenticated users read rules and book; Connect CTA appears for ticket actions. Share URL uses the same market path Android App Links will claim.
+
+**Happy path — post-auth portfolio.** After SIWE + eligibility, `/markets/portfolio` and `/markets/orders` resolve. Funding at `/markets/funding`; withdraw under funding subtree. Alerts list at `/markets/alerts` can deep-link into a market with context preserved.
+
+**Failure / degraded.** Ineligible region → `/markets/ineligible` (or gate overlay), not a half-working ticket. Auth cookie missing on portfolio → redirect to wallet/connect with return URL. Unknown market id → not-found empty state with Discover CTA. PRISM or legacy links in Markets nav → remove; Markets build must not advertise out-of-scope products.
+
+### IA rules agents must not break
+
+1. Catalog remains publicly readable when BFF allows.
+2. Trading, funding, and portfolio routes require session + eligibility.
+3. Route ids (`eventId`, `marketId`) match BFF/OpenAPI identifiers—no client-side aliases.
+4. Mobile web uses bottom tabs aligned to Android bottom nav jobs (Discover, Portfolio, Funding/Alerts as specified).
+5. Copy stays prediction-market professional: order ticket, positions, funding—not sportsbook language.
+
+### Cross-client parity note
+
+When web adds a shareable path, update Android deep-link matrix in the same change set or open a tracked follow-up. Divergent URLs break notification → open flows.
+
+### Nav ownership
+
+| Region | Desktop | Mobile web |
+|--------|---------|------------|
+| Primary | Left sidebar | Bottom tabs |
+| Utility | Header wallet chip | Header sheet |
+| Blocking | Full-page ineligible | Same |
+
+### Deep-link query conventions
+
+- `alert=` — optional alert context; strip after consume.
+- Return URLs after connect must stay within `/markets/**`.
+- Do not use hash routes for primary IA; App Router path segments win.
+
+### Agent anti-patterns
+
+- Adding `/prism` or legacy links in Markets chrome.
+- Auth-gating `/markets` discovery.
+- Unique web-only path for a resource Android already deep-links.
+- Empty states that strand users without Discover CTA.
+
+### Success signal
+
+Share URLs and FCM web targets resolve to the same market/event ids the BFF uses, with auth gates applied after navigation—not before the public shell paints.
+
 ## 1. Purpose
 
 Route map, navigation hierarchy, public vs authenticated IA, SEO, deep links.

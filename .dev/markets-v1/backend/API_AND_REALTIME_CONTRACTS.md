@@ -6,6 +6,70 @@
 **Product:** RetroPick Markets V1
 **Wave:** 3 — Backend architecture and API contracts
 
+## Description
+
+This document is the semantics overlay for the Markets V1 **HTTP and realtime surface** shared by web and Android. It inventories operations (eligibility, capabilities, catalog, me/*, funding, orders, intelligence, alerts, …), shared components (`Money`, `DecimalString`, `ErrorResponse`, `Idempotency-Key`, `x-phase`), WS channels, error envelope, idempotency store, `/api/v1` versioning, and timeout budgets—without inventing paths. Canonical schemas live in `schemas/openapi/markets-v1.yaml`.
+
+It sits in Wave 3 beside auth/eligibility and architecture. Mutating POSTs require `Idempotency-Key` with 24h replay; phase gates keep unfinished surfaces dark via capabilities. Realtime is a projection stream (`market.*.book|trades`, `user.orders|fills|positions`, `alerts.inbox`) with resume via `Last-Event-ID`—never invent fills the venue did not produce. Clients retry catalog with backoff; never auto-retry preview/submit.
+
+Read this before implementing or calling any Markets endpoint or channel, or when writing contract tests. Prefer the OpenAPI YAML for shapes and sibling auth/domain docs for gates and state machines—not for ad-hoc new routes.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `be-api` / `be-realtime` implementing `cmd/api` and WebSocket hub; web and Android client authors; contract-test owners of `internal/markets/contract_test.go`; agents adding operations only when present in OpenAPI. |
+| **What** | Semantics overlay for the Markets HTTP + realtime surface: operation inventory (eligibility, capabilities, catalog, me/*, account-wallet/approvals preview+relay, funding quote/track, withdrawals, orders preview/submit/cancel, position ops, watchlists, intelligence, alerts, journal, execution-quality), shared components (`Money`, `DecimalString`, `ErrorResponse`, `Idempotency-Key`, `x-phase`), WS channels (`market.<id>.book|trades`, `user.orders|fills|positions`, `alerts.inbox`), error envelope, idempotency store, `/api/v1` versioning, timeout budgets. **Canonical schemas live in YAML—this doc does not invent paths.** |
+| **When** | Before implementing or calling any Markets endpoint or channel. Phase gates (`x-phase`) decide which ops are live. Mutating POSTs always carry idempotency from day one of that op. Breaking shape changes require v2 + parallel run; feature discovery via `GET /markets/capabilities`. |
+| **Where** | Authority: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). This file: auth/realtime/timeouts/idempotency semantics. Handlers under `apps/backend/internal/markets/handler*`. Idempotency persistence: `markets.idempotency_keys` (or Redis with PG backing). WS protocol: JSON `{type, sequence, payload, emittedAt}`, resume `Last-Event-ID`, heartbeat 30s. Auth/eligibility gates: [AUTH_SESSION_AND_ELIGIBILITY.md](./AUTH_SESSION_AND_ELIGIBILITY.md). |
+| **Why** | Web and Android must share one contract so BFF projections stay consistent. Fixed-point `Money` and string decimals prevent float bugs in clients. Idempotency stops double funding/order submits. Phase extensions keep unfinished surfaces dark. Realtime is a projection stream—reconnect/resume must not invent fills the venue never produced. |
+| **How** | Implement only listed `operationId`s; generate/validate against OpenAPI examples. Public GETs for catalog/book; auth for `me/*`, trading, funding, alerts. On POST: require `Idempotency-Key`, store response 24h, replay identical body. Errors: `{ error: { code, message, details, requestId } }` (e.g. `ELIGIBILITY_DENIED`). Respect timeout classes (catalog 5s, preview 10s, submit 15s, relay 30s)—clients retry catalog with backoff, never auto-retry preview/submit. WS: optional auth for public market channels; required for user.* and alerts.inbox. |
+
+### Worked example
+
+**Happy path — preview then submit.** Client reads `GET /markets/capabilities` and `GET /markets/eligibility`, loads `GET /markets/markets/{marketId}/orderbook`, then `POST /markets/orders/preview` (auth + `Idempotency-Key`) receiving EIP-712 payload with `Money` / `DecimalString`. After wallet signature, `POST /markets/orders/submit` returns order id; client subscribes to `user.orders` / `user.fills` and reconciles with `GET /markets/me/orders`. Contract tests load YAML `examples` and assert handler JSON.
+
+**Happy path — funding track + realtime inbox.** `POST /markets/funding/quote` then `track` (Phase 2, auth). On credit, notification path may push inbox; WS `alerts.inbox` delivers `{type, sequence, payload, emittedAt}` with 30s heartbeats. Resume uses `Last-Event-ID`.
+
+**Failure / degraded.** Duplicate submit same idempotency key → same response, no second venue post (24h store in `markets.idempotency_keys` or Redis+PG). Eligibility fail → `ELIGIBILITY_DENIED` without geo PII. CLOB timeout → `unknown`; client polls, does not blind-resubmit. WS disconnect → resume; gaps healed via REST projections. Phase-gated op early → capability false / not mounted. **Never invent paths** outside the OpenAPI inventory.
+
+### Shared components (authoritative in YAML)
+
+- `Money` — base units + currency + decimals (no float)
+- `DecimalString` — price/probability as string
+- `ErrorResponse` — `{ error: { code, message, details, requestId } }`
+- `Idempotency-Key` — required on mutating POST
+- `x-phase` — rollout gate per operation
+
+### Realtime channels
+
+| Channel | Auth | Payload |
+|---------|------|---------|
+| `market.<id>.book` | optional | snapshot + delta |
+| `market.<id>.trades` | optional | trade tick |
+| `user.orders` | required | order status |
+| `user.fills` | required | fill event |
+| `user.positions` | required | position update |
+| `alerts.inbox` | required | alert notification |
+
+### Timeout budget
+
+| Class | Server | Client |
+|-------|--------|--------|
+| Catalog GET | 5s | Retry with backoff |
+| Preview POST | 10s | No auto-retry |
+| Submit POST | 15s | Poll order status |
+| Relay POST | 30s | Show pending |
+
+### Implementer checklist
+
+- Implement only listed `operationId`s from OpenAPI.
+- Versioning: `/api/v1`; breaking → v2 + parallel run.
+- Fixtures: `apps/backend/internal/markets/contract_test.go`.
+- WS is a projection stream—never invent fills the venue did not produce.
+
 ## 1. Purpose
 
 HTTP and realtime contracts shared by web and Android. Canonical source:

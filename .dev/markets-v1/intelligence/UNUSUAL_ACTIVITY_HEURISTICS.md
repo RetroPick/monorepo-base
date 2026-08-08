@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the quantitative authority for **unusual-activity heuristics** in RetroPick Markets V1 trader intelligence. It defines five V1.1 detectors (UV-001…005)—velocity spike, clustered flow, silent volume, cutoff surge, and fresh-wallet large entry—each emitting `signalType: unusual_activity` with a constrained reason code—so clients can surface statistically odd flow without inventing insider accusations on device.
+
+It sits in Wave 6 beside whale detection, market-health analytics, alert rules, and signal-provenance specs. Compute belongs in `apps/backend/internal/markets/intelligence/`; thresholds live under `intelligence_params_v1.yaml` (UV section when present). The surface is gated by `intelligence.unusual_activity` and requires 14-day shadow evaluation (precision@10 ≥ 0.55) before production push. Depth for UV-005 comes from MARKET_HEALTH (`depth_2pct`)—never invented. The doc explicitly rejects insider-wallet labels, auto-copy trading, and any LLM→order path (ADR-009 / Never V1).
+
+Read this when implementing TI-V11-001, calibrating UV shadow_eval fixtures, or reviewing unusual-activity UX copy. Prefer sibling docs for WhaleScore notional math, alert delivery DSL, and evidence envelopes—not for UV fire conditions.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF unusual-activity workers; web/Android surfaces behind `intelligence.unusual_activity`; ops running 14-day shadow evaluation; agents implementing TI-V11-001. Reviewers enforcing “informational reason codes only” — never insider language. |
+| **What** | Five V1.1 heuristics (UV-001…005): velocity spike, clustered flow, silent volume, cutoff surge, fresh-wallet large entry — each emitting `signalType: unusual_activity` with a reason code. **Not** insider-wallet labels, auto-copy, AI→orders, or V1 default-on push without shadow mode. |
+| **When** | **V1.1** only, flag `intelligence.unusual_activity`. Shadow mode required for 14 days before production push enable; precision@10 target ≥ 0.55 on labeled review set. Applies after normalized trades + depth priors exist for the relevant windows. |
+| **Where** | Spec authority: this doc. Compute: `apps/backend/internal/markets/intelligence/`. Params/thresholds in `intelligence_params_v1.yaml` (UV section when present). Signals commit through shared envelope/lifecycle (SIGNAL_PROVENANCE…). Delivery via ALERT_RULES only after shadow graduation. Clients render descriptive copy only. |
+| **Why** | Surface statistically odd flow patterns without accusing wallets of insider activity. Separate from whale notional scoring: UV is gated, calibrated, and language-constrained. Failures must stay isolated from balances, orders, and settlement (invariant 28). |
+| **How** | Evaluate UV-001…005 per formulas (z-score velocity, multi-wallet cluster, price-volume divergence, late cutoff volume share, first-trade large notional vs depth). Emit reason codes `VELOCITY_SPIKE`, `CLUSTERED_FLOW`, `SILENT_VOLUME`, `CUTOFF_SURGE`, `FRESH_WALLET_LARGE`. Run shadow_eval metrics before enabling push. Never map these codes to “insider” UI strings or autonomous orders. |
+
+### Tier and graduation gate
+
+- Tier: **V1.1** — flag `intelligence.unusual_activity` (this doc §2).
+- Shadow mode: **required** 14 days before production push enable.
+- Calibration target: precision@10 ≥ 0.55 on labeled review set (`shadow_eval_*` fixtures).
+- Distinct from V1 whale feed: UV is opt-in and language-constrained.
+
+### Heuristic → reason code map
+
+| code | heuristic | fire summary |
+|------|-----------|--------------|
+| UV-001 | VELOCITY_SPIKE | z ≥ 3.5 on 5m trade count AND trades_5m ≥ 8 |
+| UV-002 | CLUSTERED_FLOW | ≥4 wallets, each ≥ $1k, 15m, pairwise gap ≤ 120s |
+| UV-003 | SILENT_VOLUME | \|Δprice_30m\| < 2% AND vol ratio > 2.5 |
+| UV-004 | CUTOFF_SURGE | within 24h of end_date; vol_1h / vol_24h > 0.35 |
+| UV-005 | FRESH_WALLET_LARGE | first trade AND notional ≥ max(3000, 0.05×depth_2pct) |
+
+Depth for UV-005 comes from MARKET_HEALTH (`depth_2pct`) — never invent.
+
+### Worked example
+
+**Happy path — UV-001.** In a liquid market, `trades_5m = 20`, EWMA μ and σ yield `z ≥ 3.5` and count ≥ 8 → fire `VELOCITY_SPIKE`. Worker writes `unusual_activity` signal with evidence envelope (window counts, z, paramsRef). In shadow mode, signal is logged/scored for precision@10 but not pushed to users.
+
+**Happy path — UV-002 / UV-005.** Four distinct wallets each trade ≥ $1k in 15m with pairwise gaps ≤ 120s → `CLUSTERED_FLOW`. Separately, a wallet’s first platform trade at notional ≥ max(3000, 0.05×depth_2pct) → `FRESH_WALLET_LARGE`. Copy stays factual (“Clustered large trades”, “Large first-time wallet activity”).
+
+**Failure / Never-V1 / degraded.** UI or ops label “likely insider” → hard reject; use UV reason codes only. Enabling push before 14d shadow or below precision@10 0.55 → blocked. Flag off → no public UV surface. Signals must not open copy-trades or AI→orders (ADR-009). Missing depth for UV-005 → do not fire on invented depth; skip or evidence-flag degraded inputs.
+
 ## 1. Purpose
 
 V1.1 gated heuristics for unusual activity detection. Informational reason codes only.

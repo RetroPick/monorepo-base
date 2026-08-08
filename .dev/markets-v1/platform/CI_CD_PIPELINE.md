@@ -6,6 +6,56 @@
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
+## Description
+
+This document is the Markets V1 CI/CD authority: PR → lint/typecheck → unit/integration → OpenAPI contract → build → staging deploy → E2E smoke → manual approve → production. It covers monorepo path filters, branch policy, expand-only migrations, OIDC cloud roles, and merge blockers including tests, coverage floor, no legacy import, and SBOM upload.
+
+It sits in Wave 7 over apps/backend, apps/web, apps/android, schemas/, and db/migrations/. Artifacts include container digests, Vercel build IDs, AABs, and SBOMs. Deploy targets: Vercel for web, VM/Fly for backend, Play tracks for Android. Agents must not auto-promote or bypass hooks.
+
+Read this on every PR or merge to main, release branch or tag promote, migration path changes, and after failed smoke before retry promote. Prefer RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT for change windows and kill switches, and SUPPLY_CHAIN_AND_SBOM for SBOM/CVE gates.
+
+It excludes --no-verify shortcuts, promoting with red smoke, and shipping without OpenAPI or SBOM gates.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | DevOps/SRE owning GitHub Actions and deploy targets; backend/web/Android engineers whose path filters trigger jobs; release managers approving prod; security consumers of gitleaks/osv/SBOM jobs; QA depending on staging E2E smoke after deploy. Agents must not auto-promote or bypass hooks. |
+| **What** | Markets CI/CD: PR → lint/typecheck → unit/integration → OpenAPI contract → build → staging deploy → E2E smoke → manual approve → production. Monorepo path-triggered jobs, branch policy (`main`→staging, `release/*`+tags→prod), migration expand-only discipline, OIDC for cloud roles, merge blockers (tests, coverage floor, no legacy import, SBOM upload). |
+| **When** | On every PR and merge to `main`; on release branch/tag promote; when migration paths change; when secrets/deploy roles rotate; after failed smoke before any retry promote. |
+| **Where** | Spec: this file. Jobs over `apps/backend`, `apps/web`, `apps/android`, `schemas/`, `db/migrations/`. Artifacts: container digests, Vercel build IDs, AABs, SBOMs. Deploy: Vercel (web), VM/Fly (backend), Play tracks (Android). Cross-ref RELEASE_ROLLBACK, SUPPLY_CHAIN, RELEASE_VERIFICATION_MATRIX. |
+| **Why** | Path-filtered CI keeps signal high; mandatory contract/security gates stop broken OpenAPI or secret leaks from reaching staging/prod. Manual prod approve preserves human gate—no agent auto-promote. Fail-closed merge/promote on red gates protects SLOs and users. |
+| **How** | Wire path filters and blockers; migrate ephemeral DB in CI; staging migrate-before-app; prod expand-only then app; use OIDC not long-lived cloud keys; retain artifacts per table; fail pipeline on gate miss. |
+
+### Pipeline stages & gates
+
+| Stage | Purpose |
+|-------|---------|
+| Lint / typecheck | Fast feedback |
+| Unit + integration (testcontainers) | Correctness |
+| OpenAPI spectral + breaking diff | Contract stability |
+| gitleaks / osv / SBOM | Supply-chain |
+| Staging deploy + E2E smoke | Journey confidence |
+| Manual approve | Prod change control |
+
+### Branch → environment
+
+| Branch / tag | Target |
+|--------------|--------|
+| PR | Checks only (+ web preview) |
+| `main` | Staging auto |
+| `release/*`, `markets-v*` tags | Production with approval |
+
+### Worked example
+
+**Happy path.** Backend PR triggers `go test` + golangci-lint (+ openapi if schemas touched) → green → merge to `main` → staging deploy → smoke E2E → later `release/*` with approval → prod image digest + SBOM retained.
+
+**Failure / degraded.** Migration not expand-safe → block prod or require paired rollback plan. Secret scan hit → merge blocked. Staging smoke fails → **do not** approve prod. Agent requests `--no-verify` or auto-merge → reject per harness policy.
+
+**Never invent.** Skipping SBOM upload or OpenAPI gates to “ship faster.”
+
 ## 1. Purpose
 
 Continuous integration and delivery pipelines for web, backend, Android, and database migrations.

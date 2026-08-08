@@ -6,6 +6,76 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document defines the acyclic Gradle module graph for RetroPick Markets V1 Android (Kotlin + Compose): convention plugins, version catalog, OpenAPI codegen wiring, build variants, lint and static analysis, PRISM exclusion enforcement, and test module layout.
+
+It sits at the start of PHASE-5A greenfield work. Target root is `apps/android-markets/` with `build-logic/`, `gradle/libs.versions.toml`, and debug/staging/release variants. The DAG keeps app → feature → domain/data → api/core downward-only so wallet and security dependencies stay explicit and CI can compile Markets without `contracts/prism`.
+
+Read this on first greenfield task and whenever a new `:feature:*` or `:data:*` module is proposed. Prefer ANDROID_PRODUCT_SCOPE before inventing modules for later.
+
+It excludes feature→feature implementation cycles, implementation(project(":app")) from libraries, committed keystores, copy-pasted plugin blocks instead of conventions, and enabling PRISM modules just in case.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android platform engineers creating `apps/android-markets/`; build-logic authors; CI agents adding Gradle jobs; anyone adding a module dependency. |
+| **What** | Acyclic Gradle module graph, convention plugins, version catalog, OpenAPI codegen wiring, build variants, lint/static analysis, PRISM exclusion enforcement, and test module layout. |
+| **When** | First greenfield task (PHASE-5A) and any time a new `:feature:*` or `:data:*` module is proposed. Before CI can claim Android build green. |
+| **Where** | Spec: this file. Root: `apps/android-markets/settings.gradle.kts` (target). Build logic: `build-logic/`. Versions: `gradle/libs.versions.toml`. Codegen output module as specified herein. Play variants: debug/staging/release. |
+| **Why** | A spaghetti app module blocks independent testing and invites PRISM/legacy imports. Acyclic feature layers keep wallet/security dependencies explicit. CI must compile Markets Android without pulling `contracts/prism`. |
+| **How** | Define app → feature → domain/data → core layers with only downward deps. Generate API client into an `:api` (or equivalent) module consumed by data. Convention plugins standardize Compose, Kotlin, lint. Fail CI if forbidden project deps appear. |
+
+### Worked example
+
+**Happy path — new read feature.** Add `:feature:discovery` depending on `:domain:markets` + Compose BOM via conventions. Data layer implements repository using `:api` generated types. App module navigates to discovery. Unit tests run on JVM without emulator. CI `./gradlew :feature:discovery:test` passes.
+
+**Happy path — OpenAPI regen.** Version catalog pins generator; CI detects drift; regenerate commits update `:api` only; features compile against new types.
+
+**Failure / degraded.** Feature module depends on another feature’s internals → break cycle via navigation API or domain interfaces. Someone adds PRISM project dependency → exclusion lint fails. Fat `app` module with all source → reject; migrate to graph. Release signing config in plaintext repo → use Play/CI secrets patterns (see Play doc)—never commit keystores.
+
+### Module change checklist
+
+- [ ] New module declared in settings + dependency table updated in this doc.
+- [ ] Dependency direction respects DAG.
+- [ ] Convention plugin applied (no copy-paste Gradle blocks).
+- [ ] Tests live in matching source sets.
+- [ ] No direct Polymarket SDK in UI modules for production paths.
+- [ ] Web unaffected—Android-only Gradle change.
+
+### Relation to product scope
+
+If a module has no home in ANDROID_PRODUCT_SCOPE inventory, do not create it “for later.” Prefer package-within-existing-feature until V1.1 scope opens.
+
+### Suggested DAG (conceptual)
+
+```text
+:app → :feature:* → :domain → :data → :api
+                 ↘ :core:ui
+:wallet → used by trading features only via interfaces
+```
+
+### Convention plugin duties
+
+- Kotlin/Compose versions from catalog
+- Lint + detekt baselines
+- Test logging defaults
+- Packaging options for release
+
+### Agent anti-patterns
+
+- `implementation(project(":app"))` from a library
+- Copy-pasting plugin blocks instead of conventions
+- Checking in generator output with machine-local paths
+- Enabling PRISM modules “just in case”
+
+### Success signal
+
+`./gradlew assembleStaging` (or documented variant) compiles features independently and CI dependency-guard fails on cycles/forbidden deps.
+
 ## 1. Purpose
 
 Define acyclic Gradle module graph: app, core/*, data/*, domain, feature/* with convention plugins.

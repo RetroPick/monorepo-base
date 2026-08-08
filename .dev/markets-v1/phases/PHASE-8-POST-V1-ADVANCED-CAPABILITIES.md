@@ -9,6 +9,63 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-8 covers post-V1 advanced capabilities under explicit ADR/flag/approval: Combos gate, unusual activity heuristics, relationship scanner, cross-venue normalization, AI evidence narration, manual copy-intent, professional API, execution analytics, wallet/onramp providers, and scope review. It is not a bundle that quietly expands V1.
+
+Prerequisites: PHASE-7 launch **and** V1 SLOs stable 30+ days. Each `MKT-P8-*` may proceed only after its capability gate. LLM is narration-only over verified evidence; trading path isolation is mandatory. Autonomous/automatic copy trading and guaranteed-arbitrage labels remain Never-V1.
+
+Implement behind flags with per-feature SLOs and disable-for-rollback that leave V1 untouched. Terminal program phase: further work needs new ADRs and manifest entries — not ad-hoc edits to V1 paths.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-8 — Post-V1 Advanced Capabilities**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Per-capability feature owners; product+legal+security approvers for each gate; orchestrator preventing silent V1 scope creep. |
+| **What** | Post-V1 advanced capabilities under explicit ADR/flag/approval: combos gate, unusual activity heuristics, relationship scanner, cross-venue normalization, AI evidence narration, manual copy-intent, professional API, execution analytics, wallet/onramp providers, scope review. |
+| **When** | After PHASE-7 launch **and** V1 SLOs stable 30+ days (prerequisites). Each `MKT-P8-*` may proceed independently only after its capability gate review — not as a bundle that expands V1 quietly. |
+| **Where** | Feature-flagged modules under `internal/markets/advanced/`, intelligence/, optional API v2 pro tier. LLM allowed for narration only; trading path isolation mandatory. |
+| **Why** | Combos liquidity, AI hallucination, and autonomous copy trading are high-risk. V1 users must not inherit unfinished advanced surfaces without flags and rollback isolation. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P8-001`…`MKT-P8-010` as separately gated deliverables
+- Official Combos API only when capability true; manual copy-intent still preview+eligibility+explicit auth
+- Per-feature SLOs, LLM cost caps, flag-disable rollback with no V1 impact
+
+### Out of scope (do not implement under this phase authorization)
+
+- Autonomous/automatic copy trading; AI classification that invents metrics or triggers orders
+- Guaranteed arbitrage labels; silent V1 creep; PRISM/legacy; custom exchange
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Each shipped capability has ADR + approvals + evidence + flag rollback
+- REQ MKT-FR-090/091 evidenced (combos gated; no auto copy trade)
+- Terminal program phase: further work needs new ADRs and manifest entries — not ad-hoc edits to V1 paths
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Confirm 30d SLO prerequisite and per-feature human approvals before coding
+2. Implement behind flags; keep intelligence failures isolated from balances/settlement
+3. AI narration consumes verified deterministic evidence only
+4. Manual copy-intent never skips preview/eligibility/authorization
+5. Disable flag for rollback; run flagged integration tests; update traceability
+
+### Worked example
+
+Agent on `MKT-P8-005` wires narration over signal envelopes with provenance IDs; model output cannot call order submit. Cost caps alert when exceeded.
+
+`MKT-P8-001` hides Combos UI whenever `/markets/capabilities` is false; tests fail the build if UI appears while the flag is off.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-8`

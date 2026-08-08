@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, backend-markets
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted realtime model: snapshot + sequenced deltas + gap recovery. REST snapshots carry `sequence`/`version`; WebSocket deltas are monotonic; on gap, stop applying and refetch snapshot; the BFF aggregates upstream WS; heartbeats and bounded backoff apply; stale badges appear when snapshot age exceeds policy; portfolio is reconciled by indexer jobs.
+
+It sits with ADR-002 (upstream WS via ACL) and ADR-004 (shared client protocol), and informs failure-domain degraded REST poll when WS is down. Correctness beats blind infinite streaming—especially after mobile backgrounding, LB idle timeouts, upstream sequence resets, and chain reorgs.
+
+Read this when building live books/orders/portfolio/signal channels, reconnect after backgrounding, or scaling fan-out. It does not allow inventing mid/prices when snapshots are known stale, one upstream CLOB socket per end-user without BFF aggregation, or skipping REST resync to save mobile data.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = WS best-effort + mobile gaps; Decision = snapshot + sequenced deltas + gap resync; Consequences = correctness over blind streaming.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, backend-markets. Audience: realtime/wshub owners; web/Android book/order/portfolio UIs; indexer/reorg owners; agents implementing WS channels. |
+| **What** | **Decision:** Snapshot + delta + gap recovery. REST snapshot with `sequence`/`version`; WS deltas monotonic; on gap, stop applying and refetch snapshot; BFF aggregates upstream WS; 30s heartbeat with bounded backoff; stale badge if snapshot age > 10s; portfolio reconciled by indexer jobs. |
+| **When** | Building live books/orders/portfolio/signal channels; reconnect after backgrounding; scaling fan-out; degraded REST poll when WS is down (see failure-domains doc). |
+| **Where** | BFF WebSocket path + CLOB upstream via ACL ([ADR-002](ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)); shared client protocol ([ADR-004](ADR-004-SHARED-WEB-ANDROID-API.md)); indexer docs for chain reorgs. |
+| **Why** | Context: mobile background drops, LB idle timeouts, upstream sequence resets, reorgs → wrong prices/orders if clients only append forever. Must be unit-testable without live WS. |
+| **How** | Subscribe with `lastSequence` → apply only contiguous deltas → gap ⇒ GET snapshot → resume. Pool upstream subscriptions; show delayed UX rather than fabricating levels. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+Android resumes; last applied seq was N; next message is N+3.
+
+1. Do **not** apply N+3 and hope.
+2. Discard partial state; refetch snapshot (seq M).
+3. Show delayed badge if snapshot age warrants.
+4. Resume deltas from M; keep web on the same protocol.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Trusting infinite WS without sequence checks.
+- One upstream CLOB socket per end-user without BFF aggregation.
+- Inventing mid/prices when the snapshot is known stale.
+- Skipping REST resync because “mobile data is expensive.”
+
+**Agent checklist**
+
+- [ ] Snapshot fields include sequence/version?
+- [ ] Gap detection stops delta application?
+- [ ] Heartbeat/backoff within policy?
+- [ ] Stale UX wired?
+- [ ] Upstream fan-in pooled at BFF?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 Markets trading UX requires low-latency updates:

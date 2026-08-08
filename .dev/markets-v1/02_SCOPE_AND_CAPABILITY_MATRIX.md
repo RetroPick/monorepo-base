@@ -5,6 +5,60 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This is the single scope and capability matrix for Markets V1: upstream Polymarket support × RetroPick components (BFF / web / Android) × release tier (V1 / V1.1 / Post-V1) × phase × requirement IDs. It is the authority for “is this V1, gated V1.1, or PHASE-8?” debates.
+
+The repo today may still be a **catalog read stub**; matrix rows describe **target** tiers, not current wiring. Out of scope include PRISM, legacy epoch, and custom exchange (ADR-001). Combos, unusual-activity, and similar advanced surfaces stay gated until evidence and flags allow them.
+
+Read Purpose and Current state before Target design — stub reality vs target tiers is the common agent mistake. Prefer web trading stability before Android parity. Runtime capability advertisement (target) is `GET /markets/capabilities` via shared OpenAPI — do not invent parallel flag paths.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the capability matrix tables below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace matrix rows, release-tier legends, or Decisions §8; if anything conflicts, the matrix and Decisions win.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Orchestrators settling “is this V1 / V1.1 / Post-V1?”; implementers mapping master prompt §6/§6A capabilities to BFF/W/A components; QA tracing MKT-FR IDs; reviewers blocking Combos or unusual-activity as default-on V1 without gates. |
+| **What** | Single scope/capability matrix: upstream Polymarket support × RetroPick components × release tier × phase × requirement IDs. Documents that the repo today is **catalog read stub** (thin OpenAPI) while the matrix describes **target** tiers. Out of scope: PRISM, legacy epoch, custom exchange (ADR-001). |
+| **When** | Before accepting a feature into a phase, flipping a capability flag, or arguing Android-before-web-trading. Re-read when evidence register confidence changes for Combos, NegRisk, or CLOB V2. |
+| **Where** | This file + [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md) + [research/POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md). Runtime capability advertisement (target): `GET /markets/capabilities` via shared OpenAPI — do not invent extra flag paths. Code: `internal/markets/`, web Markets product, Android after PHASE-5 authorization. |
+| **Why** | Without one matrix, agents ship gated intelligence or Combos as V1, or grow client-direct CLOB. This doc is the scope debate authority for release columns and component codes (`BFF` / `W` / `A`). |
+| **How** | Implement only **V1** columns for launch phases; keep V1.1 behind named flags; treat Post-V1 as PHASE-8+ unless tasked. Prefer web trading stability before Android parity. Use evidence EV-IDs before enabling Combos. Never mark matrix rows done because a stub endpoint exists. |
+
+### Worked example
+
+**Happy path — whale feed vs unusual activity**
+
+1. Matrix: whale/large-trade feed V1 (intelligence); unusual-activity V1.1 gated.
+2. Implement whale path with reason codes per intelligence specs; leave UV behind `intelligence.unusual_activity` (or successor flag named in intelligence docs).
+3. Clients render signals only (ADR-008).
+
+**Happy path — Combos ask**
+
+1. Matrix + EV-013: Combos Post-V1 until upstream capability verified.
+2. Keep capability flag false; no UI that implies combo legs are available.
+3. Escalate via blockers if product asks to pull Combos forward.
+
+**Failure / Never**
+
+- Client-direct CLOB in production (rejected; ADR-002).
+- Android trading before web trading stable (ANDROID_MARKETS / Decisions).
+- Extending legacy epoch routes to “fill” a matrix cell.
+- Inventing OpenAPI paths not aligned with `markets-v1.yaml` growth plan.
+
+**Agent checklist**
+
+- [ ] Capability row found?
+- [ ] Release tier respected?
+- [ ] Phase matches `current_phase` / task?
+- [ ] MKT-FR ID present?
+- [ ] Upstream evidence still valid?
+
+**Reading tip:** Read Purpose + Current state (§5) before Target design — stub reality vs target tiers is the most common agent mistake.
+
 ## 1. Purpose
 
 Map every Markets capability from master prompt §6 and §6A across Polymarket upstream support, RetroPick components, release tier (V1 / V1.1 / Post-V1), phase, and requirement IDs. Single traceability source for scope debates.

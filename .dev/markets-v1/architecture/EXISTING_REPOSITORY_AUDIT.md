@@ -5,6 +5,58 @@
 **Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
 
+## Description
+
+This document is a dated inventory of monorepo state after phases R0–R4: what exists under `internal/markets` (stub + Gamma), the web Markets shell, thin OpenAPI, `packages/polymarket`, Android scaffold, `archive/` quarantine, and example deploy env—versus what Markets V1 must still build. Its purpose is inventory, not completion certification.
+
+It sits in Wave 1 architecture as the “do not extend the nearest legacy thing” guardrail. Markets stays Polymarket-native and greenfield under `apps/backend/internal/markets/` (ADR-001); production upstream calls belong behind the BFF ACL (ADR-002). Stub / Shell / README-only rows are incomplete starting points, not ship claims.
+
+Read this before starting a Markets feature, choosing an import root, estimating “already done,” or deciding whether to extend a stub—and re-read when your change post-dates the Inspected column. It is not a full PRISM audit, not a landing-app inventory, and not permission to revive epoch MarketEngine inside Markets PRs.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+This audit’s **Purpose** is inventory, not completion certification. Stubs are starting points for greenfield Markets work.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Purpose, Scope, or later normative sections; if anything conflicts, the body of this document wins.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Backend, web, and Android Markets engineers; harness agents scoping greenfield tasks; reviewers blocking revival of epoch MarketEngine inside Markets PRs. |
+| **What** | A dated inventory after R0–R4: what exists under `internal/markets` (stub + Gamma), web Markets shell, minimal `packages/polymarket`, thin OpenAPI, Android scaffold/README, `archive/` quarantine, and example `deploy/web-markets` env—versus what Markets V1 must still build. Out of scope: full PRISM audit, landing apps. |
+| **When** | Before starting a Markets feature, choosing an import root, estimating “already done,” or deciding whether to extend a stub. Re-read when your change post-dates the Inspected column. |
+| **Where** | Spec + evidence: this doc and research EV-025/EV-026. Live trees in §4–§5: `apps/backend/internal/markets/`, `apps/web/src/products/markets/`, `schemas/openapi/markets-v1.yaml`, `packages/polymarket/`, `apps/android/`, `archive/`. |
+| **Why** | Agents extend the nearest working legacy route. The audit makes quarantine and incompleteness explicit so Markets stays Polymarket-native ([ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)) and greenfield under `internal/markets/`. |
+| **How** | Treat **Stub / Shell / README-only** as incomplete. Implement only in Markets paths; use `archive/` read-only; keep PRISM/landing out unless tasked; do not mark harness items done because a README endpoint row exists. Production upstream calls belong behind the ACL ([ADR-002](adr/ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)). |
+
+### Worked example
+
+**Happy path**
+
+1. Task: “catalog list.” Audit shows Gamma client + `ListEvents` stub and three OpenAPI endpoints.
+2. Extend normalizer/service tests under `internal/markets/` and grow `markets-v1.yaml`.
+3. Web hooks under `products/markets` call the BFF—not Gamma from the browser in production.
+4. Leave `/api/v1/legacy/markets/*` untouched.
+
+**Failure / Never-V1**
+
+- Importing `MarketEngine` or epoch ABIs from `archive/` to “finish” Markets.
+- Growing `packages/polymarket` into matching/settlement logic.
+- Claiming trading complete while service flags still advertise trading false.
+- Duplicating work under PRISM/legacy because those trees look fuller.
+
+**Agent checklist**
+
+- [ ] Path listed in audit?
+- [ ] State stub or real?
+- [ ] Markets vs `archive/` vs PRISM?
+- [ ] OpenAPI change required?
+- [ ] Any illegal legacy import?
+
+**Reading tip:** Skim Who/What first, confirm Where paths exist in the repo, then implement How. Use Never-V1 as a PR self-review gate before marking harness tasks complete.
+
+
 ## 1. Purpose
 
 Inventory monorepo state after Phase R0–R4 restructure to show what exists today versus what Markets V1 must build. Prevents agents from extending legacy epoch code or duplicating paths.

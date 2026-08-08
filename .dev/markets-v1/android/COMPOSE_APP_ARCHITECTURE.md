@@ -6,6 +6,80 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the Jetpack Compose application architecture for RetroPick Markets V1 Android: UI → ViewModel → use cases → repositories layering, immutable `UiState`, sealed user events, feature modules, concurrency, Hilt DI, previews, and forbidden anti-patterns such as networking in composables or float money.
+
+It sits in Wave 5 with GRADLE_MODULE_GRAPH as required co-reading. Code lives in feature modules under the Android Markets Gradle graph; API models come from OpenAPI codegen; wallet access goes through `WalletCoordinator`, not leaf Compose calls to vendors. Web TanStack Query differs mechanistically, but order and eligibility phases and fields must match OpenAPI.
+
+Read this before writing any feature screen, and when adding trading ticket state machines, wallet coordination, or cross-feature navigation events. Prefer STATE_DATA_OFFLINE_AND_REALTIME for cache and WS merge rules and WALLET_SIGNING_AND_SECURITY for sign paths.
+
+It excludes God-Activities, UI-layer Retrofit, a GlobalViewModel for all markets state, blocking runBlocking in UI, and passing NavController into the data layer.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android engineers and agents implementing Jetpack Compose UDF in `apps/android-markets/`; module owners wiring ViewModels, use cases, and Hilt; reviewers rejecting God-Activities and UI-layer networking. |
+| **What** | Compose application architecture: layering (UI → VM → use cases → repositories), immutable `UiState`, event intents, feature modules, concurrency rules, DI, previews, and forbidden anti-patterns. |
+| **When** | Before writing any feature screen. Re-read when adding trading ticket state machines, wallet coordination, or cross-feature navigation events. Required reading with GRADLE_MODULE_GRAPH. |
+| **Where** | Spec: this file. Code: feature modules under Android Markets Gradle graph; shared `:core` / `:data` patterns as defined later in this doc. API models from OpenAPI codegen. Wallet through `WalletCoordinator`, not Compose leaf calls to vendors. |
+| **Why** | Unidirectional flow keeps order/funding states testable and prevents “Compose calls Retrofit” shortcuts that break offline and signing rules. Shared state shapes with web reduce semantic drift. |
+| **How** | Each screen: `UiState` + sealed user events → ViewModel → use cases. Repositories merge REST, WS, Room. Expose `StateFlow`/`Immutable` UI models. Map errors to `UserFacingError`. Previews use fake states for loading/ready/stale/blocked. No business logic in composables beyond presentation. |
+
+### Worked example
+
+**Happy path — order ticket UDF.** `OrderTicketUiState` holds market, side, amount, price, phase, preview, freshness, eligibility, error. User edits price → event → VM updates input and may debounce preview use case → BFF preview → state shows fees/max loss → user Sign → wallet coordinator → submit use case → phase reconciling → REST/WS reconcile to open/filled.
+
+**Happy path — discovery list.** Paging repository feeds VM; UI shows Loading/Content/Empty/Error. Pull-to-refresh invalidates. Stale cache displays labeled data (see STATE_DATA doc)—not presented as live.
+
+**Failure / degraded.** Preview fails → error on state, inputs preserved. Eligibility denied → blocked phase, no sign CTA. VM catches cancellation; no leaked coroutines on rotate. Composable directly opening Browser for “sign” without preview → reject in review. Sharing mutable ticket state across screens without ownership → refactor to use case/repo.
+
+### Anti-pattern radar
+
+| Forbidden | Prefer |
+|-----------|--------|
+| Network in Composable | Repository + VM |
+| `var` UI business state | Immutable `UiState` |
+| Silent catch | Typed errors + UX |
+| Float for money | `Money` / decimal types |
+| Feature → feature impl deps | API modules / navigation events |
+
+### Parity note
+
+Web TanStack Query ≠ Compose VM, but **phases and fields** for orders/eligibility must match OpenAPI. When adding a UI phase, update web ticket FSM docs if semantics change.
+
+### Module ↔ layer expectation
+
+| Concern | Lives in |
+|---------|----------|
+| Composables | `:feature:*` |
+| ViewModels | `:feature:*` |
+| Use cases | `:domain` / feature domain |
+| Repositories | `:data` |
+| Generated API | `:api` |
+| WalletCoordinator | wallet/security module |
+
+### UiState quality bar
+
+- Immutable / `@Immutable` where practical
+- Sealed phase enums exhaustive in `when`
+- Errors user-facing and typed
+- Freshness + eligibility first-class fields on trading states
+
+### Agent anti-patterns
+
+- `GlobalViewModel` for all markets state
+- Blocking `runBlocking` in UI
+- Passing `NavController` into data layer
+- Float PnL in UI models
+
+### Success signal
+
+Order ticket phases are unit-testable without Compose runtime and map 1:1 to preview/sign/submit/reconcile.
+
 ## 1. Purpose
 
 Specify Jetpack Compose UDF architecture: UiState, events, ViewModels, use cases, and feature module boundaries.

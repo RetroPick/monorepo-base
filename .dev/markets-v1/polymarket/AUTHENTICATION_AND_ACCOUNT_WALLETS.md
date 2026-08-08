@@ -6,6 +6,53 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document specifies signer vs account wallet vs funder/maker terminology, Polymarket wallet types, CLOB L1 (EIP-712) and L2 (API credential) authentication, relayer authorization, session lifecycle, and RetroPick OpenAPI field mappings for Markets V1 Wave 2. Polymarket remains the authority for ACL and custody semantics; RetroPick binds sessions and stores server-side L2/relayer material without collapsing identity fields.
+
+It sits in Wave 2 beside the endpoint registry, order lifecycle, funding, and Builder/Relayer docs. Runtime lives in the BFF account/session module under `apps/backend/internal/markets/`; clients hold the signer only. The model reinforces ADR-003: the backend must never silent-sign user order intent, and Deposit Wallet addresses must come from documented upstream/deploy flows—not invention.
+
+Read this for Phase 2 account/wallet work and any order path that needs credentials, before persisting sessions or proxy secrets. It is not a funding UI state machine, not a fee schedule, and not permission to put L2 or Relayer keys in client bundles.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `fe-wallet` / `be-api` implementers, session and account BFF owners, Android Compose wallet UI, and agents wiring CLOB L1/L2 plus Deposit Wallet / Safe / proxy models. |
+| **What** | Signer vs account wallet vs funder vs maker terminology (ADR-003); wallet types; CLOB L1 (EIP-712) and L2 (API creds) auth; relayer authorization; session lifecycle; RetroPick field mappings. Polymarket remains ACL and custody semantics authority. |
+| **When** | Phase 2 account/wallet work and any order path that needs credentials; before persisting sessions or proxy secrets; whenever upstream wallet-auth docs change (EV-009). |
+| **Where** | Spec: this doc. Runtime: BFF account/session module under `apps/backend/internal/markets/`; clients hold signer only. Secrets: server-side L2/relayer material — never in client bundles. |
+| **Why** | Collapsing signer and account wallet causes wrong funder/maker on orders, broken allowances, and custody bugs. Backend must never silent-sign (ADR-003). Correct ACL is prerequisite to every trade, CTF op, and funding flow. |
+| **How** | Keep distinct API fields for signer, accountWallet, funder; derive L2 via L1; scope sessions; use relayer only for authorized gasless ops; map OpenAPI session routes to upstream wallet models without inventing wallet addresses. |
+
+### Worked example
+
+**Happy path.** User connects MetaMask (signer EOA). BFF creates/binds Polymarket Deposit Wallet (account wallet) via documented deploy/relayer path. User completes L1 auth; BFF obtains L2 API credentials scoped to that account and stores them server-side. Later order assembly sets maker/funder to the account wallet; client signs EIP-712 with the signer. Approvals and CTF split may go through relayer with Builder/Relayer keys. UI always shows which address holds collateral.
+
+**Failure / degraded.** If API returns a single `wallet` field for both signer and account, reject the design — MUST NOT collapse (ADR-003). If L2 credentials leak to Android/web, rotate immediately and treat as incident. Geoblock deny → no L2 trading session. Relayer 401/rate-limit (25/min) → surface retry; do not fall back to silent server signing. Missing Deposit Wallet deploy → fund/trade CTAs blocked with clear state, not a fake balance.
+
+**ACL & identity checklist**
+
+| Concept | Holds keys? | Signs orders? | Holds pUSD/positions? |
+|---------|-------------|---------------|------------------------|
+| Signer (EOA) | User device | Yes (EIP-712) | Rarely (EOA wallet type) |
+| Account wallet | Polymarket proxy/Safe | Via signer auth | Yes |
+| BFF L2 proxy creds | Server | Submits signed orders | No |
+| Relayer keys | Server | Gasless ops only | No |
+
+**Session lifecycle (orientation)**
+
+1. Connect signer → establish RetroPick session binding.
+2. Ensure account wallet exists (deploy/bind per wallet type).
+3. Complete L1 → derive/store L2 server-side.
+4. Refresh/revoke on logout, key rotation, or geoblock deny.
+5. Never reuse L2 across unrelated account wallets.
+
+**Downstream consumers:** [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md) needs maker/funder correct; [FUNDS_DEPOSIT_AND_WITHDRAWAL.md](./FUNDS_DEPOSIT_AND_WITHDRAWAL.md) funds the account wallet; [BUILDER_RELAYER_AND_FEES.md](./BUILDER_RELAYER_AND_FEES.md) uses Builder/Relayer auth distinct from user L2. Agents must not invent Deposit Wallet addresses — obtain via upstream/deploy flow only.
+
+**Related docs:** [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [FUNDS_DEPOSIT_AND_WITHDRAWAL.md](./FUNDS_DEPOSIT_AND_WITHDRAWAL.md), [BUILDER_RELAYER_AND_FEES.md](./BUILDER_RELAYER_AND_FEES.md).
 
 ## 1. Purpose
 

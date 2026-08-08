@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the quantitative authority for the **related-market graph and read-only discrepancy scanner** in RetroPick Markets V1 trader intelligence. It defines edge types (`equivalent`, `exclusive`, `implies`, `neg_risk_sibling`), `theoretical_discrepancy` / constraint-violation metrics, and terminology locks—so clients can show linked-market “Price gap” context without claiming risk-free profit or inventing executable-arbitrage alerts on device.
+
+It sits in Wave 6 as a **V1.1** surface behind `intelligence.relationship_graph` and `intelligence.discrepancy_scanner`. Compute belongs in `apps/backend/internal/markets/intelligence/`; edges come from catalog metadata plus curator seeds; slippage inputs for internal preview come from MARKET_HEALTH—never invented books. Workers may store internal `executable_profit_bps` on envelopes for research but must not push executable-arbitrage alerts until Post-V1 product sign-off. The bare UI label “arbitrage” without executable proof is forbidden. Scanner workers MUST NOT call order submit (ADR-009 / Never V1).
+
+Read this when implementing TI-V11-003 / TI-V11-006, seeding relationship edges, or reviewing discrepancy UX copy. Prefer sibling docs for market-health depth/slippage math, alert delivery, and the capability registry—not for discrepancy terminology or read-only guarantees.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF relationship-graph and discrepancy-scanner workers; web UI for related markets / “Price gap” panels; catalog curators seeding edges; agents implementing TI-V11-003 / TI-V11-006 behind feature flags. Security/product reviewers enforcing read-only guarantee. |
+| **What** | Related-market graph (`equivalent`, `exclusive`, `implies`, `neg_risk_sibling`) and a **read-only** scanner that surfaces `theoretical_discrepancy` and `constraint_violation`. **Not** `executable_arbitrage` alerts in V1.1 UI, not the forbidden bare label “arbitrage” without executable proof, not auto-copy or AI→orders. |
+| **When** | **V1.1** gated (`intelligence.relationship_graph`, `intelligence.discrepancy_scanner`). Executable arbitrage alerts are Post-V1 only after product sign-off. Applies after catalog metadata + optional curator seeds exist and mids are available for linked outcomes. |
+| **Where** | Spec authority: this doc. Compute: `apps/backend/internal/markets/intelligence/` (scanner workers). Edges from catalog metadata + manual curator seeds. Evidence envelopes may store internal `executable_profit_bps` preview — must not push alert until Post-V1. Clients render “Price gap” / constraint copy only. |
+| **Why** | Traders benefit from seeing linked-market price gaps and exclusive-set violations without RetroPick claiming risk-free profit or auto-executing multi-leg trades. Terminology discipline prevents misleading UX. Scanner failures must stay isolated from order submit (ADR-009, invariant 28). |
+| **How** | Build/maintain relationship edges; for `equivalent` pairs compute `|mid_A - mid_B|` and `discrepancy_bps`; for `exclusive` compute `|Σ p_yes_i - 1|`; optionally compute internal `executable_profit_bps = discrepancy_bps - fee_bps - slippage_bps_A - slippage_bps_B - risk_buffer` but **do not** alert on it in V1.1. Workers MUST NOT call order submit endpoints. Never use UI label “arbitrage” for theoretical gaps. |
+
+### Terminology lock (critical)
+
+| term | definition | V1.1 UI label |
+|------|------------|---------------|
+| `theoretical_discrepancy` | Absolute mid gap or constraint violation margin on linked outcomes | “Price gap” |
+| `executable_arbitrage` | Discrepancy minus fees, slippage, capital lock — **positive** | Post-V1 only |
+| `arbitrage` (bare word) | Without executable proof | **never use** |
+
+### Tier and flags
+
+- Tier: **V1.1** read-only scanner (this doc §2).
+- Flags: `intelligence.relationship_graph`, `intelligence.discrepancy_scanner`.
+- Edge types: `equivalent`, `exclusive`, `implies`, `neg_risk_sibling` from catalog metadata + curator seeds.
+- Slippage inputs for internal preview come from MARKET_HEALTH analytics — do not invent books.
+
+### Read-only guarantee
+
+Scanner workers MUST NOT call order submit endpoints ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)). No multi-leg “one click close the gap” path in V1.1.
+
+### Worked example
+
+**Happy path.** Markets A and B linked `equivalent`. mid_A = 0.62, mid_B = 0.55 → `theoretical_discrepancy = 0.07`, `discrepancy_bps = 700`. Scanner emits a read-only signal / panel row labeled “Price gap” with evidence mids + edge type. Separately, an `exclusive` set of YES mids summing to 1.08 yields `violation = 0.08` surfaced as constraint violation — informational.
+
+**Internal preview (not user alert).** Worker may compute `executable_profit_bps` after fees/slippage/risk_buffer and store it on the envelope for research. V1.1 must not push “arbitrage opportunity” notifications from that field.
+
+**Failure / Never-V1 / degraded.** Scanner must never submit orders or open copy-trades from a discrepancy (ADR-009). UI must never say “arbitrage” for a theoretical gap. Missing book for slippage → do not claim executable profit; omit or flag internal preview. Feature flags off → no public scanner surface. Post-V1 executable alerts require explicit product sign-off before any push path uses `executable_profit_bps > 0`.
+
 ## 1. Purpose
 
 Related-market graph and read-only discrepancy scanner. Uses `theoretical_discrepancy` — not arbitrage without executable profit.

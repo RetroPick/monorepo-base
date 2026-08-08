@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document covers Builder attribution (`builder` bytes32 on V2 orders), gasless Relayer operations (deploy, approvals, CTF, neg-risk convert), and the CLOB V2 fee model (operator-set at match; not embedded in the signed order), plus RetroPick secret-handling rules. Polymarket is fee and settlement authority; RetroPick injects builder codes, previews disclosures, and calls Relayer from the server.
+
+It sits in Wave 2 between wallet auth and order/CTF paths. Builder and Relayer API keys stay in server env/secret stores only; clients display fee estimates and never send obsolete V1 `POLY_BUILDER_*` HMAC headers. Relayer is gas sponsorship and submission—not a substitute for user authorization or a RetroPick matching layer.
+
+Read this before enabling attributed trading or gasless CTF/funding paths, when migrating off V1 builder headers, or when fee-tier/rate-limit upstream docs change. It is not a place to invent fee contracts or Relayer URLs, and not a license to treat RetroPick as the venue fee recipient.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF order assembly and relayer clients, ops holding Builder/Relayer API keys, product/UX for fee disclosure, `be-api` / `security` agents. |
+| **What** | Builder attribution (`builder` bytes32 on V2 orders), gasless Relayer ops (deploy, approvals, CTF, neg-risk convert), and CLOB V2 fee model (operator-set at match; not in signed order). Secret handling rules for RetroPick. |
+| **When** | Before enabling attributed trading or gasless CTF/funding paths; when migrating off V1 `POLY_BUILDER_*` HMAC headers; on fee-tier or rate-limit upstream changes. |
+| **Where** | Spec: this doc (EV-010, EV-009, EV-001). Keys: server env / secret store only. Order path: BFF injects builder code; clients display fees only. Relayer: BFF → Polymarket Relayer endpoints. |
+| **Why** | Attribution and gasless UX depend on Builder program; fee fields in signed orders are obsolete in V2. Mis-handling keys or embedding feeRateBps breaks matching and creates security incidents. RetroPick is not the fee/settlement authority — Polymarket is. |
+| **How** | Obtain builder code from Polymarket Builders settings; inject on assemble; query fees via `getClobMarketInfo()` / fee endpoints; call relayer with Builder or Relayer API keys; enforce 25 submits/min; never put secrets in OpenAPI clients. |
+
+### Worked example
+
+**Happy path.** User previews a buy. BFF fetches market fee schedule and account tier (trailing 30-day volume), returns disclosure amounts to UI. Order struct includes builder code, omits removed V1 fee fields. User signs; BFF submits to CLOB with L2 auth. Separately, first-time user needs pUSD + CTF approvals: BFF submits relayer tx under Builder auth; user confirms any required EIP-712/relayer payload per wallet type. Volume appears on Builder leaderboard with documented lag.
+
+**Failure / degraded.** Relayer rate limit exceeded → queue/backoff; do not burn user gas by falling back to unguided direct sends without UX consent. Missing Builder code → orders still may trade but lose attribution; product decides fail-closed vs warn. Client must not send `POLY_BUILDER_*` HMAC (V1). If fee endpoint unavailable, block aggressive marketables or show "fees unknown" and refuse silent zero-fee claims. Never invent fee contracts or addresses.
+
+**Secret & fee boundaries**
+
+| Item | Location | Client visible |
+|------|----------|----------------|
+| Builder code (bytes32) | BFF assemble | Optional attribution display |
+| Relayer API key + address | Server only | No |
+| Fee schedule | BFF → UI disclosure | Yes (amounts/tiers) |
+| Match-time operator fee | Polymarket | Post-trade / preview estimate |
+
+**Relayer-eligible ops (orientation):** Deposit Wallet deploy; token approvals; CTF split/merge/redeem; neg-risk convert. Each still respects wallet ACL and user intent — relayer is gas sponsorship + submission, not a substitute for user authorization. Fee tiers are account-volume based; UI copy must not promise fixed bps that Polymarket can change at match time.
+
+**Anti-patterns:** embedding Builder secrets in Android; putting `feeRateBps` back on signed orders; treating RetroPick as fee recipient for venue match fees; inventing relayer URLs. Pair with [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md) for submit path and [POSITIONS_CTF_AND_REDEMPTION.md](./POSITIONS_CTF_AND_REDEMPTION.md) for CTF gasless ops.
+
+**Ordering with other docs:** auth/session first, then fee preview + builder inject on assemble, then relayer for approvals/CTF. Do not enable gasless redeem before registry verification and wallet ACL are green. Leaderboard lag is expected — do not invent realtime attribution APIs.
+
+**Fee disclosure UX:** preview must show that match fees are venue-operator-set and may differ from estimate; never label RetroPick as the matcher charging CLOB fees. Builder attribution is orthogonal to user fee tier.
+
+**Key rotation:** treat Relayer/Builder credential rotation like production incidents — revoke, redeploy secrets, audit recent submits. Clients never participate in rotation.
+
+**Related docs:** [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [AUTHENTICATION_AND_ACCOUNT_WALLETS.md](./AUTHENTICATION_AND_ACCOUNT_WALLETS.md), [POSITIONS_CTF_AND_REDEMPTION.md](./POSITIONS_CTF_AND_REDEMPTION.md).
+
 ## 1. Purpose
 Document Builder attribution, relayer gasless execution, V2 fee model, and RetroPick secret handling.
 

@@ -6,6 +6,53 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document defines the canonical CLOB V2 order state machine for Markets V1 Wave 2: edit → preview → sign → submit → open/partial/fill/cancel/expire/reject → reconcile → chain settlement, including idempotency, geoblock, builder field, and fee disclosure. Accept/fill/cancel authority is Polymarket CLOB + Exchange; RetroPick has **no** matching engine (ADR-001).
+
+It sits in Wave 2 after wallet auth and funding readiness, with Builder/fees and neg-risk peers for assembly details. Runtime is the BFF order module plus client signatory; projections must reconcile to upstream truth. Silent server signing is forbidden (ADR-003); Combos RFQ remains 403-gated.
+
+Read this for any trading implementation and on CLOB V2 field migrations. Prefer sibling docs for L1/L2 credential storage, pUSD wrap, or CTF redeem—not for inventing mid-states outside this machine or treating BFF accept as final settlement.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF order service, web/Android ticket UX, `be-api` / `fe-markets` / `fe-wallet` agents, QA writing reconcile tests. |
+| **What** | Canonical CLOB V2 order state machine: edit → preview → sign → submit → open/partial/fill/cancel/expire/reject → reconcile → chain settlement. Idempotency, geoblock, builder field, fee disclosure — no RetroPick matching engine. |
+| **When** | Any trading implementation; after wallet auth and funding readiness; on CLOB V2 field migrations (EV-001); never for Combos RFQ. |
+| **Where** | Spec: this doc. Runtime: BFF order module + client signatory. Authority for accept/fill/cancel: Polymarket CLOB + Exchange. Persistence: RetroPick projections must reconcile to upstream truth. |
+| **Why** | Clients inventing states or treating BFF accept as final settlement causes ghost fills. V1 order fields are obsolete. Silent server signing is forbidden (ADR-003). Venue is Polymarket. |
+| **How** | Implement listed states only; preview via BFF (fees, geoblock, market info); user signs EIP-712; BFF submits with L2; poll/WS reconcile; unknown → `unknown_reconciling`; never skip geoblock. |
+
+### Worked example
+
+**Happy path.** User edits size/price → `previewing` (BFF returns fee estimate, neg-risk exchange choice, geoblock allow) → `ready_to_sign` → wallet signs → `submitting` → CLOB `accepted`/`open` → partial fills update size → `filled` → optional `chain_settlement_pending` → `settled`. Cancel path: `cancel_pending` → upstream confirmed `cancelled`. Builder code attached at assemble; fees not embedded in signed V2 order.
+
+**Failure / degraded.** Geoblock deny → stop before sign. Submit timeout → `unknown_reconciling` until CLOB truth known; do not show filled. Partial fill then disconnect → reconcile from Data/CLOB, not local optimism. Reject on tick/size → `rejected` with upstream reason. Combos RFQ attempt → 403 gate. Backend signing without user → hard security fail. Invented mid-states not in the machine → reject in review.
+
+**State machine touchpoints**
+
+| Phase | Polymarket authority | RetroPick duty |
+|-------|----------------------|----------------|
+| Preview/fees/geoblock | CLOB info + geoblock | Assemble + disclose |
+| Signature | User wallet | Never silent-sign |
+| Book matching | CLOB/Exchange | Submit + observe |
+| Settlement tokens | CTF/Exchange | Project + show |
+
+**Prerequisites before `ready_to_sign`**
+
+1. Session with distinct signer / account wallet / funder fields.
+2. Tradable pUSD + allowances ([FUNDS_DEPOSIT_AND_WITHDRAWAL.md](./FUNDS_DEPOSIT_AND_WITHDRAWAL.md)).
+3. Correct exchange domain (standard vs neg-risk).
+4. Geoblock allow for the trading principal.
+5. Fee disclosure available or explicit unknown handling.
+
+Idempotency keys and client order ids must survive retries without double-posting. RetroPick never "matches" two users against each other — it only speaks CLOB.
+
+**Related docs:** [AUTHENTICATION_AND_ACCOUNT_WALLETS.md](./AUTHENTICATION_AND_ACCOUNT_WALLETS.md), [BUILDER_RELAYER_AND_FEES.md](./BUILDER_RELAYER_AND_FEES.md), [POSITIONS_CTF_AND_REDEMPTION.md](./POSITIONS_CTF_AND_REDEMPTION.md).
 
 ## 1. Purpose
 

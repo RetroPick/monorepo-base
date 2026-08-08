@@ -6,6 +6,55 @@
 **Product:** RetroPick Markets V1
 **Wave:** 6 — Trader intelligence quantitative specs
 
+## Description
+
+This document is the quantitative authority for **alert rules and delivery** in RetroPick Markets V1 trader intelligence. It defines the declarative JSON rule DSL (`when` / `actions` / `policy`), closed V1 condition types, dedup keys, cooldown, quiet hours, severity routing, and V1 channels (inbox, push)—so clients can offer configurable, non-spammy awareness of price, liquidity, whale, and portfolio events without inventing condition types or executing trades from a fire.
+
+It sits in Wave 6 beside whale detection, market health, signal provenance, and `backend/NOTIFICATIONS.md`. Compute belongs in `apps/backend/internal/markets/intelligence/`; rules persist in `markets_alert_rules`; dedup defaults live in `alert_dedup_defaults_v1.yaml`. Email/webhook/telegram are V1.1. Condition evaluation consumes committed signals and health metrics—not raw LLM classifications. On signal retraction, further fan-out stops per provenance. The doc explicitly rejects auto-copy trading, insider-wallet labels, AI→order paths, and geoblock bypass (ADR-008 / ADR-009 / Never V1).
+
+Read this when implementing TI-V1-002…011 / TI-V1-010 (MKT-FR-050), shipping alert CRUD + inbox/push, or calibrating quiet-hours / `maxPerDay`. Prefer sibling docs for WhaleScore math, evidence envelopes, and notification transport primitives—not for rule DSL evaluation.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF alert evaluation workers and delivery fan-out; web/Android inbox + push clients; users authoring JSON rules in `markets_alert_rules`; ops calibrating `alert_dedup_defaults_v1.yaml`; agents implementing TI-V1-002…011 / TI-V1-010 (MKT-FR-050). |
+| **What** | Declarative alert rule DSL (`when` / `actions` / `policy`), condition evaluation, dedup keys, cooldown, quiet hours, severity routing, and V1 channels (inbox, push). **Not** auto-copy trading, insider-wallet labels, AI→order paths, or geoblock bypass. Email/webhook/telegram are V1.1. |
+| **When** | After upstream signals or market metrics exist that a condition can observe (price cross, log-odds move, volume spike, spread/depth, whale_trade, watched_wallet, catalog/portfolio events). Applies when shipping alert CRUD + inbox/push; quiet-hours and maxPerDay gate every delivery. |
+| **Where** | Spec authority: this doc. Compute: `apps/backend/internal/markets/intelligence/` (alerts evaluation + delivery). Rules store: `markets_alert_rules`. Dedup defaults: `alert_dedup_defaults_v1.yaml`. Cross-ref: `backend/NOTIFICATIONS.md`, ADR-008, ADR-009. Clients render inbox/push only. |
+| **Why** | Traders need configurable, non-spammy awareness of price, liquidity, whale, and portfolio events without RetroPick executing trades or accusing wallets. Intelligence delivery failures must stay isolated from balances, orders, and settlement (invariant 28). |
+| **How** | Persist JSON rules; expand `dedupKey` templates; suppress within `cooldownSeconds`; queue during quiet hours unless `severity == critical`; route by severity; fan-out to enabled channels. Condition types are closed for V1 — do not invent new `type` strings without OpenAPI + params bump. Never place or suggest autonomous orders from an alert fire. |
+
+### Scope boundaries
+
+- **In scope (V1):** condition types listed in §4.1; severity matrix; inbox + push; dedup/cooldown/quiet hours/`maxPerDay`; CRUD for user rules; portfolio-scoped `portfolio_event` conditions.
+- **Out of scope (V1):** email/webhook/telegram (V1.1); inventing new `when.type` values; server-side “suggested order” CTAs on alert cards; any worker call into order submit.
+- **Depends on:** market health metrics for spread/depth conditions; whale signals for `whale_trade`; SIGNAL_PROVENANCE lifecycle for retracting alert-linked signals; NOTIFICATIONS delivery primitives.
+- **Upstream inputs:** normalized prices, book snapshots, committed `market_signals`, catalog/portfolio event streams — not raw LLM classifications.
+
+### Implementation checklist (agents)
+
+1. Store rules as JSON documents matching the §4 schema; reject unknown condition types at write time.
+2. Evaluate `when.all` as conjunction; short-circuit on first false condition.
+3. Expand `policy.dedupKey` with context; suppress if a recent delivery exists inside `cooldownSeconds`.
+4. Apply quiet hours in the rule’s timezone (`[start, end)` half-open); queue non-critical; bypass only for `critical`.
+5. Route by severity (low → inbox only; medium/high/critical → inbox + push by default table).
+6. Emit deliveries that reference evidence (signal id / metrics) so clients can render without re-scoring.
+7. On signal retraction, stop further fan-out for that logical key and clear unread per provenance spec.
+8. Golden / example rule variants in this doc are regression fixtures — keep them green when changing defaults.
+
+### Worked example
+
+**Happy path.** User enables rule “BTC 60c cross”: `when.all` = `price_cross` (YES ≥ 0.60) AND `liquidity` (`spread_bps` ≤ 150); `actions` = push + inbox; `policy.cooldownSeconds` = 3600; quiet hours 22:00–07:00 America/New_York. Mid crosses 0.60 with spread 120 bps at 14:00 local. Engine expands `dedupKey`, finds no prior delivery inside cooldown, severity `high` → inbox + push. Card copy is descriptive (“Price crossed 0.60”) — not a trade instruction.
+
+**Whale condition variant.** Rule `{"when":{"type":"whale_trade","minScore":75},"policy":{"cooldownSeconds":1800}}` fires only when a whale signal with score ≥ 75 is already committed `active` per WHALE_AND_LARGE_TRADE_DETECTION. Dedup suppresses repeats for 30 minutes on the same expanded key.
+
+**Quiet hours / queue.** Same price-cross rule fires at 23:30 local with severity `high` (not critical): delivery is queued, not pushed. At quiet-hours `end` (07:00), queued item flushes if still within `maxQueueAge` (4h). If the mid has long since moved and the logical event expired by policy, drop rather than spam.
+
+**Failure / Never-V1 / degraded.** Same alert must not open a copy-trade or label a wallet “insider.” If push provider is down, inbox delivery still succeeds and the failure is isolated — no retry path may call order submit. AI may narrate fired rule metrics from the evidence envelope but must not classify conditions or trigger orders (ADR-009). `maxPerDay` exhausted → suppress further fires that day. Disabled (`enabled: false`) rules never evaluate.
+
 ## 1. Purpose
 
 Alert rule DSL, evaluation engine, deduplication, cooldown, quiet hours, and delivery fan-out.

@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document is the evidence-sourced registry of Polymarket smart contracts on Polygon (chain 137): CTF, Exchange V2, Neg Risk CTF Exchange, pUSD proxies, ABI provenance, EIP-712 domains, exchange selection, and startup bytecode verification. Addresses are quoted from official docs with evidence IDs—**no invented addresses**.
+
+It sits in Wave 2 as the on-chain companion to the API/SDK registry. Config is a verified registry loaded by the BFF, not scattered literals in business logic. Trading must block if chain id, bytecode, or evidence checks fail. Deprecated V1 adapters are documentation-only for new CLOB V2 paths.
+
+Read this before any on-chain call, order domain binding, or release that enables trading, and whenever upstream contract pages change. Prefer [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md) and [NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](./NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md) for flow semantics—not for inventing registry rows.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF startup/config owners, `pkg-abi-registry` / `sc-deploy` adjacent agents, devops verifying Polygon `chain_id == 137`, security reviewers blocking unverified addresses. |
+| **What** | Evidence-sourced registry of Polymarket contracts (CTF, Exchange V2, Neg Risk Exchange, pUSD proxies), ABI provenance, EIP-712 domains, exchange selection, and startup bytecode verification. **No invented addresses.** |
+| **When** | Before any on-chain call, order domain binding, or release that enables trading; on every upstream contract-page change; at process boot. |
+| **Where** | Spec: this doc quoting official docs (EV-008). Config: generated registry loaded by BFF — not scattered literals in business logic. ABIs: pinned provenance paths. |
+| **Why** | Wrong exchange (standard vs neg-risk) or stale address loses funds or fails settlement. Polymarket publishes venue contracts; RetroPick must verify, not invent. Trading MUST block if verification fails. |
+| **How** | Load addresses from verified config; at startup check chain id, non-empty bytecode, optional code hash; tag unknown addresses `unverified` and block trading; re-verify at deploy; select Neg Risk exchange only when market flags say so. |
+
+### Worked example
+
+**Happy path.** Release pipeline regenerates registry from official Polymarket contracts page. BFF boots on Polygon: verifies CTF, CTF Exchange V2, Neg Risk CTF Exchange V2, pUSD proxy/impl bytecode present. Order EIP-712 domain matches Exchange V2 for standard markets; neg-risk markets bind to Neg Risk exchange per [NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](./NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md). Deprecated V1 adapter addresses are never used for new CLOB V2 flow.
+
+**Failure / degraded.** Engineer pastes an address from a blog or chat → reject; must be EV-008 sourced or `unverified` blocking. Bytecode empty at address → refuse trading startup. `chain_id` mismatch → hard fail. Neg-risk market accidentally signed against standard exchange domain → invalid orders / funds at risk — domain selection tests must catch. Do not resurrect deprecated neg-risk adapter for V2.
+
+**Verification obligations**
+
+| Check | Fail behavior |
+|-------|---------------|
+| Missing official evidence | Do not ship address as `active` |
+| Empty bytecode | Block trading |
+| Deprecated component | Exclude from new paths |
+| Docs drift | [UPSTREAM_CHANGE_MANAGEMENT.md](./UPSTREAM_CHANGE_MANAGEMENT.md) within 24h |
+
+**Component classes (orientation)**
+
+- **Settlement venue** — CTF Exchange V2 / Neg Risk CTF Exchange V2 (order domains, fills).
+- **Outcome ledger** — Conditional Tokens (CTF) for split/merge/redeem.
+- **Collateral** — pUSD proxy/impl (V2 trading collateral).
+- **Deprecated** — CLOB v1 / old adapters: documentation only, not new paths.
+
+Addresses appearing later in this document are **quoted from official docs** with retrieve dates — they remain subject to re-verification at implementation and deploy time. Agents must not add new rows without evidence IDs.
+
+**Agent rule:** if an address is not in the quoted registry table with an evidence ID, it does not exist for RetroPick Markets V1. Placeholders like `0x...` in prose are not deployable config.
+
+**Related docs:** [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](./NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md), [POSITIONS_CTF_AND_REDEMPTION.md](./POSITIONS_CTF_AND_REDEMPTION.md).
 
 ## 1. Purpose
 

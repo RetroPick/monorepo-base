@@ -6,6 +6,66 @@
 **Deciders:** platform-orchestrator, markets-engineering, legal
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted decision that Markets V1 will **not** operate a custom exchange, matching engine, or outcome-token issuance layer. Polymarket (Gamma + CLOB V2 + on-chain CTF) is the sole venue authority; PRISM remains separate; legacy epoch APIs stay frozen. Developers must read it whenever a ticket implies RetroPick Solidity, wrapper tokens, or reviving MarketEngine for “real trading.”
+
+It sits at the root of the Wave 1 ADR graph: every Markets integration path (BFF ACL, OpenAPI IDs, package boundaries) assumes Polymarket-native settlement. Repo constraints include must-not-create `contracts/markets/`, Markets integration under `apps/backend/internal/markets/`, and `packages/polymarket/` as adapter types only. Rejected alternatives (custom exchange, wrappers, extend legacy) stay rejected unless this ADR is formally revised.
+
+Read this before adding Markets smart contracts, a RetroPick CLOB, or legacy MarketEngine imports into Markets paths. It does not authorize inventing a hybrid venue in a feature PR; conflicts require ADR revision, legal review, and decision-log entry—not local reinterpretation.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Who/Why ≈ Context + Forces; What/How ≈ Decision + Implementation Notes; When/Where ≈ phase checkpoints + repository constraints; day-to-day change ≈ Consequences.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, markets-engineering, legal. Audience: anyone tempted to add Markets smart contracts, a RetroPick CLOB, or revive MarketEngine for “real trading.” |
+| **What** | **Decision (accepted):** Markets V1 will **not** operate a custom exchange, matching engine, or outcome-token issuance layer. Polymarket (Gamma + CLOB V2 + on-chain CTF) is the **sole venue authority**. PRISM remains separate; legacy epoch APIs stay frozen. |
+| **When** | Binding for all Markets V1 phases (Gamma catalog → CLOB orders → launch without custom contracts). Any move toward exchange operation requires ADR revision, legal review, and decision-log entry—not a drive-by PR. |
+| **Where** | Repo constraints: **must not create** `contracts/markets/`; Markets integration in `apps/backend/internal/markets/`; `packages/polymarket/` = adapter types only; OpenAPI IDs are Polymarket-native; no Markets imports of PRISM settlement. |
+| **Why** | Context: frozen epoch v1 cost, liquidity cold-start, regulatory surface of operating an exchange, V1 timeline in months. Product is Polymarket trading + intelligence **experience**, not a new venue. Alternatives A–C (custom exchange, wrappers, extend legacy) remain **rejected**. |
+| **How** | Integrate via BFF; focus on UX/intelligence/mobile; CI grep blocks `MarketEngine` in `internal/markets/`; markets web bundle excludes epoch ABIs; on-chain touches are user-signed Polymarket flows only. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+Ticket: “Issue YES/NO tokens for our World Cup market on RetroPick contracts.”
+
+1. **Refuse** Markets Solidity / wrapper-token bridges.
+2. Use Polymarket condition/token IDs via Gamma/CLOB through the BFF and OpenAPI.
+3. If RetroPick-issued outcomes are truly required, that is **PRISM** scope—not Markets.
+4. Keep `packages/polymarket` free of matching/settlement logic.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Creating `contracts/markets/` or a RetroPick matching engine for Markets.
+- Extending `/api/v1/legacy/markets/*` for new Markets features.
+- Conflating `contracts/prism/` settlement with Markets client routes.
+- Treating rejected Alternatives as “maybe later in this PR.”
+
+**Agent checklist**
+
+- [ ] Any new `contracts/` path for Markets? (Must be no.)
+- [ ] IDs in OpenAPI Polymarket-native?
+- [ ] Legacy/PRISM imports absent from Markets trading paths?
+- [ ] CI grep / bundle checks still meaningful?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 RetroPick historically operated a proprietary **epoch v1 MarketEngine** with on-chain outcome tokens (`contracts/legacy-pool-v1/`). That system is **frozen** per monorepo phase R4 and archived. The company is launching **RetroPick Markets V1** as a distinct product line.

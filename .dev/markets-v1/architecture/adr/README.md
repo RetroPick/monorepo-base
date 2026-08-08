@@ -4,6 +4,60 @@
 **Last updated:** 2026-07-25
 **Owner:** platform-orchestrator
 
+## Description
+
+This README is the operating manual for Markets V1 Wave 1 Architecture Decision Records (ADR-001 through ADR-009): index table, dependency graph, cross-ADR invariants, when to write a new ADR, supersession policy, and relationship to repo-wide R0/R1/R4 ADRs. It is index and governance—not a tenth decision.
+
+It sits at `architecture/adr/` as the discovery layer over accepted Decisions. Summary rows here must not weaken ADR-001 (no custom exchange) or ADR-009 (no auto copy). Material decisions also belong in the harness decision log with traceability updates; each ADR’s Context / Decision / Consequences remain authoritative.
+
+Read this before proposing architecture changes, starting cross-team Wave work, or checking whether an invariant already has an accepted ADR. Do not silently rewrite accepted Decision text to fit a sprint; use supersession status when replacing. Prefer individual ADR files for the binding Decision text itself.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the index, dependency graph, and process sections below.
+
+This README is **index + governance**, not a tenth decision. Each ADR’s Context / Decision / Consequences remain authoritative. Summary rows here must not weaken [ADR-001](ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md) (no custom exchange) or [ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md) (no auto copy).
+
+| Lens | Answer |
+|------|--------|
+| **Who** | platform-orchestrator; Markets web/Android/backend leads; legal/security on custody and copy-trading; agents that must not silently edit accepted Decision sections. |
+| **What** | Operating manual for Markets V1 Wave 1 ADRs (001–009): index table, dependency graph, cross-ADR invariants, when to write a new ADR, supersession policy, and relationship to repo-wide R0/R1/R4 ADRs. |
+| **When** | Before proposing architecture changes, starting cross-team Wave work, or checking whether an invariant already has an accepted ADR. Re-review at phase freezes and on legal/upstream triggers in Review Cadence. |
+| **Where** | Files in `architecture/adr/ADR-00*.md`. Also log material decisions in `agent-harness/DECISION_AND_ASSUMPTION_LOG.md` and update traceability. Companion architecture docs are linked below in this README. |
+| **Why** | Durable decisions—no custom exchange, BFF ACL, user signing, shared OpenAPI, no auto copy—must stay discoverable and hard to reverse casually. The index stops contradictory “local” decisions in feature PRs. |
+| **How** | Locate ADR → read Context/Decision/Consequences → implement the Decision (not a rejected Alternative). Draft new ADRs only for significant multi-team or custody/legal changes; never silently rewrite accepted Decision text; use supersession status when replacing. |
+
+### Worked example
+
+**Happy path — “auto follow whale” request**
+
+1. Index → [ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md) + [ADR-003](ADR-003-WALLET-AND-SIGNING-MODEL.md).
+2. Implement notification → `VIEW_MARKET` → manual ticket → preview+sign.
+3. Do not add `POST /markets/copy/*` or `capabilities.autoCopy`.
+4. If product insists on automation, route to Phase 8 evaluation + new ADR process—not a silent Decision edit.
+
+**Failure / Never-V1**
+
+- Treating the summary table as license to create `contracts/markets/` or auto-submit from signals.
+- Editing Decision sections in place to “fit the sprint.”
+- Adding ADRs without decision log + orchestrator/affected-team review.
+
+**Agent checklist**
+
+- [ ] Matching ADR opened and Decision quoted?
+- [ ] Dependency graph neighbors considered (e.g. ADR-008 → ADR-009)?
+- [ ] Cross-ADR invariant table still holds?
+- [ ] Decision log / traceability updated if changing an ADR?
+
+**5W+1H ↔ ADR body sections**
+
+| Lens | Typical ADR section |
+|------|---------------------|
+| Who / Why | Context, Forces, Deciders |
+| What / How | Decision, Implementation Notes |
+| When / Where | Status/Date, Links, repo constraints |
+| Day-2 change | Consequences, Review Checklist |
+
 Architecture Decision Records (ADRs) capture **significant, durable decisions** for Markets V1 Wave 1. Each ADR follows the format: Context, Decision, Consequences, Alternatives, Status, Links.
 
 ## Index

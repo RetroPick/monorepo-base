@@ -5,6 +5,58 @@
 **Canonical location:** `.dev/markets-v1/`
 **Pointer:** [docs/markets-v1/README.md](../../docs/markets-v1/README.md)
 
+## Description
+
+This README is the **entry index** for the Markets V1 documentation-only tree under `.dev/markets-v1/`. Use it first to orient on executive outcome, the document map, agent-harness artifacts (`implementation-manifest.yaml`, `task-graph.yaml`, invariant check), wave status, and PHASE-0…PHASE-8 order before touching product code.
+
+It freezes the agent consume sequence (Orient → Contract → Phase → Task → Trace → Spec → Verify → Escalate) so work stays Polymarket-native and harness-gated. Product code lives under `apps/`, `packages/`, and `schemas/` — not in this tree. Wave 9 harness completion is not product-code completion.
+
+**Next hops:** [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) for path inventory; [agent-harness/AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md) before any task; [agent-harness/implementation-manifest.yaml](agent-harness/implementation-manifest.yaml) for live `current_phase`; [phases/](phases/) for phase contracts. Human pointer: [docs/markets-v1/README.md](../../docs/markets-v1/README.md).
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the navigation sections below.
+
+**Documentation convention:** every Markets V1 markdown under `.dev/markets-v1/` starts with `## Description` (prose overview) then `## 0. Developer intent (5W+1H)`, immediately after title and metadata, before the first body heading. Indexes (this README, [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md)) are navigation-focused; deep specs carry domain-specific descriptions and 5W+1H tables.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace the agent consumption order, wave table, or phase order in this README; if anything conflicts, those normative lists win.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Harness agents, orchestrators, and engineers entering Markets V1 work; reviewers confirming agents did not skip the contract/phase/task sequence. Not a substitute for product PMs writing code. |
+| **What** | Entry index for the Markets V1 **documentation-only** tree: executive outcome, document map (121 reviewed docs), agent harness artifacts (`implementation-manifest.yaml`, `task-graph.yaml`, invariant check), wave delivery status, and phase order through PHASE-8. Product code lives under `apps/`, `packages/`, `schemas/` — not here. |
+| **When** | First file to open before any Markets implementation task. Re-read when `current_phase` changes in the manifest, when Wave status or phase tables are updated, or after a harness invariant failure. |
+| **Where** | This README at `.dev/markets-v1/README.md`. Pointer for humans: [docs/markets-v1/README.md](../../docs/markets-v1/README.md). Next hops: [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md), [agent-harness/AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md), [agent-harness/implementation-manifest.yaml](agent-harness/implementation-manifest.yaml), [phases/](phases/). |
+| **Why** | Without a single entry point, agents invent scope, skip PHASE-1 readiness checks, or treat docs as product code. This README freezes the consume order (Orient → Contract → Phase → Task → Trace → Spec → Verify → Escalate) so Markets stays Polymarket-native and harness-gated. |
+| **How** | Follow the numbered agent order below. Select exactly one `planned`/`ready` task from `task-graph.yaml`. Confirm requirement mapping before coding. Capture verification via templates. Escalate blockers; do not mark tasks complete because a README row exists. Never extend `archive/` epoch paths for Markets. |
+
+### Worked example
+
+**Happy path — start PHASE-1 catalog work**
+
+1. Read this README + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md).
+2. Read [AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md); confirm `current_phase` is `PHASE-1` in the manifest.
+3. Pick one ready task (e.g. catalog/OpenAPI growth) from [task-graph.yaml](agent-harness/task-graph.yaml).
+4. Trace IDs in [REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md); read [phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md](phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md) and linked ADRs.
+5. Implement only under Markets paths; run task `commands`; fill verification + handoff templates.
+
+**Failure / Never skip**
+
+- Jumping to wallet/trading/Android without PHASE-1 readiness and an authorized task.
+- Treating Wave 9 harness completion as product-code completion ([EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) says implementation not started).
+- Ignoring [INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) §23 when docs or code contradict ADR-001/002/009.
+
+**Agent checklist**
+
+- [ ] README + document map oriented?
+- [ ] Operating contract read?
+- [ ] `current_phase` and one task selected?
+- [ ] Requirement IDs traced?
+- [ ] Phase spec + ADRs read?
+- [ ] Verification evidence path known?
+
+**Reading tip:** Use Who/What to stay in documentation mode; use How as the mandatory sequence before touching `apps/backend/internal/markets/` or web Markets routes.
+
 ## What this is
 
 Implementation-grade documentation and machine-readable agent harness for **RetroPick Markets V1**: a Polymarket-native product delivered through web, Go backend, and native Android (Kotlin + Jetpack Compose).

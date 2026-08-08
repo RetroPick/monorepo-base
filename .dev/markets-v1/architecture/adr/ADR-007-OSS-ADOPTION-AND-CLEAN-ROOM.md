@@ -6,6 +6,67 @@
 **Deciders:** platform-orchestrator, legal, markets-engineering
 **Wave:** 1
 
+## Description
+
+This ADR records the accepted clean-room OSS policy for Markets V1: no copy-paste without license review and a `research/open-source-provenance.yaml` entry; prefer MIT/Apache-2.0/BSD; copyleft default deny; Polymarket-adjacent repos are reference-only unless reviewed; prefer package-manager deps; vendor with NOTICE; reimplement intelligence heuristics with documented provenance; CI audit/govulncheck/Dependabot; SBOM on release.
+
+It sits in Wave 1 beside intelligence OSS adoption maps and research audits. Velocity must not outrun legal and security: GPL contamination, unknown IP, unvetted vulns, fork drift, and provenance gaps are the failure modes this decision blocks. Markets-specific venue adapters are not contributed upstream into Polymarket private repos as a shortcut.
+
+Read this before pasting/vendoring third-party source, adopting wallet/chart/CLOB samples, implementing whale/arb heuristics inspired by public repos, or cutting a release SBOM. It does not invent new license exceptions; “works locally” is not license approval.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before **Context / Decision / Consequences** below.
+
+**5W+1H → ADR mapping:** Context = license/IP/security risk of blind copy; Decision = clean-room + provenance; Consequences = slower reuse, defensible SBOM.
+
+**Do not invent decisions.** If a product request conflicts with Decision, refuse or open an ADR change process—do not “interpret around” accepted text.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Deciders: platform-orchestrator, legal, markets-engineering. Audience: engineers adopting libs; intelligence authors; agents pulling GitHub reference code; security/supply-chain. |
+| **What** | **Decision:** Clean-room OSS policy. No copy-paste without license review + `research/open-source-provenance.yaml` entry. Prefer MIT/Apache-2.0/BSD; copyleft default **deny**. Polymarket-adjacent repos are reference-only unless reviewed. Prefer package-manager deps; vendor with NOTICE. Reimplement intelligence heuristics with documented provenance. CI audit/govulncheck/Dependabot; SBOM on release. |
+| **When** | Before pasting/vendoring third-party source; adopting wallet/chart/CLOB samples; implementing whale/arb heuristics inspired by public repos; cutting a release SBOM. |
+| **Where** | Provenance YAML; intelligence OSS adoption map; dependency manifests; release SBOM. Do not silently fork Polymarket private SDKs into the monorepo. |
+| **Why** | Context: GPL contamination, unknown IP/patents, unvetted vulns, fork drift, provenance gaps. Velocity must not outrun legal and security. |
+| **How** | Discover → license review → log provenance → package or clean-room rewrite → scan → ship with SBOM. On reject, pick another candidate. Do not contribute Markets-specific venue adapters upstream to Polymarket private repos. |
+
+### Worked example
+
+**What a developer must do differently because of this ADR**
+
+GPL order-book widget + MIT chart lib + Polymarket sample CLOB client.
+
+1. Deny GPL paste.
+2. Adopt MIT via package manager (or rewrite); log provenance.
+3. Read the sample for understanding; reimplement behind the BFF ACL in RetroPick style.
+4. Run audit/govulncheck before merge; include SBOM on release builds.
+
+**Failure / Never-V1 (still bound by Decision)**
+
+- Dropping unscanned GitHub trees into `apps/`.
+- Copying intelligence heuristics verbatim without provenance.
+- Treating “works locally” as license approval.
+- Vendoring without NOTICE / attribution.
+
+**Agent checklist**
+
+- [ ] License reviewed and compatible?
+- [ ] Provenance YAML entry added?
+- [ ] Package manager preferred over paste?
+- [ ] Security scan clean?
+- [ ] SBOM path known for release?
+
+**ADR section map**
+
+| Lens | Read in this ADR |
+|------|------------------|
+| Who / Why | Context, Forces, Deciders metadata |
+| What / How | Decision (+ Implementation Notes if present) |
+| When / Where | Status/Date, Links, repo/API constraints |
+| Day-2 behavior | Consequences, Review Checklist |
+
+
 ## Context
 
 Building Markets V1 involves integrating with Polymarket APIs and potentially adopting open-source libraries for:

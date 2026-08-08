@@ -6,6 +6,80 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document is the Play Console compliance and release authority for RetroPick Markets V1 Android: Data safety and financial declarations, privacy and terms URLs, Internal → Closed → Open → Production tracks, signing and supply chain, store listing, country distribution, versioning, incident response, and staged rollout—without agent auto-promote.
+
+It sits at the end of Wave 5 packaging. Artifacts come from `apps/android-markets/` release builds; secrets stay in CI and Play App Signing, never git. Product non-goals and Markets positioning come from ANDROID_PRODUCT_SCOPE. Funding remains wallet/on-chain—not IAP for prediction-market positions.
+
+Read this before any Play upload, when changing permissions or declarations, and on versionCode bumps. Prefer RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT for cross-stack change management and ANDROID_TEST_STRATEGY for the manual wallet matrix.
+
+It excludes force-promoting tracks without approval, debuggable release builds, misleading guaranteed-return store claims, and inventing unrelated IAP products for positions.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Release owners, `devops-sre` / Android leads, legal/compliance partners, agents preparing Play tracks—not agents who broadcast or force-promote without approval. |
+| **What** | Play Console requirements, legal gates, release tracks (Internal → Closed → Open → Production), signing/supply chain, artifacts, store listing, IAP policy stance, country distribution, incident response, versioning, web parity notes. |
+| **When** | Before any Play upload; when changing permissions, data safety form, or financial-feature declarations; on versionCode bumps. Staging-live claims require evidence, not hope. |
+| **Where** | Spec: this file. Artifacts from `apps/android-markets/` release builds. Secrets in CI/Play App Signing—not git. Product scope constraints: ANDROID_PRODUCT_SCOPE. Deploy matrix: architecture deployment docs. |
+| **Why** | Misdeclared financial features or privacy forms block launch. Sideload-only mindsets skip required disclosures. Agents must not invent store copy that implies sportsbook gambling products RetroPick is not positioning. |
+| **How** | Complete Data safety + financial declarations; privacy policy URLs live; tracks promote with staged rollout. Sign with Play App Signing. VersionCode monotonic. Rollback via Play staged rollback + BFF kill switches where applicable. No IAP for prediction-market positions—funding is wallet/on-chain per product design. |
+
+### Worked example
+
+**Happy path — Internal testing.** Build staging variant pointing at staging BFF; upload AAB to Internal; QA runs manual wallet matrix; crash-free; then Closed testing. Store listing uses Markets positioning and eligibility notes. Production only after legal gates checked.
+
+**Happy path — hotfix.** Bump version; minimal diff; staged production % rollout; monitor Vitals; halt rollout if ANR spikes; BFF flag can disable trading server-side while app update cooks.
+
+**Failure / degraded.** Production keys in CI logs → rotate + incident. Claiming “live on Play” without console evidence → forbidden. Country list includes unsupported jurisdictions vs eligibility → align distribution with geoblock policy. Agents merging release branches without human approval → stop.
+
+### Pre-production gate list
+
+- [ ] Privacy policy + terms URLs
+- [ ] Data safety accurate (wallet, push, crash)
+- [ ] Financial features declaration reviewed
+- [ ] No debug/menus in release
+- [ ] Proguard/R8 mapping archived
+- [ ] Staging smoke with real connect (human)
+- [ ] Rollback owner named
+
+### Copy guidance
+
+Store listing describes prediction markets / information markets product language consistent with web—avoid sportsbook or entertainment-gaming metaphors. Screenshots show order ticket and portfolio truthfully, including risk/max-loss cues where possible.
+
+### Track meaning
+
+| Track | Purpose |
+|-------|---------|
+| Internal | Eng/QA only |
+| Closed | Wider trusted testers |
+| Open | Public beta if used |
+| Production | Staged % rollout |
+
+### Secrets boundary
+
+| Secret | Location |
+|--------|----------|
+| Upload key / Play signing | Play + CI secret store |
+| BFF URLs | Build config / remote config |
+| Push keys | Server-side |
+| Wallet mnemonics | Nowhere in app/CI |
+
+### Agent anti-patterns
+
+- Force-promoting tracks without approval
+- Store screenshots with misleading guaranteed-return claims
+- Shipping `debuggable true` release
+- Declaring unrelated IAP products for positions
+
+### Success signal
+
+A release owner can promote Internal → Production using only this doc’s gates and produce console evidence for staging/production claims.
+
 ## 1. Purpose
 
 Specify Play Console declarations, release tracks, signing, SBOM, and legal gates.

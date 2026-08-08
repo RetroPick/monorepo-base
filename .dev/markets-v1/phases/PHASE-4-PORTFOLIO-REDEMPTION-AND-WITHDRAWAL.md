@@ -9,6 +9,63 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-4 completes the asset lifecycle after trading: position projections, activity, whale/large-trade feed, CTF split/merge, resolution/redemption, withdrawal completion, wallet profiles, PnL, and reconciliation tests. BFF positions are projections, not ownership authority.
+
+Unreconciled redeem/withdraw paths strand user funds; “guaranteed arb” or unretractable whale labels create legal/trust harm. Intelligence features may proceed in parallel only after schemas are stable; Android UI waits for PHASE-5.
+
+CTF always preview-before-sign; whale feed stays descriptive, evidence-linked, and retractable. Withdrawal completion stays behind whitelist/policy approval. Exit via `MKT-P4-010` before treating APIs as stable for PHASE-5 clients.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-4 — Portfolio, Redemption, and Withdrawal**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | Portfolio/CTF/indexer agents, intelligence feed owners, web portfolio UI; humans for CTF mainnet relay and withdrawal whitelist. |
+| **What** | Complete asset lifecycle after trading: position projections, activity, whale/large-trade feed, CTF split/merge, resolution/redemption, withdrawal completion, wallet profiles, PnL, reconciliation tests. |
+| **When** | After PHASE-3 exit with verified CTF addresses. Positions before CTF mutations; intelligence features parallel only after schemas stable. Android UI waits for PHASE-5. |
+| **Where** | `internal/markets/portfolio|ctf/`, intelligence docs/modules, `PortfolioView.tsx`, migrations for positions/CTF/activity. Chain: split/merge/redeem, Neg Risk convert, withdrawal transfer — user-signed / relayed per policy, never custodied keys. |
+| **Why** | BFF positions are projections, not ownership authority. Unreconciled redeem/withdraw paths strand user funds; “guaranteed arb” or unretractable whale labels create legal/trust harm. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P4-001`…`MKT-P4-010` positions through exit gate
+- CTF preview-before-sign; fixed-point PnL; signal retraction pipeline
+- APIs: Position, CTFPreview, RedemptionStatus, WalletProfile, LargeTradeSignal
+
+### Out of scope (do not implement under this phase authorization)
+
+- Android UI implementation, combos, guaranteed-arbitrage product labels
+- PRISM/legacy; custom exchange
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Positions reconcile to venue within SLA; CTF preview+receipt; redeem/withdraw recovery tested
+- Whale feed descriptive + retractable; REQ MKT-FR-040/060, MKT-DATA-001 evidenced
+- `MKT-P4-010` complete before treating APIs as stable for PHASE-5 trading/portfolio clients
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Build position projection service with drift metrics and hourly reconcile
+2. CTF operations always preview then user auth; cap relay; test recovery
+3. Intelligence: evidence-linked, versioned, retractable; no insider accusations
+4. Withdrawal completion behind whitelist/policy approval
+5. Evidence includes reconciliation test output — not screenshots alone
+
+### Worked example
+
+Agent on `MKT-P4-001` stores projections with venue reconcile job; UI shows “Updating” on reorg rather than inventing balances.
+
+Whale feed task (`MKT-P4-003`) emits reason codes and supports retraction; copy review rejects “guaranteed arb” and insider language per invariants #23/#27.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-4`

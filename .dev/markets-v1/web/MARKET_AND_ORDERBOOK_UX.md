@@ -6,6 +6,78 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the market-page and order-book UX authority for RetroPick Markets V1 web. It covers page composition (chart/rules, book ladder, order ticket), cents depth visualization, ticket field rules, the stale-book journey (J14), Negative Risk disclosure, and performance notes such as ladder virtualization.
+
+It sits in Wave 4 with wallet and portfolio UX. Code targets market routes under `app/(markets)/`, book and trading hooks, and BFF orderbook plus `market.<id>.book` WebSocket streams. Venue truth is Polymarket via the BFF—not a RetroPick matcher. Android Compose market screens share tick, side, and freshness meanings even when layout differs.
+
+Read this for PHASE-1/3 market read and PHASE-3 trading UI, or whenever book WebSocket schema or tick size from the BFF changes. Prefer WALLET_AND_TRANSACTION_UX for connect/sign handoff and ERROR_DEGRADED_AND_RECOVERY_UX for full journey state tables.
+
+It excludes client-invented prices or depth, sportsbook slang for the order ticket, submitting without preview, and mobile-only price semantics that diverge from desktop.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `fe-markets` building market detail, order book ladder, and order ticket; realtime hook authors; agents syncing book UX with Android Compose market screens. |
+| **What** | Market page composition (chart/rules | book | ticket), cents depth visualization, ticket field rules, stale-book journey (J14), Negative Risk notes, and performance (virtualization). |
+| **When** | PHASE-1/3 market read + PHASE-3 trading UI. Anytime book WS schema or tick size from BFF changes. Before optimizing charts at the expense of ticket clarity. |
+| **Where** | Spec: this file. Code targets: market route under `app/(markets)/markets/m/[marketId]`, hooks `useMarketsOrderBook` / trading hooks, components for ladder + ticket. Data: BFF orderbook + `market.<id>.book` WS. Authority: Polymarket via BFF—not a RetroPick matcher. |
+| **Why** | Users decide size/price from the book; stale or fabricated levels cause bad orders. Ticket must show max loss and fees from preview, not optimistic client math. Shared semantics with Android keep one mental model. |
+| **How** | REST snapshot + WS deltas with freshness labels. Click book row → fill ticket price. Limit orders V1; price 1–99¢ per BFF tick. Preserve ticket inputs across transient errors. Disable submit when book stale or eligibility false. Virtualize deep ladders. |
+
+### Worked example
+
+**Happy path — read book, draft ticket, preview.** User opens market page; book shows cents + depth bars + spread. Selects YES, clicks ask level → ticket price set. Enters size; client calls `POST /markets/orders/preview` with idempotency key; modal shows fees and max loss. User confirms → wallet sign path (see WALLET doc). Fills reconcile via `user.fills` + REST.
+
+**Happy path — mobile.** Ticket in bottom sheet; book scrollable; chart collapsible. Same BFF fields as desktop—no mobile-only price semantics.
+
+**Failure / degraded (J14).** Book heartbeat lost or age exceeds threshold → stale banner, freeze click-to-price or warn hard, block submit until refresh. WS gap → resnapshot REST; never invent levels. Upstream outage → degraded empty/error book with retry. Partial render with spinner only on first load—not fake mid-book zeros.
+
+### UX invariants
+
+1. Never fabricate prices or depth.
+2. Max loss is prominent before sign.
+3. Outcome language is YES/NO (or market outcomes)—not sportsbook parlance.
+4. Control names: **order ticket**, order book, positions—never sportsbook slang.
+5. Negative Risk markets follow BFF exchange choice; UI discloses which book user is on.
+6. Android parity: same tick, side, and freshness meanings even if layout differs.
+
+### Perf notes for agents
+
+Virtualize >40 levels; debounce rapid WS batches into animation frames; keep ticket controlled inputs local so book updates do not reset typing. Chart libraries stay client-only; do not block LCP of rules text.
+
+### Ticket field contract (V1)
+
+| Field | Source of truth | Notes |
+|-------|-----------------|-------|
+| Side / outcome | User + market metadata | YES/NO or multi-outcome labels from BFF |
+| Type | Product policy | Limit first |
+| Price | User + book click + tick | BFF tick size |
+| Size | User | Base units / display helper |
+| Fees / max loss | Preview response | Never client-invented |
+
+### Realtime hygiene
+
+1. Subscribe on market enter; unsubscribe on leave.
+2. Sequence gaps → REST snapshot.
+3. Heartbeat loss → stale within documented SLA.
+4. Do not animate levels in a way that hides stale state.
+
+### Agent anti-patterns
+
+- Using sportsbook slang for the order ticket in code or copy.
+- Submitting without preview.
+- Keeping WS “live” badge when last sequence is old.
+- Different tick rules on mobile web vs desktop.
+
+### Success signal
+
+User can go from book click to preview with correct price and see max loss before any wallet prompt.
+
 ## 1. Purpose
 
 Order book, order ticket, depth visualization, stale book handling.

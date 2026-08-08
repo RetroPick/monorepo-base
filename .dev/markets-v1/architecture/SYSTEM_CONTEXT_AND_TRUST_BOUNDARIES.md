@@ -6,6 +6,58 @@
 **Product:** RetroPick Markets V1
 **Wave:** 1 (architecture freeze)
 
+## Description
+
+This document is the C4 system-context and trust-boundary authority for RetroPick Markets V1: Markets is a Polymarket-native experience, intelligence, and policy layer—**not** a venue. It specifies boundaries among trader, user wallet, BFF, Polymarket, push, and geo/IP, and states that RetroPick does not custody user private keys, operate a custom exchange, or issue Markets outcome tokens.
+
+It sits at the root of Wave 1 architecture and underpins ADR-001 (no custom exchange), ADR-002 (BFF ACL), ADR-003 (user signing), and ADR-009 (no auto copy). Venue truth and settlement remain Polymarket Gamma, CLOB V2, and CTF; operators monitor without trading authority; geo fails closed on ambiguity.
+
+Read this before any feature that moves funds, stores credentials, calls upstream, claims settlement authority, or adds an external actor. If a design crosses a trust boundary differently than this document, stop and revisit ADRs—do not invent a new trust model inside a feature PR. Prefer monorepo and deployment docs for folder layout and release trains.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+If a design crosses a trust boundary differently than this document, stop and revisit ADRs—do not invent a new trust model inside a feature PR.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace Purpose, Scope, or later normative sections; if anything conflicts, the body of this document wins.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Every Markets implementer (web, Android, BFF, security, ops); Wave 1 agents enforcing invariants; legal/security reviewers of custody or settlement claims. |
+| **What** | C4 system context: RetroPick Markets is a Polymarket-native experience, intelligence, and policy layer—**not** a venue. Trust boundaries among trader, user wallet, BFF, Polymarket, push, and geo/IP. RetroPick does not custody user private keys and does not operate a custom exchange or issue Markets outcome tokens. |
+| **When** | Before any feature that moves funds, stores credentials, calls upstream, claims settlement authority, or adds an external actor. Revisit when eligibility, signing, or operator powers change. |
+| **Where** | Spec: this file (+ threat model and signing integrity docs). Code: Markets web product, Android app paths, `apps/backend/internal/markets/`, client wallets. Venue truth: Polymarket Gamma, CLOB V2, CTF. Ops principals are non-trading. |
+| **Why** | Wrong trust assumptions recreate epoch-style custody or RetroPick settlement. Boundaries enforce [ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md), [ADR-002](adr/ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md), [ADR-003](adr/ADR-003-WALLET-AND-SIGNING-MODEL.md), and [ADR-009](adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md). |
+| **How** | Clients authenticate to BFF; BFF normalizes Polymarket and enforces eligibility; wallets sign; BFF prepares unsigned payloads only; geo fail-closed on ambiguity; never put builder/relayer keys in clients; operators monitor without trading authority. |
+
+### Worked example
+
+**Happy path**
+
+1. Trader opens order ticket (authenticated session, untrusted input).
+2. BFF returns preview + content hash (policy + unsigned payload prep).
+3. User wallet signs on device; BFF submits the **signed** order to Polymarket.
+4. Settlement remains Polymarket/CTF/USDC; RetroPick never holds the seed.
+
+**Failure / Never-V1**
+
+- Adding `contracts/markets/` or RetroPick-issued outcome tokens for Markets.
+- Server-signing user order intent, or treating session JWT as chain authority.
+- Operators placing trades; geo treated as advisory-open.
+- Conflating PRISM or legacy epoch trust models with Markets routes.
+
+**Agent checklist**
+
+- [ ] Who is trusted for venue truth?
+- [ ] Who holds keys?
+- [ ] Does this PR move a secret or signing duty across a boundary?
+- [ ] Eligibility fail-closed?
+- [ ] Any custom-exchange implication? (Reject.)
+
+**Reading tip:** Skim Who/What first, confirm Where paths exist in the repo, then implement How. Use Never-V1 as a PR self-review gate before marking harness tasks complete.
+
+
 ## 1. Purpose
 
 This document defines the **system context** for RetroPick Markets V1 using the C4 model (Level 1: Context, Level 2: Container overview) and specifies **trust boundaries** between clients, the Backend-for-Frontend (BFF), the Polymarket venue, and on-chain settlement. It is the authoritative reference for custody, signing, and data-flow invariants that all Wave 1 implementation must honor.

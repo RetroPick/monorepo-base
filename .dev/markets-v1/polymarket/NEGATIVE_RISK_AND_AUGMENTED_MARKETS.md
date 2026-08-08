@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document specifies negative-risk multi-outcome mechanics, augmented placeholders/“Other” rules, detection via official `negRisk` fields, adapter `convert` semantics, and BFF trading rules for Markets V1 Wave 2. Venue rules are Polymarket’s; RetroPick must not infer neg-risk from titles or invent adapter addresses.
+
+It sits in Wave 2 between catalog ingest, order assembly, and CTF/relayer paths. Orders for `negRisk: true` markets bind to the Neg Risk CTF Exchange domain from the verified contract registry; standard markets use Exchange V2. Placeholders stay hidden until named; aggressive “Other” trading against upstream guidance is blocked.
+
+Read this for any market with `negRisk: true`, before signing (domain/exchange selection), and before offering convert UX. Prefer [CONTRACT_ABI_AND_ADDRESS_REGISTRY.md](./CONTRACT_ABI_AND_ADDRESS_REGISTRY.md) for addresses and [POSITIONS_CTF_AND_REDEMPTION.md](./POSITIONS_CTF_AND_REDEMPTION.md) for post-convert portfolio refresh—not for title heuristics or Combos.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Catalog ingest + order assembly engineers, market UI, agents selecting Exchange vs Neg Risk Exchange, CTF convert/relayer callers. |
+| **What** | Negative-risk multi-outcome mechanics, augmented placeholders/"Other" rules, detection via official `negRisk` fields, adapter `convert` semantics, and BFF trading rules. |
+| **When** | Any market with `negRisk: true`; before signing orders (domain/exchange selection); before offering convert UX; when EV-012 guidance updates. |
+| **Where** | Spec: this doc. Flags: Gamma/CLOB `getClobMarketInfo()`. Settlement: Neg Risk CTF Exchange + adapter per [CONTRACT_ABI_AND_ADDRESS_REGISTRY.md](./CONTRACT_ABI_AND_ADDRESS_REGISTRY.md) (verify — do not invent). |
+| **Why** | Wrong exchange or treating No-on-A as ordinary binary breaks settlement. Inferring neg-risk from titles causes mis-routing. Augmented "Other"/placeholders are easy to mis-trade. Venue rules are Polymarket's. |
+| **How** | Detect only via official fields; route orders to Neg Risk exchange when flagged; expose convert via relayer/CTF paths; UI trades named outcomes; hide placeholders until named; avoid direct "Other" trading per upstream guidance. |
+
+### Worked example
+
+**Happy path.** Ingest sets `negRisk` from Gamma. UI shows multi-outcome event. User buys Yes on outcome B; BFF selects Neg Risk CTF Exchange domain for EIP-712. Later user holds No on A and converts → Yes on all other outcomes via documented adapter `convert`, optionally gasless through relayer. Named outcomes only appear as primary tickets; placeholders stay hidden.
+
+**Failure / degraded.** Title contains "election" so agent sets `negRisk=true` without field → reject. Order signed against standard CTF Exchange for a neg-risk market → upstream reject / funds risk — assembly tests must bind exchange to flags. Trading placeholder or "Other" aggressively against guidance → product block. Missing registry verification for Neg Risk exchange → trading blocked. Combos remain unrelated and excluded.
+
+**Routing rules (agents)**
+
+| Signal | Action |
+|--------|--------|
+| `negRisk: true` | Use Neg Risk exchange + domains |
+| `negRisk: false` / absent | Standard Exchange V2 |
+| Placeholder outcomes | Hide until named |
+| Infer from title | **Forbidden** |
+
+**Convert semantics (orientation):** under negative risk, a No share in market A can convert into Yes shares across the complementary outcomes via the Neg Risk adapter — this is venue inventory math, not a RetroPick inventiveness layer. UI must explain convert as a Polymarket operation. Augmented markets add named outcomes + placeholders + explicit Other; follow Polymarket guidance to prefer named outcomes and keep placeholders non-tradable until clarified.
+
+**Test focus:** golden fixtures should cover (a) standard market → Exchange V2 domain, (b) `negRisk: true` → Neg Risk exchange domain, (c) title-only heuristic rejected, (d) placeholder outcomes hidden. Convert tests belong with relayer/CTF, not with inventing adapter addresses.
+
+**Portfolio coupling:** after convert, position projections must refresh from Data API/on-chain before offering another convert or redeem. Do not locally synthesize Yes bags without venue confirmation.
+
+**Augmented market UX:** show event-level mutual exclusivity; explain that only one outcome wins. Keep "Other" education copy short and non-gambling. Placeholders must not appear as priced tickets until named by venue metadata.
+
+**Registry dependency:** never embed Neg Risk exchange literals in order code — load from the verified contract registry after bytecode checks.
+
+**Related docs:** [CONTRACT_ABI_AND_ADDRESS_REGISTRY.md](./CONTRACT_ABI_AND_ADDRESS_REGISTRY.md), [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [POSITIONS_CTF_AND_REDEMPTION.md](./POSITIONS_CTF_AND_REDEMPTION.md).
+
 ## 1. Purpose
 Neg risk mechanics, augmented placeholders, exchange/adapter selection, trading rules.
 

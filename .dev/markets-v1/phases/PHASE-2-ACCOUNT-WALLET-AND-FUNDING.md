@@ -9,6 +9,63 @@
 
 > Per-phase contract per master prompt §16. Phase IDs locked per §15.
 
+## Description
+
+PHASE-2 delivers account, wallet, and funding without order submission: eligibility, session, wallet connect, account-wallet discovery, token approvals, balance projections, deposit flow, withdrawal preview, funding notifications, and relayer sandbox — proving signer ≠ account wallet and fail-closed regions.
+
+Custody mistakes and open-when-unknown geoblock are irreversible trust failures. Funding without reconcile FSMs creates double-credit risk before any trade exists. Scan blockers (e.g. BLK-001 geoblock, BLK-005 wallet flows) before coding; never hardcode `eligible=true`.
+
+APIs such as EligibilityResponse, WalletSession, DepositStatus, and WithdrawalPreview belong here. User-signed ERC-20 approve and sandbox account-wallet deploy are in scope; server-held user keys and CLOB submit are not. Exit via `MKT-P2-010` before PHASE-3.
+
+## 0. Developer intent (5W+1H)
+
+Orientation for agents executing **PHASE-2 — Account Wallet and Funding**. The document header **Status: reviewed** means this phase *spec* was reviewed for quality — it is **not** a claim that the phase has exited or that all tasks are complete. Live execution state lives only in `implementation-manifest.yaml` (`current_phase`) and per-task statuses in `task-graph.yaml`. Do not invent phase progress from this file.
+
+| Dimension | Intent |
+|-----------|--------|
+| **Who** | fe-wallet, be-api auth/eligibility/funding agents; ops for sandbox wallet & relayer creds; security for custody/session binding review. |
+| **What** | Eligibility, session, wallet connect, account-wallet discovery, token approvals, balance projections, deposit flow, withdrawal preview, funding notifications, and relayer sandbox — proving signer ≠ account wallet and fail-closed regions. |
+| **When** | After PHASE-1 exit and drafted auth schemas. Wallet/session before funding; human sandbox approvals before relayer budgeted work. No order submission until PHASE-3. |
+| **Where** | `internal/markets/auth|eligibility|wallet|funding/`, web wallet surfaces, migrations `*users*` / sessions / eligibility / funding_transactions. Integrations: geoblock API, WalletConnect, Builder relayer sandbox, Polygon RPC reads. |
+| **Why** | Custody mistakes and open-when-unknown geoblock are irreversible trust failures. Funding without reconcile FSMs creates double-credit risk before any trade exists. |
+| **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
+
+### In scope (agent boundary for this phase)
+
+- `MKT-P2-001`…`MKT-P2-010` wallet through exit gate
+- APIs: EligibilityResponse, WalletSession, DepositStatus, WithdrawalPreview
+- User-signed ERC-20 approve; account-wallet deploy in sandbox; balance reads — never server-held user keys
+
+### Out of scope (do not implement under this phase authorization)
+
+- CLOB order submission, CTF production, Android trading, combos
+- PRISM/legacy; custom exchange; bypassing open blockers by hardcoding eligible=true
+
+### Exit gate — what “done” means for an agent
+
+A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
+
+- Signer/account-wallet separation tested; deposit/withdrawal reconcile paths proven in sandbox
+- Unknown/timeout eligibility → fail closed; required sandbox approvals filed
+- REQ MKT-FR-020/021, MKT-SEC-001/003 evidenced; `MKT-P2-010` complete before PHASE-3
+
+Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
+
+### How (execution procedure)
+
+1. Scan BLOCKERS (e.g. BLK-001 geoblock, BLK-005 wallet flows); stop if gated
+2. Implement session binding without storing raw private keys (T4)
+3. Build deposit FSM + withdrawal preview with idempotent safe retries only
+4. Relayer sandbox behind allowlists/budget caps after human cred approval
+5. Evidence + handoff; escalate rather than inventing geoblock upstream success
+
+### Worked example
+
+Agent on `MKT-P2-002` encodes geoblock timeout as `eligible: false`, adds unit/contract vectors, and if upstream is unwired logs BLK-001 and leaves the task blocked instead of shipping an allow-all stub.
+
+Deposit work (`MKT-P2-006`) records transition metrics and reconcile hooks but never calls CLOB submit APIs.
+
+
 ## Phase ID and exact name
 
 - **Phase ID:** `PHASE-2`

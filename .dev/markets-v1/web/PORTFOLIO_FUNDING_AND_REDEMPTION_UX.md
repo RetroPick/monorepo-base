@@ -6,6 +6,73 @@
 **Product:** RetroPick Markets V1
 **Wave:** 4 — Web architecture and UX
 
+## Description
+
+This document is the portfolio, funding, redeem, and withdraw UX authority for RetroPick Markets V1 web. It covers positions and PnL summary, deposit quote and track (J05), claimable redeem (J11), withdraw preview (J12), indexer-lag honesty, empty states, and receipt patterns driven by BFF operation ids.
+
+It sits in Wave 4 after a wallet session exists, with routes under portfolio, funding, and redeem, and OpenAPI funding/positions operations. Domain detail for Polymarket funding and positions lives in sibling product docs; this file owns screen composition, money display helpers, and async tracking UX. Android portfolio and funding must consume the same status enums and operation ids.
+
+Read this for PHASE-2 funding UI and PHASE-4 portfolio/redeem work, or when BFF funding or position projections change. Prefer WALLET_AND_TRANSACTION_UX for signing and ERROR_DEGRADED_AND_RECOVERY_UX for unknown or blocked states.
+
+It excludes optimistic balance credits before track confirmation, browser-side PnL that disagrees with the BFF, hiding fees until after sign, and celebratory payout hype on redeem.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | `fe-markets` building portfolio, activity, deposit, withdraw, and redeem journeys; agents wiring funding track IDs; parity reviewers vs Android portfolio tab. |
+| **What** | Positions table + PnL summary, deposit quote/track (J05), redeem claimable flow (J11), withdraw preview (J12), indexer-lag honesty, empty states, receipt patterns. |
+| **When** | PHASE-2 funding UI and PHASE-4 portfolio/redeem emphasis (see route phase map). After wallet session exists. When BFF funding or position projections change. |
+| **Where** | Spec: this file. Routes: `/markets/portfolio`, `/markets/funding`, redeem route. APIs: positions, funding quote/track, withdrawals, redemption previews per OpenAPI. Domain detail: polymarket funding/positions docs. |
+| **Why** | Users need trustworthy balances and claimable state. Optimistic PnL or hidden fees destroy trust. Funding is async—UI must track operations, not assume instant credit. |
+| **How** | Render `Money` / `DecimalString` via helpers. Portfolio from BFF projections + optional `user.positions` WS. Deposit: method → quote → show addresses/instructions → poll/track `fundingOperationId`. Redeem/withdraw: preview → sign if needed → track. Label indexer lag; never show claimable without BFF say-so. |
+
+### Worked example
+
+**Happy path — funded trader checks portfolio.** User opens Portfolio: summary value + PnL, positions rows (market, side, size, avg, mark, PnL). Tap row → market detail. Resolved position with claimable → Redeem CTA → preview → sign → success receipt. Activity feed shows fills and funding credits.
+
+**Happy path — deposit.** Funding page: choose method, receive quote, confirm instructions, track operation until credited. UI stays in “processing” with request/operation id; on credit, portfolio balance updates from projection.
+
+**Failure / degraded.** Indexer lag → “updating” / delayed badge, not zeroed positions. Funding stuck → actionable support copy + id; do not double-create quotes carelessly—respect idempotency. Withdraw to invalid address → client+BFF validation errors before sign. Redeem when not claimable → disabled CTA with reason. Empty portfolio → Discover CTA, not fake demo positions.
+
+### Money & copy rules
+
+- PnL sign and color with text equivalent (accessible).
+- Disclose fees from BFF preview, not hardcoded UI constants.
+- Prefer “deposit / withdraw / redeem / positions / claimable” language.
+- For resolved markets, use resolution and redeem—not entertainment-gaming metaphors.
+
+### Parity
+
+Android portfolio and funding screens must consume the same operation ids and status enums. If web introduces a receipt field, extend OpenAPI first.
+
+### Operation tracking UI
+
+| Operation | User-visible id | Terminal cues |
+|-----------|-----------------|---------------|
+| Deposit / funding | `fundingOperationId` | Credited / failed / expired |
+| Withdraw | withdraw id | Confirmed / failed |
+| Redeem | redemption / tx track | Claimed / failed / unknown |
+
+### PnL display rules
+
+- Use BFF-provided mark and cost basis fields.
+- Show currency + decimals consistently with `Money`.
+- Unknown mark → “—” + lag explanation, not `0`.
+
+### Agent anti-patterns
+
+- Optimistic balance credit before track confirms.
+- Hiding fees until after sign.
+- Celebratory payout hype on redeem.
+- Portfolio math in the browser that disagrees with BFF.
+
+### Success signal
+
+User can deposit, see processing with an id, then observe portfolio update from projections without refreshing into invented numbers.
+
 ## 1. Purpose
 
 Positions, PnL, deposit, redeem, withdraw journeys.

@@ -6,6 +6,73 @@
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
+## Description
+
+This document covers notification architecture and background work for RetroPick Markets V1 Android (Kotlin + Compose): FCM integration, categories, v1 payload schema, WorkManager jobs, user preferences, rate limits, Doze behavior, and testing—without autonomous trading.
+
+It sits in PHASE-5D retention work after read and trade basics. Client pieces live in a notifications module plus WorkManager; backend owns alerts/inbox and push provider secrets. Deep-link landing rules are in NAVIGATION_AND_DEEP_LINKS. Web alerts UI is complementary, not a second push stack. Widgets are V1.1+ unless explicitly tasked.
+
+Read this when implementing alert → navigation, when BFF alert APIs or alerts.inbox change, and before enabling marketing-like pushes. Prefer ANDROID_PRODUCT_SCOPE for non-goals.
+
+It excludes background order submit, auto-buy-on-alert workers, high-pressure entertainment urgency in titles, and putting full balances on the lock screen beyond explicit user prefs.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Android engineers on FCM, WorkManager, and notification prefs; agents implementing alert → navigation; privacy reviewers of push payloads. |
+| **What** | Notification architecture, FCM integration, categories, v1 payload schema, WorkManager jobs, (V1.1+) widgets, background restrictions, user preferences, rate limits, Doze behavior, testing. |
+| **When** | PHASE-5D retention work after read/trade basics exist. When BFF alert APIs or WS `alerts.inbox` change. Before enabling marketing-like pushes. |
+| **Where** | Spec: this file. Client: notifications module + WorkManager. Backend: alerts/inbox + push provider config (server-side secrets). Deep links: NAVIGATION_AND_DEEP_LINKS. Web alerts UI is complementary, not a second push stack. |
+| **Why** | Push drives mobile engagement but spam erodes trust and may violate policy. Background work must not autonomously trade. Payloads must not leak sensitive balances in lock-screen cleartext beyond user prefs. |
+| **How** | Opt-in categories; rate-limit. Payload carries ids + type, not full secrets. Tap → validated navigation. WorkManager for reconcile/retry of **non-trading** sync. No job that submits orders without user intent. Respect Doze; do not fight the OS with hidden foreground services for trading. |
+
+### Worked example
+
+**Happy path — fill alert.** BFF emits alert → FCM → notification “Order updated” with market title → tap → market/orders route → repository refresh shows fill. Prefs allow trading alerts; quiet hours respected if implemented.
+
+**Happy path — backlog sync.** WorkManager periodic reconcile of inbox/orders when constrained network allows; UI badges update; no auto-sign.
+
+**Failure / degraded.** Invalid payload → drop + log metric, no crash. User disabled notification permission → in-app inbox still works via REST/WS. FCM token rotate → re-register with BFF. Attempt to add “auto-buy on alert” worker → reject (product non-goal). Lock screen shows unexpected balance → tighten channel sensitivity / prefs.
+
+### Category guidance
+
+| Category | Default | Notes |
+|----------|---------|-------|
+| Orders/fills | Opt-in recommended | High trust |
+| Positions/resolution | Opt-in | Claimable reminders careful |
+| Product/education | Off | Not spammy |
+| Security/session | On (limited) | Rare |
+
+### Copy & policy
+
+Notification text stays informative and calm—order updates, resolution, funding credited—not high-pressure hype. Align with Play financial/user-data disclosures.
+
+### Payload minimalism
+
+Prefer: `type`, `alertId`, `marketId`/`orderId`, `emittedAt`. Fetch details in-app. Avoid lock-screen amounts unless user preference explicitly allows.
+
+### WorkManager allowlist (V1)
+
+- Inbox sync
+- Token refresh / registration
+- Read-only projection refresh
+
+Disallow: order submit, autonomous cancel/replace, funding initiation without UI.
+
+### Agent anti-patterns
+
+- High-frequency marketing pushes
+- Background trading “helpers”
+- Trusting deep link URLs from payload without allowlist
+- High-pressure entertainment-gaming urgency in notification titles
+
+### Success signal
+
+A fill notification opens the right screen; disabling notification permission still leaves in-app inbox functional.
+
 ## 1. Purpose
 
 Specify FCM, WorkManager jobs, notification categories, and Glance widgets (V1.1+).

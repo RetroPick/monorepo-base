@@ -6,6 +6,54 @@
 **Product:** RetroPick Markets V1 — Wave 2 Polymarket Integration
 **Wave:** 2 (implementation-grade upstream contract)
 
+## Description
+
+This document defines catalog, snapshot, and streaming market-data architecture for Markets V1 Wave 2: Gamma + CLOB + Data API through the BFF, normalization (`token_id` → `instrumentId`), cache TTLs, and client-facing RetroPick WebSocket/SSE only. Production clients must not embed upstream Polymarket WS hosts (ADR-002).
+
+It sits in Wave 2 beside the endpoint registry and order lifecycle. Ingest and cache live in the BFF; fan-out is the RetroPick realtime hub. Upstream CLOB WS is server-side only and must be revalidated from official docs—do not guess paths. Combos RFQ streams stay gated off; intelligence feeds must not place orders from the data plane.
+
+Read this for Phase 1–3 market browse and ticket UX, and before any production client hard-codes upstream realtime URLs. Prefer [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md) for fill authority and [FAILURE_DOMAINS_AND_DEGRADED_MODES.md](../architecture/FAILURE_DOMAINS_AND_DEGRADED_MODES.md) for blast-radius policy—not for inventing mid prices when books are stale.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the normative sections below.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | BFF marketdata/realtime owners (`be-realtime`, `be-api`), web/Android market screens, agents wiring Gamma ingest and CLOB book/WS fan-out. |
+| **What** | Catalog, snapshots, and streaming architecture: Gamma + CLOB + Data API through BFF; normalization (`token_id` → `instrumentId`); cache TTLs; client-facing RetroPick WS/SSE only. |
+| **When** | Phase 1–3 market browse and ticket UX; before any production client embeds upstream WS URLs; on rate-limit or channel doc changes. |
+| **Where** | Spec: this doc. Ingest/cache: BFF. Fan-out: RetroPick WebSocket/SSE hub. Upstream CLOB WS is server-side only (verify URL at impl — do not guess). |
+| **Why** | Clients must not speak Polymarket ACL hosts in production (ADR-002). Normalized types keep OpenAPI stable when upstream renames fields. Stale books without degradation flags cause bad previews. |
+| **How** | Proxy/cache Gamma and CLOB REST; maintain upstream WS with reconnect; fan out filtered channels; map prices as decimal strings; mark degraded when primary source fails; never enable Combos RFQ streams. |
+
+### Worked example
+
+**Happy path.** User opens a market. Client loads RetroPick market detail + subscribes to BFF book channel. BFF serves Gamma metadata (30–60s cache) and CLOB book (2–5s / WS deltas). Trades from Data API fill the tape. Ticket preview uses mid/fee from BFF. Neg-risk flags from official fields flow into UI badges via ingest — not title heuristics.
+
+**Failure / degraded.** Gamma 5xx → stale catalog with `degraded` flag; user can browse cached markets but refresh CTA shows lag. CLOB WS disconnect → REST poll fallback; if both fail, ticket blocks marketable orders. Production APK with hardcoded `wss://ws-subscriptions-clob...` fails security review. Unverified WS path in registry → do not ship until revalidated. Intelligence/whale feeds must not place orders from data plane (separate invariant).
+
+**Source priority (summary)**
+
+| Data | Primary | Client access |
+|------|---------|---------------|
+| Events/markets | Gamma via BFF | RetroPick API |
+| Order book | CLOB REST/WS via BFF | RetroPick WS/SSE |
+| Positions/trades history | Data API via BFF | RetroPick API |
+
+**Normalization rules agents forget**
+
+- Persist upstream ids alongside RetroPick `instrumentId` for reconcile.
+- Prices and sizes as decimal strings / fixed-point — no float JSON for money.
+- Fan-out user channels are session-scoped; never broadcast another user's orders.
+- Catalog may include markets RetroPick will not trade (geoblock, combos gated, paused) — filter in BFF/capabilities, not by deleting upstream truth silently.
+
+**Ticket coupling:** marketdata may be degraded while still allowing browse; order preview must refuse marketable submits when book/fee/geoblock inputs are missing. Realtime is not a substitute for CLOB authority on fills.
+
+**Cache vs truth:** TTLs are freshness budgets, not licenses to trade on stale mids. When WS and REST disagree, prefer CLOB REST snapshot for ticket math and mark the stream reconnecting.
+
+**Related docs:** [API_SDK_AND_ENDPOINT_REGISTRY.md](./API_SDK_AND_ENDPOINT_REGISTRY.md), [ORDER_LIFECYCLE.md](./ORDER_LIFECYCLE.md), [NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](./NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md).
+
 ## 1. Purpose
 Catalog, snapshot, streaming market data architecture: Gamma + CLOB + Data API via BFF.
 
