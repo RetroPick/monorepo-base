@@ -2,10 +2,10 @@
 # Alpine builder: much smaller pull than bookworm (~few hundred MB vs ~900MB+), fewer
 # TLS stalls on flaky networks. Matches go.mod 1.24.x; GOTOOLCHAIN=local avoids extra
 # toolchain downloads during build.
-FROM golang:1.24-alpine AS build
+FROM golang:alpine AS build
 WORKDIR /src
 RUN apk add --no-cache ca-certificates
-ENV CGO_ENABLED=0 GOTOOLCHAIN=local
+ENV CGO_ENABLED=0 GOTOOLCHAIN=auto
 COPY apps/backend/go.mod apps/backend/go.sum ./
 RUN go mod download
 COPY apps/backend .

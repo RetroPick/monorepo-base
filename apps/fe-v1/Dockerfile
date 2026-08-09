@@ -10,14 +10,12 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY patches patches
 COPY apps/fe-v1/package.json apps/fe-v1/package.json
 COPY packages/polymarket/package.json packages/polymarket/package.json
-COPY packages/contracts/package.json packages/contracts/package.json
 
 RUN --mount=type=cache,target=/pnpm/store,id=pnpm-fe-v1 \
     pnpm install --frozen-lockfile --filter @retropick/markets-v1... --store-dir=/pnpm/store
 
 COPY apps/fe-v1 apps/fe-v1
 COPY packages/polymarket packages/polymarket
-COPY packages/contracts packages/contracts
 COPY archive/packages/legacy/abi archive/packages/legacy/abi
 COPY archive/legacy/dot-docs-production archive/legacy/dot-docs-production
 
