@@ -1,16 +1,175 @@
+# Open-source provenance — machine-readable
+# Adoption gate per ADR-007 and master prompt §2.3
 version: 1
-last_updated: 2026-07-24
-packages:
-  - name: Polymarket ts-sdk
-    url: https://github.com/Polymarket/ts-sdk
-    license: verify_at_adoption
-    adoption: reference_only
-    clean_room: true
-  - name: clob-client-v2
-    url: https://github.com/Polymarket/clob-client-v2
-    license: verify_at_adoption
-    adoption: backend_adapter_reference
-    clean_room: true
+last_updated: 2026-07-25
+status: reviewed
+owner: platform-orchestrator
 rules:
-  - missing_license: force_clean_room
-  - no_copy_paste_ui: true
+  - id: RULE-001
+    text: Missing or ambiguous LICENSE file forces clean_room_reimplementation or behavioral_reference_only
+  - id: RULE-002
+    text: Reject geoblock bypass, server-side raw key custody, autonomous copy trading in V1
+  - id: RULE-003
+    text: MIT/Apache ports require NOTICE preservation and dependency license scan
+packages:
+  - name: Polymarket/ts-sdk
+    url: https://github.com/Polymarket/ts-sdk
+  # commit pinned at adoption time — not at Wave 0
+    license: MIT
+    license_file: LICENSE
+    license_verified: 2026-07-25
+    adoption_mode: official_dependency
+    clean_room: false
+    use_in_v1: tooling_and_conformance
+    components: [clob_helpers, gamma_types, wallet_auth_reference]
+    reject: []
+    owner: markets-backend
+
+  - name: Polymarket/clob-client-v2
+    url: https://github.com/Polymarket/clob-client-v2
+    license: MIT
+    license_file: LICENSE
+    license_verified: 2026-07-25
+    adoption_mode: behavioral_reference_only
+    clean_room: true
+    use_in_v1: go_adapter_reference
+    components: [order_schema, eip712_domain, l1_l2_auth_flow]
+    reject: [direct_copy_into_go_production]
+    owner: markets-backend
+
+  - name: Polymarket/ctf-exchange-v2
+    url: https://github.com/Polymarket/ctf-exchange-v2
+    license: verify_at_adoption
+    license_file: LICENSE
+    license_verified: null
+    adoption_mode: official_dependency
+    clean_room: false
+    use_in_v1: abi_vendoring
+    components: [exchange_abi, negrisk_exchange_abi]
+    reject: []
+    owner: markets-platform
+
+  - name: Streamatico/PolymarketViewer
+    url: https://github.com/Streamatico/PolymarketViewer
+    license: none
+    license_file: null
+    license_verified: 2026-07-25
+    adoption_mode: clean_room_reimplementation
+    clean_room: true
+    use_in_v1: ui_ux_patterns_only
+    components: [compose_discovery, charts, watchlist, glance_widgets, profiles]
+    reject: [source_copy, package_names, assets, layouts]
+    owner: android-lead
+    notes: No LICENSE in repo root at audit date — behavioral reference only per ADR-007
+
+  - name: Syavaman/PolymarketAlerts
+    url: https://github.com/Syavaman/PolymarketAlerts
+    license: none
+    license_file: null
+    license_verified: 2026-07-25
+    adoption_mode: clean_room_reimplementation
+    clean_room: true
+    use_in_v1: alert_rule_patterns
+    components: [large_trade_alerts, wallet_watch, telegram_push, rule_settings]
+    reject: [source_copy, geoblock_bypass]
+    owner: intelligence-lead
+    notes: No LICENSE — clean-room alert engine in RetroPick backend
+
+  - name: al1enjesus/polymarket-whales
+    url: https://github.com/al1enjesus/polymarket-whales
+    license: MIT
+    license_file: LICENSE
+    license_verified: 2026-07-25
+    adoption_mode: selective_port
+    clean_room: false
+    use_in_v1: whale_threshold_heuristics
+    components: [notional_thresholds, deduplication, export_formats]
+    reject: [geoblock_bypass, telegram_bot_token_patterns]
+    owner: intelligence-lead
+    notes: Port algorithms only after security review; reimplement in Go signal engine
+
+  - name: mailtolemos/polymarket-whale-tracker
+    url: https://github.com/mailtolemos/polymarket-whale-tracker
+    license: unverified
+    license_file: null
+    license_verified: null
+    adoption_mode: behavioral_reference_only
+    clean_room: true
+    use_in_v1: post_v1_heuristics
+    components: [momentum, wallet_clustering, timing_heuristics]
+    reject: [insider_labels, source_copy]
+    owner: intelligence-lead
+
+  - name: structbuild/polymarket-explorer
+    url: https://github.com/structbuild/polymarket-explorer
+    license: unverified
+    license_file: null
+    license_verified: null
+    adoption_mode: behavioral_reference_only
+    clean_room: true
+    use_in_v1: analytics_ux_reference
+    components: [trader_profiles, pnl_views, holder_comparison]
+    reject: [third_party_sdk_terms_unknown]
+    owner: web-lead
+
+  - name: mailcrypto23/polymarket-daily-dashboard
+    url: https://github.com/mailcrypto23/polymarket-daily-dashboard
+    license: unverified
+    license_file: null
+    license_verified: null
+    adoption_mode: behavioral_reference_only
+    clean_room: true
+    use_in_v1: liquidity_heatmap_reference
+    components: [spread_depth_imbalance, journaling, resolution_analytics]
+    reject: [unverified_models]
+    owner: intelligence-lead
+
+  - name: YichengYang-Ethan/oracle3
+    url: https://github.com/YichengYang-Ethan/oracle3
+    license: Apache-2.0
+    license_file: LICENSE
+    license_verified: 2026-07-25
+    adoption_mode: behavioral_reference_only
+    clean_room: true
+    use_in_v1: phase_8_research
+    components: [cross_market_constraints, discrepancy_scanner, equivalence_classes]
+    reject: [autonomous_execution, v1_dependency]
+    owner: intelligence-lead
+    notes: Apache-2.0 — research reference for Post-V1; preserve NOTICE if code ported
+
+  - name: pmxt-dev/pmxt
+    url: https://github.com/pmxt-dev/pmxt
+    license: MIT
+    license_file: LICENSE
+    license_verified: 2026-07-25
+    adoption_mode: reject
+    clean_room: true
+    use_in_v1: none
+    components: [multi_venue_adapters]
+    reject: [v1_scope_creep]
+    owner: platform-orchestrator
+    notes: Post-V1 only per master prompt §6A.3
+
+  - name: Serj8772/polymarket-cabinet
+    url: https://github.com/Serj8772/polymarket-cabinet
+    license: unverified
+    license_file: null
+    license_verified: null
+    adoption_mode: reject
+    clean_room: true
+    use_in_v1: none
+    components: []
+    reject: [server_side_raw_private_keys]
+    owner: security
+
+  - name: aarora4/Awesome-Prediction-Market-Tools
+    url: https://github.com/aarora4/Awesome-Prediction-Market-Tools
+    license: CC-BY-4.0
+    license_file: LICENSE
+    license_verified: 2026-07-25
+    adoption_mode: behavioral_reference_only
+    clean_room: true
+    use_in_v1: discovery_index
+    components: [link_catalog]
+    reject: [unverified_child_repos]
+    owner: research

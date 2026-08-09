@@ -1,131 +1,386 @@
 # Scope and Capability Matrix
 
-**Status:** draft
+**Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-31
+**Last updated:** 2026-07-25
 **Product:** RetroPick Markets V1
+
+## Description
+
+This is the single scope and capability matrix for Markets V1: upstream Polymarket support × RetroPick components (BFF / web / Android) × release tier (V1 / V1.1 / Post-V1) × phase × requirement IDs. It is the authority for “is this V1, gated V1.1, or PHASE-8?” debates.
+
+The repo today may still be a **catalog read stub**; matrix rows describe **target** tiers, not current wiring. Out of scope include PRISM, legacy epoch, and custom exchange (ADR-001). Combos, unusual-activity, and similar advanced surfaces stay gated until evidence and flags allow them.
+
+Read Purpose and Current state before Target design — stub reality vs target tiers is the common agent mistake. Prefer web trading stability before Android parity. Runtime capability advertisement (target) is `GET /markets/capabilities` via shared OpenAPI — do not invent parallel flag paths.
+
+## 0. Developer intent (5W+1H)
+
+Short orientation for implementers and agents. Read this before the capability matrix tables below.
+
+The 5W+1H table below is a **navigation aid** only. It does not replace matrix rows, release-tier legends, or Decisions §8; if anything conflicts, the matrix and Decisions win.
+
+| Lens | Answer |
+|------|--------|
+| **Who** | Orchestrators settling “is this V1 / V1.1 / Post-V1?”; implementers mapping master prompt §6/§6A capabilities to BFF/W/A components; QA tracing MKT-FR IDs; reviewers blocking Combos or unusual-activity as default-on V1 without gates. |
+| **What** | Single scope/capability matrix: upstream Polymarket support × RetroPick components × release tier × phase × requirement IDs. Documents that the repo today is **catalog read stub** (thin OpenAPI) while the matrix describes **target** tiers. Out of scope: PRISM, legacy epoch, custom exchange (ADR-001). |
+| **When** | Before accepting a feature into a phase, flipping a capability flag, or arguing Android-before-web-trading. Re-read when evidence register confidence changes for Combos, NegRisk, or CLOB V2. |
+| **Where** | This file + [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md) + [research/POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md). Runtime capability advertisement (target): `GET /markets/capabilities` via shared OpenAPI — do not invent extra flag paths. Code: `internal/markets/`, web Markets product, Android after PHASE-5 authorization. |
+| **Why** | Without one matrix, agents ship gated intelligence or Combos as V1, or grow client-direct CLOB. This doc is the scope debate authority for release columns and component codes (`BFF` / `W` / `A`). |
+| **How** | Implement only **V1** columns for launch phases; keep V1.1 behind named flags; treat Post-V1 as PHASE-8+ unless tasked. Prefer web trading stability before Android parity. Use evidence EV-IDs before enabling Combos. Never mark matrix rows done because a stub endpoint exists. |
+
+### Worked example
+
+**Happy path — whale feed vs unusual activity**
+
+1. Matrix: whale/large-trade feed V1 (intelligence); unusual-activity V1.1 gated.
+2. Implement whale path with reason codes per intelligence specs; leave UV behind `intelligence.unusual_activity` (or successor flag named in intelligence docs).
+3. Clients render signals only (ADR-008).
+
+**Happy path — Combos ask**
+
+1. Matrix + EV-013: Combos Post-V1 until upstream capability verified.
+2. Keep capability flag false; no UI that implies combo legs are available.
+3. Escalate via blockers if product asks to pull Combos forward.
+
+**Failure / Never**
+
+- Client-direct CLOB in production (rejected; ADR-002).
+- Android trading before web trading stable (ANDROID_MARKETS / Decisions).
+- Extending legacy epoch routes to “fill” a matrix cell.
+- Inventing OpenAPI paths not aligned with `markets-v1.yaml` growth plan.
+
+**Agent checklist**
+
+- [ ] Capability row found?
+- [ ] Release tier respected?
+- [ ] Phase matches `current_phase` / task?
+- [ ] MKT-FR ID present?
+- [ ] Upstream evidence still valid?
+
+**Reading tip:** Read Purpose + Current state (§5) before Target design — stub reality vs target tiers is the most common agent mistake.
 
 ## 1. Purpose
 
-Map every Markets capability to upstream support, RetroPick components, phase, and requirement ID.
+Map every Markets capability from master prompt §6 and §6A across Polymarket upstream support, RetroPick components, release tier (V1 / V1.1 / Post-V1), phase, and requirement IDs. Single traceability source for scope debates.
 
 ## 2. Scope
 
 ### In scope
 
-- RetroPick Markets V1 (`apps/fe-v1`, Go BFF, native Android Jetpack Compose).
+- RetroPick Markets: web (`apps/web`), Go BFF (`internal/markets`), Android (`apps/android`).
 
 ### Out of scope
 
-- PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
-- Custom RetroPick exchange or outcome-token issuance (ADR-001).
+- PRISM (`contracts/prism/`, `products/prism`).
+- Legacy epoch (`archive/`, `/api/v1/legacy/markets/*`).
+- Custom RetroPick exchange (ADR-001).
 
 ## 3. Prerequisites
 
-- [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [.dev/MARKETS.md](../../MARKETS.md)
-- [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) (R0–R3 restructure)
+- [01_EXECUTIVE_PRODUCT_SPEC.md](01_EXECUTIVE_PRODUCT_SPEC.md)
+- [research/POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md)
+- [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md)
+- Master prompt §6, §6A
 
 ## 4. Authoritative sources
 
-| Source | URL | Retrieved | Confidence |
-|--------|-----|-----------|------------|
-| Polymarket docs | https://docs.polymarket.com/ | 2026-07-24 | partially verified |
-| CLOB V2 migration | https://docs.polymarket.com/v2-migration | 2026-07-24 | partially verified |
-| OpenAPI (repo) | `schemas/openapi/markets-v1.yaml` | 2026-07-24 | verified |
-| Monorepo architecture | `docs/ARCHITECTURE.md` | 2026-07-24 | verified |
+| Source | Role |
+|--------|------|
+| `.dev/MARKETS.md` | Product scope |
+| `.dev/ANDROID_MARKETS.md` | Android tiering |
+| `schemas/openapi/markets-v1.yaml` | Current API surface |
+| `research/evidence-register.yaml` | Upstream confidence |
 
 ## 5. Current state
 
-See [EXISTING_REPOSITORY_AUDIT.md](../architecture/EXISTING_REPOSITORY_AUDIT.md).
+Repo implements **catalog read stub only** (3 OpenAPI paths). Matrix below describes **target** tiers; Launch column reflects Wave 0 baseline.
+
+**Legend — release columns:**
+
+| Column | Meaning |
+|--------|---------|
+| **V1** | Required for first production launch (web + Android per phase plan) |
+| **V1.1** | Fast-follow after stable V1 web trading |
+| **Post-V1** | PHASE-8+ or separate product review |
+
+**Legend — component codes:** `BFF` = backend, `W` = web, `A` = Android, `—` = not in tier.
 
 ## 6. Target design
 
-Full matrix per master prompt §6; Combos capability-gated until official support verified.
+Capabilities flow: Polymarket upstream → BFF anti-corruption layer → OpenAPI → web/Android. Feature flags via `GET /markets/capabilities`. Combos and unusual-activity heuristics remain gated until upstream + legal clearance.
 
 ## 7. Alternatives considered
 
 | Alternative | Rejected because |
 |-------------|------------------|
-| Custom RetroPick exchange | ADR-001: Polymarket is venue |
-| Direct Gamma/CLOB from clients in prod | ADR-002: BFF anti-corruption layer |
-| Extend legacy epoch APIs | Frozen at `/api/v1/legacy/markets/*` |
+| Ship Combos in V1 | EV-013; incomplete API |
+| Android before web trading stable | ANDROID_MARKETS.md PHASE-5 |
+| Client-direct CLOB | ADR-002 |
 
 ## 8. Decisions
 
-- Polymarket is venue authority (ADR-001).
-- BFF anti-corruption layer at `apps/backend/internal/markets/` (ADR-002).
-- Shared OpenAPI contract for web and Android (ADR-004).
+- V1 web trading before Android parity.
+- CTF / NegRisk convert in V1.1 after web redemption stable.
+- Intelligence whale feed in V1; unusual-activity in V1.1.
+- Combos Post-V1 until capability verified.
 
 ## 9. Data and control flows
 
 ```mermaid
 flowchart LR
-  FE[apps/fe-v1] --> BFF[internal/markets]
-  Android[apps/android] --> BFF
-  BFF --> Gamma[Polymarket_Gamma]
-  BFF --> CLOB[Polymarket_CLOB_V2]
-  BFF --> WS[Polymarket_WS]
-  WS --> Hub[realtime/hub]
-  Hub --> FE
-  Legacy[/api/v1/legacy/markets] -. frozen .-> Epoch[legacy/domain]
+  subgraph tiers [Release tiers]
+    V1[V1 launch]
+    V11[V1.1]
+    PV[Post-V1]
+  end
+  subgraph components [Components]
+    BFF[internal/markets]
+    Web[web/markets]
+    And[android]
+  end
+  PM[Polymarket upstream]
+  PM --> BFF
+  BFF --> Web
+  BFF --> And
+  V1 --> Web
+  V1 --> And
+  V11 --> BFF
+  PV --> BFF
 ```
 
 ## 10. Failure and recovery
 
-- Fail closed on unknown eligibility (`eligible: false`).
-- Read-only degradation when upstream Gamma/CLOB unavailable.
-- No silent order resubmission on timeout.
+| Capability class | Degraded mode |
+|------------------|---------------|
+| Catalog read | Cached Gamma + stale label |
+| Orderbook | Snapshot only; disable marketable |
+| Trading | Kill switch; read-only portfolio |
+| Intelligence | Pause fan-out; own-account alerts only |
+| Geoblock | Fail closed |
 
 ## 11. Security
 
-- No raw private-key custody by RetroPick.
-- Preview-before-sign for every asset transformation.
-- Secrets outside Git; redact in logs and audit.
+User signature required for all trading and CTF mutations. Relayer only for allowlisted ops. No tier may bypass geoblock.
 
 ## 12. Observability
 
-- Metrics, logs, and traces per [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](../platform/OBSERVABILITY_SLOS_AND_ALERTS.md).
-- Catalog freshness, upstream error rate, and eligibility check latency are launch-critical.
+Per-capability metrics defined in [platform/OBSERVABILITY_SLOS_AND_ALERTS.md](platform/OBSERVABILITY_SLOS_AND_ALERTS.md). Matrix rows with `Launch: not_started` have no SLO until phase start.
 
 ## 13. Test strategy
 
-- See [testing/MASTER_TEST_PLAN.md](../testing/MASTER_TEST_PLAN.md).
+Each V1 row maps to requirement ID in §4 of [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md) and contract tests in [testing/CONTRACT_AND_CONFORMANCE_TESTS.md](testing/CONTRACT_AND_CONFORMANCE_TESTS.md).
 
 ## 14. Rollout and rollback
 
-- Feature flags via `/markets/capabilities`; order-submission kill switch in later phases.
-- See [platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md).
+Capability rollout via `capabilities` flags and phased releases (PHASE-1–7). Rollback = disable flag + prior API version.
 
 ## 15. Open questions
 
-- [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md)
+- OQ-001–OQ-012 in [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
 
 ## 16. Acceptance criteria
 
-- Linked in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- [x] All master prompt §6 minimum rows present
+- [x] §6A intelligence features tiered
+- [x] V1 / V1.1 / Post-V1 columns for every row
+- [x] `not supported` rows include reason
 
-## Capability matrix (excerpt)
+---
 
-| Capability | Upstream | BFF | Web (fe-v1) | Android | Phase | Req | Status |
-|---|---|---|---|---|---|---|---|
-| public event feed | Gamma | BFF | fe-v1 | android | PHASE-1 | MKT-FR-001 | done |
-| order-book snapshot (REST) | CLOB | BFF | fe-v1 | android | PHASE-1 | MKT-FR-010 | done |
-| order-book realtime (WS) | CLOB WS | BFF hub | fe-v1 | — | PHASE-1.3 | MKT-FR-010-RT | partial — P13C closure |
-| catalog signals (new_market, rule_changed) | Gamma | BFF | fe-v1 | — | PHASE-1 | MKT-FR-050-CAT | done (MKT-P1-008) |
-| live signals (price_move, liquidity_change) | CLOB WS | BFF | fe-v1 | — | PHASE-1.3 | MKT-FR-050-LIVE | **pending** (P13C-002) |
-| wallet connect | — | BFF | fe-v1 | android | PHASE-2 | MKT-FR-020 | planned — blocked on PHASE-1.3 |
-| limit buy/sell | CLOB | BFF | fe-v1 | android | PHASE-3 | MKT-FR-030 | planned |
-| positions & PnL | CLOB | BFF | fe-v1 | android | PHASE-4 | MKT-FR-040 | planned |
-| geoblock | upstream | BFF | fe-v1 | android | PHASE-2 | MKT-FR-021 | planned (BLK-001) |
-| Combos | upstream | BFF | fe-v1 | android | PHASE-8 | MKT-FR-090 | gated |
+## Matrix key
 
-## Phase 1.3 unresolved blockers
+| Field | Description |
+|-------|-------------|
+| Upstream | Polymarket support: yes / partial / no |
+| Sign | User EIP-712 or wallet auth required |
+| Relay | Builder relayer eligible |
+| Legal | Extra jurisdiction/policy gate |
+| Phase | Primary delivery phase |
+| Launch | Wave 0 implementation status |
 
-| ID | Capability impact |
-|----|-------------------|
-| BLK-003 | Token registry — hub cannot fail-closed on unknown tokens |
-| BLK-004 | Live signal pipeline — intelligence capability must stay false |
-| BLK-005 | SEC-P13-001 rotation — production release blocked |
-| BLK-006 | Single-replica — multi-replica duplicates upstream WS |
+---
+
+## §6 — Discovery and catalog
+
+| Capability | Upstream | V1 (BFF/W/A) | V1.1 | Post-V1 | Sign | Relay | Legal | Phase | Req | Launch | If not V1 — reason |
+|------------|----------|--------------|------|---------|------|-------|-------|-------|-----|--------|-------------------|
+| Public event feed | yes | BFF/W/A | — | — | no | no | no | PHASE-1 | MKT-FR-001 | stub | — |
+| Search / categories / trending | yes | BFF/W/A | — | — | no | no | no | PHASE-1 | MKT-FR-001 | not_started | — |
+| Event detail | yes | BFF/W/A | — | — | no | no | no | PHASE-1 | MKT-FR-002 | not_started | — |
+| Market rules & resolution source | yes | BFF/W/A | — | — | no | no | no | PHASE-1 | MKT-FR-002 | not_started | — |
+| Standard binary market | yes | BFF/W/A | — | — | no | no | no | PHASE-1 | MKT-FR-002 | not_started | — |
+| Multi-outcome event | yes | BFF/W/A | — | — | no | no | no | PHASE-1 | MKT-FR-002 | not_started | — |
+| Augmented NegRisk placeholder handling | partial | BFF/W | — | — | no | no | no | PHASE-1 | MKT-FR-002 | not_started | Display-only until convert in V1.1 |
+| Geoblock | yes | BFF/W/A | — | — | no | no | yes | PHASE-2 | MKT-FR-021 | stub_fail_closed | — |
+| Unsupported region UX | yes | BFF/W/A | — | — | no | no | yes | PHASE-2 | MKT-FR-021 | not_started | — |
+| Outage / read-only mode | product | BFF/W/A | — | — | no | no | no | PHASE-6 | MKT-NFR-010 | not_started | — |
+
+## §6 — Market data
+
+| Capability | Upstream | V1 | V1.1 | Post-V1 | Sign | Relay | Phase | Req | Launch | If not V1 |
+|------------|----------|-----|------|---------|------|-------|-------|-----|--------|-----------|
+| Order-book snapshot | yes | BFF/W/A | — | — | no | no | PHASE-1 | MKT-FR-010 | not_started | — |
+| Order-book stream | yes | BFF/W/A | — | — | no | no | PHASE-1 | MKT-FR-010 | not_started | — |
+| Price history | yes | BFF/W/A | — | — | no | no | PHASE-1 | MKT-FR-010 | not_started | — |
+| Public trades | yes | BFF/W/A | — | — | no | no | PHASE-1 | MKT-FR-010 | not_started | — |
+| Order-book heatmap | derived | W/A | — | intel+ | no | no | PHASE-4 | MKT-FR-060 | not_started | Post-V1 advanced viz optional |
+| Estimated price impact | derived | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-030 | not_started | — |
+
+## §6 — Account, wallet, funding
+
+| Capability | Upstream | V1 | V1.1 | Post-V1 | Sign | Relay | Legal | Phase | Req | Launch | If not V1 |
+|------------|----------|-----|------|---------|------|-------|-------|-------|-----|--------|-----------|
+| Wallet connect | yes | W/A | — | — | yes | no | no | PHASE-2 | MKT-FR-020 | not_started | — |
+| Sign-in / session | product | BFF/W/A | — | — | partial | no | no | PHASE-2 | MKT-SEC-001 | not_started | — |
+| Account-wallet discovery | yes | BFF/W/A | — | — | yes | no | no | PHASE-2 | MKT-FR-020 | not_started | — |
+| Deposit Wallet creation | yes | W | A | — | yes | yes | yes | PHASE-2 | MKT-FR-020 | not_started | Android PHASE-5 |
+| Trading approvals | yes | BFF/W/A | — | — | yes | yes | no | PHASE-2 | MKT-FR-020 | not_started | — |
+| pUSD balance | yes | BFF/W/A | — | — | no | no | no | PHASE-2 | MKT-FR-020 | not_started | ASSUMP-003 |
+| Funding / deposit | yes | W | A | — | yes | partial | yes | PHASE-2 | MKT-FR-020 | not_started | — |
+| Collateral wrap / onramp | partial | W | — | expand | yes | partial | yes | V1 web | — | not_started | V1.1 full on-ramp review |
+| Bridge | partial | W | — | — | yes | partial | yes | V1.1 | — | not_started | product: provider review |
+| Withdrawal / transfer | yes | W | A | — | yes | partial | yes | PHASE-4 | MKT-FR-040 | not_started | — |
+
+## §6 — Trading
+
+| Capability | Upstream | V1 | V1.1 | Post-V1 | Sign | Relay | Phase | Req | Launch | If not V1 |
+|------------|----------|-----|------|---------|------|-------|-------|-----|--------|-----------|
+| Limit buy | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Limit sell | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Marketable buy w/ spend cap | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Marketable sell | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Post-only | partial | BFF/W | — | — | yes | no | V1.1 | — | not_started | upstream partial |
+| FOK / FAK / GTD / GTC | partial | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | only where CLOB supports |
+| Order preview | yes | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-030 | not_started | — |
+| EIP-712 signing | yes | W/A | — | — | yes | no | PHASE-3 | MKT-SEC-002 | not_started | — |
+| Builder attribution | yes | BFF | — | — | no | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Builder fee disclosure | yes | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-030 | not_started | — |
+| Submit single order | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Submit batch orders | partial | — | BFF/W | — | yes | no | V1.1 | — | not_started | upstream partial |
+| Partial fills | yes | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Cancel one | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Cancel all | yes | BFF/W/A | — | — | yes | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Matching-engine restart recovery | yes | BFF | — | — | no | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Authenticated order stream | yes | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Combos | partial | — | — | BFF/W/A | yes | no | PHASE-8 | MKT-FR-090 | gated | EV-013 upstream limitation |
+
+## §6 — Portfolio and CTF
+
+| Capability | Upstream | V1 | V1.1 | Post-V1 | Sign | Relay | Phase | Req | Launch | If not V1 |
+|------------|----------|-----|------|---------|------|-------|-------|-----|--------|-----------|
+| Activity feed | yes | BFF/W/A | — | — | no | no | PHASE-4 | MKT-FR-040 | not_started | — |
+| Open orders | yes | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Fills | yes | BFF/W/A | — | — | no | no | PHASE-3 | MKT-FR-031 | not_started | — |
+| Positions | yes | BFF/W/A | — | — | no | no | PHASE-4 | MKT-FR-040 | not_started | — |
+| Cost basis / PnL | yes | BFF/W/A | — | — | no | no | PHASE-4 | MKT-FR-040 | not_started | — |
+| Split | yes | — | BFF/W/A | — | yes | yes | V1.1 | MKT-FR-040 | not_started | product: after web redeem |
+| Merge | yes | — | BFF/W/A | — | yes | yes | V1.1 | MKT-FR-040 | not_started | product |
+| Redeem | yes | BFF/W | A | — | yes | yes | PHASE-4 | MKT-FR-040 | not_started | Android V1.1 |
+| NegRisk convert | yes | — | BFF/W/A | — | yes | yes | V1.1 | MKT-FR-040 | not_started | EV-012 |
+| Resolved / claimable state | yes | BFF/W/A | — | — | no | no | PHASE-4 | MKT-FR-040 | not_started | — |
+
+## §6 — Notifications and watchlists
+
+| Capability | Upstream | V1 | V1.1 | Post-V1 | Phase | Req | Launch | If not V1 |
+|------------|----------|-----|------|---------|-------|-----|--------|-----------|
+| Notifications (core) | product | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Watchlist | product | BFF/W/A | — | — | PHASE-1 | MKT-FR-050 | not_started | — |
+| Market & wallet watchlists | product | BFF/W/A | — | — | PHASE-1 | MKT-FR-050 | not_started | — |
+| Configurable alert rules | product | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Price-cross / prob-move alerts | product | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Volume / vol / liquidity / spread / depth alerts | product | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
+| New-market / rule-change alerts | product | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Cutoff / resolution / redemption / claimable alerts | product | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
+| Own order / fill / position / funding / withdrawal alerts | product | BFF/W/A | — | — | PHASE-3 | MKT-FR-031 | not_started | — |
+| Large-trade / watched-wallet alerts | derived | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
+
+## §6 — Analytics and UX (non-intel)
+
+| Capability | Upstream | V1 | V1.1 | Post-V1 | Phase | Req | Launch | If not V1 |
+|------------|----------|-----|------|---------|-------|-----|--------|-----------|
+| Pre-trade payoff / break-even / fee / slippage / max-loss simulator | derived | BFF/W/A | — | — | PHASE-3 | MKT-FR-030 | not_started | — |
+| Position-size simulator | derived | BFF/W/A | — | — | PHASE-3 | MKT-FR-030 | not_started | — |
+| Portfolio exposure analytics | derived | W | A | pro | PHASE-4 | MKT-FR-040 | not_started | pro tier Post-V1 |
+| Execution-quality analytics | derived | — | W | pro | V1.1 | — | not_started | product |
+| Trade journal | product | W | A | — | V1.1 | — | not_started | product |
+| Android home-screen widgets | product | — | A | — | V1.1 | — | not_started | privacy review |
+
+---
+
+## §6A — Trader intelligence (tiered)
+
+### §6A.1 Locked V1 feature set
+
+| Capability | V1 | V1.1 | Post-V1 | Phase | Req | Launch | Notes |
+|------------|-----|------|---------|-------|-----|--------|-------|
+| Watchlists (markets, events, wallets, tags, categories) | BFF/W/A | — | — | PHASE-1 | MKT-FR-050 | not_started | — |
+| Price / prob crossing rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Log-odds movement rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Volume / trade-count spike rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
+| Spread / depth / liquidity / imbalance rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
+| New listing / rule-change rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Cutoff / resolution / redemption rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
+| Own order / fill / position / funding rules | BFF/W/A | — | — | PHASE-3 | MKT-FR-031 | not_started | — |
+| Large-trade / whale / watched-wallet rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
+| Normalized signal inbox + push | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | ADR-008 |
+| Dedup / cooldown / quiet hours / snooze / severity | BFF | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
+| Whale / large-trade feed | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | MIT whales selective port |
+| Wallet profiles (performance, volume, concentration) | BFF/W | A | — | PHASE-4 | MKT-FR-060 | not_started | No insider labels |
+| Market intelligence (flow, vol, spread, depth, health) | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
+| Resolution-integrity panel (rule hash, diffs, source health) | BFF/W/A | — | — | PHASE-4 | MKT-FR-002 | not_started | — |
+| Pre-trade scenario simulator (fresh preview) | BFF/W/A | — | — | PHASE-3 | MKT-FR-030 | not_started | — |
+| Portfolio exposure by event/category/time | W | A | pro | PHASE-4 | MKT-FR-040 | not_started | — |
+| Realized / unrealized PnL provenance | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
+| Claimable assets view | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
+| Export (positions / history) | — | W | pro API | V1.1 | — | not_started | product |
+| Trade journal | — | W/A | — | V1.1 | — | not_started | — |
+| Android Glance widgets (public + opt-in private) | — | A | — | V1.1 | — | not_started | clean-room from PolymarketViewer patterns |
+
+### §6A.2 Feature-gated V1.1
+
+| Capability | V1 | V1.1 | Post-V1 | Reason if not V1 |
+|------------|-----|------|---------|------------------|
+| Unusual-activity heuristics (velocity, clustering) | — | yes | — | product: false-positive risk |
+| Trader leaderboard / archetype | — | yes | — | product decision |
+| Related-market / dependency graph | — | yes | — | product decision |
+| Telegram / Discord / email / webhooks | — | yes | — | policy + abuse review |
+| Evidence / news context summaries | — | yes | — | product |
+| Read-only cross-market discrepancy scanner | — | yes | — | Oracle3 research ref |
+
+### §6A.3 Post-V1 research
+
+| Capability | V1 | V1.1 | Post-V1 | Reason |
+|------------|-----|------|---------|--------|
+| PMXT multi-venue adapters | — | — | yes | scope: Polymarket-only V1 |
+| Constraint classes (equivalence, exclusivity, …) | — | — | yes | Oracle3 Phase 8 |
+| AI research summaries | — | — | yes | product |
+| Manual copy-intent (previewed order) | — | — | yes | ADR-009 |
+| Autonomous copy trading | — | — | reject | ADR-009; separate product |
+
+---
+
+## Component coverage summary
+
+| Component | V1 responsibilities |
+|-----------|---------------------|
+| **BFF** | Gamma catalog, geoblock, CLOB adapter, order orchestration, portfolio projection, signal engine, capabilities flags |
+| **Web** | Full V1 trading UX, intelligence dashboards, wallet connect |
+| **Android** | V1 read + trading parity by PHASE-5; V1.1 CTF/widgets |
+
+## Launch status rollup (Wave 0)
+
+| Status | Count (approx.) |
+|--------|-----------------|
+| stub (partial) | 3 (catalog, eligibility fail-closed, capabilities) |
+| not_started | all other rows |
+| gated | Combos, autonomous copy |
+
+---
+
+## Traceability
+
+```
+requirement (MKT-FR-###) → capability row → phase → task (task-graph.yaml) → test fixture
+```
+
+See [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
