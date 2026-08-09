@@ -1,10 +1,8 @@
-import { useWriteContract, useWaitForTransactionReceipt, useAccount, useChainId } from 'wagmi';
-import { ABIS, getContractAddresses } from '../contracts/config';
+import { useWriteContract, useWaitForTransactionReceipt, useAccount } from 'wagmi';
+import { ABIS, CONTRACT_ADDRESSES } from '../contracts/config';
 
 export function useMarketRegistry() {
     const { address } = useAccount();
-    const chainId = useChainId();
-    const registryAddress = getContractAddresses(chainId).MarketRegistry;
     const { data: hash, writeContractAsync, isPending, isError, error } = useWriteContract();
 
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -12,19 +10,16 @@ export function useMarketRegistry() {
     });
 
     const redeem = async (marketId: string | number) => {
-        if (!registryAddress) {
-            throw new Error('MarketRegistry is not configured for this chain');
-        }
         try {
             const txHash = await writeContractAsync({
-                address: registryAddress,
+                address: CONTRACT_ADDRESSES.MarketRegistry,
                 abi: ABIS.MarketRegistry,
                 functionName: 'redeem',
                 args: [BigInt(marketId)],
                 account: address,
-            } as unknown as Parameters<typeof writeContractAsync>[0]);
+            } as any);
             return txHash;
-        } catch (err: unknown) {
+        } catch (err: any) {
             console.error("Redeem failed:", err);
             throw err;
         }

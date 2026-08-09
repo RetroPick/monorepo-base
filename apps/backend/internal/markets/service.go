@@ -211,6 +211,7 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 	if err != nil {
 		return EventsListResponse{}, classifyCatalogError(err)
 	}
+	s.observeCatalogFreshness(status.LatestObserved, now)
 	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
 	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
 		return EventsListResponse{}, freshnessErr
@@ -255,6 +256,7 @@ func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, er
 	if err != nil {
 		return EventDetail{}, classifyCatalogError(err)
 	}
+	s.observeCatalogFreshness(status.LatestObserved, now)
 	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
 	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
 		return EventDetail{}, freshnessErr
@@ -283,6 +285,7 @@ func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail,
 	if err != nil {
 		return MarketDetail{}, classifyCatalogError(err)
 	}
+	s.observeCatalogFreshness(status.LatestObserved, now)
 	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
 	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
 		return MarketDetail{}, freshnessErr
@@ -445,6 +448,18 @@ func validHistoryInterval(value string) bool {
 	default:
 		return false
 	}
+}
+
+func (s *Service) observeCatalogFreshness(observedAt, now time.Time) {
+	if observedAt.IsZero() {
+		return
+	}
+	age := now.Sub(observedAt)
+	if s.cfg.Metrics != nil {
+		s.cfg.Metrics.ObserveCatalogFreshness(age)
+		return
+	}
+	gamma.ObserveCatalogFreshnessSeconds(age.Seconds())
 }
 
 func (s *Service) observeUpstream(upstream string, succeeded bool, duration time.Duration) {

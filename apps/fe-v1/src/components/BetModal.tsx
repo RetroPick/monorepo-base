@@ -4,9 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Icon from "./Icon";
 import ConfirmationModal from "./ConfirmationModal";
 import { cn } from "@/lib/utils";
-import { useYellowSession } from "@/hooks/useYellowSession";
 import { useAccount } from "wagmi";
-import { relayerApi } from "@/lib/relayerApi";
 
 // --- Authentic Crypto Icons (SVGs) ---
 const SolanaLogo = ({ className }: { className?: string }) => (
@@ -77,60 +75,21 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
   // Theme colors
   const isYes = side === 'YES';
 
-  const { signOrder, isPending } = useYellowSession();
+  const [isPending, setIsPending] = useState(false);
 
   const handleBuy = async () => {
     try {
       if (!address) {
-        alert('Please connect your wallet first!');
+        alert("Please sign in first!");
         return;
       }
-
-      // Convert market title      // We will hardcode a test session for this implementation phase based on title Hash
-      const sessionId = relayerApi.getMarketSessionId(marketTitle);
-      const outcomeIndex = side === 'YES' ? 0 : 1;
-
-      // Auto-create session on the fly if it doesn't exist (hackathon UX flow)
-      try {
-        await relayerApi.getSession(sessionId);
-      } catch (err) {
-        await relayerApi.createSession({
-          sessionId,
-          marketId: "1",
-          vaultId: "0x1111111111111111111111111111111111111111", // mock
-          numOutcomes: 2,
-          b: 100 // LMSR liquidity param
-        });
-      }
-
-      // Ensure user has some test USDC
-      try {
-        await relayerApi.creditUser(sessionId, address, 10000);
-      } catch (e) { }
-
-      // Sign the order for realistic UX
-      const deltaShares = amount / price;
-      const signature = await signOrder(sessionId, 'buy', outcomeIndex, deltaShares);
-
-      if (signature) {
-        // Execute the trade against the backend relayer
-        const res = await relayerApi.buyShares({
-          sessionId,
-          outcomeIndex,
-          delta: deltaShares, // amount is in USDC, LMSR expects share delta
-          userAddress: address,
-          signature
-        });
-
-        if (!res?.ok) {
-          throw new Error('Trade failed');
-        }
-
-        setShowConfirmation(true);
-      }
+      setIsPending(true);
+      alert("Legacy relayer modal is disabled. Use the market Trade panel for backend-orchestrated orders.");
     } catch (err: any) {
       console.error("Trade failed:", err);
       alert(`Trade Error: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsPending(false);
     }
   };
 
@@ -166,7 +125,11 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[9999] flex items-end justify-center sm:items-center sm:p-4"
+        >
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -182,7 +145,7 @@ const BetModal = ({ open, onClose, marketTitle, outcome, side: initialSide, pric
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 30 }}
             transition={{ type: "spring", damping: 28, stiffness: 350 }}
-            className="relative w-full max-w-sm rounded-2xl overflow-visible shadow-2xl border border-border bg-card"
+            className="relative w-full max-h-[92dvh] overflow-y-auto rounded-t-2xl border border-border bg-card shadow-2xl pb-[max(env(safe-area-inset-bottom),0.75rem)] sm:max-w-sm sm:max-h-[min(90dvh,40rem)] sm:rounded-2xl sm:overflow-visible sm:pb-0"
           >
             {/* Close Button */}
             <button

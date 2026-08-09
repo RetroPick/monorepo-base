@@ -6,6 +6,7 @@ import { Check, ShieldCheck, Fingerprint } from "lucide-react";
 import { Button } from "../ui/button";
 import { DropdownMenuItem } from "../ui/dropdown-menu"; // Ensure this path is correct
 import { useOnboarding } from "@/context/OnboardingContext";
+import { getPublicEnv, isDevRuntime } from "@/lib/runtimeEnv";
 
 interface WorldIDVerifierProps {
     asDropdownItem?: boolean;
@@ -16,13 +17,13 @@ const WorldIDVerifier = ({ asDropdownItem }: WorldIDVerifierProps) => {
 
     const handleVerify = async (proof: ISuccessResult) => {
         // Mock verification call
-        if (import.meta.env.DEV) console.log("Proof received:", proof);
+        if (isDevRuntime()) console.log("Proof received:", proof);
         await new Promise((resolve) => setTimeout(resolve, 2000));
         return;
     };
 
     const onSuccess = (result: ISuccessResult) => {
-        if (import.meta.env.DEV) console.log("Verification successful", result);
+        if (isDevRuntime()) console.log("Verification successful", result);
         verifyWorldID();
     };
 
@@ -54,8 +55,8 @@ const WorldIDVerifier = ({ asDropdownItem }: WorldIDVerifierProps) => {
         <IDKitWidget
             // Using a generic production app_id pattern. In a real deployment, 
             // VITE_WLD_APP_ID must be a verified app starting with "app_" (not "app_staging_").
-            app_id={(import.meta.env.VITE_WLD_APP_ID as `app_${string}`) || "app_e2e6af2e6fd42d0768e98ecdf268fbf1"}
-            action={import.meta.env.VITE_WLD_ACTION || "verify-humanity"}
+            app_id={(getPublicEnv("WLD_APP_ID") as `app_${string}`) || "app_e2e6af2e6fd42d0768e98ecdf268fbf1"}
+            action={getPublicEnv("WLD_ACTION") || "verify-humanity"}
             onSuccess={onSuccess}
             handleVerify={handleVerify}
             verification_level={VerificationLevel.Orb} // 🔥 Enforce REAL hardware Orb verification

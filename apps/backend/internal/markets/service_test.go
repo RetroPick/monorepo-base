@@ -363,3 +363,24 @@ func TestGetHealthComputesComponentsFromSnapshot(t *testing.T) {
 		t.Fatalf("health %+v", got)
 	}
 }
+
+func TestListEventsRecordsCatalogFreshness(t *testing.T) {
+	gamma.ResetCatalogFreshnessMetrics()
+	fixed := time.Date(2026, 7, 30, 6, 0, 0, 0, time.UTC)
+	observed := fixed.Add(-30 * time.Second)
+	svc := NewService(ServiceConfig{
+		CatalogEnabled: true,
+		CatalogProjection: stubProjection{
+			observed: observed,
+			events:   []EventSummary{{ID: "polymarket:event:1", Title: "One"}},
+		},
+		CatalogWorker: projectionTestWorker(),
+		Now:           func() time.Time { return fixed },
+	})
+	if _, err := svc.ListEvents(context.Background(), "", 10); err != nil {
+		t.Fatal(err)
+	}
+	if got := gamma.CatalogFreshnessP95(); got != 30 {
+		t.Fatalf("p95 %v", got)
+	}
+}

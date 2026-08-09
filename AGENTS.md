@@ -90,6 +90,8 @@ frontends, or pool-based `MarketEngine` architecture.
 - Treat local `ECC/` as read-only engineering methodology reference; RetroPick code and contracts remain authoritative—do not install ECC, commit ECC changes, or copy the framework into the repo.
 - Prefer plan → verify → implement loops for Markets V1 doc/architecture work; keep documentation accurate and agent-usable rather than merely longer.
 - Money amounts in Markets backend docs/code guidance are fixed-point, never floating point.
+- Markets V1 phased implementation tasks use PLAN MODE first; implement only after explicit user approval.
+- Do not advance `current_phase` in `implementation-manifest.yaml` unless the user explicitly requests it.
 
 ## Learned Workspace Facts
 
@@ -97,8 +99,13 @@ frontends, or pool-based `MarketEngine` architecture.
 - Smart Money / trader intelligence specs live under `.dev/markets-v1/intelligence/`; compute belongs in `apps/backend/internal/markets/intelligence/` with params such as `intelligence_params_v1.yaml`.
 - Polymarket is the venue authority for Markets V1; RetroPick does not define a custom Markets exchange.
 - Intelligence follow lists are private by default; paper copy and backtests are simulated only and must not be presented as venue/Polymarket fills.
-- Markets V1 Android surfaces are Kotlin + Jetpack Compose.
+- Markets V1 Android product target is Kotlin + Jetpack Compose (ADR-006); `apps/android` submodule is currently a Capacitor+Next prototype that must migrate and use BFF-only (no direct Polymarket/Gamma client).
 - Backend Markets data is projection/read models, not ownership authority, unless a doc explicitly says otherwise.
+- Canonical Markets catalog IDs use `polymarket:{kind}:{upstreamId}` (events, markets, tokens).
+- Greenfield Markets read UI lives in `apps/web/src/products/markets/`; production routing still uses `apps/fe-v1` until PHASE-6 integration.
+- PHASE-1 exit (MKT-P1-010) gates on catalog/read conformance; parallel Smart Money I0–I3 is optional and non-blocking for that exit.
+- Whale feed and wallet profiles are Smart Money I1/I2 (`intelligence/`), not PHASE-4 portfolio ownership.
+- PHASE-1 user-facing surfaces are read-only: no wallet connect or order submit.
 
 <claude-mem-context>
 # Memory Context

@@ -49,6 +49,8 @@ type Config struct {
 }
 
 func Load() (Config, error) {
+	// MKT-NFR-002 / P1-006: production/staging should set MARKETS_BOOK_MAX_AGE=5s
+	// for order-book staleness SLO; unset env keeps 10s dev default.
 	bookMaxAge := 10 * time.Second
 	if raw := strings.TrimSpace(os.Getenv("MARKETS_BOOK_MAX_AGE")); raw != "" {
 		parsed, err := time.ParseDuration(raw)

@@ -5,18 +5,29 @@ interface ImportMetaEnv {
   readonly VITE_REOWN_PROJECT_ID: string
 
   // ── Chain & network ─────────────────────────────────────────────────────────
-  /** Primary network key. "arbitrum" for production, "arbitrum-sepolia" for staging. */
-  readonly VITE_APP_DEFAULT_NETWORK?: 'arbitrum' | 'arbitrum-sepolia' | 'mainnet' | 'base' | 'optimism' | 'sepolia'
+  /** Primary network key. Prefer "base-sepolia" for registry / MarketEngine. */
+  readonly VITE_APP_DEFAULT_NETWORK?:
+    | 'base-sepolia'
+    | 'arbitrum'
+    | 'arbitrum-sepolia'
+    | 'mainnet'
+    | 'base'
+    | 'optimism'
+    | 'sepolia'
 
   /** Funding profile key (matches VITE_APP_DEFAULT_NETWORK for production). */
   readonly VITE_APP_FUNDING_PROFILE?: 'arbitrum' | 'arbitrum-sepolia' | 'mainnet' | 'base' | 'sepolia'
 
   // ── Smart contract addresses ─────────────────────────────────────────────────
-  /** MarketEngineDispatcher proxy address on Arbitrum One (mainnet). */
+  /** MarketEngine proxy override on Arbitrum One (optional; Base Sepolia uses registry). */
   readonly VITE_MARKET_ENGINE_ADDRESS?: `0x${string}`
 
-  /** MarketEngineDispatcher proxy address on Arbitrum Sepolia (testnet). */
+  /** MarketEngine proxy override on Arbitrum Sepolia (optional). */
   readonly VITE_MARKET_ENGINE_ADDRESS_TESTNET?: `0x${string}`
+
+  readonly VITE_EXECUTION_LEDGER_ADDRESS?: `0x${string}`
+  readonly VITE_MARKET_REGISTRY_ADDRESS?: `0x${string}`
+  readonly VITE_LEGACY_FAUCET_ADDRESS?: `0x${string}`
 
   /** RetroPickRouter (Tier C executor) address on Arbitrum One. */
   readonly VITE_ROUTER_ADDRESS?: `0x${string}`
@@ -62,8 +73,8 @@ interface ImportMetaEnv {
   /** WorldID action name. */
   readonly VITE_WLD_ACTION?: string
 
-  /** Backend API base URL (RetroPick backend service). */
-  readonly VITE_BACKEND_API_URL?: string
+  /** RetroPick Go API (markets, health, indexer WS). Default http://127.0.0.1:8080 */
+  readonly VITE_API_URL?: string
 
   /** Enable AML geofencing checks (set to "false" for local dev). */
   readonly VITE_ENABLE_GEOFENCING?: string
@@ -74,4 +85,9 @@ interface ImportMetaEnv {
 
 interface ImportMeta {
   readonly env: ImportMetaEnv
+}
+
+declare module "*.md?raw" {
+  const content: string;
+  export default content;
 }

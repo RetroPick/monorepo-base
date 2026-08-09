@@ -49,10 +49,12 @@ export interface LinePoint {
   value: number;
 }
 
+export function candlePointsToLinePoints(candles: CandlePoint[]): LinePoint[] {
+  return candles.map((c) => ({ time: c.time, value: c.close }));
+}
+
 /** Discover header + reference chart asset class toggles. */
 export type AssetClass = "crypto" | "commodity" | "fx" | "macro" | "benchmarks" | "weather";
-
-export type ReferenceChartKind = "candles" | "line";
 
 export interface ReferenceChartMeta {
   title: string;
@@ -64,14 +66,6 @@ export interface ReferenceChartMeta {
 }
 
 export type ReferenceChartResult =
-  | {
-      kind: "candles";
-      candles: CandlePoint[];
-      interval: KlineInterval;
-      pairLabel: string;
-      assetName: string;
-      meta: ReferenceChartMeta;
-    }
   | {
       kind: "line";
       points: LinePoint[];

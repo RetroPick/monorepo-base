@@ -1,12 +1,11 @@
 {
-  "name": "@retropick/markets-v1",
+  "name": "fe-v1",
   "private": true,
   "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
-    "analyze": "ANALYZE=true next build",
     "start": "next start -p 3000",
     "dev:vite": "vite",
     "build:vite": "vite build",
@@ -15,15 +14,10 @@
     "preview": "next start -p 3000",
     "preview:vite": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@coinbase/wallet-sdk": "^4.3.7",
-    "@fontsource/inter": "^5.2.8",
-    "@fontsource/jetbrains-mono": "^5.2.8",
-    "@fontsource/material-symbols-outlined": "^5.2.43",
-    "@fontsource/plus-jakarta-sans": "^5.2.8",
     "@hookform/resolvers": "^3.10.0",
     "@metamask/connect-evm": "~0.9.0",
     "@radix-ui/react-accordion": "^1.2.11",
@@ -56,6 +50,7 @@
     "@reown/appkit": "^1.8.17",
     "@reown/appkit-adapter-wagmi": "^1.8.17",
     "@reown/appkit-pay": "^1.8.19",
+    "@retropick/contracts": "workspace:*",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.1",
     "@tanstack/react-query": "^5.90.20",
@@ -92,12 +87,10 @@
     "vaul": "^0.9.9",
     "viem": "^2.48.4",
     "wagmi": "^3.4.2",
-    "zod": "^3.25.76",
-    "@retropick/polymarket": "workspace:*"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@next/bundle-analyzer": "14.2.35",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",

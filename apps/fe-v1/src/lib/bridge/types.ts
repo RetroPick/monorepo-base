@@ -16,15 +16,15 @@ import type { Address } from 'viem'
 export interface BridgeRouteRequest {
   /** Source chain ID */
   fromChainId:      number
-  /** Destination chain ID — always DEPLOYMENT_CHAIN_ID (42161) for RetroPick */
+  /** Destination chain ID; always DEPLOYMENT_CHAIN_ID (42161) for RetroPick */
   toChainId:        number
   /** Token address on source chain (use native address 0x0 for ETH) */
   fromTokenAddress: Address
-  /** Token address on destination chain — always Arbitrum USDC */
+  /** Token address on destination chain; always Arbitrum USDC */
   toTokenAddress:   Address
   /** Amount of fromToken in smallest units (e.g., USDC 6-decimal, ETH 18-decimal) */
   fromAmount:       bigint
-  /** User's wallet address — receives the destination token */
+  /** User's wallet address; receives the destination token */
   fromAddress:      Address
   /** Slippage tolerance in basis points (e.g., 50 = 0.5%) */
   slippageBps?:     number

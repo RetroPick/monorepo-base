@@ -1,5 +1,5 @@
 /**
- * LiFi Bridge Abstraction — Cross-chain → Arbitrum USDC
+ * LiFi bridge abstraction: cross-chain to Arbitrum USDC
  *
  * Implements the Tier A (frontend-only) cross-chain deposit pattern from
  * the abstraction docs (02-integration-modes.md):
@@ -20,6 +20,7 @@ import type { Address } from 'viem'
 import type { BridgeRoute, BridgeRouteRequest, SourceTokenOption } from './types'
 import { DEPLOYMENT_CHAIN_ID }  from '@/config/chains'
 import { getStakeTokenAddress } from '@/config/tokens'
+import { getPublicEnv } from '@/lib/runtimeEnv'
 
 const LIFI_API_BASE = 'https://li.quest/v1'
 
@@ -30,7 +31,7 @@ async function lifiGet<T>(path: string, params: Record<string, string>): Promise
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const apiKey = import.meta.env.VITE_LIFI_API_KEY
+  const apiKey = getPublicEnv("LIFI_API_KEY")
   if (apiKey) headers['x-lifi-api-key'] = apiKey
 
   const res = await fetch(url.toString(), { headers, signal: AbortSignal.timeout(10_000) })

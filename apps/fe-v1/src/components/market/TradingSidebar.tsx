@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import Icon from "@/components/Icon";
 import { cn } from "@/lib/utils";
 import { useAccount } from "wagmi";
-import { relayerApi, BuySharesParams } from "@/lib/relayerApi";
 import { useToast } from "@/components/ui/use-toast";
-import { useYellowSession } from "@/hooks/useYellowSession";
+import { siteLinks } from "@/config/siteLinks";
 
 interface TradingSidebarProps {
   marketTitle: string;
@@ -28,7 +27,6 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
   const [potentialPayout, setPotentialPayout] = useState<number | null>(null);
   const { address } = useAccount();
   const { toast } = useToast();
-  const { signOrder } = useYellowSession();
 
   // Assuming price fetched from market outcomes, hardcoded for UI demo
   const yesPrice = 51;
@@ -42,7 +40,7 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
 
   const handleTrade = async () => {
     if (!address) {
-      toast({ title: "Wallet not connected", description: "Please connect your wallet first", variant: "destructive" });
+      toast({ title: "Not signed in", description: "Please sign in first", variant: "destructive" });
       return;
     }
 
@@ -50,57 +48,9 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
 
     setIsTrading(true);
     try {
-      const TEST_SESSION_ID = relayerApi.getMarketSessionId(marketTitle);
-
-      const outcomeIndex = side === 'YES' ? 0 : 1;
-      const deltaShares = Number(amount) / (currentPrice / 100);
-
-      try {
-        await relayerApi.getSession(TEST_SESSION_ID);
-      } catch (err) {
-        await relayerApi.createSession({
-          sessionId: TEST_SESSION_ID,
-          marketId: "1",
-          vaultId: "0x1111111111111111111111111111111111111111", // mock
-          numOutcomes: 2,
-          b: 100 // LMSR liquidity param
-        });
-      }
-
-      // Ensure user has some test USDC
-      try {
-        await relayerApi.creditUser(TEST_SESSION_ID, address, 10000);
-      } catch (e) { }
-
-      // Get signature
-      const action = tab === 'Buy' ? 'buy' : 'sell';
-      const signature = await signOrder(TEST_SESSION_ID, action, outcomeIndex, deltaShares);
-
-      if (signature) {
-        if (action === 'buy') {
-          const params: BuySharesParams = {
-            sessionId: TEST_SESSION_ID,
-            outcomeIndex: side === 'YES' ? 0 : 1,
-            delta: deltaShares,
-            userAddress: address,
-            signature
-          };
-          await relayerApi.buyShares(params);
-        } else {
-          const params = {
-            sessionId: TEST_SESSION_ID,
-            outcomeIndex: side === 'YES' ? 0 : 1,
-            delta: deltaShares,
-            userAddress: address,
-            signature
-          };
-          await relayerApi.sellShares(params);
-        }
-      }
-
       toast({
-        title: "Trade Executed Successfully",
-        description: `Bought ${deltaShares.toFixed(2)} shares of ${side} off-chain.`,
+        title: "Legacy trade panel disabled",
+        description: "Use the backend-driven Trade panel on market detail pages.",
       });
 
     } catch (e: any) {
@@ -134,16 +84,8 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      const sessionId = relayerApi.getMarketSessionId(marketTitle);
-      const outcomeIndex = side === 'YES' ? 0 : 1;
-      const quote = await relayerApi.getQuote(sessionId, outcomeIndex, amt, currentPrice);
-      if (quote) {
-        setChanceToWin(quote.chanceToWin);
-        setPotentialPayout(quote.potentialPayout);
-      } else {
-        setChanceToWin(currentPrice / 100);
-        setPotentialPayout(amt / (currentPrice / 100));
-      }
+      setChanceToWin(currentPrice / 100);
+      setPotentialPayout(amt / (currentPrice / 100));
       debounceRef.current = null;
     }, 300);
     return () => {
@@ -276,7 +218,7 @@ const TradingSidebar = ({ marketTitle, selectedOutcome = "Yes" }: TradingSidebar
 
         {/* Terms text */}
         <div className="mt-5 text-center text-[10px] sm:text-xs text-muted-foreground">
-          By trading, you agree to the <a href="#" className="underline hover:text-foreground transition-colors">Terms of Use</a>.
+          By trading, you agree to the <a href={siteLinks.termsUrl} className="underline hover:text-foreground transition-colors">Terms of Use</a>.
         </div>
       </div>
     </div>

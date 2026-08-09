@@ -11,7 +11,7 @@ export type FrankfurterTimeSeriesResponse = {
   rates?: Record<string, Record<string, number>>;
 };
 
-/** Pure parse for tests — Frankfurter `..` range response with daily rates. */
+/** Pure parse for tests: Frankfurter `..` range response with daily rates. */
 export function parseFrankfurterRatesToLinePoints(
   json: FrankfurterTimeSeriesResponse,
   quote: string,

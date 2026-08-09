@@ -1,164 +1,170 @@
 /**
- * RetroPick MarketEngine — TypeScript types
+ * RetroPick MarketEngine TypeScript types
  *
- * Mirrors the Solidity storage model in MarketEngineState.sol.
- * These types are shared by contract hooks, context, and UI components.
+ * Mirrors `MarketTypes` in package/contract (`EpochStatus`, `MarketType`, `RollingPhase`, etc.).
  */
 
-// ── Enums ────────────────────────────────────────────────────────────────────
+// ── Enums (must match on-chain `MarketTypes.sol`) ─────────────────────────────
 
-/** EpochState as stored on-chain (uint8). */
+/** `MarketTypes.EpochStatus` */
 export enum EpochState {
-  Uninitialized = 0,
-  Open          = 1,
-  Locked        = 2,
-  Resolved      = 3,
-  Cancelled     = 4,
+  Scheduled = 0,
+  Open = 1,
+  Locked = 2,
+  Resolved = 3,
+  Cancelled = 4,
+  Voided = 5,
 }
 
-/** MarketType — determines resolution logic (uint8). */
+/** `MarketTypes.MarketType` */
 export enum MarketType {
-  Direction  = 0, // price UP or DOWN between checkpoint A and B
-  Threshold  = 1, // price ABOVE or BELOW a fixed level at close
-  RangeClose = 2, // price lands within a defined range bin
+  Direction = 0,
+  Threshold = 1,
+  RangeClose = 2,
+  Velocity = 3,
+  Ladder = 4,
+  Convergence = 5,
+  Composite = 6,
+  Corridor = 7,
+  Cascade = 8,
 }
 
-/** OracleType — which resolver path the template uses (uint8). */
+/** `MarketTypes.OracleKind` */
 export enum OracleType {
-  ChainlinkPriceFeed = 0,
-  TrustedReporter    = 1,
+  Chainlink = 0,
+  TrustedReporter = 1,
 }
 
-/** RollingPhase — lifecycle state of rolling (auto-advancing) markets (uint8). */
+/** `MarketTypes.RollingPhase` */
 export enum RollingPhase {
   Uninitialized = 0,
-  GenesisOpen   = 1,
-  GenesisClosed = 2,
-  Live          = 3,
-  Halted        = 4,
+  GenesisOpen = 1,
+  Live = 2,
+  Halted = 3,
+}
+
+/** `MarketTypes.RollingHaltReason` */
+export enum RollingHaltReason {
+  NoneReason = 0,
+  BufferMissOnLock = 1,
+  BufferMissOnResolve = 2,
+  OracleFailure = 3,
+  OracleConfidenceWide = 4,
+  ManualAdmin = 5,
 }
 
 // ── Vault & pool data ────────────────────────────────────────────────────────
 
-/** Logical vault buckets for a single template (read from getVaultBalances). */
 export interface VaultBalances {
-  active: bigint; // funds in open/locked epochs
-  claims: bigint; // winner claims pending withdrawal
-  fees:   bigint; // protocol fee reserve
+  active: bigint;
+  claims: bigint;
+  fees: bigint;
 }
 
-// ── Epoch ────────────────────────────────────────────────────────────────────
+// ── Epoch (minimal view for UI; full struct comes from `getEpoch`) ───────────
 
 /**
- * On-chain Epoch struct (read from getEpoch).
- * All amounts are in stakeToken smallest units (USDC = 6 decimals on Arbitrum).
+ * Fields read from `getEpoch` / `MarketTypes.Epoch` for display helpers.
+ * The on-chain tuple is larger; wagmi returns the full object.
  */
-export interface Epoch {
-  state:          EpochState;
-  totalPool:      bigint;
-  winningOutcome: number;   // uint8; only valid after Resolved
-  openAt:         bigint;   // unix seconds
-  lockAt:         bigint;
-  resolveAt:      bigint;
-  outcomePools:   bigint[]; // index = outcomeIndex
+export interface EpochForDisplay {
+  status: number;
+  timing: { openAt: bigint; lockAt: bigint; resolveAt: bigint };
+  totalPool: bigint;
+  outcomePools: readonly bigint[];
+  winningOutcomeMask: bigint;
+  outcomeCount: number;
 }
+
+/** @deprecated Use `EpochForDisplay`; kept for gradual migration. */
+export type Epoch = EpochForDisplay;
 
 /** Display-friendly epoch (amounts formatted as strings). */
 export interface EpochDisplay {
   templateId: `0x${string}`;
-  epochId:    number;
-  state:      EpochState;
+  epochId: number;
+  state: EpochState;
   stateLabel: string;
-  totalPool:  string;        // e.g. "1,234.56"
+  totalPool: string;
   winningOutcome: number;
-  openAt:    Date;
-  lockAt:    Date;
+  openAt: Date;
+  lockAt: Date;
   resolveAt: Date;
-  outcomePools: string[];    // formatted
-  timeRemaining: string;     // human-readable countdown
+  outcomePools: string[];
+  timeRemaining: string;
 }
 
-// ── Rolling lifecycle ─────────────────────────────────────────────────────────
+// ── Rolling lifecycle (`getRollingLifecycle` tuple) ───────────────────────────
 
 export interface RollingLifecycle {
-  phase:          RollingPhase;
-  currentEpochId: bigint;
-  nextEpochId:    bigint;
-  lastTickAt:     bigint; // unix seconds
+  phase: RollingPhase;
+  haltReason: RollingHaltReason;
+  haltedAtEpochId: bigint;
+  rollingNextEpochId: bigint;
+  activeEpochId: bigint;
+  lastResolvedEpochId: bigint;
 }
 
 // ── User position ─────────────────────────────────────────────────────────────
 
-/** A user's stake in a single (templateId, epochId, outcomeIndex). */
 export interface UserPosition {
-  templateId:   `0x${string}`;
-  epochId:      number;
+  templateId: `0x${string}`;
+  epochId: number;
   outcomeIndex: number;
-  amount:       bigint;          // raw stake token amount
-  amountDisplay: string;         // formatted e.g. "12.50"
-  epoch:        Epoch | null;
-  claimable:    boolean;
-  claimAmount:  bigint;
+  amount: bigint;
+  amountDisplay: string;
+  epoch: EpochForDisplay | null;
+  claimable: boolean;
+  claimAmount: bigint;
 }
 
-// ── Contract interaction params ───────────────────────────────────────────────
-
 export interface DepositParams {
-  templateId:   `0x${string}`;
-  epochId:      bigint;
+  templateId: `0x${string}`;
+  epochId: bigint;
   outcomeIndex: number;
-  amount:       bigint; // raw stakeToken amount (USDC 6-decimal)
+  amount: bigint;
 }
 
 export interface SwitchSideParams {
-  templateId:      `0x${string}`;
-  epochId:         bigint;
+  templateId: `0x${string}`;
+  epochId: bigint;
   fromOutcomeIndex: number;
-  toOutcomeIndex:  number;
-  amount:          bigint;
+  toOutcomeIndex: number;
+  amount: bigint;
 }
 
 export interface ClaimParams {
   templateId: `0x${string}`;
-  epochId:    bigint;
+  epochId: bigint;
 }
 
-// ── Template metadata (off-chain companion to on-chain template) ──────────────
-
-/**
- * Frontend-facing market template definition.
- * On-chain `templateId = keccak256(slug)`.
- */
 export interface MarketTemplate {
-  templateId:  `0x${string}`;
-  slug:        string;
-  title:       string;
+  templateId: `0x${string}`;
+  slug: string;
+  title: string;
   description: string;
-  category:    MarketCategory;
-  marketType:  MarketType;
-  oracleType:  OracleType;
-  outcomes:    TemplateOutcome[];
-  feedSymbol?: string;  // e.g. "BTC/USD" for Chainlink path
-  dataSource?: string;  // for TrustedReporter path
-  /** Resolution formula shown in UI */
+  category: MarketCategory;
+  marketType: MarketType;
+  oracleType: OracleType;
+  outcomes: TemplateOutcome[];
+  feedSymbol?: string;
+  dataSource?: string;
   resolutionFormula: string;
-  /** Whether market is rolling (auto-advancing) */
   isRolling: boolean;
-  /** Round duration in seconds */
   roundDuration: number;
 }
 
 export interface TemplateOutcome {
   index: number;
-  label: string;     // e.g. "UP", "DOWN", "YES", "NO"
-  color: string;     // tailwind color class
+  label: string;
+  color: string;
 }
 
 export type MarketCategory =
-  | 'crypto'
-  | 'economics'
-  | 'financials'
-  | 'business'
-  | 'tech_science'
-  | 'climate'
-  | 'trending';
+  | "crypto"
+  | "economics"
+  | "financials"
+  | "business"
+  | "tech_science"
+  | "climate"
+  | "trending";

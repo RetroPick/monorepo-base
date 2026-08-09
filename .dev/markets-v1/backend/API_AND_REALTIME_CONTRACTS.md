@@ -10,7 +10,7 @@
 
 This document is the semantics overlay for the Markets V1 **HTTP and realtime surface** shared by web and Android. It inventories operations (eligibility, capabilities, catalog, me/*, funding, orders, intelligence, alerts, …), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels, error envelope, idempotency store, `/api/v1` versioning, and timeout budgets—without inventing paths. Canonical schemas live in `schemas/openapi/markets-v1.yaml` (v1.1.1).
 
-It sits in Wave 3 beside auth/eligibility and architecture. Mutating POSTs require `Idempotency-Key` with 24h replay; phase gates keep unfinished surfaces dark via capabilities. Realtime is a projection stream (`market.*.book|trades`, `user.orders|fills|positions`, `alerts.inbox`) with resume via `Last-Event-ID`—never invent fills the venue did not produce. Clients retry catalog with backoff; never auto-retry preview/submit.
+It sits in Wave 3 beside auth/eligibility and architecture. Mutating POSTs require `Idempotency-Key` with 24h replay; phase gates keep unfinished surfaces dark via capabilities. PHASE-1 market book realtime uses `streamEpoch` + `deliveryCounter` (Polymarket has no authoritative `sequence`); gaps heal via REST order book snapshot. Phase-2+ alert inbox may use separate resume semantics. Clients retry catalog with backoff; never auto-retry preview/submit.
 
 Read this before implementing or calling any Markets endpoint or channel, or when writing contract tests. Prefer the OpenAPI YAML for shapes and sibling auth/domain docs for gates and state machines—not for ad-hoc new routes.
 
@@ -23,7 +23,7 @@ Short orientation for implementers and agents. Read this before the normative se
 | **Who** | `be-api` / `be-realtime` implementing `cmd/api` and WebSocket hub; web and Android client authors; contract-test owners of `internal/markets/contract_test.go`; agents adding operations only when present in OpenAPI. |
 | **What** | Semantics overlay for the Markets HTTP + realtime surface: operation inventory (eligibility, capabilities, catalog, me/*, account-wallet/approvals preview+relay, funding quote/track, withdrawals, orders preview/submit/cancel, position ops, watchlists, intelligence, alerts, journal, execution-quality), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels (`market.<id>.book|trades`, `user.orders|fills|positions`, `alerts.inbox`), error envelope, idempotency store, `/api/v1` versioning, timeout budgets. **Canonical schemas live in YAML—this doc does not invent paths.** |
 | **When** | Before implementing or calling any Markets endpoint or channel. Phase gates (`x-phase`) decide which ops are live. Mutating POSTs always carry idempotency from day one of that op. Breaking shape changes require v2 + parallel run; feature discovery via `GET /markets/capabilities`. |
-| **Where** | Authority: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). This file: auth/realtime/timeouts/idempotency semantics. Handlers under `apps/backend/internal/markets/handler*`. Idempotency persistence: `markets.idempotency_keys` (or Redis with PG backing). WS protocol: JSON `{type, sequence, payload, emittedAt}`, resume `Last-Event-ID`, heartbeat 30s. Auth/eligibility gates: [AUTH_SESSION_AND_ELIGIBILITY.md](./AUTH_SESSION_AND_ELIGIBILITY.md). |
+| **Where** | Authority: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). Realtime wire: [schemas/asyncapi/markets-realtime-v1.yaml](../../../schemas/asyncapi/markets-realtime-v1.yaml). This file: auth/realtime/timeouts/idempotency semantics. Handlers under `apps/backend/internal/markets/handler*` and `apps/backend/internal/markets/realtime/`. Idempotency persistence: `markets.idempotency_keys` (or Redis with PG backing). WS endpoint: `GET /api/v1/markets/realtime` (WSS); heartbeat ping 30s. Auth/eligibility gates: [AUTH_SESSION_AND_ELIGIBILITY.md](./AUTH_SESSION_AND_ELIGIBILITY.md). |
 | **Why** | Web and Android must share one contract so BFF projections stay consistent. Fixed-point `MoneyAmount` and `DecimalString` prevent float bugs in clients. Idempotency stops double funding/order submits. Phase extensions keep unfinished surfaces dark. Realtime is a projection stream—reconnect/resume must not invent fills the venue never produced. |
 | **How** | Implement only listed `operationId`s; generate/validate against OpenAPI examples. Public GETs for catalog/book; auth for `me/*`, trading, funding, alerts. On POST: require `Idempotency-Key`, store response 24h, replay identical body. Errors: `{ error: { code, message, details, requestId } }` (e.g. `ELIGIBILITY_DENIED`). Respect timeout classes (catalog 5s, preview 10s, submit 15s, relay 30s)—clients retry catalog with backoff, never auto-retry preview/submit. WS: optional auth for public market channels; required for user.* and alerts.inbox. |
 
@@ -31,7 +31,9 @@ Short orientation for implementers and agents. Read this before the normative se
 
 **Happy path — preview then submit.** Client reads `GET /markets/capabilities` and `GET /markets/eligibility`, loads `GET /markets/markets/{marketId}/orderbook`, then `POST /markets/orders/preview` (auth + `Idempotency-Key`, PHASE-3 — not yet in OpenAPI) receiving EIP-712 payload with `MoneyAmount` / `DecimalString`. After wallet signature, `POST /markets/orders/submit` returns order id; client subscribes to `user.orders` / `user.fills` and reconciles with `GET /markets/me/orders`. Contract tests load YAML `examples` and assert handler JSON.
 
-**Happy path — funding track + realtime inbox.** `POST /markets/funding/quote` then `track` (Phase 2, auth). On credit, notification path may push inbox; WS `alerts.inbox` delivers `{type, sequence, payload, emittedAt}` with 30s heartbeats. Resume uses `Last-Event-ID`.
+**Happy path — funding track + realtime inbox.** `POST /markets/funding/quote` then `track` (Phase 2, auth). On credit, notification path may push inbox; WS `alerts.inbox` (Phase 2+) delivers alert envelopes with 30s heartbeats.
+
+**Happy path — market book realtime (PHASE-1).** Client opens WSS `/api/v1/markets/realtime`, sends `{command: subscribe, marketId, tokenId}`, receives `orderbook.snapshot` with `streamEpoch` / `deliveryCounter`. On `deliveryCounter` gap or `resync.required`, client refetches `GET /markets/markets/{marketId}/orderbook?tokenId=…` and resets local book state. Never apply deltas after a detected gap.
 
 **Failure / degraded.** Duplicate submit same idempotency key → same response, no second venue post (24h store in `markets.idempotency_keys` or Redis+PG). Eligibility fail → `ELIGIBILITY_DENIED` without geo PII. CLOB timeout → `unknown`; client polls, does not blind-resubmit. WS disconnect → resume; gaps healed via REST projections. Phase-gated op early → capability false / not mounted. **Never invent paths** outside the OpenAPI inventory.
 
@@ -43,16 +45,18 @@ Short orientation for implementers and agents. Read this before the normative se
 - `Idempotency-Key` — required on mutating POST
 - `x-phase` — integer rollout gate per operation (`1` for PHASE-1 paths in YAML today)
 
-### Realtime channels
+### Realtime channels (logical)
 
-| Channel | Auth | Payload |
-|---------|------|---------|
-| `market.<id>.book` | optional | snapshot + delta |
-| `market.<id>.trades` | optional | trade tick |
-| `user.orders` | required | order status |
-| `user.fills` | required | fill event |
-| `user.positions` | required | position update |
-| `alerts.inbox` | required | alert notification |
+| Channel | Auth | Payload | PHASE-1 status |
+|---------|------|---------|----------------|
+| `market.<id>.book` | optional | snapshot + trade ticks via WSS | **live** (`/api/v1/markets/realtime`) |
+| `market.<id>.trades` | optional | trade tick | bundled in book stream |
+| `user.orders` | required | order status | Phase 3 |
+| `user.fills` | required | fill event | Phase 3 |
+| `user.positions` | required | position update | Phase 4 |
+| `alerts.inbox` | required | alert notification | Phase 2+ |
+
+Wire schema: [schemas/asyncapi/markets-realtime-v1.yaml](../../../schemas/asyncapi/markets-realtime-v1.yaml). Server implementation: `apps/backend/internal/markets/realtime/`.
 
 ### Timeout budget
 
@@ -149,17 +153,61 @@ Watchlist paths are PHASE-1 scope but deferred until a dedicated OpenAPI task ad
 
 ## 5. Realtime channels (WebSocket)
 
-| Channel | Auth | Payload |
-|---------|------|---------|
-| `market.<built-in function id>.book` | optional | snapshot + delta |
-| `market.<built-in function id>.trades` | optional | trade tick |
-| `user.orders` | required | order status |
-| `user.fills` | required | fill event |
-| `user.positions` | required | position update |
-| `alerts.inbox` | required | alert notification |
+**Endpoint:** `GET /api/v1/markets/realtime` (upgrade to WSS). Public market book channel; optional auth for future private channels.
 
-Protocol: JSON messages with `type`, `sequence`, `payload`, `emittedAt`.
-Resume via `Last-Event-ID`. Heartbeat every 30s.
+**Client commands (JSON text frames):**
+
+```json
+{"command":"subscribe","marketId":"polymarket:market:1","tokenId":"token-yes"}
+{"command":"unsubscribe","marketId":"polymarket:market:1","tokenId":"token-yes"}
+```
+
+**Server envelopes:** `RealtimeEnvelope` per [schemas/asyncapi/markets-realtime-v1.yaml](../../../schemas/asyncapi/markets-realtime-v1.yaml). Required fields include `schemaVersion`, `eventId`, `eventType`, `marketId`, `tokenId`, `streamEpoch`, `deliveryCounter`, `observedAt`, `publishedAt`, `payload`. **`sequence` is always JSON `null`** — Polymarket CLOB does not expose an authoritative monotonic sequence ([ADR-005](../architecture/adr/ADR-005-REALTIME-AND-RECONCILIATION.md)).
+
+| Field | Role |
+|-------|------|
+| `streamEpoch` | Transport epoch; increments on reconnect, shard loss, or authoritative resnapshot |
+| `deliveryCounter` | Monotonic within `streamEpoch` for all events on the same `tokenId` stream |
+| `snapshotHash` | Book integrity hash on snapshot/delta payloads |
+| `payload` | Typed body (`OrderBookSnapshot`, trade, signal, …) |
+
+**PHASE-1 server `eventType` values:** `hello`, `subscribed`, `unsubscribed`, `orderbook.snapshot`, `trade.executed`, `market.tick_size_changed`, `resync.required`, `signal.created`, `signal.retracted`, `error`.
+
+### Snapshot + gap recovery (ADR-005)
+
+Because upstream has no reliable `sequence`, clients use **`DeliveryStream`** logic (reference: `apps/backend/internal/markets/realtime/protocol.go`):
+
+1. Track `streamEpoch` + `deliveryCounter` per subscribed `tokenId`.
+2. If `streamEpoch` changes → treat as resync boundary; apply snapshot only after REST confirm if needed.
+3. If `deliveryCounter != lastCounter + 1` within the same epoch → **gap** → stop applying book state; refetch REST snapshot.
+4. On `resync.required` → refetch `GET /api/v1/markets/markets/{marketId}/orderbook?tokenId=…`; expect a new snapshot with bumped `streamEpoch`.
+5. Never invent prices when REST `freshness.state` is `stale`, `resyncing`, `unavailable`, or `invalid`.
+
+**REST resync authority:** `GET /markets/markets/{marketId}/orderbook` returns `OrderBookSnapshot` with `freshness` + `provenance` (OpenAPI). Use this after any gap or reconnect before resuming WS apply logic.
+
+### Staleness (REST + SLO)
+
+| Threshold | Purpose | Source |
+|-----------|---------|--------|
+| **5s** | MKT-NFR-002 order book snapshot age SLO (p95) | `MARKETS_BOOK_MAX_AGE` (recommend `5s`; config default may be `10s` until aligned) |
+| **10s** | ADR-005 UI “delayed” badge when snapshot age exceeds policy | UX only |
+
+REST order book responses set `freshness.state` to `stale` with `reason: snapshot_age_exceeded` when upstream snapshot age exceeds `BookMaxAge`. Always surface `freshness.ageMillis` to clients.
+
+**Metrics:** `retropick_markets_orderbook_snapshot_age_seconds_{sum,count,max}` emitted from realtime producer (`realtime/metrics.go`).
+
+### Heartbeat and reconnect
+
+- Server sends WebSocket **ping every 30s** ([`handler.go`](../../../apps/backend/internal/markets/realtime/handler.go)).
+- Client reconnects with exponential backoff (max 30s per ADR-005).
+- On reconnect: resubscribe tokens, refetch REST snapshot, reset `DeliveryStream` state.
+
+### Future channels (not PHASE-1)
+
+| Channel | Auth | Notes |
+|---------|------|-------|
+| `user.orders` / `user.fills` / `user.positions` | required | Phase 3+ private streams |
+| `alerts.inbox` | required | Phase 2+; may use separate resume semantics |
 
 ## 6. Error model
 
@@ -247,6 +295,27 @@ OpenAPI v1.1.1 is frozen for parallel PHASE-1 work. Do not add PHASE-2+ paths wi
 - History: no forward-fill (`derived: false` points only); honor `interval` enum and `fidelity` bounds; response may echo `interval`/`fidelity`.
 - Codegen path documented in §11; until wired, mirror types from YAML `examples` manually.
 - Contract test entrypoint: `go test ./apps/backend/internal/markets/... -run TestOpenAPIRuntimeConformancePhaseOne -count=1`.
+
+## 13. Task handoff — MKT-P1-006 complete
+
+Realtime snapshot/gap protocol implemented per [ADR-005](../architecture/adr/ADR-005-REALTIME-AND-RECONCILIATION.md) and [schemas/asyncapi/markets-realtime-v1.yaml](../../../schemas/asyncapi/markets-realtime-v1.yaml).
+
+### → Chat G (`MKT-P1-008` contract conformance)
+
+- Import `realtime.DeliveryStream` + gap fixtures for counter skip and epoch reset.
+- Assert REST order book `freshness.state=stale` when snapshot age > `BookMaxAge` (see `TestGetOrderBookLabelsStaleSnapshot`).
+- Assert WS wire includes `"sequence":null` on data envelopes.
+- Realtime tests: `go test ./apps/backend/internal/markets/realtime/... -count=1`.
+
+### → Chat H (`MKT-P1-009` observability)
+
+- Scrape `retropick_markets_orderbook_snapshot_age_seconds_*` from realtime producer for p95 SLO dashboard (target < 5s).
+
+### → Web / Android (MKT-P1-004 / PHASE-5)
+
+- Implement client-side `DeliveryStream.Inspect` equivalent; never apply book updates after `GapActionGapDetected`.
+- On gap or `resync.required`, call `GET /markets/markets/{marketId}/orderbook?tokenId=…` before resuming WS consumption.
+- Map `FreshnessState` to UI badges; show delayed badge when `ageMillis` > 10s per ADR-005.
 
 ## Appendix 1
 

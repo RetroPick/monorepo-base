@@ -41,6 +41,79 @@ func TestMarketsV1MigrationDeclaresRequiredProjections(t *testing.T) {
 	}
 }
 
+func TestMarketsV1CatalogWatchlistExpandMigration(t *testing.T) {
+	t.Parallel()
+
+	up, err := Files.ReadFile("000019_markets_v1_catalog_watchlist_expand.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	down, err := Files.ReadFile("000019_markets_v1_catalog_watchlist_expand.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upSQL := string(up)
+	downSQL := string(down)
+
+	watchlistTables := []string{
+		"markets_watchlists",
+		"markets_watchlist_items",
+	}
+	for _, table := range watchlistTables {
+		if !strings.Contains(upSQL, "CREATE TABLE IF NOT EXISTS "+table) {
+			t.Errorf("up migration does not create %s", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("down migration does not drop %s", table)
+		}
+	}
+
+	catalogTables := []string{
+		"markets_catalog_events",
+		"markets_catalog_markets",
+		"markets_catalog_outcomes",
+		"markets_catalog_rules",
+	}
+	for _, table := range catalogTables {
+		for _, fragment := range []string{
+			"ADD COLUMN IF NOT EXISTS id UUID",
+			"ADD COLUMN IF NOT EXISTS upstream_id TEXT",
+			"ADD COLUMN IF NOT EXISTS upstream_source TEXT",
+			"UNIQUE INDEX IF NOT EXISTS idx_" + table + "_upstream_tuple",
+		} {
+			if !strings.Contains(upSQL, fragment) {
+				t.Errorf("up migration missing %q for %s", fragment, table)
+			}
+		}
+		if !strings.Contains(downSQL, "DROP COLUMN IF EXISTS id") {
+			t.Errorf("down migration should drop id column from catalog tables")
+		}
+	}
+
+	for _, fragment := range []string{
+		"idx_markets_raw_upstream_upstream_tuple",
+		"markets_sync_checkpoints",
+		"ADD COLUMN IF NOT EXISTS upstream_source TEXT",
+		"item_kind IN ('event', 'market', 'wallet', 'tag', 'category')",
+		"idx_markets_watchlists_one_default",
+	} {
+		if !strings.Contains(upSQL, fragment) {
+			t.Errorf("up migration missing %q", fragment)
+		}
+	}
+
+	for _, forbidden := range []string{
+		"DOUBLE PRECISION",
+		"double precision",
+		" REAL ",
+		" FLOAT ",
+	} {
+		if strings.Contains(upSQL, forbidden) {
+			t.Errorf("up migration must not use %q", forbidden)
+		}
+	}
+}
+
 func TestMarketsV1MigrationBoundsRawPayloadRetention(t *testing.T) {
 	t.Parallel()
 

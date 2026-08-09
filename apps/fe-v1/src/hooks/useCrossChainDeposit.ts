@@ -18,10 +18,17 @@ import { useState, useCallback } from 'react'
 import { useAccount, useChainId, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
 import { encodeFunctionData, erc20Abi } from 'viem'
 import type { Address } from 'viem'
-import { getBestBridgeRoute }         from '@/lib/bridge/lifi'
-import { DEPLOYMENT_CHAIN_ID }        from '@/config/chains'
-import { getStakeTokenAddress }       from '@/config/tokens'
 import type { BridgeRoute, BridgeStatus } from '@/lib/bridge/types'
+import {
+  createFundingIntentV2,
+  fetchFundingExecution,
+  fetchFundingOptionsV2,
+  markFundingExecutionStartedV2,
+  markFundingRouteUpdateV2,
+  markFundingSourceTxV2,
+  scanFundingIntentBalances,
+  selectFundingOption,
+} from '@/lib/api/retropickApi'
 
 export interface CrossChainDepositState {
   status:            BridgeStatus
@@ -30,6 +37,8 @@ export interface CrossChainDepositState {
   bridgeTxHash:      `0x${string}` | undefined
   receivedUsdc:      bigint | undefined  // USDC received on Arbitrum after bridge
   error:             string | undefined
+  fundingIntentId:   string | undefined
+  executionId:       string | undefined
 }
 
 export interface CrossChainDepositActions {
@@ -53,6 +62,8 @@ const INITIAL_STATE: CrossChainDepositState = {
   bridgeTxHash:   undefined,
   receivedUsdc:   undefined,
   error:          undefined,
+  fundingIntentId: undefined,
+  executionId: undefined,
 }
 
 export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepositActions] {
@@ -72,21 +83,31 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
     setState(s => ({ ...s, status: 'fetching_routes', error: undefined }))
 
     try {
-      const route = await getBestBridgeRoute({
-        fromChainId,
-        toChainId:        DEPLOYMENT_CHAIN_ID,
-        fromTokenAddress,
-        toTokenAddress:   getStakeTokenAddress(DEPLOYMENT_CHAIN_ID),
-        fromAmount,
-        fromAddress:      address,
+      const intent = await createFundingIntentV2({
+        userAddress: address,
+        targetCurrency: "USD",
+        targetAmount: (Number(fromAmount) / 1_000_000).toFixed(2),
+        clientNonce: crypto.randomUUID(),
+        mode: "AUTO_BEST_SOURCE",
       })
+      await scanFundingIntentBalances(intent.intentId)
+      const options = await fetchFundingOptionsV2(intent.intentId)
+      const selected = options.options[0]
+      let executionId: string | undefined
+      let route: BridgeRoute | null = null
+      if (selected) {
+        const selectedResp = await selectFundingOption(intent.intentId, { optionId: selected.optionId })
+        executionId = selectedResp.execution.executionId
+        const execution = await fetchFundingExecution(executionId)
+        route = bridgeRouteFromExecution(execution.serializedRoute)
+      }
 
       if (!route) {
-        setState(s => ({ ...s, status: 'failed', error: 'No bridge route found for this token.' }))
+        setState(s => ({ ...s, status: 'failed', error: 'No executable backend route available; please refresh options.' }))
         return null
       }
 
-      setState(s => ({ ...s, status: 'awaiting_approval', route }))
+      setState(s => ({ ...s, status: 'awaiting_approval', route, fundingIntentId: intent.intentId, executionId }))
       return route
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to fetch route'
@@ -96,7 +117,7 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
   }, [address])
 
   const executeBridge = useCallback(async () => {
-    const { route } = state
+    const { route, fundingIntentId, executionId } = state
     if (!route || !address) return
 
     try {
@@ -137,10 +158,17 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
 
       // ── Step 3: Execute the LiFi route transaction ────────────────────────
       setState(s => ({ ...s, status: 'executing' }))
+      if (executionId) {
+        await markFundingExecutionStartedV2(executionId, {
+          walletAddress: address,
+          clientRouteExecutionId: crypto.randomUUID(),
+          idempotencyKey: crypto.randomUUID(),
+        })
+      }
 
       const txRequest = firstStep?.transactionRequest
       if (!txRequest?.to || !txRequest.data) {
-        throw new Error('Invalid route — no transaction request from LiFi')
+        throw new Error('Invalid route: no transaction request from LiFi')
       }
 
       const bridgeTx = await sendTransactionAsync({
@@ -150,8 +178,20 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
       })
 
       setState(s => ({ ...s, status: 'pending_bridge', bridgeTxHash: bridgeTx }))
+      if (executionId) {
+        await markFundingSourceTxV2(executionId, {
+          chainId,
+          txHash: bridgeTx,
+          idempotencyKey: crypto.randomUUID(),
+        })
+        await markFundingRouteUpdateV2(executionId, {
+          idempotencyKey: crypto.randomUUID(),
+          status: 'BRIDGING',
+          observedTxHashes: [{ chainId, txHash: bridgeTx, stepIndex: 0, type: 'SOURCE' }],
+        })
+      }
 
-      // ── Step 4: Mark as done — UI should poll for USDC arrival ────────────
+      // ── Step 4: Mark as done; UI should poll for USDC arrival ────────────
       // In production, use LiFi status API: GET /status?txHash=...
       // Here we set status to 'done' optimistically; the deposit step
       // (useMarketEngine.depositToSide) will validate the balance before depositing.
@@ -165,4 +205,43 @@ export function useCrossChainDeposit(): [CrossChainDepositState, CrossChainDepos
   const reset = useCallback(() => setState(INITIAL_STATE), [])
 
   return [state, { fetchRoute, executeBridge, reset }]
+}
+
+function bridgeRouteFromExecution(serializedRoute: unknown): BridgeRoute | null {
+  if (!serializedRoute || typeof serializedRoute !== 'object') return null
+  const route = serializedRoute as {
+    id?: string
+    toAmount?: string
+    toAmountMin?: string
+    steps?: Array<{
+      type?: string
+      tool?: string
+      action?: { fromToken?: { symbol?: string }; toToken?: { symbol?: string }; fromAmount?: string }
+      estimate?: { toAmountMin?: string; executionDuration?: number; gasCosts?: Array<{ amountUSD?: string }> }
+    }>
+  }
+  const steps = Array.isArray(route.steps) ? route.steps : []
+  if (steps.length === 0) return null
+  const gasCostUsd = steps
+    .reduce((sum, step) => sum + Number(step.estimate?.gasCosts?.[0]?.amountUSD ?? 0), 0)
+    .toFixed(2)
+  const estimatedDuration = steps.reduce((sum, step) => sum + Number(step.estimate?.executionDuration ?? 0), 0)
+  const bridgeStep = steps.find((s) => s.type === 'cross')
+  return {
+    id: route.id ?? `execution-route-${Date.now()}`,
+    toAmountMin: BigInt(route.toAmountMin ?? route.toAmount ?? '0'),
+    toAmount: BigInt(route.toAmount ?? route.toAmountMin ?? '0'),
+    gasCostUsd,
+    estimatedDuration,
+    bridgeName: bridgeStep?.tool ?? steps[0]?.tool ?? 'LiFi',
+    steps: steps.map((s) => ({
+      type: s.type === 'cross' ? 'cross' : 'swap',
+      tool: s.tool ?? 'unknown',
+      fromToken: s.action?.fromToken?.symbol ?? 'unknown',
+      toToken: s.action?.toToken?.symbol ?? 'unknown',
+      fromAmount: s.action?.fromAmount ?? '0',
+      toAmountMin: s.estimate?.toAmountMin ?? '0',
+    })),
+    raw: serializedRoute,
+  }
 }

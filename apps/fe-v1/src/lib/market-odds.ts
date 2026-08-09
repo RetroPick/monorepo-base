@@ -5,7 +5,7 @@
  */
 export function formatPayoutMultiplier(impliedPercent: number): string {
   if (!Number.isFinite(impliedPercent) || impliedPercent <= 0 || impliedPercent >= 100) {
-    return "—";
+    return "-";
   }
   const m = 100 / impliedPercent;
   const decimals = m >= 10 ? 1 : 2;

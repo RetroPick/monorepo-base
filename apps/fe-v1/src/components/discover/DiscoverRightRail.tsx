@@ -1,12 +1,12 @@
 import { ChevronRight, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { yesPercentFromPools, thresholdSubtitle } from "@/lib/discover-utils";
-import type { DiscoveryMarket } from "@/types/discovery-market";
+import { discoverListSubtitle, yesPercentFromPools } from "@/lib/discover-utils";
+import type { Market } from "@/types/market";
 
 type DiscoverRightRailProps = {
-  trendingMarkets: DiscoveryMarket[];
+  trendingMarkets: Market[];
   onOpenUpDown: () => void;
-  onOpen: (market: DiscoveryMarket) => void;
+  onOpen: (market: Market) => void;
 };
 
 export default function DiscoverRightRail({ trendingMarkets, onOpenUpDown, onOpen }: DiscoverRightRailProps) {
@@ -17,7 +17,9 @@ export default function DiscoverRightRail({ trendingMarkets, onOpenUpDown, onOpe
       <div className="rounded-xl border border-border/50 bg-card/80 p-5 dark:bg-card/60">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Crypto thresholds</p>
         <h2 className="mt-2 text-lg font-semibold leading-tight tracking-tight text-foreground">Up or Down</h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Short intraday markets on Solana</p>
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+          Short-horizon markets from the indexed engine. Trade from the next tab with your wallet.
+        </p>
         <button
           type="button"
           onClick={onOpenUpDown}
@@ -38,8 +40,7 @@ export default function DiscoverRightRail({ trendingMarkets, onOpenUpDown, onOpe
         </div>
         <ul className="divide-y divide-border/50 dark:divide-white/[0.06]">
           {list.map((market, index) => {
-            const yesPct = yesPercentFromPools(market);
-            const yesProb = market.outcomes.find((o) => o.id === "yes")?.probability ?? yesPct;
+            const yesProb = yesPercentFromPools(market);
             const skew = Math.round(yesProb - 50);
             const trendUp = skew >= 0;
             return (
@@ -54,7 +55,7 @@ export default function DiscoverRightRail({ trendingMarkets, onOpenUpDown, onOpe
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="line-clamp-2 text-[13px] font-semibold leading-snug text-foreground">{market.title}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">{thresholdSubtitle(market)}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">{discoverListSubtitle(market)}</p>
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="text-[15px] font-semibold tabular-nums text-foreground">{yesProb}%</div>

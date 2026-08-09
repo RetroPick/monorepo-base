@@ -13,12 +13,22 @@ type metricPair struct {
 	durationNS atomic.Uint64
 }
 
+const catalogFreshnessSLO = 60 * time.Second
+
 type Metrics struct {
 	gamma metricPair
 	clob  metricPair
 
-	catalogRecords     atomic.Uint64
-	catalogLastSuccess atomic.Int64
+	catalogRecords            atomic.Uint64
+	catalogLastSuccess        atomic.Int64
+	catalogFreshnessSecondsNS atomic.Uint64
+	catalogFreshnessCount     atomic.Uint64
+	catalogFreshnessWithinSLO atomic.Uint64
+
+	gammaErrorRateLimited     atomic.Uint64
+	gammaErrorNotFound        atomic.Uint64
+	gammaErrorUpstream        atomic.Uint64
+	gammaErrorInvalidPayload  atomic.Uint64
 
 	bookFresh       atomic.Uint64
 	bookStale       atomic.Uint64
@@ -65,6 +75,38 @@ func (m *Metrics) RecordCatalogSync(records int, succeededAt time.Time) {
 	}
 }
 
+func (m *Metrics) ObserveCatalogFreshness(age time.Duration) {
+	if age < 0 {
+		return
+	}
+	m.catalogFreshnessSecondsNS.Add(uint64(age))
+	m.catalogFreshnessCount.Add(1)
+	if age <= catalogFreshnessSLO {
+		m.catalogFreshnessWithinSLO.Add(1)
+	}
+}
+
+func (m *Metrics) CatalogFreshnessMeanSeconds() float64 {
+	count := m.catalogFreshnessCount.Load()
+	if count == 0 {
+		return 0
+	}
+	return float64(m.catalogFreshnessSecondsNS.Load()) / float64(count) / float64(time.Second)
+}
+
+func (m *Metrics) RecordGammaError(kind string) {
+	switch kind {
+	case "rate_limited":
+		m.gammaErrorRateLimited.Add(1)
+	case "not_found":
+		m.gammaErrorNotFound.Add(1)
+	case "upstream":
+		m.gammaErrorUpstream.Add(1)
+	case "invalid_payload":
+		m.gammaErrorInvalidPayload.Add(1)
+	}
+}
+
 func (m *Metrics) RecordBookState(state FreshnessState) {
 	switch state {
 	case FreshnessFresh:
@@ -99,6 +141,17 @@ func (m *Metrics) Prometheus() string {
 	writeUpstreamMetrics(&out, "clob", &m.clob)
 	_, _ = fmt.Fprintf(&out, "retropick_markets_catalog_records_processed_total %d\n", m.catalogRecords.Load())
 	_, _ = fmt.Fprintf(&out, "retropick_markets_catalog_last_success_timestamp_seconds %d\n", m.catalogLastSuccess.Load())
+	_, _ = fmt.Fprintf(
+		&out,
+		"retropick_markets_catalog_freshness_seconds_sum %.6f\n",
+		float64(m.catalogFreshnessSecondsNS.Load())/float64(time.Second),
+	)
+	_, _ = fmt.Fprintf(&out, "retropick_markets_catalog_freshness_seconds_count %d\n", m.catalogFreshnessCount.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_catalog_freshness_within_slo_total %d\n", m.catalogFreshnessWithinSLO.Load())
+	writeLabeledCounter(&out, "retropick_markets_gamma_errors_total", "kind", "rate_limited", m.gammaErrorRateLimited.Load())
+	writeLabeledCounter(&out, "retropick_markets_gamma_errors_total", "kind", "not_found", m.gammaErrorNotFound.Load())
+	writeLabeledCounter(&out, "retropick_markets_gamma_errors_total", "kind", "upstream", m.gammaErrorUpstream.Load())
+	writeLabeledCounter(&out, "retropick_markets_gamma_errors_total", "kind", "invalid_payload", m.gammaErrorInvalidPayload.Load())
 	writeLabeledCounter(&out, "retropick_markets_books_total", "state", "fresh", m.bookFresh.Load())
 	writeLabeledCounter(&out, "retropick_markets_books_total", "state", "stale", m.bookStale.Load())
 	writeLabeledCounter(&out, "retropick_markets_books_total", "state", "resyncing", m.bookResyncing.Load())

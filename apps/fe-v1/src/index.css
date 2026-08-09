@@ -1,15 +1,51 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer components {
+  /**
+   * Sub-nav under the site header (back + market title). Plain CSS `top` so it always applies
+   * (Tailwind arbitrary `[top:...]` with `var(--a, b)` can be finicky), and it must stay equal
+   * to the measured lower edge of `#app-site-header`.
+   */
+  .market-page-sticky-offset {
+    --market-page-effective-sticky-top: calc(
+      var(--market-page-sticky-top, 5rem) + env(safe-area-inset-top, 0px)
+    );
+    --market-page-effective-trade-top: calc(
+      var(--market-page-effective-sticky-top) + 1rem
+    );
+  }
+
+  .market-page-sticky-below-chrome {
+    top: var(--market-page-effective-sticky-top);
+  }
+
+  /**
+   * Manual / chain market detail: right column trade card.
+   * Sticks below the site header; the market title strip lives in the left column.
+   * max-height + overflow-y keep the panel inside the viewport; tall content scrolls inside the column.
+   * Do not place overflow-x-clip on an ancestor of this block; that breaks position: sticky.
+   */
+  @media (min-width: 1024px) {
+    .market-manual-trade-aside {
+      position: sticky;
+      top: var(--market-page-effective-trade-top);
+      align-self: flex-start;
+      /* Same vertical space as `top` above, plus bottom margin + safe area */
+      max-height: calc(
+        100dvh - 1.25rem - var(--market-page-effective-trade-top) -
+          env(safe-area-inset-bottom, 0px)
+      );
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+  }
+}
+
 @layer base {
    :root {
-    /* Light: cool gray surfaces — avoid pure white; matches dark theme hue family */
+    /* Light: cool gray surfaces; avoid pure white; matches dark theme hue family */
     --background: 220 16% 93%;
     --foreground: 222 24% 11%;
 
@@ -58,9 +94,12 @@
     --accent-green: 160 84% 39%;
     --accent-cyan: 187 92% 40%;
 
-    /* Directional (YES/NO, Up/Down, skew) — light */
+    /* Directional (YES/NO, Up/Down, skew), light */
     --up: 152 55% 36%;
     --down: 350 60% 46%;
+
+    --dashboard-accent: 16 78% 52%;
+    --dashboard-accent-foreground: 0 0% 100%;
   }
 
   .dark {
@@ -113,10 +152,14 @@
 
     --up: 145 50% 44%;
     --down: 350 52% 52%;
+
+    /* Portfolio dashboard accent (mock CTA orange); use via `hsl(var(--dashboard-accent))`. */
+    --dashboard-accent: 16 78% 56%;
+    --dashboard-accent-foreground: 0 0% 100%;
   }
 }
 
-/* Reown AppKit / WalletConnect root host — stack above Radix dialogs (z-50) */
+/* Reown AppKit / WalletConnect root host: stack above Radix dialogs (z-50) */
 w3m-modal {
   z-index: 100150;
 }
@@ -211,7 +254,7 @@ w3m-modal {
   }
 
   .font-display {
-    font-family: "Plus Jakarta Sans", "Inter", sans-serif;
+    font-family: var(--font-display), "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
   }
 
   .text-gradient {

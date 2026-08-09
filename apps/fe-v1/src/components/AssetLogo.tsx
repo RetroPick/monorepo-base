@@ -1,13 +1,8 @@
 import { useEffect, useState } from "react";
-import type { StaticImageData } from "next/image";
 import bitcoinLogo from "@/assets/crypto/bitcoin.png";
 import ethereumLogo from "@/assets/crypto/ethereum.png";
 import solanaLogo from "@/assets/crypto/solana.png";
 import { cn } from "@/lib/utils";
-
-function resolveAssetSrc(src: string | StaticImageData): string {
-  return typeof src === "string" ? src : src.src;
-}
 
 interface AssetLogoProps {
   symbol: string;
@@ -16,15 +11,21 @@ interface AssetLogoProps {
   className?: string;
 }
 
-const logoBySymbol: Record<string, { alt: string; src: string }> = {
-  BTC: { alt: "Bitcoin", src: resolveAssetSrc(bitcoinLogo) },
-  ETH: { alt: "Ethereum", src: resolveAssetSrc(ethereumLogo) },
-  SOL: { alt: "Solana", src: resolveAssetSrc(solanaLogo) },
+type ImageSource = string | { src: string };
+
+function imageSourceToString(source: ImageSource): string {
+  return typeof source === "string" ? source : source.src;
+}
+
+const logoBySymbol: Record<string, { alt: string; src: ImageSource }> = {
+  BTC: { alt: "Bitcoin", src: bitcoinLogo },
+  ETH: { alt: "Ethereum", src: ethereumLogo },
+  SOL: { alt: "Solana", src: solanaLogo },
 };
 
 export function AssetLogo({ symbol, imageSrc, alt, className }: AssetLogoProps) {
   const fallbackLogo = logoBySymbol[symbol.toUpperCase()];
-  const resolvedSrc = imageSrc ?? fallbackLogo?.src;
+  const resolvedSrc = imageSrc ?? (fallbackLogo ? imageSourceToString(fallbackLogo.src) : undefined);
   const resolvedAlt = alt ?? fallbackLogo?.alt ?? symbol;
   const [displaySrc, setDisplaySrc] = useState(resolvedSrc);
   const [isVisible, setIsVisible] = useState(true);

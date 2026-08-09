@@ -29,7 +29,7 @@ export const FRED_SERIES = {
   benchmarks: "SP500",
 } as const;
 
-/** NYC — Open-Meteo archive/forecast. */
+/** NYC, Open-Meteo archive/forecast. */
 export const WEATHER_LAT = 40.7128;
 export const WEATHER_LON = -74.006;
 export const WEATHER_LABEL = "New York (°C)";

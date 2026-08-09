@@ -31,6 +31,7 @@ type Producer struct {
 	reconcilers map[string]*marketdata.Reconciler
 	signals     *SignalPipeline
 	status      *StatusProvider
+	metrics     *SnapshotAgeObserver
 	mu          sync.RWMutex
 	logger      *slog.Logger
 	bookMaxAge  time.Duration
@@ -47,6 +48,7 @@ type ProducerConfig struct {
 	Registry       TokenRegistry
 	Signals        *SignalPipeline
 	Status         *StatusProvider
+	Metrics        *SnapshotAgeObserver
 	BookMaxAge     time.Duration
 	RESTValidate   time.Duration
 	Logger         *slog.Logger
@@ -60,7 +62,11 @@ func NewProducer(cfg ProducerConfig) *Producer {
 	}
 	maxAge := cfg.BookMaxAge
 	if maxAge <= 0 {
-		maxAge = 10 * time.Second
+		maxAge = DefaultBookMaxAge
+	}
+	metrics := cfg.Metrics
+	if metrics == nil {
+		metrics = NewSnapshotAgeObserver()
 	}
 	logger := cfg.Logger
 	if logger == nil {
@@ -73,6 +79,7 @@ func NewProducer(cfg ProducerConfig) *Producer {
 		registry:    cfg.Registry,
 		signals:     cfg.Signals,
 		status:      cfg.Status,
+		metrics:     metrics,
 		reconcilers: make(map[string]*marketdata.Reconciler),
 		logger:      logger,
 		bookMaxAge:  maxAge,
@@ -410,6 +417,9 @@ func (p *Producer) publishResyncRequired(marketID, tokenID string) {
 }
 
 func (p *Producer) publishEnvelope(marketID, tokenID string, envelope markets.RealtimeEnvelope) {
+	if p.metrics != nil && envelope.Type == TypeOrderBookSnapshot {
+		p.metrics.ObservePublishAge(envelope.ObservedAt, envelope.PublishedAt)
+	}
 	if p.hub == nil {
 		return
 	}
@@ -468,4 +478,8 @@ func (p *Producer) PublishSignal(marketID, tokenID string, envelope markets.Real
 
 func (p *Producer) NextDelivery(tokenID string) (epoch, counter uint64) {
 	return p.tracker.Next(tokenID)
+}
+
+func (p *Producer) SnapshotAgeMetrics() *SnapshotAgeObserver {
+	return p.metrics
 }

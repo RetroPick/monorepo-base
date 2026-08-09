@@ -2,7 +2,7 @@ import { Market } from "@/types/market";
 import { cn } from "@/lib/utils";
 import { useState, memo, MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import BetModal from "./BetModal";
+import BetModal from "./LazyBetModal";
 import { CryptoIcon } from "./CryptoIcon";
 import { useLanguage } from "@/context/LanguageContext";
 

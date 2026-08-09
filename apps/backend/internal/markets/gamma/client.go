@@ -29,9 +29,10 @@ var (
 )
 
 type UpstreamError struct {
-	Kind       error
-	Operation  string
-	StatusCode int
+	Kind        error
+	Operation   string
+	StatusCode  int
+	RetryAfter  time.Duration
 }
 
 func (e *UpstreamError) Error() string {
@@ -182,7 +183,7 @@ func (c *Client) getJSON(ctx context.Context, operation, path string, query url.
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return classifyStatus(operation, res.StatusCode)
+		return classifyStatus(operation, res.StatusCode, res.Header.Get("Retry-After"))
 	}
 	body, err := io.ReadAll(io.LimitReader(res.Body, maxResponseBytes+1))
 	if err != nil {
@@ -197,7 +198,7 @@ func (c *Client) getJSON(ctx context.Context, operation, path string, query url.
 	return nil
 }
 
-func classifyStatus(operation string, status int) error {
+func classifyStatus(operation string, status int, retryAfterHeader string) error {
 	kind := ErrUpstream
 	switch status {
 	case http.StatusNotFound:
@@ -205,7 +206,29 @@ func classifyStatus(operation string, status int) error {
 	case http.StatusTooManyRequests:
 		kind = ErrRateLimited
 	}
-	return &UpstreamError{Kind: kind, Operation: operation, StatusCode: status}
+	return &UpstreamError{
+		Kind:       kind,
+		Operation:  operation,
+		StatusCode: status,
+		RetryAfter: parseRetryAfter(retryAfterHeader),
+	}
+}
+
+func parseRetryAfter(raw string) time.Duration {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+		return time.Duration(seconds) * time.Second
+	}
+	if when, err := http.ParseTime(raw); err == nil {
+		delay := time.Until(when)
+		if delay > 0 {
+			return delay
+		}
+	}
+	return 0
 }
 
 type rawEvent struct {

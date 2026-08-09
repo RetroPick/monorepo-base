@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 **Wave:** 3 — Backend architecture and API contracts
 
@@ -103,11 +103,85 @@ erDiagram
 
     ## 4. Migration strategy
 
-    - Tool: `golang-migrate` or `goose` under `apps/backend/migrations/markets/`
-    - Naming: `YYYYMMDDHHMMSS_description.up.sql`
+    - Tool: `golang-migrate` embedded under [`apps/backend/migrations/`](../../../apps/backend/migrations/) (numbered `000NNN_description.up.sql`)
+    - Naming: `000NNN_description.up.sql` (+ matching `.down.sql`)
     - Expand-contract for zero-downtime deploys
     - Backfill jobs as separate worker tasks
     - Rollback: down migrations tested in CI
+
+    ## 4A. Phase-1 physical schema (MKT-P1-003)
+
+    Phase-1 DDL lives in `public` with a `markets_` table prefix. Logical names in this doc (`markets.catalog_events`) map to physical tables as follows:
+
+    | Logical | Physical table | Introduced |
+    |---------|----------------|------------|
+    | `markets.catalog_events` | `public.markets_catalog_events` | `000016` + expand `000019` |
+    | `markets.catalog_markets` | `public.markets_catalog_markets` | `000016` + expand `000019` |
+    | `markets.catalog_outcomes` | `public.markets_catalog_outcomes` | `000016` + expand `000019` |
+    | `markets.catalog_market_rules` | `public.markets_catalog_rules` | `000016` + expand `000019` |
+    | `markets.raw_upstream_events` | `public.markets_raw_upstream_events` | `000016` + expand `000019` |
+    | `markets.sync_checkpoints` | `public.markets_sync_checkpoints` | `000016` + expand `000019` |
+    | `markets.watchlists` | `public.markets_watchlists` | `000019` |
+    | `markets.watchlist_items` | `public.markets_watchlist_items` | `000019` |
+
+    A future contract migration may `CREATE SCHEMA markets` and rename/move tables; until then, consumers must use the physical names above.
+
+    ### Three identity layers (catalog projections)
+
+    | Layer | Column(s) | Role |
+    |-------|-----------|------|
+    | Surrogate row id | `id UUID NOT NULL` | Internal PK candidate; **application inserts MUST use UUID v7**. Migration `000019` backfills existing rows with `gen_random_uuid()` (dev-only convenience). |
+    | Canonical API id | `event_id`, `market_id`, `outcome_id` | Stable RetroPick ids (`polymarket:event:{upstreamId}`, etc.); remain PRIMARY KEY in Phase-1 expand. |
+    | Upstream tuple | `upstream_source`, `upstream_id` | Idempotent upsert key; `UNIQUE (upstream_source, upstream_id)` per catalog table. `upstream_source` mirrors legacy `source` / OpenAPI `UpstreamProvenance.source`. |
+
+    **Backfill rules (`000019`):** events/markets strip `polymarket:{kind}:` prefix or read `payload->>'upstreamId'`; outcomes use `upstream_token_id`; rules inherit parent market tuple. Legacy `source` column retained until contract phase.
+
+    ### Expand vs contract (000019)
+
+    - **Expand (`000019`):** add `id`, `upstream_source`, `upstream_id`; create watchlist tables; keep TEXT PKs and FKs from `000016`.
+    - **Contract (later):** promote `id` to PRIMARY KEY; drop redundant `source`; optional `markets` schema namespace; sqlc/store must lead.
+
+    ### MKT-DATA-002 retention (Phase-1)
+
+    - `markets_raw_upstream_events.expires_at` — rolling retention; partition/drop by policy.
+    - `payload` / `snapshot` JSONB size CHECKs (`<= 1048576` bytes) on catalog and raw tables.
+    - Parallel tuple on raw: `UNIQUE (upstream_source, upstream_id)` alongside legacy `UNIQUE (source, upstream_event_id)`.
+
+    ### Exclusions (MKT-P1-003)
+
+    - No `intel_*` tables (Intelligence I0 is a later phase).
+    - Legacy epoch `user_watchlist` / `user_watchlist_nonce` unchanged (template_id BYTEA).
+    - No binary-float money columns; Phase-1 catalog prices remain `TEXT` (`DecimalString`).
+
+    ### Phase-1 watchlist DDL (`000019`)
+
+    User-owned lists; private by default; no upstream tuple.
+
+    **`public.markets_watchlists`**
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | owner_wallet_address | TEXT | NOT NULL, lowercase CHECK | Auth subject; normalized `0x…` |
+    | name | TEXT | NOT NULL DEFAULT `'default'` | Display name |
+    | is_default | BOOLEAN | NOT NULL DEFAULT false | At most one `true` per owner (partial unique index) |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+    | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Indices:** `UNIQUE (owner_wallet_address, name)`; partial unique on `(owner_wallet_address) WHERE is_default`; index on `owner_wallet_address`.
+
+    **`public.markets_watchlist_items`**
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | watchlist_id | UUID | NOT NULL FK → watchlists | CASCADE delete |
+    | item_kind | TEXT | NOT NULL CHECK | `event`, `market`, `wallet`, `tag`, `category` |
+    | target_id | TEXT | NOT NULL | Canonical catalog id or wallet address |
+    | sort_order | INT | NOT NULL DEFAULT 0 | Stable UI ordering |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Indices:** `UNIQUE (watchlist_id, item_kind, target_id)`; `(watchlist_id, sort_order)`.
 
 ### `markets.catalog_venues`
 | Field | Type | Constraints | Notes |
@@ -424,7 +498,10 @@ erDiagram
 | payload_json | JSONB | NULL | Normalized upstream slice |
 **Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-### `markets.watchlists`
+### `markets.watchlists` (Phase-1 physical: `public.markets_watchlists`)
+
+See **§4A Phase-1 watchlist DDL** for authoritative field specs. Long-term target state below; generic upstream tuple columns apply to projection tables only, not user-owned watchlists.
+
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
 | id | UUID | PK | Internal surrogate key |
@@ -439,7 +516,10 @@ erDiagram
 | payload_json | JSONB | NULL | Normalized upstream slice |
 **Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-### `markets.watchlist_items`
+### `markets.watchlist_items` (Phase-1 physical: `public.markets_watchlist_items`)
+
+See **§4A Phase-1 watchlist DDL** for authoritative field specs.
+
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
 | id | UUID | PK | Internal surrogate key |

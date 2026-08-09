@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import Icon from "@/components/Icon";
 import { openAppKitModal } from "@/lib/openAppKitModal";
 
-const AuthPlaceholder = ({ title = "Connect Wallet to View", description = "Please connect your wallet to access this improved feature." }) => {
+const AuthPlaceholder = ({ title = "Sign In to View", description = "Please sign in to access this feature." }) => {
     return (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center space-y-6">
             <div className="relative">
@@ -22,7 +22,7 @@ const AuthPlaceholder = ({ title = "Connect Wallet to View", description = "Plea
                 className="h-12 px-8 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/25 hover:scale-105 transition-all duration-300"
             >
                 <Icon name="wallet" className="mr-2 text-lg" />
-                Connect Wallet
+                Sign In
             </Button>
         </div>
     );

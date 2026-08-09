@@ -77,13 +77,17 @@ export default function TransactionModal({
                         className="fixed inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
                     />
 
-                    {/* Modal Wrapper - ensures perfect centering */}
-                    <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+                    {/* Modal Wrapper - ensures perfect centering on desktop, bottom-sheet on phone */}
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        className="fixed inset-0 z-[101] flex items-end justify-center sm:items-center sm:p-4 pointer-events-none"
+                    >
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="w-full max-w-md bg-card border border-border rounded-2xl shadow-xl overflow-hidden pointer-events-auto"
+                            className="w-full max-h-[92dvh] overflow-y-auto rounded-t-2xl border border-border bg-card shadow-xl pb-[max(env(safe-area-inset-bottom),0.75rem)] pointer-events-auto sm:max-w-md sm:max-h-[min(90dvh,40rem)] sm:rounded-2xl sm:overflow-hidden sm:pb-0"
                         >
                             {/* Header */}
                             <div className="flex justify-between items-center p-5 border-b border-slate-100 dark:border-white/5">

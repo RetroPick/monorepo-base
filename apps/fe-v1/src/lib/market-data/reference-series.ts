@@ -11,17 +11,21 @@ export async function loadReferenceChartData(assetClass: AssetClass): Promise<Re
   if (assetClass === "crypto") {
     try {
       const candles = await fetchBinanceCandles(DEFAULT_CRYPTO_SYMBOL, "1h", 200);
+      const formatUsd = (value: number) => {
+        if (value >= 1000) return `$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+        if (value >= 1) return `$${value.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
+        return `$${value.toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
+      };
       return {
-        kind: "candles",
-        candles,
-        interval: "1h",
-        pairLabel: "BTC/USDT",
-        assetName: "Bitcoin",
+        kind: "line",
+        points: candles.map((c) => ({ time: c.time, value: c.close })),
+        formatValue: formatUsd,
         meta: {
           title: subtitle,
-          subtitle: "BTC · hourly",
+          subtitle: "BTC · hourly close",
           sourceName: "Binance",
           sourceUrl: "https://www.binance.com/en/trade/BTC_USDT",
+          valueUnit: "USD",
         },
       };
     } catch {

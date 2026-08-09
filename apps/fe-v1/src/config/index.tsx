@@ -1,37 +1,54 @@
 /**
  * Wagmi + Reown AppKit configuration
  *
- * Primary chain : Arbitrum One (42161)
- * Supported     : All L2s listed in src/config/chains.ts
+ * Primary chain : Base Sepolia (registry / MarketEngine)
+ * Supported     : All networks in src/config/chains.ts
  */
-import { cookieStorage, createStorage, http } from '@wagmi/core'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { DEPLOYMENT_CHAIN, DEPLOYMENT_TESTNET_CHAIN, SUPPORTED_NETWORKS } from './chains'
-import type { AppKitNetwork } from '@reown/appkit/networks'
-import { readEnv } from '@/lib/env'
+import { cookieStorage, createStorage, http } from "@wagmi/core";
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import {
+  arbitrum,
+  arbitrumSepolia,
+  base,
+  mainnet,
+  optimism,
+  sepolia,
+} from "@reown/appkit/networks";
+import { DEPLOYMENT_CHAIN, DEPLOYMENT_TESTNET_CHAIN, SUPPORTED_NETWORKS } from "./chains";
+import type { AppKitNetwork } from "@reown/appkit/networks";
+import { getDefaultNetworkKey, getReownProjectId, getRpcUrl } from "@/lib/runtimeEnv";
 
 // ── Project ID ────────────────────────────────────────────────────────────────
 
 export const projectId =
-  readEnv('NEXT_PUBLIC_REOWN_PROJECT_ID', 'VITE_REOWN_PROJECT_ID') ?? 'f39121ec755731ed58c1605658872bce'
+  getReownProjectId()
 
 // ── Default network ───────────────────────────────────────────────────────────
 
-type NetworkKey = 'arbitrum' | 'arbitrum-sepolia' | 'mainnet' | 'base' | 'optimism' | 'sepolia'
+type NetworkKey =
+  | "base-sepolia"
+  | "arbitrum"
+  | "arbitrum-sepolia"
+  | "mainnet"
+  | "base"
+  | "optimism"
+  | "sepolia";
 
+/** Explicit map (avoid `.find` + `!` if `SUPPORTED_NETWORKS` ordering or ids ever drift). */
 const NETWORK_MAP: Record<NetworkKey, AppKitNetwork> = {
-  'arbitrum':         DEPLOYMENT_CHAIN,
-  'arbitrum-sepolia': DEPLOYMENT_TESTNET_CHAIN,
-  'mainnet':          SUPPORTED_NETWORKS.find(n => n.id === 1)!,
-  'base':             SUPPORTED_NETWORKS.find(n => n.id === 8453)!,
-  'optimism':         SUPPORTED_NETWORKS.find(n => n.id === 10)!,
-  'sepolia':          SUPPORTED_NETWORKS.find(n => n.id === 11155111)!,
-}
+  "base-sepolia": DEPLOYMENT_CHAIN,
+  arbitrum,
+  "arbitrum-sepolia": arbitrumSepolia,
+  mainnet,
+  base,
+  optimism,
+  sepolia,
+};
 
 function resolveDefaultNetwork(): AppKitNetwork {
-  const key = readEnv('NEXT_PUBLIC_APP_DEFAULT_NETWORK', 'VITE_APP_DEFAULT_NETWORK') as NetworkKey | undefined
-  if (key && key in NETWORK_MAP) return NETWORK_MAP[key]
-  return DEPLOYMENT_CHAIN // default: Arbitrum One
+  const key = getDefaultNetworkKey() as NetworkKey | undefined;
+  if (key && key in NETWORK_MAP) return NETWORK_MAP[key];
+  return DEPLOYMENT_TESTNET_CHAIN;
 }
 
 export const appDefaultNetwork = resolveDefaultNetwork()
@@ -42,8 +59,8 @@ export const networks = SUPPORTED_NETWORKS
 // ── RPC transports ────────────────────────────────────────────────────────────
 
 const transports: Record<number, ReturnType<typeof http>> = {
-  42161:  http(readEnv('NEXT_PUBLIC_RPC_ARBITRUM', 'VITE_RPC_ARBITRUM') ?? 'https://arb1.arbitrum.io/rpc'),
-  421614: http(readEnv('NEXT_PUBLIC_RPC_ARBITRUM_SEPOLIA', 'VITE_RPC_ARBITRUM_SEPOLIA') ?? 'https://sepolia-rollup.arbitrum.io/rpc'),
+  42161:  http(getRpcUrl("ARBITRUM") || 'https://arb1.arbitrum.io/rpc'),
+  421614: http(getRpcUrl("ARBITRUM_SEPOLIA") || 'https://sepolia-rollup.arbitrum.io/rpc'),
   1:      http(),
   8453:   http(),
   10:     http(),

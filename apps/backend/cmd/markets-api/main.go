@@ -82,7 +82,7 @@ func main() {
 	}
 
 	syncer, err := catalog.NewSyncer(catalog.SyncerConfig{
-		Source: gamma.NewClient(cfg.GammaAPIURL),
+		Source: gamma.NewResilientClient(cfg.GammaAPIURL, gamma.ResilientConfig{}),
 		Store:  store,
 	})
 	if err != nil {
@@ -121,6 +121,7 @@ func main() {
 		MaxStaleAge:   cfg.CatalogMaxStaleAge,
 		Backoff:       cfg.CatalogBackoff,
 		ShutdownGrace: cfg.ShutdownTimeout,
+		Metrics:       metrics,
 		OnCatalogSynced: func(ctx context.Context) error {
 			if tokenRegistry == nil {
 				return nil
@@ -201,6 +202,10 @@ func main() {
 		MarketDataOperational: marketsSvc.MarketDataOperational(),
 		RealtimeState:         rtRuntime,
 		ServiceName:           "retropick-markets-api",
+	})
+	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = fmt.Fprint(w, metrics.Prometheus())
 	})
 	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
 	if rtRuntime != nil {

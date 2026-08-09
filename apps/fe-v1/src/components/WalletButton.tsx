@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAccount, useDisconnect, useBalance } from "wagmi";
-import { formatUnits } from "viem";
 import { useWalletInfo } from "@reown/appkit/react";
 import {
     Copy,
@@ -9,7 +8,6 @@ import {
     Trophy,
     Coins,
     Settings,
-    Moon,
     ChevronRight,
     Globe,
     Check,
@@ -30,44 +28,28 @@ import {
     DropdownMenuSubTrigger,
     DropdownMenuSubContent
 } from "./ui/dropdown-menu";
-import { Switch } from "./ui/switch";
-import { useTheme } from "./theme-provider";
 import { useOnboarding } from "@/context/OnboardingContext";
-import WorldIDVerifier from "./auth/WorldIDVerifier";
+import WorldIDVerifier from "./auth/LazyWorldIDVerifier";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { Language } from "@/data/translations";
-import { openAppKitModal } from "@/lib/openAppKitModal";
 import LazyFundWalletDialog from "@/components/wallet/LazyFundWalletDialog";
+import { formatUnits } from "viem";
+import { siteLinks } from "@/config/siteLinks";
+import { useBackendAuthSession } from "@/context/BackendAuthContext";
 
 const WalletButton = () => {
-    const { isConnected } = useAccount();
-
-    if (!isConnected) {
-        return (
-            <Button
-                onClick={() => void openAppKitModal()}
-                className="h-9 rounded-lg border border-border/50 bg-secondary px-4 text-xs font-semibold text-foreground transition-colors hover:bg-muted sm:px-5 sm:text-sm dark:border-transparent dark:ring-1 dark:ring-white/[0.06]"
-            >
-                Connect Wallet
-            </Button>
-        );
-    }
-
-    return <ConnectedWalletMenu />;
-};
-
-function ConnectedWalletMenu() {
-    const { address } = useAccount();
+    const { address, isConnected } = useAccount();
     const { disconnect } = useDisconnect();
     const { data: balance } = useBalance({ address });
     const { walletInfo } = useWalletInfo();
-    const { theme, setTheme } = useTheme();
     const { t, language, setLanguage } = useLanguage();
     const { isOnboarded, isWorldIDVerified } = useOnboarding();
     const [isFundWalletOpen, setIsFundWalletOpen] = useState(false);
-    const nativeBalanceFormatted = balance
-        ? `${Number(formatUnits(balance.value, balance.decimals)).toFixed(2)} ${balance.symbol}`
+    const auth = useBackendAuthSession();
+    const balanceValue = balance ? formatUnits(balance.value, balance.decimals) : undefined;
+    const nativeBalanceFormatted = balanceValue
+        ? `${Number(balanceValue).toFixed(2)} ${balance?.symbol ?? ""}`
         : "0.00";
 
     const languages: { code: Language; label: string }[] = [
@@ -79,7 +61,7 @@ function ConnectedWalletMenu() {
     ];
 
     useEffect(() => {
-        if (!address) return;
+        if (!isConnected || !address) return;
 
         const isSocialWallet =
             walletInfo?.type === "social" ||
@@ -96,7 +78,11 @@ function ConnectedWalletMenu() {
 
         window.localStorage.setItem(storageKey, "true");
         setIsFundWalletOpen(true);
-    }, [address, balance?.value, walletInfo]);
+    }, [address, balance?.value, isConnected, walletInfo]);
+
+    if (!isConnected) {
+        return null;
+    }
 
     return (
         <div className="flex items-center gap-2">
@@ -109,7 +95,7 @@ function ConnectedWalletMenu() {
                                 {t('balance')}
                             </span>
                             <span className="text-xs font-bold tabular-nums text-primary">
-                                {nativeBalanceFormatted}
+                                {isConnected ? nativeBalanceFormatted : "0.00"}
                             </span>
                         </div>
 
@@ -195,36 +181,35 @@ function ConnectedWalletMenu() {
                                 <span className="font-medium">Resolution</span>
                             </DropdownMenuItem>
                         </Link>
-
-                        {/* Dark Mode Toggle */}
-                        <DropdownMenuItem className="focus:bg-transparent rounded-lg py-2.5 px-3 flex items-center justify-between cursor-default">
-                            <div className="flex items-center">
-                                                               <Moon className="mr-3 size-4 text-muted-foreground" />
-                                <span className="font-medium">{t('dark_mode')}</span>
-                            </div>
-                            <Switch
-                                checked={theme === 'dark'}
-                                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                                className="scale-90 data-[state=checked]:bg-blue-500"
-                            />
-                        </DropdownMenuItem>
                     </div>
 
                     <div className="h-px bg-border/50 mx-4" />
 
                     {/* Secondary Links */}
                     <div className="p-2 space-y-0.5">
-                        {[
-                            { label: t('accuracy'), key: 'Accuracy' },
-                            { label: t('support'), key: 'Support' },
-                            { label: t('documentation'), key: 'Documentation' },
-                            { label: t('help_center'), key: 'Help Center' },
-                            { label: t('terms_of_use'), key: 'Terms of Use' }
-                        ].map((item) => (
-                            <DropdownMenuItem key={item.key} className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
-                                <span className="text-sm font-medium">{item.label}</span>
+                        <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                            <span className="text-sm font-medium">{t('accuracy')}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                            <span className="text-sm font-medium">{t('support')}</span>
+                        </DropdownMenuItem>
+                        <a
+                            href={siteLinks.docsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                                <span className="text-sm font-medium">{t('documentation')}</span>
                             </DropdownMenuItem>
-                        ))}
+                        </a>
+                        <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                            <span className="text-sm font-medium">{t('help_center')}</span>
+                        </DropdownMenuItem>
+                        <Link to={siteLinks.termsUrl}>
+                            <DropdownMenuItem className="cursor-pointer focus:bg-accent/50 rounded-lg py-2 text-muted-foreground focus:text-foreground">
+                                <span className="text-sm font-medium">{t('terms_of_use')}</span>
+                            </DropdownMenuItem>
+                        </Link>
                     </div>
 
                     <div className="h-px bg-border/50 mx-4" />
@@ -258,7 +243,7 @@ function ConnectedWalletMenu() {
                         </DropdownMenuSub>
 
                         <DropdownMenuItem
-                            onClick={() => disconnect()}
+                            onClick={() => void auth.signOut().catch(() => disconnect())}
                             className="cursor-pointer focus:bg-red-500/10 focus:text-red-500 rounded-lg py-2.5 px-3 text-red-500"
                         >
                             <LogOut className="mr-2 size-4" />
