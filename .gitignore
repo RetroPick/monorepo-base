@@ -46,3 +46,6 @@ repomix-output.*
 docs/upgrade-v3/*.log
 package/prediction-v2/logs/
 .dev/.upgrade_v3/
+
+# TypeScript incremental build metadata
+*.tsbuildinfo
