@@ -101,15 +101,26 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Status v
 | 39 | [polymarket/NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md](polymarket/NEGATIVE_RISK_AND_AUGMENTED_MARKETS.md) | polymarket | reviewed |
 | 40 | [polymarket/COMBOS_CAPABILITY_GATE.md](polymarket/COMBOS_CAPABILITY_GATE.md) | polymarket | reviewed |
 | 41 | [polymarket/UPSTREAM_CHANGE_MANAGEMENT.md](polymarket/UPSTREAM_CHANGE_MANAGEMENT.md) | polymarket | reviewed |
-| 42 | [intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md) | intelligence | reviewed |
-| 43 | [intelligence/OPEN_SOURCE_ADOPTION_MAP.md](intelligence/OPEN_SOURCE_ADOPTION_MAP.md) | intelligence | reviewed |
-| 44 | [intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md](intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md) | intelligence | reviewed |
-| 45 | [intelligence/WALLET_PROFILING_AND_SMART_MONEY.md](intelligence/WALLET_PROFILING_AND_SMART_MONEY.md) | intelligence | reviewed |
-| 46 | [intelligence/MARKET_HEALTH_LIQUIDITY_AND_ORDERBOOK_ANALYTICS.md](intelligence/MARKET_HEALTH_LIQUIDITY_AND_ORDERBOOK_ANALYTICS.md) | intelligence | reviewed |
-| 47 | [intelligence/ALERT_RULES_AND_DELIVERY.md](intelligence/ALERT_RULES_AND_DELIVERY.md) | intelligence | reviewed |
-| 48 | [intelligence/UNUSUAL_ACTIVITY_HEURISTICS.md](intelligence/UNUSUAL_ACTIVITY_HEURISTICS.md) | intelligence | reviewed |
-| 49 | [intelligence/RELATIONSHIP_AND_ARBITRAGE_SCANNER.md](intelligence/RELATIONSHIP_AND_ARBITRAGE_SCANNER.md) | intelligence | reviewed |
-| 50 | [intelligence/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md](intelligence/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md) | intelligence | reviewed |
+| 42 | [intelligence/README.md](intelligence/README.md) | intelligence | reviewed |
+| 43 | [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md) | intelligence | reviewed |
+| 44 | [intelligence/INTELLIGENCE_C4_MODEL.md](intelligence/INTELLIGENCE_C4_MODEL.md) | intelligence | reviewed |
+| 45 | [intelligence/POLYMARKET_INTELLIGENCE_DATA_SOURCES.md](intelligence/POLYMARKET_INTELLIGENCE_DATA_SOURCES.md) | intelligence | reviewed |
+| 46 | [intelligence/INTELLIGENCE_DATA_MODEL.md](intelligence/INTELLIGENCE_DATA_MODEL.md) | intelligence | reviewed |
+| 47 | [intelligence/INTELLIGENCE_TEST_STRATEGY.md](intelligence/INTELLIGENCE_TEST_STRATEGY.md) | intelligence | reviewed |
+| 48 | [intelligence/01_WHALE_TRADE_FEED.md](intelligence/01_WHALE_TRADE_FEED.md) | intelligence | reviewed |
+| 49 | [intelligence/02_WALLET_SEARCH.md](intelligence/02_WALLET_SEARCH.md) | intelligence | reviewed |
+| 50 | [intelligence/03_WALLET_PROFILE.md](intelligence/03_WALLET_PROFILE.md) | intelligence | reviewed |
+| 50a | [intelligence/04_WALLET_PERFORMANCE_METRICS.md](intelligence/04_WALLET_PERFORMANCE_METRICS.md) | intelligence | reviewed |
+| 50b | [intelligence/05_SMART_MONEY_LEADERBOARD.md](intelligence/05_SMART_MONEY_LEADERBOARD.md) | intelligence | reviewed |
+| 50c | [intelligence/06_FOLLOW_WALLET.md](intelligence/06_FOLLOW_WALLET.md) | intelligence | reviewed |
+| 50d | [intelligence/07_TOP_HOLDERS.md](intelligence/07_TOP_HOLDERS.md) | intelligence | reviewed |
+| 50e | [intelligence/08_BASIC_WHALE_ALERTS.md](intelligence/08_BASIC_WHALE_ALERTS.md) | intelligence | reviewed |
+| 50f | [intelligence/09_PAPER_COPY.md](intelligence/09_PAPER_COPY.md) | intelligence | reviewed |
+| 50g | [intelligence/10_QUICK_BACKTEST.md](intelligence/10_QUICK_BACKTEST.md) | intelligence | reviewed |
+| 50h | [intelligence/archive/README.md](intelligence/archive/README.md) | intelligence/archive | reviewed |
+| 50i | [intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md) | intelligence | superseded (pointer) |
+| 50j | [intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md](intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md) | intelligence | superseded (pointer) |
+| 50k | [intelligence/WALLET_PROFILING_AND_SMART_MONEY.md](intelligence/WALLET_PROFILING_AND_SMART_MONEY.md) | intelligence | superseded (pointer) |
 | 51 | [backend/BACKEND_ARCHITECTURE.md](backend/BACKEND_ARCHITECTURE.md) | backend | reviewed |
 | 52 | [backend/SERVICE_AND_MODULE_BOUNDARIES.md](backend/SERVICE_AND_MODULE_BOUNDARIES.md) | backend | reviewed |
 | 53 | [backend/DOMAIN_MODEL_AND_STATE_MACHINES.md](backend/DOMAIN_MODEL_AND_STATE_MACHINES.md) | backend | reviewed |
@@ -160,6 +171,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Status v
 | 98 | [testing/LOAD_CHAOS_AND_RESILIENCE.md](testing/LOAD_CHAOS_AND_RESILIENCE.md) | testing | reviewed |
 | 99 | [testing/RELEASE_VERIFICATION_MATRIX.md](testing/RELEASE_VERIFICATION_MATRIX.md) | testing | reviewed |
 | 100 | [phases/README.md](phases/README.md) | production/phases | reviewed |
+| 100a | [phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md) | production/phases | reviewed |
 | 101 | [phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md](phases/PHASE-0-DISCOVERY-AND-SPEC-FREEZE.md) | production/phases | reviewed |
 | 102 | [phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md](phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md) | production/phases | reviewed |
 | 103 | [phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md](phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md) | production/phases | reviewed |

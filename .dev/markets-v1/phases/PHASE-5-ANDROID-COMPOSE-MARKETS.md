@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -15,6 +15,8 @@ PHASE-5 ships native Android V1 parity on shared OpenAPI: Gradle modules, Kotlin
 
 Process-death during signing and stale-preview submit are mobile-specific fund risks — resume CTA, invalidate previews, never sign unbound payloads. Sequence: read/catalog → wallet handoff → trading → portfolio. Do not start from a greenfield parallel API or Flutter/React Native.
 
+When Smart Money flags are on, Android **consumes shared intelligence APIs** only — **no client-side scoring** ([ADR-008](../architecture/adr/ADR-008-SHARED-SIGNAL-ENGINE.md)). Launch surfaces: [INTELLIGENCE_LAUNCH_V1.md](../intelligence/INTELLIGENCE_LAUNCH_V1.md), C4 [INTELLIGENCE_C4_MODEL.md](../intelligence/INTELLIGENCE_C4_MODEL.md).
+
 `apps/android/` is the implementation home; stop for Play/FCM/signing human gates rather than inventing store approval. Exit via `MKT-P5-010` before PHASE-6 treats mobile as in-scope for hardening.
 
 ## 0. Developer intent (5W+1H)
@@ -24,10 +26,10 @@ Orientation for agents executing **PHASE-5 — Android Compose Markets**. The do
 | Dimension | Intent |
 |-----------|--------|
 | **Who** | Android/Compose and Kotlin client agents; devops for Play internal CI; humans for Play closed track, prod signing key, FCM production. |
-| **What** | Native Android V1 parity on shared OpenAPI: Gradle modules, Kotlin client, Compose navigation, catalog, wallet handoff, trading, portfolio/alerts, widgets/notifications, performance and accessibility. |
+| **What** | Native Android V1 parity on shared OpenAPI: Gradle modules, Kotlin client, Compose navigation, catalog, wallet handoff, trading, portfolio/alerts, widgets/notifications, performance and accessibility. Render shared intel when flags on. |
 | **When** | After PHASE-3/4 APIs are stable and codegen documented. Sequence: read/catalog → wallet handoff → trading → portfolio. Do not start from a greenfield parallel API. |
-| **Where** | `apps/android/` modules (`markets-feature|data|wallet`), `.dev/markets-v1/android/` specs. Integrations: FCM, Play internal, WalletConnect mobile. Optional local Room cache only. |
-| **Why** | Process-death during signing and stale-preview submit are mobile-specific fund risks. Non-Compose stacks violate ADR-006; drifting from OpenAPI breaks web/Android parity (ADR-004). |
+| **Where** | `apps/android/` modules (`markets-feature|data|wallet`), `.dev/markets-v1/android/` specs. Intel via BFF OpenAPI only ([INTELLIGENCE_C4_MODEL.md](../intelligence/INTELLIGENCE_C4_MODEL.md)). Integrations: FCM, Play internal, WalletConnect mobile. Optional local Room cache only. |
+| **Why** | Process-death during signing and stale-preview submit are mobile-specific fund risks. Non-Compose stacks violate ADR-006; drifting from OpenAPI breaks web/Android parity (ADR-004). Client-side scoring would violate ADR-008. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
 
 ### In scope (agent boundary for this phase)
@@ -35,10 +37,11 @@ Orientation for agents executing **PHASE-5 — Android Compose Markets**. The do
 - `MKT-P5-001`…`MKT-P5-010` scaffold through exit gate
 - Compose UDF; cert pinning; secure handoff; stale preview block; privacy-safe widgets
 - FCM token registration aligned with OpenAPI
+- Consume shared intelligence APIs when `intelligence.*` flags on (render-only; ADR-008)
 
 ### Out of scope (do not implement under this phase authorization)
 
-- Combos; on-device wallet classification; Flutter/React Native
+- Combos; on-device wallet classification / client-side scoring; Flutter/React Native
 - PRISM/legacy; custom exchange; embedding recovery keys in the app
 
 ### Exit gate — what “done” means for an agent
@@ -56,14 +59,18 @@ Until those are true, keep task statuses honest (`planned` / `ready` / `in_progr
 1. Scaffold Gradle modules; generate Kotlin client from `markets-v1.yaml`
 2. Catalog screens before trading; wallet handoff with resume CTA after process death
 3. Invalidate previews on resume; never sign unbound payloads
-4. Widgets/notifications without PII leakage; run unit/Compose/instrumented tests
+4. Widgets/notifications without PII leakage; intel cards call BFF only when flags on (no local WhaleScore)
 5. Stop for Play/FCM/signing human gates — do not invent store approval
 
 ### Worked example
 
 Agent on `MKT-P5-005` implements handoff + resume: if the process dies mid-sign, UI offers Resume, preview is re-fetched/invalidated, and no duplicate order is created.
 
-`MKT-P5-006` trading screens stay disabled until handoff acceptance criteria pass.
+`MKT-P5-006` trading screens stay disabled until handoff acceptance criteria pass. Whale/profile UI, if present, binds to shared OpenAPI DTOs behind Launch flags — never recomputes scores on device ([ADR-008](../architecture/adr/ADR-008-SHARED-SIGNAL-ENGINE.md); [INTELLIGENCE_LAUNCH_V1.md](../intelligence/INTELLIGENCE_LAUNCH_V1.md)).
+
+## Production path
+
+Build-band Android parity on shared contracts. Consume Smart Money APIs when flags on; no client-side scoring (ADR-008). Link Launch V1 + C4 above. Exit to Harden ([PHASE-6](PHASE-6-HARDENING-CI-CD-AND-SRE.md)). See [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
 
 ## Phase ID and exact name
@@ -107,7 +114,7 @@ PHASE-3/4 APIs stable; codegen documented.
 ## Out of scope
 
 - Combos
-- On-device wallet classification
+- On-device wallet classification / client-side intelligence scoring (ADR-008)
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 

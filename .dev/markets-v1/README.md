@@ -67,7 +67,8 @@ This tree is **documentation only**. Product code lives under `apps/`, `packages
 
 - [EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) — honest status, blockers, first executable phase
 - [agent-harness/INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) — master prompt §23 cross-doc verification (28 invariants)
-- [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) — 121 reviewed documents indexed by category
+- [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) — document inventory indexed by category
+- [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md) — Smart Money Launch ten-feature scope (docs program; does not advance `current_phase`)
 
 ## How agents consume this harness
 

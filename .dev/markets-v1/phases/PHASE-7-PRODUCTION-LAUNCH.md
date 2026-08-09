@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -11,11 +11,13 @@
 
 ## Description
 
-PHASE-7 is controlled production launch: legal compliance pack, Builder production verify, web/backend canary, Android staged rollout, on-call activation, launch metrics, rollback rehearsal, evidence archive, and post-launch smoke. Agents prepare checklists and evidence; humans clear Play/Builder/legal gates before any prod write.
+PHASE-7 is controlled **Production** enablement: legal compliance pack, Builder production verify, web/backend canary, Android staged rollout, on-call activation, launch metrics, rollback rehearsal, evidence archive, and post-launch smoke. Agents prepare checklists and evidence; humans clear Play/Builder/legal gates before any prod write.
 
-Ordering is legal → Builder verify → canary (1→5→25→100%) → Android staged % → smoke/archive. No silent jurisdiction expansion. Fake “staging-live success” without registry/on-chain proof is forbidden.
+Enable **Markets Core** and flagged Smart Money **PUBLIC** then **ACCOUNT** **separately**. Canary intelligence independently of trading canary %. Authority: [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
-Scan BLK-003/020/021 and related gates before deploy steps. Rehearse rollback (kill switches + image revert + halt Play rollout). Exit only with legal/store approval, healthy canary, proven rollback, archived evidence, and green smoke — then PHASE-8 still waits on 30d SLO stability.
+Ordering is legal → Builder verify → Core canary (1→5→25→100%) → intel PUBLIC/ACCOUNT canaries (independent %) → Android staged % → smoke/archive. No silent jurisdiction expansion. Fake “staging-live success” without registry/on-chain proof is forbidden.
+
+Scan BLK-003/020/021 and related gates before deploy steps. Rehearse rollback (kill switches + image revert + halt Play rollout). Exit only with legal/store approval, healthy canaries, proven rollback, archived evidence, and green smoke — then PHASE-8 still waits on 30d SLO stability.
 
 ## 0. Developer intent (5W+1H)
 
@@ -24,16 +26,17 @@ Orientation for agents executing **PHASE-7 — Production Launch**. The document
 | Dimension | Intent |
 |-----------|--------|
 | **Who** | Ops/SRE release engineers, legal, product, Android release owners. Agents prepare checklists, configs, and evidence; humans clear Play/Builder/legal gates before any prod write. |
-| **What** | Controlled production launch: legal compliance pack, Builder production verify, web/backend canary, Android staged rollout, on-call activation, launch metrics, rollback rehearsal, evidence archive, post-launch smoke. |
-| **When** | Only after PHASE-6 exit. Ordering: legal → Builder verify → canary (1→5→25→100%) → Android staged % → smoke/archive. No silent jurisdiction expansion. |
-| **Where** | `infra/production/`, deploy configs, Play tracks, monitoring/canary dashboards, pinned prod OpenAPI. Real user txs only with disclosed fees and cleared gates. |
-| **Why** | Launch without legal/Builder/rollback readiness creates regulatory, fee, and incident exposure. Fake “staging-live success” without registry/on-chain proof is forbidden by project norms. |
+| **What** | Production enablement: legal pack, Builder verify, Core canary, separate Smart Money PUBLIC/ACCOUNT canaries, Android staged rollout, on-call, launch metrics, rollback rehearsal, evidence archive, post-launch smoke. |
+| **When** | Only after PHASE-6 Harden exit. Ordering: legal → Builder → Core canary % → intel canaries (independent of trading %) → Android staged % → smoke/archive. No silent jurisdiction expansion. |
+| **Where** | `infra/production/`, deploy configs, Play tracks, monitoring/canary dashboards, pinned prod OpenAPI, `intelligence.*` capability flags. Real user txs only with disclosed fees and cleared gates. |
+| **Why** | Launch without legal/Builder/rollback readiness creates regulatory, fee, and incident exposure. Coupling intel canary to trading % can strand either track. Fake “staging-live success” without registry/on-chain proof is forbidden. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
 
 ### In scope (agent boundary for this phase)
 
 - `MKT-P7-001`…`MKT-P7-010` legal through exit gate
 - Canary + Android staged rollout machinery; on-call; launch metrics; rollback rehearsal; evidence archive; smoke
+- Separate production enablement for Core vs flagged Smart Money PUBLIC/ACCOUNT; independent intel canary %
 
 ### Out of scope (do not implement under this phase authorization)
 
@@ -44,7 +47,7 @@ Orientation for agents executing **PHASE-7 — Production Launch**. The document
 
 A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
 
-- Legal/store approved; canary healthy; rollback proven; evidence archived; smoke green
+- Legal/store approved; Core canary healthy; intel PUBLIC/ACCOUNT canaries healthy (or explicitly deferred with flag-off); rollback proven; evidence archived; smoke green
 - Human gates cleared in blockers log (Play prod, Builder creds, legal)
 - REQ MKT-OPS-002/003 evidenced; handoff to PHASE-8 only after V1 launch exit — still subject to 30d SLO prerequisite before post-V1 work
 
@@ -53,16 +56,20 @@ Until those are true, keep task statuses honest (`planned` / `ready` / `in_progr
 ### How (execution procedure)
 
 1. Scan BLK-003/020/021 and approval gates; stop if open
-2. Prepare canary and smoke commands; pin prod OpenAPI
-3. Execute only authorized deploy steps; capture real CI/canary links
-4. Rehearse rollback (kill switches + image revert + halt Play rollout)
+2. Prepare Core and intel canary + smoke commands; pin prod OpenAPI
+3. Execute only authorized deploy steps; canary intel independently of trading %; capture real CI/canary links
+4. Rehearse rollback (kill switches incl. `intelligence.*` + image revert + halt Play rollout)
 5. Archive evidence; never fabricate Alfajores/mainnet/Play success
 
 ### Worked example
 
 Agent working `MKT-P7-003` drafts canary checklist and wiring but finds BLK-003 Builder prod credentials still open: task set `blocked`, handoff cites unblock criteria, no verification evidence claims prod canary passed.
 
-After credentials clear, canary proceeds with auto-rollback criteria documented from PHASE-6 drills.
+After credentials clear, Core canary proceeds with auto-rollback criteria from PHASE-6 drills. Intel PUBLIC canary is scheduled on a separate percentage dial — a trading canary pause does not auto-disable whale feed unless an `intelligence.*` kill switch is explicitly flipped.
+
+## Production path
+
+Production band: enable Core + flagged Smart Money PUBLIC/ACCOUNT **separately**; canary intel independently of trading %. Roadmap: [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md) §4–§7. Post-launch 30d SLO stability before PHASE-8 gates.
 
 
 ## Phase ID and exact name
@@ -72,11 +79,11 @@ After credentials clear, canary proceeds with auto-rollback criteria documented 
 
 ## Business outcome
 
-Controlled web/backend prod launch and staged Android release.
+Controlled web/backend Production enablement (Core + flagged Smart Money PUBLIC/ACCOUNT separately) and staged Android release.
 
 ## Technical outcome
 
-Legal/store approved; canary OK; rollback ready; evidence archived.
+Legal/store approved; Core and intel canaries OK (or intel deferred flags-off); rollback ready; evidence archived.
 
 ## Prerequisites
 
@@ -95,7 +102,8 @@ PHASE-6 exit.
 
 - Legal pack
 - Builder verify
-- Canary deploy
+- Canary deploy (Core)
+- Smart Money PUBLIC/ACCOUNT canaries (independent of trading %)
 - Android rollout
 - On-call
 - Launch metrics
@@ -108,6 +116,7 @@ PHASE-6 exit.
 - Post-V1 features
 - Combos without gate
 - New jurisdictions
+- Claiming Production success from Harden-only drills
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
@@ -162,23 +171,25 @@ RetroPick never holds user private keys.
 
 ## CI/CD changes
 
-- Canary 1→5→25→100%
+- Core canary 1→5→25→100%
+- Intel PUBLIC/ACCOUNT canaries (independent %)
 - Android staged %
 
 ## Deployment sequence
 
-- Production canary promotion
+- Production canary promotion (Core and intel separately)
 
 ## Rollback sequence
 
-- Kill switches
+- Kill switches (trading + `intelligence.*`)
 - revert images
 - halt rollout
 
 ## Risks and mitigations
 
-- **Risk:** Canary regression — **Mitigation:** Auto-rollback
+- **Risk:** Canary regression — **Mitigation:** Auto-rollback (Core and intel independent)
 - **Risk:** Store rejection — **Mitigation:** Hotfix ready
+- **Risk:** Intel coupled to trading % — **Mitigation:** Separate canary plans per roadmap
 
 | Failure | Detection | User state | Auto action | Retry | Reconcile | Alert | Runbook |
 |---|---|---|---|---|---|---|---|
@@ -204,7 +215,7 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 |---|---|---|---|
 | MKT-P7-001 | Legal compliance pack | Deliver legal compliance pack | MKT-P7-002 |
 | MKT-P7-002 | Builder production verify | Deliver builder production verify | MKT-P7-003 |
-| MKT-P7-003 | Canary deploy | Deliver canary deploy | MKT-P7-004 |
+| MKT-P7-003 | Canary deploy | Core + independent Smart Money PUBLIC/ACCOUNT canaries (not tied to trading %) | MKT-P7-004 |
 | MKT-P7-004 | Android staged rollout | Deliver android staged rollout | MKT-P7-005 |
 | MKT-P7-005 | On-call activation | Deliver on-call activation | MKT-P7-006 |
 | MKT-P7-006 | Launch metrics | Deliver launch metrics | MKT-P7-007 |
@@ -235,9 +246,9 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P7-003 — Canary deploy
 
-**Goal:** Implement Canary deploy within owned_paths in task-graph.yaml.
+**Goal:** Core canary deploy plus **independent** Smart Money PUBLIC/ACCOUNT canaries (do not bind intel % to trading %). See [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Acceptance:** Tests pass; no path conflicts; evidence filed for Core and (if enabled) intel ramps.
 
 **Commands:** See task-graph.yaml `commands` array.
 

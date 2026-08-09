@@ -1,12 +1,16 @@
 openapi: 3.1.0
 info:
   title: RetroPick Markets API
-  version: 1.1.0
+  version: 1.1.1
   description: |
     Public, Polymarket-native read BFF shared by future web and Android clients.
-    Polymarket remains the venue and settlement authority. Prices and sizes are
-    decimal strings; every upstream-derived response carries provenance and
-    freshness metadata.
+    Polymarket remains the venue and settlement authority.
+
+    Money representations (no binary floating point):
+    - DecimalString — unsigned decimal strings for prices, probabilities, and book sizes (PHASE-1 read).
+    - MoneyAmount — integer base units plus currency and decimals for balances, funding, and fees (PHASE-2+).
+
+    Every upstream-derived response carries provenance and freshness metadata.
 servers:
   - url: /api/v1
 tags:
@@ -19,6 +23,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsEligibility
       summary: Fail-closed future transactional eligibility state
+      x-phase: 1
       responses:
         "200":
           $ref: "#/components/responses/Eligibility"
@@ -27,6 +32,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsCapabilities
       summary: Build and upstream capability metadata
+      x-phase: 1
       responses:
         "200":
           description: Capability flags
@@ -39,6 +45,7 @@ paths:
       tags: [Markets]
       operationId: listMarketsEvents
       summary: List normalized public events
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -62,6 +69,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsEvent
       summary: Get an event and its normalized markets
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/EventID"
       responses:
@@ -80,6 +88,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsMarket
       summary: Get market detail and resolution provenance
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/MarketID"
       responses:
@@ -98,6 +107,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsOrderBook
       summary: Get an authoritative outcome-token order-book snapshot
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/MarketID"
         - $ref: "#/components/parameters/TokenID"
@@ -119,6 +129,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsHistory
       summary: Get sparse public price history without forward filling
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/MarketID"
         - $ref: "#/components/parameters/TokenID"
@@ -151,6 +162,7 @@ paths:
       tags: [Markets]
       operationId: getMarketsMarketHealth
       summary: Get deterministic market-liquidity health components
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/MarketID"
         - $ref: "#/components/parameters/TokenID"
@@ -168,6 +180,7 @@ paths:
       tags: [Intelligence]
       operationId: listMarketsSignals
       summary: List deterministic public signal envelopes
+      x-phase: 1
       parameters:
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/Limit"
@@ -190,6 +203,7 @@ paths:
       tags: [Health]
       operationId: getMarketsLiveness
       summary: Process liveness independent of upstream availability
+      x-phase: 1
       responses:
         "200":
           description: Process is alive
@@ -202,6 +216,7 @@ paths:
       tags: [Health]
       operationId: getMarketsReadiness
       summary: Ability to safely serve the configured responsibility
+      x-phase: 1
       responses:
         "200":
           description: Ready or safely degraded
@@ -293,7 +308,32 @@ components:
     DecimalString:
       type: string
       pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$'
+      description: Unsigned decimal string for prices, probabilities, and book sizes. Never use binary floating point.
       examples: ["0.42"]
+    MoneyAmount:
+      type: object
+      additionalProperties: false
+      description: Fixed-point money as integer base units. Used for balances, funding, fees, and notional (PHASE-2+). Never use binary floating point.
+      required: [amount, currency, decimals]
+      properties:
+        amount:
+          type: string
+          pattern: '^-?[0-9]+$'
+          description: Integer base units as string (avoids JS int53 loss; never a decimal fraction).
+        currency:
+          type: string
+          minLength: 1
+          maxLength: 16
+          examples: ["USDC"]
+        decimals:
+          type: integer
+          minimum: 0
+          maximum: 18
+          examples: [6]
+      examples:
+        - amount: "10500000"
+          currency: USDC
+          decimals: 6
     MarketStatus:
       type: string
       enum: [unknown, open, closed, resolved, archived]
@@ -425,6 +465,21 @@ components:
           $ref: "#/components/schemas/MarketFreshness"
         provenance:
           $ref: "#/components/schemas/UpstreamProvenance"
+      examples:
+        - schemaVersion: "1"
+          id: polymarket:event:1
+          upstreamId: "1"
+          slug: conformance-event
+          title: Conformance Event
+          status: open
+          marketCount: 1
+          freshness:
+            state: fresh
+            observedAt: "2026-07-30T12:00:00Z"
+          provenance:
+            source: polymarket_gamma
+            observedAt: "2026-07-30T12:00:00Z"
+            contentHash: event-hash
     MarketSummary:
       type: object
       required: [schemaVersion, id, upstreamId, conditionId, question, status, outcomes, capabilities, freshness, provenance]
@@ -437,6 +492,7 @@ components:
           type: string
         eventId:
           type: string
+          description: Canonical parent event link when nested under EventDetail.markets
         conditionId:
           type: string
         slug:
@@ -458,6 +514,32 @@ components:
           $ref: "#/components/schemas/MarketFreshness"
         provenance:
           $ref: "#/components/schemas/UpstreamProvenance"
+      examples:
+        - schemaVersion: "1"
+          id: polymarket:market:1
+          upstreamId: "1"
+          eventId: polymarket:event:1
+          conditionId: "0xconformance"
+          question: Conformance?
+          status: open
+          outcomes:
+            - id: polymarket:token:1
+              upstreamId: token-1
+              name: "Yes"
+              price: "0.42"
+          capabilities:
+            orderBook: true
+            history: true
+            realtime: false
+            negRisk: false
+            trading: false
+          freshness:
+            state: fresh
+            observedAt: "2026-07-30T12:00:00Z"
+          provenance:
+            source: retropick_projection
+            observedAt: "2026-07-30T12:00:00Z"
+            contentHash: market-hash
     EventDetail:
       allOf:
         - $ref: "#/components/schemas/EventSummary"
@@ -547,6 +629,32 @@ components:
           $ref: "#/components/schemas/MarketFreshness"
         provenance:
           $ref: "#/components/schemas/UpstreamProvenance"
+      examples:
+        - schemaVersion: "1"
+          marketId: polymarket:market:1
+          conditionId: "0xconformance"
+          tokenId: token-1
+          hash: hash-1
+          timestamp: "2026-07-30T12:00:00Z"
+          bids:
+            - price: "0.4"
+              size: "2"
+          asks:
+            - price: "0.6"
+              size: "3"
+          bestBid: "0.4"
+          bestAsk: "0.6"
+          midpoint: "0.5"
+          spread: "0.2"
+          minOrderSize: "1"
+          tickSize: "0.01"
+          negRisk: false
+          freshness:
+            state: fresh
+            observedAt: "2026-07-30T12:00:00Z"
+          provenance:
+            source: polymarket_clob
+            observedAt: "2026-07-30T12:00:00Z"
     PricePoint:
       type: object
       additionalProperties: false
@@ -572,6 +680,15 @@ components:
           type: string
         tokenId:
           type: string
+        interval:
+          type: string
+          enum: [1h, 6h, 1d, 1w, max]
+          description: Echo of the interval query parameter used for this response.
+        fidelity:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          description: Echo of the fidelity query parameter used for this response.
         points:
           type: array
           items:
@@ -580,6 +697,23 @@ components:
           $ref: "#/components/schemas/MarketFreshness"
         provenance:
           $ref: "#/components/schemas/UpstreamProvenance"
+      examples:
+        - schemaVersion: "1"
+          marketId: polymarket:market:1
+          tokenId: token-1
+          interval: 1d
+          fidelity: 60
+          points:
+            - timestamp: "2026-07-30T12:00:00Z"
+              price: "0.5"
+              derived: false
+              source: polymarket_clob
+          freshness:
+            state: fresh
+            observedAt: "2026-07-30T12:00:00Z"
+          provenance:
+            source: polymarket_clob
+            observedAt: "2026-07-30T12:00:00Z"
     MarketHealthSnapshot:
       type: object
       additionalProperties: false
@@ -619,6 +753,24 @@ components:
           $ref: "#/components/schemas/MarketFreshness"
         provenance:
           $ref: "#/components/schemas/UpstreamProvenance"
+      examples:
+        - schemaVersion: "1"
+          marketId: polymarket:market:1
+          algorithm: depth_v1
+          observedAt: "2026-07-30T12:00:00Z"
+          spread: "0.2"
+          bestBid: "0.4"
+          bestAsk: "0.6"
+          bidDepth: "2"
+          askDepth: "3"
+          snapshotAgeMs: 100
+          crossed: false
+          freshness:
+            state: fresh
+            observedAt: "2026-07-30T12:00:00Z"
+          provenance:
+            source: polymarket_clob
+            observedAt: "2026-07-30T12:00:00Z"
     SignalEvidence:
       type: object
       additionalProperties: false
@@ -821,14 +973,26 @@ components:
               additionalProperties: true
             requestId:
               type: string
+      examples:
+        - error:
+            code: not_found
+            message: Resource not found
+            requestId: req-conformance-1
     HealthResponse:
       type: object
-      required: [ok]
+      additionalProperties: false
+      required: [ok, service, checkedAt]
       properties:
         ok:
           type: boolean
         degraded:
           type: boolean
+        service:
+          type: string
+        checkedAt:
+          type: string
+          format: date-time
         checks:
           type: object
-          additionalProperties: true
+          additionalProperties:
+            type: string

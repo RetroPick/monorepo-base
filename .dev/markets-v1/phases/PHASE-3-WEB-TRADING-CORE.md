@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -11,7 +11,9 @@
 
 ## Description
 
-PHASE-3 is web trading core: order preview, CLOB V2 submit, open orders/fills, cancel, reconciliation worker, market health analytics (off critical path), Neg Risk routing, order ticket UX, and web E2E. Strict order is preview → sign/submit; timeout must reconcile via venue lookup — never auto-resubmit.
+PHASE-3 is web trading core: order preview, CLOB V2 submit, open orders/fills, cancel, reconciliation worker, Neg Risk routing, order ticket UX, and web E2E. Strict order is preview → sign/submit; timeout must reconcile via venue lookup — never auto-resubmit.
+
+Market health analytics are **archived** (not on the critical path); slippage concepts for paper live in [`09_PAPER_COPY.md`](../intelligence/09_PAPER_COPY.md). Future Smart Money **I7** (manual copy + user-signed order) may follow only after trading exists — ADR-009, no auto-copy. Paper/backtest (**I5–I6**) may overlap the calendar but **must not** submit orders.
 
 Duplicate submits, stale books, and preview/sign mismatch are direct user-fund risks. Confirm CLOB V2 registry assumptions before write paths; kill switch `order_submission` / trading_enabled must exist for rollback. Human gates clear before first mainnet order.
 
@@ -24,8 +26,8 @@ Orientation for agents executing **PHASE-3 — Web Trading Core**. The document 
 | Dimension | Intent |
 |-----------|--------|
 | **Who** | Orders/CLOB backend agents, fe-markets order-ticket owners, reconcile workers; humans for first mainnet order, Builder prod fees, and prod CLOB credentials. |
-| **What** | Web trading core: order preview, CLOB V2 submit, open orders/fills, cancel, reconciliation worker, market health analytics (off critical path), Neg Risk routing, order ticket UX, web E2E. |
-| **When** | After PHASE-2 exit and CLOB V2 evidence verification. Strict order: preview → sign/submit; reconcile worker before production enablement; canary/flagged deploy only with approvals. |
+| **What** | Web trading core: order preview, CLOB V2 submit, open orders/fills, cancel, reconciliation worker, Neg Risk routing, order ticket UX, web E2E. Market health analytics archived (not critical path). |
+| **When** | After PHASE-2 exit and CLOB V2 evidence verification. Strict order: preview → sign/submit; reconcile worker before production enablement; canary/flagged deploy only with approvals. Paper/backtest may overlap but must not submit; **I7** only after trading exists (ADR-009). |
 | **Where** | `internal/markets/orders|clob|reconcile/`, web trade/`OrderTicket.tsx`, `polymarket/ORDER_LIFECYCLE.md`, migrations for orders/fills/previews. Integrations: CLOB V2 write, Builder headers, matching WS. Client EIP-712 sign; server relays signed orders only. |
 | **Why** | Duplicate submits, stale books, and preview/sign mismatch are direct user-fund risks. Timeout must reconcile via venue lookup — never auto-resubmit. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
@@ -34,11 +36,13 @@ Orientation for agents executing **PHASE-3 — Web Trading Core**. The document 
 
 - `MKT-P3-001`…`MKT-P3-010` including Neg Risk and web E2E
 - Preview hash binding, idempotency keys, trading kill switch, fee disclosure
-- Market health metrics off the submit critical path
+- Calendar overlap with paper/backtest (**I5–I6**) is allowed only as simulation — never CLOB submit from intel paths
+- Future **I7** manual copy + user-signed order only after trading core exists (ADR-009); not Launch default
 
 ### Out of scope (do not implement under this phase authorization)
 
 - Android trading UI, portfolio redemption/CTF completion, combos, auto copy trade
+- Market health dashboard (`MKT-P3-006` superseded/archived — do not implement; optional note only; slippage for paper in [`09_PAPER_COPY.md`](../intelligence/09_PAPER_COPY.md))
 - PRISM/legacy; custom exchange
 
 ### Exit gate — what “done” means for an agent
@@ -65,6 +69,9 @@ Agent completes `MKT-P3-001` golden vectors for preview binding, then `MKT-P3-00
 
 First mainnet order remains blocked until blockers log shows human approval — agent stops and files the gate, even if staging E2E is green.
 
+## Production path
+
+Staging trading canary → harden (PHASE-6) → PHASE-7 production. Trading canary is **separate** from intel canary; do not couple CLOB write enablement to PUBLIC/ACCOUNT intelligence flags.
 
 ## Phase ID and exact name
 
@@ -73,7 +80,7 @@ First mainnet order remains blocked until blockers log shows human approval — 
 
 ## Business outcome
 
-Web order preview, submit, fills, cancel, reconciliation; market health analytics off critical path.
+Web order preview, submit, fills, cancel, reconciliation. Market health analytics archived (not required for exit).
 
 ## Technical outcome
 
@@ -99,7 +106,6 @@ PHASE-2 exit; CLOB V2 verified.
 - Open orders
 - Cancel
 - Reconcile worker
-- Market health
 - Order ticket UX
 - Neg Risk routing
 - Web E2E
@@ -109,7 +115,7 @@ PHASE-2 exit; CLOB V2 verified.
 - Android trading
 - Portfolio redemption
 - Combos
-- Auto copy trade
+- Auto copy trade (ADR-009); market health dashboard (archived)
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
@@ -138,7 +144,7 @@ Expand→migrate→contract; destructive changes need §18 approval.
 - OrderSubmit
 - OpenOrder
 - CancelPayload
-- MarketHealthMetrics
+- ~~MarketHealthMetrics~~ (archived — not required for PHASE-3)
 Source: `schemas/openapi/markets-v1.yaml`.
 
 ## External integrations
@@ -220,8 +226,8 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 | MKT-P3-002 | CLOB V2 submission | Deliver clob v2 submission | MKT-P3-003 |
 | MKT-P3-003 | Open orders and fills | Deliver open orders and fills | MKT-P3-004 |
 | MKT-P3-004 | Order cancellation | Deliver order cancellation | MKT-P3-005 |
-| MKT-P3-005 | Reconciliation worker | Deliver reconciliation worker | MKT-P3-006 |
-| MKT-P3-006 | Market health analytics | Deliver market health analytics | MKT-P3-007 |
+| MKT-P3-005 | Reconciliation worker | Deliver reconciliation worker | MKT-P3-007 |
+| MKT-P3-006 | Market health analytics | **Superseded/archived** — do not implement dashboard; optional note only; handoff skipped | MKT-P3-007 |
 | MKT-P3-007 | Web order ticket UX | Deliver web order ticket ux | MKT-P3-008 |
 | MKT-P3-008 | Neg Risk routing | Deliver neg risk routing | MKT-P3-009 |
 | MKT-P3-009 | Web E2E trading | Deliver web e2e trading | MKT-P3-010 |
@@ -277,15 +283,15 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 **Owned paths:** Exclusive during execution per §17.3.
 
-### MKT-P3-006 — Market health analytics
+### MKT-P3-006 — Market health analytics (**superseded / archived**)
 
-**Goal:** Implement Market health analytics within owned_paths in task-graph.yaml.
+**Goal:** ~~Implement Market health analytics~~ **Do not implement** a market health dashboard. Capability archived under [`intelligence/archive/`](../intelligence/archive/); slippage for paper lives in [`09_PAPER_COPY.md`](../intelligence/09_PAPER_COPY.md). Optional note only if task-graph still lists this ID.
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Acceptance:** No dashboard ship; critical path continues via `MKT-P3-005` → `MKT-P3-007`.
 
-**Commands:** See task-graph.yaml `commands` array.
+**Commands:** N/A for archived surface (do not invent health analytics metrics exports).
 
-**Owned paths:** Exclusive during execution per §17.3.
+**Owned paths:** N/A — do not claim exclusive paths for archived health work.
 
 ### MKT-P3-007 — Web order ticket UX
 
@@ -363,14 +369,14 @@ Preview before submit; reconcile before prod enable.
 - RELEASE_VERIFICATION_MATRIX rows
 ## Definition of done
 
-- All tasks complete
+- All tasks complete (**except archived `MKT-P3-006`** — does not block exit)
 - Exit gate evidence
 - No open P0/P1 security without acceptance
 - Runbooks updated
 - Manifest updated
 ## Handoff to next phase
 
-Begin `PHASE-4` when all PHASE-3 tasks done, evidence archived, manifest updated.
+Begin `PHASE-4` when PHASE-3 trading tasks done (archived `MKT-P3-006` excluded), evidence archived, manifest updated.
 
 First task: `MKT-P4-001`.
 

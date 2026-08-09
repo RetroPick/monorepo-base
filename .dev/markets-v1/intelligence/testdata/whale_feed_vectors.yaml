@@ -1,0 +1,81 @@
+# Golden vectors — Whale Trade Feed (SM-I-001)
+# Money fields are BIGINT minor units (example scale: 1e6 = 1.0 USDC notional unit).
+# Do not invent contract addresses. Wallet attribution must come from Data /trades shaped inputs.
+
+version: large_trade_v1
+feature: SM-I-001
+updated: "2026-08-09"
+
+params:
+  min_notional: 10000000000   # 10_000 * 1e6
+  min_pct_recent_volume_bps: 500  # 5%
+
+vectors:
+  - id: whale_feed_001
+    version: large_trade_v1
+    feature: SM-I-001
+    edge_case: false
+    reason: "Absolute notional crosses Launch threshold"
+    input:
+      trade:
+        source: data_trades
+        upstream_trade_id: "tr_1001"
+        wallet_address: "0x1111111111111111111111111111111111111111"
+        market_id: "market_demo_1"
+        side: BUY
+        outcome: YES
+        notional: 42500000000
+        traded_at: "2026-08-09T10:00:00Z"
+      market_context:
+        recent_volume: 675000000000
+    expected:
+      is_whale: true
+      reason_codes: ["LARGE_NOTIONAL", "PCT_RECENT_VOLUME"]
+      pct_recent_volume_bps: 630
+      publish: true
+
+  - id: whale_feed_002
+    version: large_trade_v1
+    feature: SM-I-001
+    edge_case: false
+    reason: "Below notional and volume share — not a whale event"
+    input:
+      trade:
+        source: data_trades
+        upstream_trade_id: "tr_1002"
+        wallet_address: "0x2222222222222222222222222222222222222222"
+        market_id: "market_demo_1"
+        side: SELL
+        outcome: NO
+        notional: 2500000000
+        traded_at: "2026-08-09T10:01:00Z"
+      market_context:
+        recent_volume: 675000000000
+    expected:
+      is_whale: false
+      reason_codes: []
+      publish: false
+
+  - id: whale_feed_003
+    version: large_trade_v1
+    feature: SM-I-001
+    edge_case: true
+    reason: "Idempotent reclassify of same upstream trade"
+    input:
+      trade:
+        source: data_trades
+        upstream_trade_id: "tr_1001"
+        wallet_address: "0x1111111111111111111111111111111111111111"
+        market_id: "market_demo_1"
+        side: BUY
+        outcome: YES
+        notional: 42500000000
+        traded_at: "2026-08-09T10:00:00Z"
+      market_context:
+        recent_volume: 675000000000
+      prior_whale_event_id: "we_tr_1001_large_trade_v1"
+    expected:
+      is_whale: true
+      duplicate: true
+      publish_new: false
+      supersede: false

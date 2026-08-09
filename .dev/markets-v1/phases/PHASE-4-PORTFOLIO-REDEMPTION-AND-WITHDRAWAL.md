@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -11,11 +11,11 @@
 
 ## Description
 
-PHASE-4 completes the asset lifecycle after trading: position projections, activity, whale/large-trade feed, CTF split/merge, resolution/redemption, withdrawal completion, wallet profiles, PnL, and reconciliation tests. BFF positions are projections, not ownership authority.
+PHASE-4 completes the **Markets Core** asset lifecycle after trading: position projections, activity, CTF split/merge, resolution/redemption, withdrawal completion, portfolio PnL, and reconciliation tests. BFF positions are projections, not ownership authority.
 
-Unreconciled redeem/withdraw paths strand user funds; “guaranteed arb” or unretractable whale labels create legal/trust harm. Intelligence features may proceed in parallel only after schemas are stable; Android UI waits for PHASE-5.
+Unreconciled redeem/withdraw paths strand user funds. **Whale Trade Feed** and **Wallet Profile** are **not** PHASE-4 primary ownership — they live on the Smart Money track (I1/I2, PHASE-1 parallel) under [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md) and [03_WALLET_PROFILE.md](../intelligence/03_WALLET_PROFILE.md) (req **SM-I-001** / **SM-I-003**). Portfolio UX may deep-link into those surfaces; do not treat P4 as whale authority.
 
-CTF always preview-before-sign; whale feed stays descriptive, evidence-linked, and retractable. Withdrawal completion stays behind whitelist/policy approval. Exit via `MKT-P4-010` before treating APIs as stable for PHASE-5 clients.
+CTF always preview-before-sign. Withdrawal completion stays behind whitelist/policy approval. Exit via `MKT-P4-010` before treating portfolio/CTF APIs as stable for PHASE-5 clients.
 
 ## 0. Developer intent (5W+1H)
 
@@ -23,22 +23,23 @@ Orientation for agents executing **PHASE-4 — Portfolio, Redemption, and Withdr
 
 | Dimension | Intent |
 |-----------|--------|
-| **Who** | Portfolio/CTF/indexer agents, intelligence feed owners, web portfolio UI; humans for CTF mainnet relay and withdrawal whitelist. |
-| **What** | Complete asset lifecycle after trading: position projections, activity, whale/large-trade feed, CTF split/merge, resolution/redemption, withdrawal completion, wallet profiles, PnL, reconciliation tests. |
-| **When** | After PHASE-3 exit with verified CTF addresses. Positions before CTF mutations; intelligence features parallel only after schemas stable. Android UI waits for PHASE-5. |
-| **Where** | `internal/markets/portfolio|ctf/`, intelligence docs/modules, `PortfolioView.tsx`, migrations for positions/CTF/activity. Chain: split/merge/redeem, Neg Risk convert, withdrawal transfer — user-signed / relayed per policy, never custodied keys. |
-| **Why** | BFF positions are projections, not ownership authority. Unreconciled redeem/withdraw paths strand user funds; “guaranteed arb” or unretractable whale labels create legal/trust harm. |
+| **Who** | Portfolio/CTF/indexer agents and web portfolio UI; humans for CTF mainnet relay and withdrawal whitelist. Smart Money feed/profile owners work under I1/I2 (PHASE-1 parallel), not as P4 primary owners. |
+| **What** | Complete Core asset lifecycle after trading: position projections, activity, CTF split/merge, resolution/redemption, withdrawal completion, portfolio PnL, reconciliation tests. |
+| **When** | After PHASE-3 exit with verified CTF addresses. Positions before CTF mutations. Android UI waits for PHASE-5. Public Smart Money (I1–I3) may already be in flight from PHASE-1 — do not block P4 exit on whale/profile. |
+| **Where** | `internal/markets/portfolio|ctf/`, `PortfolioView.tsx`, migrations for positions/CTF/activity. Optional deep-links into intelligence APIs. Chain: split/merge/redeem, Neg Risk convert, withdrawal transfer — user-signed / relayed per policy, never custodied keys. |
+| **Why** | BFF positions are projections, not ownership authority. Unreconciled redeem/withdraw paths strand user funds. Dumping whale/profile into P4 delays the growth loop and mis-owns Launch intel. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
 
 ### In scope (agent boundary for this phase)
 
-- `MKT-P4-001`…`MKT-P4-010` positions through exit gate
-- CTF preview-before-sign; fixed-point PnL; signal retraction pipeline
-- APIs: Position, CTFPreview, RedemptionStatus, WalletProfile, LargeTradeSignal
+- `MKT-P4-001`…`MKT-P4-010` positions through exit gate (see annotations on demoted whale/profile tasks)
+- CTF preview-before-sign; fixed-point portfolio PnL
+- APIs: Position, CTFPreview, RedemptionStatus (portfolio/CTF). WalletProfile / LargeTradeSignal → Smart Money OpenAPI, not P4 authority
 
 ### Out of scope (do not implement under this phase authorization)
 
 - Android UI implementation, combos, guaranteed-arbitrage product labels
+- Implementing Launch whale feed, wallet profiles, or leaderboard as P4-owned work
 - PRISM/legacy; custom exchange
 
 ### Exit gate — what “done” means for an agent
@@ -46,8 +47,8 @@ Orientation for agents executing **PHASE-4 — Portfolio, Redemption, and Withdr
 A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
 
 - Positions reconcile to venue within SLA; CTF preview+receipt; redeem/withdraw recovery tested
-- Whale feed descriptive + retractable; REQ MKT-FR-040/060, MKT-DATA-001 evidenced
-- `MKT-P4-010` complete before treating APIs as stable for PHASE-5 trading/portfolio clients
+- REQ MKT-FR-040, MKT-DATA-001 evidenced (portfolio). MKT-FR-060 whale → verify under **SM-I-001**, not as P4 exit authority
+- `MKT-P4-010` complete before treating portfolio/CTF APIs as stable for PHASE-5 clients
 
 Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
 
@@ -55,7 +56,7 @@ Until those are true, keep task statuses honest (`planned` / `ready` / `in_progr
 
 1. Build position projection service with drift metrics and hourly reconcile
 2. CTF operations always preview then user auth; cap relay; test recovery
-3. Intelligence: evidence-linked, versioned, retractable; no insider accusations
+3. Activity + portfolio PnL; optional deep-links to Smart Money whale/profile (do not re-implement scoring here)
 4. Withdrawal completion behind whitelist/policy approval
 5. Evidence includes reconciliation test output — not screenshots alone
 
@@ -63,7 +64,11 @@ Until those are true, keep task statuses honest (`planned` / `ready` / `in_progr
 
 Agent on `MKT-P4-001` stores projections with venue reconcile job; UI shows “Updating” on reorg rather than inventing balances.
 
-Whale feed task (`MKT-P4-003`) emits reason codes and supports retraction; copy review rejects “guaranteed arb” and insider language per invariants #23/#27.
+Agent asked to “ship whale feed in P4” refuses primary ownership: points to Smart Money I1 / **SM-I-001** and [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md). Historical task `MKT-P4-003` is annotated for task-graph follow-up — do not treat P4 as whale authority.
+
+## Production path
+
+Build-band **Markets Core** (portfolio / CTF / redeem / withdraw). Smart Money whale/profile is PHASE-1 parallel (I1/I2) and is **not** a P4 exit gate. Staging bar: positions reconcile + CTF preview/receipt before Harden ([PHASE-6](PHASE-6-HARDENING-CI-CD-AND-SRE.md)). See [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
 
 ## Phase ID and exact name
@@ -73,7 +78,7 @@ Whale feed task (`MKT-P4-003`) emits reason codes and supports retraction; copy 
 
 ## Business outcome
 
-Activity, positions, PnL, CTF, resolution, redeem, complete asset exit; intelligence feeds.
+Activity, positions, portfolio PnL, CTF, resolution, redeem, complete asset exit. Whale/profile surfaces belong to Smart Money Launch (not P4 business outcome).
 
 ## Technical outcome
 
@@ -96,12 +101,10 @@ PHASE-3 exit; CTF addresses verified.
 
 - Positions
 - Activity
-- Whale feed
 - CTF split/merge
 - Redemption
 - Withdrawal
-- Wallet profiles
-- PnL
+- PnL (portfolio)
 - Reconcile tests
 
 ## Out of scope
@@ -109,6 +112,7 @@ PHASE-3 exit; CTF addresses verified.
 - Android UI
 - Combos
 - Guaranteed arb labels
+- Whale feed / wallet profiles / leaderboard as P4-owned (Smart Money **I1–I3** / PHASE-1 parallel — [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md), [03_WALLET_PROFILE.md](../intelligence/03_WALLET_PROFILE.md))
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
@@ -116,7 +120,7 @@ PHASE-3 exit; CTF addresses verified.
 
 - internal/markets/portfolio/
 - internal/markets/ctf/
-- intelligence/
+- (no primary `intelligence/` ownership — portfolio UX deep-links to Smart Money APIs OK)
 
 ## New modules/files expected
 
@@ -136,8 +140,8 @@ Expand→migrate→contract; destructive changes need §18 approval.
 - Position
 - CTFPreview
 - RedemptionStatus
-- WalletProfile
-- LargeTradeSignal
+- WalletProfile — Smart Money (**SM-I-003**); not P4 schema ownership
+- LargeTradeSignal — Smart Money (**SM-I-001**); not P4 schema ownership
 Source: `schemas/openapi/markets-v1.yaml`.
 
 ## External integrations
@@ -157,13 +161,13 @@ RetroPick never holds user private keys.
 
 - CTF preview-before-sign
 - Fixed-point
-- Signal retraction
+- Signal retraction — Smart Money path when consuming intel deep-links; not a P4 Core deliverable
 
 ## Observability
 
 - reconciliation_errors
 - redemption_pending
-- whale_latency
+- whale_latency — owned under Smart Money / **SM-I-001**, not P4 SLI authority
 
 ## Test plan
 
@@ -186,12 +190,12 @@ RetroPick never holds user private keys.
 ## Rollback sequence
 
 - Disable CTF relay
-- retract bad signals
+- Retract bad signals — Smart Money ops when intel flags on; not a P4 Core rollback step
 
 ## Risks and mitigations
 
 - **Risk:** Projection drift — **Mitigation:** Hourly reconcile
-- **Risk:** False whale — **Mitigation:** Retraction pipeline
+- **Risk:** False whale — **Mitigation:** Retraction pipeline under Smart Money (**SM-I-001**); not a P4-owned risk row
 
 | Failure | Detection | User state | Auto action | Retry | Reconcile | Alert | Runbook |
 |---|---|---|---|---|---|---|---|
@@ -215,13 +219,13 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 | Task ID | Title | Goal | Handoff |
 |---|---|---|---|
 | MKT-P4-001 | Position projection service | Deliver position projection service | MKT-P4-002 |
-| MKT-P4-002 | Activity feed | Deliver activity feed | MKT-P4-003 |
-| MKT-P4-003 | Whale/large-trade feed | Deliver whale/large-trade feed | MKT-P4-004 |
+| MKT-P4-002 | Activity feed | Deliver activity feed | MKT-P4-004 |
+| MKT-P4-003 | Whale/large-trade feed | **OWNERSHIP MOVED → SM-I-001** (I1 / PHASE-1 parallel). Task-graph follow-up — do not treat P4 as whale authority. Spec: [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md) | — |
 | MKT-P4-004 | CTF split/merge | Deliver ctf split/merge | MKT-P4-005 |
 | MKT-P4-005 | Resolution and redemption | Deliver resolution and redemption | MKT-P4-006 |
-| MKT-P4-006 | Withdrawal completion | Deliver withdrawal completion | MKT-P4-007 |
-| MKT-P4-007 | Wallet profiling | Deliver wallet profiling | MKT-P4-008 |
-| MKT-P4-008 | PnL analytics | Deliver pnl analytics | MKT-P4-009 |
+| MKT-P4-006 | Withdrawal completion | Deliver withdrawal completion | MKT-P4-008 |
+| MKT-P4-007 | Wallet profiling | **OWNERSHIP MOVED → SM-I-003** (I2 / PHASE-1 parallel). Task-graph follow-up — not P4 portfolio authority. Spec: [03_WALLET_PROFILE.md](../intelligence/03_WALLET_PROFILE.md) | — |
+| MKT-P4-008 | PnL analytics | Deliver portfolio PnL analytics | MKT-P4-009 |
 | MKT-P4-009 | Portfolio reconciliation tests | Deliver portfolio reconciliation tests | MKT-P4-010 |
 | MKT-P4-010 | PHASE-4 exit gate | Deliver phase-4 exit gate | MKT-P5-001 |
 
@@ -247,13 +251,15 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P4-003 — Whale/large-trade feed
 
-**Goal:** Implement Whale/large-trade feed within owned_paths in task-graph.yaml.
+> **Annotation (2026-08-09):** Ownership moved to **SM-I-001** / Smart Money **I1** (PHASE-1 parallel). Spec authority: [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md), [INTELLIGENCE_LAUNCH_V1.md](../intelligence/INTELLIGENCE_LAUNCH_V1.md). Task-graph still lists this ID under PHASE-4 — follow-up for orchestrator; **do not treat P4 as whale authority**.
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Goal:** Historical placeholder only — do not implement whale feed under P4 authorization.
 
-**Commands:** See task-graph.yaml `commands` array.
+**Acceptance:** N/A for P4 exit. Verify under Smart Money / SM-I-001.
 
-**Owned paths:** Exclusive during execution per §17.3.
+**Commands:** See task-graph.yaml `commands` array (pending rehome).
+
+**Owned paths:** Do not claim exclusive `intelligence/` ownership from P4.
 
 ### MKT-P4-004 — CTF split/merge
 
@@ -287,13 +293,15 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P4-007 — Wallet profiling
 
-**Goal:** Implement Wallet profiling within owned_paths in task-graph.yaml.
+> **Annotation (2026-08-09):** Ownership moved to **SM-I-003** / Smart Money **I2** (PHASE-1 parallel). Spec authority: [03_WALLET_PROFILE.md](../intelligence/03_WALLET_PROFILE.md). Task-graph follow-up — **not** P4 portfolio authority. Portfolio UX deep-links OK.
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Goal:** Historical placeholder only — do not implement Launch wallet profile under P4 authorization.
 
-**Commands:** See task-graph.yaml `commands` array.
+**Acceptance:** N/A for P4 exit. Verify under Smart Money / SM-I-003.
 
-**Owned paths:** Exclusive during execution per §17.3.
+**Commands:** See task-graph.yaml `commands` array (pending rehome).
+
+**Owned paths:** Do not claim exclusive `intelligence/` ownership from P4.
 
 ### MKT-P4-008 — PnL analytics
 
@@ -327,7 +335,7 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ## Parallelization constraints
 
-Positions before CTF; intelligence parallel after schema stable.
+Positions before CTF. Smart Money I1/I2 may run in PHASE-1 parallel — independent of P4 CTF/redeem path.
 
 §17.3: one owner per path; schemas→clients; migrations→code; read→write; preview→sign.
 
@@ -347,7 +355,7 @@ Positions before CTF; intelligence parallel after schema stable.
 | REQ ID | Description | Verify |
 |---|---|---|
 | MKT-FR-040 | Position reconcile | Phase tests |
-| MKT-FR-060 | Whale feed | Phase tests |
+| MKT-FR-060 | Whale feed | **OWNERSHIP → SM-I-001** (I1). Not P4 exit authority — verify via Smart Money / [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md); task-graph follow-up |
 | MKT-DATA-001 | Immutable activity | Phase tests |
 
 ## Verification evidence
@@ -453,8 +461,8 @@ First task: `MKT-P5-001`.
 
 | Attribute | Value |
 |---|---|
-| Phase | PHASE-4 |
-| Kill switch | capabilities API |
+| Phase | PHASE-4 (deep-link only; authority = Smart Money / SM-I-*) |
+| Kill switch | `intelligence.*` capabilities API |
 | Runbook | PRODUCTION_OPERATIONS_RUNBOOK.md |
 
 ## Agent execution notes

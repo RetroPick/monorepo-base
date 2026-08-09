@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -12,6 +12,8 @@
 ## Description
 
 PHASE-0 is the documentation-only discovery and spec-freeze phase. It produces repository inventory, evidence register, capability matrix, ADR set, requirements/traceability baseline, OSS provenance, threat model, cost baseline, and an exit review — eliminating unknowns that would invalidate signing, custody, deployment, or product scope.
+
+Smart Money Launch docs ([`intelligence/INTELLIGENCE_LAUNCH_V1.md`](../intelligence/INTELLIGENCE_LAUNCH_V1.md), [`01`](../intelligence/01_WHALE_TRADE_FEED.md)…[`10`](../intelligence/10_QUICK_BACKTEST.md)) are part of the freeze corpus. UV / relationship / OSS / market-health complex DSL surfaces are archived or deferred under [`intelligence/archive/`](../intelligence/archive/) — not Launch authority. Phase ownership and production bands: [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
 Header **Status: reviewed** means this phase *spec* was reviewed; it is not a claim the phase exited. Live state lives only in `implementation-manifest.yaml` and `task-graph.yaml`. No runtime API or trading/funding implementation is authorized here.
 
@@ -36,6 +38,8 @@ Orientation for agents executing **PHASE-0 — Discovery and Spec Freeze**. The 
 - Evidence register bootstrap; capability matrix and scope freeze
 - ADR set acceptance; requirements and traceability baseline
 - Open-source provenance audit; threat model draft
+- Smart Money Launch freeze corpus: [`INTELLIGENCE_LAUNCH_V1.md`](../intelligence/INTELLIGENCE_LAUNCH_V1.md) + [`01`](../intelligence/01_WHALE_TRADE_FEED.md)…[`10`](../intelligence/10_QUICK_BACKTEST.md); treat [`intelligence/archive/`](../intelligence/archive/) as archived/deferred (UV, relationship, OSS map, market-health complex DSL)
+- Phase ownership cross-check via [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md)
 - PHASE-0 exit gate review with human V1 scope approval filed
 
 ### Out of scope (do not implement under this phase authorization)
@@ -43,6 +47,8 @@ Orientation for agents executing **PHASE-0 — Discovery and Spec Freeze**. The 
 - Production wallets, real transactions, trading or funding implementation
 - Android product implementation; PRISM positions; legacy epoch API features
 - Custom RetroPick exchange or default custom Markets contracts (ADR-001)
+- Inventing PHASE-9 or any competing phase numbering
+- Advancing `current_phase` in `implementation-manifest.yaml` from documentation edits alone
 
 ### Exit gate — what “done” means for an agent
 
@@ -69,6 +75,9 @@ Agent authorized for `MKT-P0-002` bootstraps `research/evidence-register.yaml` w
 
 At `MKT-P0-008`, the same program refuses exit while signer-vs-account-wallet ADR-003 is missing: exit gate stays rejected, remediation listed on a filled PHASE_GATE_TEMPLATE copy, and PHASE-1 tasks remain untouched.
 
+## Production path
+
+Spec freeze → staging build (PHASE-1…5) → harden (PHASE-6) → production enablement (PHASE-7). This phase is documentation only; it does not authorize runtime deploy or manifest phase advance. See [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
 ## Phase ID and exact name
 
@@ -105,6 +114,7 @@ Documentation baseline, repository access, master prompt acceptance.
 - Requirements baseline
 - Threat model
 - Cost baseline
+- Smart Money Launch docs (`intelligence/INTELLIGENCE_LAUNCH_V1.md`, `01`…`10`); archive under `intelligence/archive/` noted as deferred
 
 ## Out of scope
 
@@ -114,6 +124,8 @@ Documentation baseline, repository access, master prompt acceptance.
 - Android implementation
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
+- Inventing PHASE-9
+- Advancing `current_phase` from docs alone
 
 ## Repository areas affected
 

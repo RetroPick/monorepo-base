@@ -1,0 +1,90 @@
+# Golden vectors — Paper Copy (SM-I-009)
+# Simulation only. No CLOB submit. Idempotent on source whale/trade event id.
+
+version: paper_fill_v1
+feature: SM-I-009
+updated: "2026-08-09"
+
+params:
+  default_cash_balance: 10000000000
+  fill_model: fixed_notional_at_event_mark_v1
+
+vectors:
+  - id: paper_copy_001
+    version: paper_fill_v1
+    feature: SM-I-009
+    edge_case: false
+    reason: "Followed wallet whale event creates one virtual fill and updates equity"
+    input:
+      user_id: "user_paper_1"
+      account:
+        cash_balance: 10000000000
+        equity: 10000000000
+      follow:
+        wallet_address: "0x1111111111111111111111111111111111111111"
+        fixed_notional: 1000000000
+      whale_event:
+        event_id: "we_tr_1001_large_trade_v1"
+        wallet_address: "0x1111111111111111111111111111111111111111"
+        market_id: "market_demo_1"
+        side: BUY
+        outcome: YES
+        mark_price_fp: 450000
+    expected:
+      fill_created: true
+      fill_notional: 1000000000
+      cash_balance_after: 9000000000
+      open_positions: 1
+      clob_submit_calls: 0
+      simulation: true
+
+  - id: paper_copy_002
+    version: paper_fill_v1
+    feature: SM-I-009
+    edge_case: true
+    reason: "Replaying the same whale event must not double-fill"
+    input:
+      user_id: "user_paper_1"
+      account:
+        cash_balance: 9000000000
+        equity: 10000000000
+      prior_fills:
+        - source_event_id: "we_tr_1001_large_trade_v1"
+          notional: 1000000000
+      whale_event:
+        event_id: "we_tr_1001_large_trade_v1"
+        wallet_address: "0x1111111111111111111111111111111111111111"
+        market_id: "market_demo_1"
+        side: BUY
+        outcome: YES
+        mark_price_fp: 450000
+    expected:
+      fill_created: false
+      duplicate: true
+      cash_balance_after: 9000000000
+      clob_submit_calls: 0
+
+  - id: paper_copy_003
+    version: paper_fill_v1
+    feature: SM-I-009
+    edge_case: true
+    reason: "Whale event for non-followed wallet is ignored"
+    input:
+      user_id: "user_paper_1"
+      account:
+        cash_balance: 10000000000
+        equity: 10000000000
+      follow:
+        wallet_address: "0x1111111111111111111111111111111111111111"
+        fixed_notional: 1000000000
+      whale_event:
+        event_id: "we_other_9"
+        wallet_address: "0x9999999999999999999999999999999999999999"
+        market_id: "market_demo_1"
+        side: BUY
+        outcome: YES
+        mark_price_fp: 450000
+    expected:
+      fill_created: false
+      reason_code: "NOT_FOLLOWED"
+      clob_submit_calls: 0

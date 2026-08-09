@@ -69,7 +69,7 @@ WhaleScore weights change.
 
 ## Context
 
-Markets V1 includes a **trader intelligence** product surface ([intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](../../intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md)):
+Markets V1 includes a **trader intelligence** product surface ([intelligence/INTELLIGENCE_LAUNCH_V1.md](../../intelligence/INTELLIGENCE_LAUNCH_V1.md); historical registry pointer [TRADER_INTELLIGENCE_PRODUCT_SPEC.md](../../intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md)):
 
 - Unusual activity detection
 - Whale and large trade alerts
@@ -221,7 +221,9 @@ Heuristics implemented clean-room per [ADR-007](ADR-007-OSS-ADOPTION-AND-CLEAN-R
 - [ADR-004](ADR-004-SHARED-WEB-ANDROID-API.md)
 - [ADR-007](ADR-007-OSS-ADOPTION-AND-CLEAN-ROOM.md)
 - [ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md)
-- [intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](../../intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md)
+- [intelligence/INTELLIGENCE_LAUNCH_V1.md](../../intelligence/INTELLIGENCE_LAUNCH_V1.md)
+- [intelligence/INTELLIGENCE_C4_MODEL.md](../../intelligence/INTELLIGENCE_C4_MODEL.md)
+- [intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](../../intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md) (superseded pointer)
 - [FAILURE_DOMAINS_AND_DEGRADED_MODES.md](../FAILURE_DOMAINS_AND_DEGRADED_MODES.md)
 
 ## Review Checklist

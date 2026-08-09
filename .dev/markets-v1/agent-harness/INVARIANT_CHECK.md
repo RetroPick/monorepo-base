@@ -81,8 +81,8 @@ Later, an order-submit change that auto-retries without venue reconcile would fa
 | 20 | Missing/ambiguous licenses force clean-room behavioral reimplementation | ✅ | ADR-007, open-source-provenance.yaml |
 | 21 | No VPN/proxy/relay behavior bypasses regional restrictions | ✅ | ABUSE_FRAUD_AND_RATE_LIMITS.md, AUTH_SESSION_AND_ELIGIBILITY.md |
 | 22 | Intelligence signals are deterministic, versioned, evidence-linked, and retractable | ✅ | ADR-008, SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md |
-| 23 | Whale/smart-money/unusual-activity score is descriptive, uncertain, never an insider accusation | ✅ | WHALE_AND_LARGE_TRADE_DETECTION.md, UNUSUAL_ACTIVITY_HEURISTICS.md |
-| 24 | AI may narrate verified deterministic evidence but may not classify, invent metrics, or trigger orders | ✅ | TRADER_INTELLIGENCE_PRODUCT_SPEC.md, ADR-009 |
+| 23 | Whale/smart-money/unusual-activity score is descriptive, uncertain, never an insider accusation | ✅ | intelligence/01_WHALE_TRADE_FEED.md, intelligence/05_SMART_MONEY_LEADERBOARD.md, intelligence/INTELLIGENCE_LAUNCH_V1.md (UV archived) |
+| 24 | AI may narrate verified deterministic evidence but may not classify, invent metrics, or trigger orders | ✅ | intelligence/INTELLIGENCE_LAUNCH_V1.md, ADR-009 |
 | 25 | No automatic or autonomous copy trading exists in V1 | ✅ | ADR-009, 02_SCOPE_AND_CAPABILITY_MATRIX.md |
 | 26 | Every order still requires fresh eligibility, preview, integrity checks, and explicit authorization | ✅ | ORDER_LIFECYCLE.md, MKT-FR-030, MKT-SEC-002 |
 | 27 | Theoretical discrepancies are not labeled guaranteed arbitrage | ✅ | RELATIONSHIP_AND_ARBITRAGE_SCANNER.md |
