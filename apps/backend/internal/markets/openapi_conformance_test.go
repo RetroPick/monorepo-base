@@ -185,7 +185,7 @@ func newConformanceRouter(
 		MarketDataOperational: true,
 		RealtimeState:         nil,
 	})
-	markets.RegisterRoutes(r, markets.NewHandler(svc))
+	markets.RegisterRoutes(r, markets.NewHandler(svc), nil)
 	return r
 }
 
@@ -365,7 +365,7 @@ func newPhaseOneRouter(t *testing.T) http.Handler {
 		Now:               func() time.Time { return now },
 	})
 	r := chi.NewRouter()
-	markets.RegisterRoutes(r, markets.NewHandler(svc))
+	markets.RegisterRoutes(r, markets.NewHandler(svc), nil)
 	return r
 }
 

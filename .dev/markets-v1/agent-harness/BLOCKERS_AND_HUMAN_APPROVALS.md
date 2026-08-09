@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ## Description
@@ -66,7 +66,7 @@ Track unresolved blockers and human approval gates. Agents MUST stop and log her
 
 | ID | Title | Phase | Owner | Status | Doc |
 |----|-------|-------|-------|--------|-----|
-| BLK-001 | Geoblock eligibility upstream not wired | PHASE-2 | backend | open | [AUTH_SESSION_AND_ELIGIBILITY.md](../backend/AUTH_SESSION_AND_ELIGIBILITY.md) |
+| BLK-001 | GeoIP + geoblock adapters shipped; ops staging proof pending | PHASE-2 | backend | open | [MKT-P2-002-BLK001-evidence.md](verification/PHASE-2/MKT-P2-002-BLK001-evidence.md), [AUTH §4.1](../backend/AUTH_SESSION_AND_ELIGIBILITY.md#41-implementation-status-mkt-p2-002) |
 | BLK-002 | Android beyond README scaffold | PHASE-5 | android | open | [GRADLE_MODULE_GRAPH.md](../android/GRADLE_MODULE_GRAPH.md) |
 | BLK-003 | Builder production credentials | PHASE-7 | ops | open | [BUILDER_RELAYER_AND_FEES.md](../polymarket/BUILDER_RELAYER_AND_FEES.md) |
 | BLK-004 | CLOB integration not implemented | PHASE-3 | backend | open | [ORDER_LIFECYCLE.md](../polymarket/ORDER_LIFECYCLE.md) |
@@ -76,6 +76,19 @@ Track unresolved blockers and human approval gates. Agents MUST stop and log her
 | BLK-011 | CLOB V2 details may change upstream | PHASE-3 | research | monitoring | [UPSTREAM_CHANGE_MANAGEMENT.md](../polymarket/UPSTREAM_CHANGE_MANAGEMENT.md) |
 | BLK-020 | Per-region legal review pending | PHASE-7 | legal | open | [PHASE-7-PRODUCTION-LAUNCH.md](../phases/PHASE-7-PRODUCTION-LAUNCH.md) |
 | BLK-021 | Google Play financial-features declaration | PHASE-7 | android | open | [PLAY_STORE_COMPLIANCE_AND_RELEASE.md](../android/PLAY_STORE_COMPLIANCE_AND_RELEASE.md) |
+
+### 3.1 BLK-001 progress note
+
+**Status:** `open (code complete; ops staging pending)` — default deploy remains fail-closed; do not mark MKT-P2-002 `done` or clear BLK-001 until staging runtime returns `eligible: true` for an allowed region.
+
+| | |
+|--|--|
+| **Shipped** | GeoIP `HTTPResolver` (`eligibility/geo`), geoblock `HTTPChecker` (`eligibility/geoblock`), fixture + env integration tests, `ProductionEligibilityEvaluator` dual env wiring (`TestProductionEligibilityEvaluatorEnvWiring`), shared evaluator wired to auth `RequireEligible` in both API entrypoints |
+| **Remaining** | Ops inject `MARKETS_GEOIP_*` + `MARKETS_GEOBLOCK_*` in staging/prod; staging `GET /api/v1/markets/eligibility` → `eligible: true` for allowed region; upstream revalidation per evidence register |
+| **Unblock criteria** | Both env vars set in staging; integration proof of `eligible: true` for allowed region — no allow-all stub |
+| **Does not unblock** | Adapter-only clearance; marking tasks `done` while default deploy returns `geo_unknown` |
+
+Evidence: [MKT-P2-002-BLK001-evidence.md](verification/PHASE-2/MKT-P2-002-BLK001-evidence.md).
 
 ## 4. Human approval gates
 

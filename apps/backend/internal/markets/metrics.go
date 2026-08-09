@@ -40,6 +40,26 @@ type Metrics struct {
 	signalDuplicate atomic.Uint64
 	signalExpired   atomic.Uint64
 	signalRetracted atomic.Uint64
+
+	eligibilityFailClosed atomic.Uint64
+
+	orderPreviewOK         atomic.Uint64
+	orderPreviewFailed     atomic.Uint64
+	orderSubmitOK          atomic.Uint64
+	orderSubmitFailed      atomic.Uint64
+	previewSignMatchOK     atomic.Uint64
+	previewSignMatchFailed atomic.Uint64
+
+	reconcileRuns          atomic.Uint64
+	reconcileRepaired      atomic.Uint64
+	reconcileLagNS         atomic.Uint64
+	reconcileScanned       atomic.Uint64
+	reconcileRepairOpen    atomic.Uint64
+	reconcileRepairRejected atomic.Uint64
+	reconcileRepairCanceled atomic.Uint64
+	reconcileRepairFill    atomic.Uint64
+	reconcileErrorsUpstream atomic.Uint64
+	reconcileErrorsCreds   atomic.Uint64
 }
 
 func NewMetrics() *Metrics {
@@ -135,6 +155,98 @@ func (m *Metrics) RecordSignal(result string) {
 	}
 }
 
+func (m *Metrics) RecordEligibilityFailClosed(_ string) {
+	m.RecordFailClosed("")
+}
+
+func (m *Metrics) RecordFailClosed(_ string) {
+	if m == nil {
+		return
+	}
+	m.eligibilityFailClosed.Add(1)
+}
+
+func (m *Metrics) RecordOrderPreview(success bool) {
+	if m == nil {
+		return
+	}
+	if success {
+		m.orderPreviewOK.Add(1)
+	} else {
+		m.orderPreviewFailed.Add(1)
+	}
+}
+
+func (m *Metrics) RecordOrderSubmit(success bool) {
+	if m == nil {
+		return
+	}
+	if success {
+		m.orderSubmitOK.Add(1)
+	} else {
+		m.orderSubmitFailed.Add(1)
+	}
+}
+
+func (m *Metrics) RecordPreviewSignMatch(matched bool) {
+	if m == nil {
+		return
+	}
+	if matched {
+		m.previewSignMatchOK.Add(1)
+	} else {
+		m.previewSignMatchFailed.Add(1)
+	}
+}
+
+func (m *Metrics) RecordReconcileRun(repaired int, duration time.Duration) {
+	if m == nil {
+		return
+	}
+	m.reconcileRuns.Add(1)
+	if repaired > 0 {
+		m.reconcileRepaired.Add(uint64(repaired))
+	}
+	if duration > 0 {
+		m.reconcileLagNS.Add(uint64(duration))
+	}
+}
+
+func (m *Metrics) RecordReconcileRepair(outcome string) {
+	if m == nil {
+		return
+	}
+	switch outcome {
+	case "open":
+		m.reconcileRepairOpen.Add(1)
+	case "rejected":
+		m.reconcileRepairRejected.Add(1)
+	case "canceled":
+		m.reconcileRepairCanceled.Add(1)
+	case "fill":
+		m.reconcileRepairFill.Add(1)
+	}
+}
+
+func (m *Metrics) RecordReconcileScanned(count int) {
+	if m == nil || count <= 0 {
+		return
+	}
+	m.reconcileScanned.Add(uint64(count))
+}
+
+func (m *Metrics) RecordReconcileError(kind string) {
+	if m == nil {
+		return
+	}
+	switch kind {
+	case "credentials_unwired":
+		m.reconcileErrorsCreds.Add(1)
+	case "upstream":
+		m.reconcileErrorsUpstream.Add(1)
+	}
+}
+
 func (m *Metrics) Prometheus() string {
 	var out strings.Builder
 	writeUpstreamMetrics(&out, "gamma", &m.gamma)
@@ -161,6 +273,36 @@ func (m *Metrics) Prometheus() string {
 	writeLabeledCounter(&out, "retropick_markets_signals_total", "result", "duplicate", m.signalDuplicate.Load())
 	writeLabeledCounter(&out, "retropick_markets_signals_total", "result", "expired", m.signalExpired.Load())
 	writeLabeledCounter(&out, "retropick_markets_signals_total", "result", "retracted", m.signalRetracted.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_eligibility_fail_closed_total %d\n", m.eligibilityFailClosed.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_preview_total", "result", "ok", m.orderPreviewOK.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_preview_total", "result", "error", m.orderPreviewFailed.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_submit_total", "result", "ok", m.orderSubmitOK.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_submit_total", "result", "error", m.orderSubmitFailed.Load())
+	writeLabeledCounter(&out, "retropick_markets_preview_sign_match_total", "result", "match", m.previewSignMatchOK.Load())
+	writeLabeledCounter(&out, "retropick_markets_preview_sign_match_total", "result", "mismatch", m.previewSignMatchFailed.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_reconcile_runs_total %d\n", m.reconcileRuns.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_reconcile_repairs_total %d\n", m.reconcileRepaired.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconcile_scanned_total %d\n", m.reconcileScanned.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "open", m.reconcileRepairOpen.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "rejected", m.reconcileRepairRejected.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "canceled", m.reconcileRepairCanceled.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "fill", m.reconcileRepairFill.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_errors_total", "kind", "upstream", m.reconcileErrorsUpstream.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_errors_total", "kind", "credentials_unwired", m.reconcileErrorsCreds.Load())
+	if runs := m.reconcileRuns.Load(); runs > 0 {
+		_, _ = fmt.Fprintf(
+			&out,
+			"retropick_markets_order_reconcile_lag_seconds_sum %.6f\n",
+			float64(m.reconcileLagNS.Load())/float64(time.Second),
+		)
+		_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconcile_lag_seconds_count %d\n", runs)
+		_, _ = fmt.Fprintf(
+			&out,
+			"retropick_markets_reconciliation_lag_seconds_sum %.6f\n",
+			float64(m.reconcileLagNS.Load())/float64(time.Second),
+		)
+		_, _ = fmt.Fprintf(&out, "retropick_markets_reconciliation_lag_seconds_count %d\n", runs)
+	}
 	return out.String()
 }
 

@@ -1,12 +1,11 @@
 import { createMarketsClient } from "@retropick/polymarket";
 
+import { getMarketsApiBaseUrl } from "@/shared/lib/marketsRuntimeEnv";
+
 let singleton: ReturnType<typeof createMarketsClient> | null = null;
 
 export function resolveApiBaseUrl(): string {
-  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL.replace(/\/$/, "");
-  }
-  return "";
+  return getMarketsApiBaseUrl();
 }
 
 export function getMarketsClient() {

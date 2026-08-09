@@ -3,6 +3,7 @@ package markets
 import (
 	"encoding/json"
 	"net/http"
+	"reflect"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -144,10 +145,22 @@ func (h HealthChecker) serviceName() string {
 }
 
 func (h HealthChecker) realtimeState() string {
-	if h.RealtimeState != nil {
-		return h.RealtimeState.HealthRealtime()
+	if h.RealtimeState == nil || isNilRealtimeState(h.RealtimeState) {
+		return "disabled"
 	}
-	return "disabled"
+	return h.RealtimeState.HealthRealtime()
+}
+
+// isNilRealtimeState detects typed-nil pointers stored in RealtimeStateProvider
+// (e.g. (*realtime.Runtime)(nil)), which are non-nil as interfaces.
+func isNilRealtimeState(p RealtimeStateProvider) bool {
+	v := reflect.ValueOf(p)
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		return v.IsNil()
+	default:
+		return false
+	}
 }
 
 func (h HealthChecker) now() time.Time {

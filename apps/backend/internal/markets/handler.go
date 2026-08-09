@@ -9,6 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"retropick/apps/backend/internal/markets/auth"
+	"retropick/apps/backend/internal/markets/eligibility"
 	"retropick/apps/backend/internal/platform/httpx"
 )
 
@@ -23,7 +25,13 @@ func NewHandler(svc *Service) *Handler {
 
 func (h *Handler) Eligibility(w http.ResponseWriter, r *http.Request) {
 	setReadCacheHeaders(w)
-	httpx.JSON(w, http.StatusOK, h.svc.Eligibility(r.Context()))
+	in := eligibility.Input{
+		ClientIP: eligibility.ClientIPFromRequest(r, h.svc.IPTrust()),
+	}
+	if account := auth.AccountFromContext(r.Context()); account != nil {
+		in.Account = account
+	}
+	httpx.JSON(w, http.StatusOK, h.svc.Eligibility(r.Context(), in))
 }
 
 func (h *Handler) Capabilities(w http.ResponseWriter, r *http.Request) {

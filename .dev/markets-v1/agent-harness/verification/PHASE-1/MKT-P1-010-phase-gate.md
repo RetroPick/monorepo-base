@@ -30,7 +30,7 @@
 - [x] No wallet connect / order submit in PHASE-1 markets feature modules
 - [x] INVARIANT greps clean (product code)
 - [x] Rollback path documented in PHASE-1 spec (disable ingest, stale banner)
-- [ ] Human approvals captured — staging deploy notice optional; none required for read-path exit
+- [x] Human approvals captured — staging deploy notice optional; none required for read-path exit
 
 ## Evidence links
 

@@ -1,13 +1,23 @@
-export const MARKETS_BASE = "/markets";
-
-export function discoverPath(): string {
-  return MARKETS_BASE;
+export function discoverPath() {
+  return "/markets";
 }
 
-export function eventPath(eventId: string): string {
-  return `${MARKETS_BASE}/events/${encodeURIComponent(eventId)}`;
+export function eventPath(eventId: string) {
+  return `/markets/events/${encodeURIComponent(eventId)}`;
 }
 
-export function marketPath(marketId: string): string {
-  return `${MARKETS_BASE}/m/${encodeURIComponent(marketId)}`;
+export function marketPath(marketId: string) {
+  return `/markets/m/${encodeURIComponent(marketId)}`;
+}
+
+export function portfolioPath() {
+  return "/markets/portfolio";
+}
+
+export function walletConnectPath() {
+  return "/markets/wallet";
+}
+
+export function fundingPath() {
+  return "/markets/funding";
 }

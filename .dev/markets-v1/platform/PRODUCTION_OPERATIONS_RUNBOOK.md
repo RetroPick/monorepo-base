@@ -151,6 +151,31 @@ Day-2 operations: health checks, common failures, scaling knobs, and on-call pro
 2. Compare chain vs CLOB vs projection.
 3. File bug if systematic; do not manual SQL fix without ticket.
 
+### 7.5 Eligibility upstream wiring (BLK-001)
+
+GeoIP and Polymarket geoblock adapters are env-gated in the BFF. Default deploy (no env) is **fail-closed** — trading routes return `ELIGIBILITY_DENIED`. Full env reference: [AUTH_SESSION_AND_ELIGIBILITY.md §4.1](../backend/AUTH_SESSION_AND_ELIGIBILITY.md#41-implementation-status-mkt-p2-002).
+
+**Required env (staging/prod unblock):**
+
+| Variable | Purpose |
+|----------|---------|
+| `MARKETS_GEOIP_BASE_URL` | GeoIP HTTP base (example: `https://ipinfo.io`) |
+| `MARKETS_GEOIP_PATH` | Optional; default `/{ip}/json` |
+| `MARKETS_GEOIP_API_KEY` or `GEO_PROVIDER_API_KEY` | Provider token (secret manager) |
+| `MARKETS_GEOBLOCK_BASE_URL` | Polymarket geoblock base (example: `https://polymarket.com`) |
+| `MARKETS_GEOBLOCK_PATH` | Optional; default `/api/geoblock` |
+
+**Staging verification:** Ops checklist: [MKT-P2-BLK001-ops-staging-checklist.md](../agent-harness/verification/PHASE-2/MKT-P2-BLK001-ops-staging-checklist.md).
+
+```bash
+curl -sS "https://api-staging.example/api/v1/markets/eligibility" | jq .
+# Expect: {"eligible":true,"region":"US",...} from an allowed region/IP
+```
+
+**Rollback:** Unset geo/geoblock env vars and redeploy → eligibility returns `geo_unknown` / `geoblock_upstream_unavailable` (fail-closed). Do not ship allow-all stubs.
+
+**Secret rotation:** Rotate `MARKETS_GEOIP_API_KEY` (or `GEO_PROVIDER_API_KEY`) in secret manager; redeploy BFF. GeoIP failures fail closed (`geo_unknown`).
+
 ## 8. Scaling commands (example)
 
 ```bash

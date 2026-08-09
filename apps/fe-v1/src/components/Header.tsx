@@ -73,6 +73,8 @@ const Header = ({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const pathNorm = location.pathname.replace(/\/+$/, "") || "/";
   const isMarketsAllPage = pathNorm === "/app/markets/all";
+  const isMarketsShellRoute =
+    pathNorm === "/app/markets/all" || pathNorm.startsWith("/app/markets/");
   const isPortfolioPage = pathNorm === "/app/portfolio";
 
   const navItems = [
@@ -248,34 +250,35 @@ const Header = ({
             >
               How?
             </button>
-            {!isConnected ? (
-              <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => void openAppKitModal()}
-                  className="h-8 shrink-0 rounded-lg border border-zinc-600/85 bg-zinc-700 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 sm:h-9 sm:px-4 sm:text-sm"
+            {!isMarketsShellRoute &&
+              (!isConnected ? (
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void openAppKitModal()}
+                    className="h-8 shrink-0 rounded-lg border border-zinc-600/85 bg-zinc-700 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-zinc-600 dark:border-zinc-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 sm:h-9 sm:px-4 sm:text-sm"
+                  >
+                    Sign In
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    onClick={() => void openAppKitModal()}
+                    className="h-8 shrink-0 rounded-lg border border-blue-600/90 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500 sm:h-9 sm:px-4 sm:text-sm"
+                  >
+                    Sign Up
+                  </Button>
+                </div>
+              ) : (
+                <Suspense
+                  fallback={
+                    <div className="h-8 min-w-[10rem] shrink-0 rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur sm:h-9" />
+                  }
                 >
-                  Sign In
-                </Button>
-                <Button
-                  type="button"
-                  variant="default"
-                  onClick={() => void openAppKitModal()}
-                  className="h-8 shrink-0 rounded-lg border border-blue-600/90 bg-blue-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-500 dark:bg-blue-600 dark:hover:bg-blue-500 sm:h-9 sm:px-4 sm:text-sm"
-                >
-                  Sign Up
-                </Button>
-              </div>
-            ) : (
-              <Suspense
-                fallback={
-                  <div className="h-8 min-w-[10rem] shrink-0 rounded-full border border-border/60 bg-background/75 shadow-sm backdrop-blur sm:h-9" />
-                }
-              >
-                <WalletButton />
-              </Suspense>
-            )}
+                  <WalletButton />
+                </Suspense>
+              ))}
           </div>
         </div>
       </div>

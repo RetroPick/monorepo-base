@@ -31,7 +31,7 @@ Short orientation for implementers and agents. Read this before the normative se
 
 **Happy path — catalog market row.** Ingest validates Gamma payload, INSERT into `raw_upstream_events`, UPSERT `catalog_markets` keyed by (`upstream_source`,`upstream_id`) with `observed_at`, `status`, and normalized `payload_json` / promoted columns. Related `catalog_outcomes` share the same provenance pattern. API list/detail read these projections; money fields on funding/order tables use `BIGINT` amount + currency/decimals metadata (never float).
 
-**Happy path — order + fill projection.** Submit path inserts `orders` / `order_attempts` with venue ids when known. Fill reconcile UPSERTs `fills` by upstream trade identity and updates order status. `position_projections` refresh from CLOB+chain—still marked as projections in naming and in API semantics.
+**Happy path — order + fill projection.** Submit path inserts `markets_user_orders` / `markets_order_attempts` with venue ids when known. Preview bind uses `markets_order_previews` (TTL + `consumed_at`). Fill reconcile UPSERTs `markets_fills` by upstream trade identity and updates order status. `position_projections` refresh from CLOB+chain—still marked as projections in naming and in API semantics.
 
 **Failure / migration edge.** Dropping a column still read by old replicas violates expand-contract—add → dual-write/read → remove later. Duplicate upstream id hits UNIQUE → idempotent upsert, not a second market. Float column for notional is rejected in review. Reorg deletes `chain_events` above `safe_block` and re-indexes; dependent projections rebuild via reconciliation, not invented SQL balances. Failed migration down path must be CI-tested.
 
@@ -183,6 +183,139 @@ erDiagram
 
     **Indices:** `UNIQUE (watchlist_id, item_kind, target_id)`; `(watchlist_id, sort_order)`.
 
+    ## 4B. Phase-3 trading DDL (MKT-P3 orders migration)
+
+    Phase-3 trading tables live in `public` with a `markets_` prefix. Logical names in this doc map to physical tables as follows:
+
+    | Logical | Physical table | Introduced |
+    |---------|----------------|------------|
+    | `markets.order_previews` | `public.markets_order_previews` | `000021` |
+    | `markets.orders` | `public.markets_user_orders` | `000021` |
+    | `markets.order_attempts` | `public.markets_order_attempts` | `000021` |
+    | `markets.fills` | `public.markets_fills` | `000021` |
+
+    Expand-only (`000021`): no `ALTER` on Phase-1/2 tables. PKs are app-supplied UUID v7. No binary-float money columns; prices/sizes use `TEXT` (`DecimalString`); fees use `BIGINT` base units + currency/decimals metadata. Order `status` includes `unknown` for submit-timeout reconcile (never auto-resubmit). Submit idempotency: `UNIQUE (idempotency_key)` on `markets_user_orders`.
+
+    ### `markets.order_previews` (`markets_order_previews`)
+
+    Short-lived preview binding for preview-before-sign (MKT-P3-001). Replaces in-memory preview store when sqlc wiring lands.
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | Same as API `previewId`; app-supplied UUID v7 |
+    | user_id | TEXT | NOT NULL | Session subject |
+    | market_id | TEXT | NOT NULL | Canonical `polymarket:market:{upstreamId}` |
+    | token_id | TEXT | NOT NULL | Outcome CLOB token id |
+    | side | TEXT | NOT NULL | CHECK ∈ `BUY`, `SELL` |
+    | price | TEXT | NOT NULL | DecimalString |
+    | size | TEXT | NOT NULL | DecimalString |
+    | order_type | TEXT | NOT NULL DEFAULT `LIMIT` | CHECK ∈ `LIMIT` |
+    | time_in_force | TEXT | NULL | CHECK ∈ `GTC`, `GTD` when set |
+    | maker_address | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK |
+    | signer_address | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK |
+    | exchange_domain | TEXT | NOT NULL | CHECK ∈ `standard`, `neg_risk` |
+    | content_hash | TEXT | NOT NULL | `0x` + 64 hex; SHA-256 bind |
+    | expires_at | TIMESTAMPTZ | NOT NULL | ≤5m TTL (app enforced) |
+    | idempotency_key | TEXT | NULL | Optional preview dedup |
+    | unsigned_payload_json | JSONB | NOT NULL | EIP-712 fields; size CHECK ≤ 1 MiB |
+    | human_summary_json | JSONB | NOT NULL | Display copy; size CHECK ≤ 1 MiB |
+    | consumed_at | TIMESTAMPTZ | NULL | Set on submit bind (single-use) |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+    | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Indices:** `UNIQUE (user_id, idempotency_key) WHERE idempotency_key IS NOT NULL`; `(user_id, created_at DESC)`; `(expires_at)` TTL sweeper; partial index on active previews (`consumed_at IS NULL`). **Retention:** TTL eviction via worker or read-path sweep; not long-term audit.
+
+    ### `markets.orders` (`markets_user_orders`)
+
+    User-visible order projection. Venue authority via `upstream_source` / `upstream_id` when CLOB order id is known.
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | user_id | TEXT | NOT NULL | Owner for `/me/orders` |
+    | wallet_account_id | UUID | NULL FK → `markets_wallet_accounts` | Optional PHASE-2 link |
+    | market_id | TEXT | NOT NULL | Canonical market id |
+    | token_id | TEXT | NOT NULL | Outcome token id |
+    | side | TEXT | NOT NULL | CHECK ∈ `BUY`, `SELL` |
+    | order_type | TEXT | NOT NULL DEFAULT `LIMIT` | CHECK ∈ `LIMIT` |
+    | time_in_force | TEXT | NULL | CHECK ∈ `GTC`, `GTD` when set |
+    | price | TEXT | NOT NULL | DecimalString |
+    | original_size | TEXT | NOT NULL | DecimalString at submit |
+    | remaining_size | TEXT | NOT NULL DEFAULT `0` | DecimalString |
+    | matched_size | TEXT | NOT NULL DEFAULT `0` | DecimalString |
+    | status | TEXT | NOT NULL | CHECK incl. `unknown`; see DOMAIN_MODEL orders SM |
+    | client_order_id | TEXT | NULL | COID reconcile key |
+    | idempotency_key | TEXT | NOT NULL | **UNIQUE** — submit dedup (24h app window) |
+    | preview_id | UUID | NULL FK → `markets_order_previews` | Preview bind |
+    | content_hash | TEXT | NULL | Preview hash audit |
+    | signed_payload_hash | TEXT | NULL | Post-sign audit |
+    | maker_address | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK |
+    | signer_address | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK |
+    | upstream_source | TEXT | NOT NULL DEFAULT `clob` | |
+    | upstream_id | TEXT | NULL | CLOB order id when known |
+    | chain_id | INT | NOT NULL DEFAULT 137 | Polygon mainnet |
+    | exchange_domain | TEXT | NOT NULL | CHECK ∈ `standard`, `neg_risk` |
+    | observed_at | TIMESTAMPTZ | NULL | Last venue observation |
+    | expires_at | TIMESTAMPTZ | NULL | GTD expiry |
+    | rejection_reason | TEXT | NULL | Venue reject copy |
+    | version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+    | payload_json | JSONB | NULL | Venue slices; size CHECK ≤ 1 MiB |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+    | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Status values:** `previewed`, `submitted`, `open`, `partially_filled`, `filled`, `cancel_pending`, `canceled`, `rejected`, `expired`, **`unknown`**.
+
+    **Indices:** `UNIQUE (idempotency_key)`; `UNIQUE (upstream_source, upstream_id) WHERE upstream_id IS NOT NULL`; `UNIQUE (user_id, client_order_id) WHERE client_order_id IS NOT NULL`; `(user_id, status, updated_at DESC)`; `(user_id, created_at DESC)`; `(preview_id) WHERE preview_id IS NOT NULL`. **Retention:** account/trading lifetime (T2).
+
+    ### `markets.order_attempts` (`markets_order_attempts`)
+
+    Submit audit trail per SIGNING §11. One row per HTTP submit try; distinct attempt_status enum from order status.
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | user_id | TEXT | NOT NULL | Session subject |
+    | order_id | UUID | NULL FK → `markets_user_orders` | Set once order row exists |
+    | preview_id | UUID | NOT NULL FK → `markets_order_previews` | |
+    | idempotency_key | TEXT | NOT NULL | Mirrors submit `Idempotency-Key` header |
+    | attempt_status | TEXT | NOT NULL | CHECK ∈ `preview_issued`, `submitted`, `accepted`, `rejected`, `integrity_failed` |
+    | http_status | INT | NULL | BFF→CLOB HTTP code |
+    | error_code | TEXT | NULL | e.g. `INTEGRITY_MISMATCH` |
+    | correlation_id | TEXT | NULL | End-to-end trace |
+    | request_fingerprint | TEXT | NULL | Body hash for 422 detection |
+    | response_json | JSONB | NULL | Redacted CLOB ack/error; size CHECK ≤ 1 MiB |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+    | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Indices:** `(order_id)`; `(preview_id)`; `(user_id, created_at DESC)`; `(idempotency_key)` lookup (uniqueness on parent order row). **Retention:** aligned with order audit policy.
+
+    ### `markets.fills` (`markets_fills`)
+
+    Fill projections; idempotent reconcile by upstream trade id.
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | user_id | TEXT | NOT NULL | Owner for `/me/fills` |
+    | order_id | UUID | NOT NULL FK → `markets_user_orders` | |
+    | market_id | TEXT | NOT NULL | Canonical market id |
+    | token_id | TEXT | NOT NULL | Outcome token id |
+    | side | TEXT | NOT NULL | CHECK ∈ `BUY`, `SELL` |
+    | fill_price | TEXT | NOT NULL | DecimalString |
+    | fill_size | TEXT | NOT NULL | DecimalString |
+    | fee_amount | BIGINT | NULL | Base units (never float) |
+    | fee_currency | TEXT | NULL DEFAULT `USDC` | |
+    | fee_decimals | INT | NULL DEFAULT 6 | |
+    | upstream_source | TEXT | NOT NULL DEFAULT `clob` | |
+    | upstream_id | TEXT | NOT NULL | CLOB trade id |
+    | tx_hash | TEXT | NULL | Chain settlement when known |
+    | observed_at | TIMESTAMPTZ | NOT NULL | Venue observation time |
+    | payload_json | JSONB | NULL | Normalized upstream slice; size CHECK ≤ 1 MiB |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+    | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Indices:** `UNIQUE (upstream_source, upstream_id)`; `(order_id, observed_at DESC)`; `(user_id, observed_at DESC)`. **Retention:** trading audit lifetime.
+
 ### `markets.catalog_venues`
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
@@ -303,65 +436,29 @@ erDiagram
 | payload_json | JSONB | NULL | Normalized upstream slice |
 **Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
-### `markets.orders`
-| Field | Type | Constraints | Notes |
-|-------|------|-------------|-------|
-| id | UUID | PK | Internal surrogate key |
-| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
-| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
-| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
-| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
-| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
-| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
-| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
-| status | TEXT | NOT NULL | Domain-specific enum |
-| payload_json | JSONB | NULL | Normalized upstream slice |
-**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+### `markets.orders` / `markets.order_attempts` / `markets.fills` / `markets.order_previews`
 
-### `markets.order_attempts`
-| Field | Type | Constraints | Notes |
-|-------|------|-------------|-------|
-| id | UUID | PK | Internal surrogate key |
-| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
-| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
-| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
-| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
-| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
-| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
-| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
-| status | TEXT | NOT NULL | Domain-specific enum |
-| payload_json | JSONB | NULL | Normalized upstream slice |
-**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+Phase-3 physical DDL and field specs: see **§4B Phase-3 trading DDL** above (`000021`).
 
-### `markets.fills`
-| Field | Type | Constraints | Notes |
-|-------|------|-------------|-------|
-| id | UUID | PK | Internal surrogate key |
-| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
-| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
-| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
-| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
-| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
-| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
-| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
-| status | TEXT | NOT NULL | Domain-specific enum |
-| payload_json | JSONB | NULL | Normalized upstream slice |
-**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+### `markets.wallet_accounts` (`markets_wallet_accounts`)
 
-### `markets.wallet_accounts`
+API-owned signer → account wallet linkage (MKT-P2-004). Not an upstream projection tuple.
+
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
-| id | UUID | PK | Internal surrogate key |
+| id | UUID | PK | App-supplied UUID v7 |
+| user_id | TEXT | NOT NULL | RetroPick session user |
+| signer_address | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK |
+| account_wallet | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK; ADR-003 separate from signer |
+| wallet_type | TEXT | NOT NULL | CHECK ∈ `EOA`, `POLY_PROXY`, `GNOSIS_SAFE`, `DEPOSIT_WALLET` |
+| link_status | TEXT | NOT NULL | CHECK ∈ `linked`, `pending_verification` |
+| is_primary | BOOLEAN | NOT NULL DEFAULT false | One primary per user+signer (partial unique index) |
+| chain_id | INT | NOT NULL DEFAULT 137 | Polygon mainnet |
+| linkage_proof_hash | TEXT | NULL | Optional signature-challenge hash; no relayer secrets |
 | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
 | updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
-| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
-| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
-| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
-| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
-| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
-| status | TEXT | NOT NULL | Domain-specific enum |
-| payload_json | JSONB | NULL | Normalized upstream slice |
-**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+**Indices:** `UNIQUE (user_id, signer_address, account_wallet)`; `(user_id, signer_address)` list index; partial unique on `is_primary` per signer. **Retention:** account lifetime (T2 wallet linkage).
 
 ### `markets.funding_operations`
 | Field | Type | Constraints | Notes |

@@ -3,10 +3,16 @@ package markets
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"retropick/apps/backend/internal/markets/clob"
+	"retropick/apps/backend/internal/markets/eligibility"
 	"retropick/apps/backend/internal/markets/gamma"
 )
 
@@ -133,12 +139,82 @@ func (s stubMarketData) GetPriceHistory(_ context.Context, _ clob.PriceHistoryRe
 
 func TestEligibilityFailsClosed(t *testing.T) {
 	svc := NewService(ServiceConfig{})
-	got := svc.Eligibility(context.Background())
+	got := svc.Eligibility(context.Background(), eligibility.Input{ClientIP: "203.0.113.1"})
 	if got.Eligible {
 		t.Fatal("expected eligible=false")
 	}
-	if got.Reason == "" {
-		t.Fatal("expected reason")
+	if got.Reason != eligibility.ReasonGeoUnknown {
+		t.Fatalf("reason %q want %q", got.Reason, eligibility.ReasonGeoUnknown)
+	}
+}
+
+func eligibilityFixturePath(parts ...string) string {
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("runtime.Caller failed")
+	}
+	base := filepath.Join(filepath.Dir(file), "eligibility")
+	return filepath.Join(append([]string{base}, parts...)...)
+}
+
+func newEligibilityGeoFixtureServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	body, err := os.ReadFile(eligibilityFixturePath("geo", "testdata", "us.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/203.0.113.1/json" {
+			t.Fatalf("geo path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func newEligibilityGeoblockFixtureServer(t *testing.T, name string) *httptest.Server {
+	t.Helper()
+	body, err := os.ReadFile(eligibilityFixturePath("geoblock", "testdata", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestProductionEligibilityEvaluatorEnvWiring(t *testing.T) {
+	geoSrv := newEligibilityGeoFixtureServer(t)
+	geoblockSrv := newEligibilityGeoblockFixtureServer(t, "allowed.json")
+
+	t.Setenv("MARKETS_GEOIP_BASE_URL", geoSrv.URL)
+	t.Setenv("MARKETS_GEOIP_PATH", "/{ip}/json")
+	t.Setenv("MARKETS_GEOBLOCK_BASE_URL", geoblockSrv.URL)
+	t.Setenv("MARKETS_GEOBLOCK_PATH", "/api/geoblock")
+
+	eval := ProductionEligibilityEvaluator(nil)
+	got := eval.Check(context.Background(), eligibility.Input{ClientIP: "203.0.113.1"})
+	if !got.Eligible || got.Reason != "" || got.Region != "US" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestProductionEligibilityEvaluatorFailsClosedWithoutGeoEnv(t *testing.T) {
+	geoblockSrv := newEligibilityGeoblockFixtureServer(t, "allowed.json")
+
+	t.Setenv("MARKETS_GEOIP_BASE_URL", "")
+	t.Setenv("MARKETS_GEOBLOCK_BASE_URL", geoblockSrv.URL)
+	t.Setenv("MARKETS_GEOBLOCK_PATH", "/api/geoblock")
+
+	eval := ProductionEligibilityEvaluator(nil)
+	got := eval.Check(context.Background(), eligibility.Input{ClientIP: "203.0.113.1"})
+	if got.Eligible || got.Reason != eligibility.ReasonGeoUnknown {
+		t.Fatalf("got %+v", got)
 	}
 }
 

@@ -19,9 +19,13 @@ import (
 	"retropick/apps/backend/internal/db"
 	"retropick/apps/backend/internal/ethops"
 	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/auth"
+	"retropick/apps/backend/internal/markets/balances"
 	"retropick/apps/backend/internal/markets/clob"
+	"retropick/apps/backend/internal/markets/eligibility"
 	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/markets/marketdata"
+	"retropick/apps/backend/internal/markets/wallet"
 	"retropick/apps/backend/internal/registry"
 )
 
@@ -97,6 +101,7 @@ func main() {
 	})
 
 	marketsMetrics := markets.NewMetrics()
+	eligibilityEval := markets.ProductionEligibilityEvaluator(marketsMetrics)
 	api.RegisterHealthRoutes(r, pool, ethCaller, reg, api.BuildInfo{
 		Version: cfg.BuildVersion,
 		Commit:  cfg.BuildCommit,
@@ -113,9 +118,30 @@ func main() {
 		MarketProcessor:   marketdata.Processor{},
 		MarketDataEnabled: cfg.MarketsMarketDataEnabled,
 		Metrics:           marketsMetrics,
+		Eligibility:       eligibilityEval,
 		BookMaxAge:        cfg.MarketsBookMaxAge,
 	})
-	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
+	authCfg, err := auth.LoadConfig()
+	if err != nil {
+		log.Error("auth config", "err", err)
+		os.Exit(1)
+	}
+	authMod := auth.NewModule(auth.ModuleConfig{
+		Config:    authCfg,
+		Evaluator: eligibilityEval,
+		IPTrust: eligibility.IPTrustOptions{
+			TrustForwardedFor: len(cfg.TrustedProxyCIDRs) > 0,
+			TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
+		},
+	})
+	walletCfg := wallet.HandlerConfigFromPool(pool)
+	markets.RegisterRoutesWithDeps(r, markets.NewHandler(marketsSvc), authMod, markets.RouteDeps{Wallet: walletCfg}, func(r chi.Router) {
+		balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
+			Discoverer: walletCfg.Discoverer,
+			CLOBURL:    cfg.MarketsCLOBAPIURL,
+			L2Store:    balances.UnwiredL2CredentialStore{},
+		}))
+	})
 
 	srv := &http.Server{Addr: fmt.Sprintf(":%d", cfg.HTTPPort), Handler: r}
 	go func() {

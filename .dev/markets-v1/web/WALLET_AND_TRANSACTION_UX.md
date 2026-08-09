@@ -120,7 +120,44 @@ Connect, chain switch, preview modals, signing handoff per ADR-003.
 
 ## 5. Current state
 
-No wallet UI; `AppProviders` is passthrough.
+Markets wallet connect module shipped under `apps/web/src/products/markets/wallet/` (MKT-P2-001):
+
+| Artifact | Path | Status |
+|----------|------|--------|
+| Wagmi + AppKit (Polygon 137) | `wallet/config/` | **Done** |
+| Connect / disconnect UI | `wallet/components/ConnectWalletButton.tsx` | **Done** |
+| Signer vs trading disclosure | `wallet/components/WalletAddressDisclosure.tsx` | **Done** — account wallet pending P2-003 |
+| Chain guard | `wallet/components/ChainGuardBanner.tsx` | **Done** |
+| SIWE session hook | `wallet/hooks/useMarketsWalletSession.ts` | **Done** — server nonce, cookie session, restore, logout (MKT-P2-005 web) |
+| Staging harness | `/markets/wallet` route | **Done** |
+| Shell wiring | `AppProviders` + shared `Header` | **Done** |
+| fe-v1 legacy quarantine | `apps/fe-v1/src/components/Header.tsx` | **Done** — `isMarketsShellRoute` hides WalletButton on `/app/markets/*` |
+
+**Environment:** `NEXT_PUBLIC_REOWN_PROJECT_ID` (WalletConnect), `NEXT_PUBLIC_API_BASE_URL` (BFF).
+
+**Staging URL:** `http://localhost:3001/markets/wallet`
+
+### 5.1 Session client (SIWE)
+
+Markets web session uses the BFF auth endpoints shipped in MKT-P2-005 (Chat N). The client never stores JWTs or private keys in `localStorage` / `sessionStorage`.
+
+| Step | Client | BFF |
+|------|--------|-----|
+| Restore | On wallet connect → `GET /api/v1/markets/auth/session` (`credentials: include`) | Validates HttpOnly `mkt_session` cookie |
+| Sign in | `GET /api/v1/markets/auth/nonce` → wallet signs EIP-4361 message → `POST /api/v1/markets/auth/siwe` | Issues `mkt_session` + readable `mkt_csrf` cookies |
+| Sign out | `POST /api/v1/markets/auth/logout` with `X-CSRF-Token` from `mkt_csrf` | Clears session cookies |
+
+**Implementation:** `wallet/lib/marketsAuthClient.ts`, shared state in `wallet/providers/MarketsWalletSessionProvider.tsx`, hook `useMarketsWalletSession`.
+
+**Cookies:** `mkt_session` (HttpOnly JWT), `mkt_csrf` (CSRF double-submit for logout).
+
+**Env (web):** `NEXT_PUBLIC_API_BASE_URL` — BFF origin for auth fetches.
+
+**Env (BFF):** `MARKETS_CORS_ALLOWED_ORIGINS=http://localhost:3001` (dev), `MARKETS_AUTH_SESSION_SECRET`, optional `MARKETS_AUTH_ALLOWED_DOMAINS`.
+
+**Mismatch handling:** If restored session wallet ≠ connected signer, UI stays unsigned and prompts re-sign (fail closed).
+
+Order preview/submit and deposit wallet deploy remain out of scope (PHASE-3 / P2-004).
 
 
 
@@ -303,6 +340,9 @@ WALLET_REJECTED, CHAIN_MISMATCH, PREVIEW_EXPIRED.
 | FundingWizard | funding | Deposit flow |
 | DegradedBanner | shared | Stale/outage |
 | ChainGuard | wallet | Polygon 137 |
+| ConnectWalletButton | wallet | AppKit connect CTA |
+| WalletAddressDisclosure | wallet | Signer vs trading address |
+| WalletConnectHarness | wallet | Staging QA panel |
 | UnknownOrderPanel | trading | J18 reconcile |
 
 ## Appendix C — Web phase gates

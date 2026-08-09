@@ -103,6 +103,7 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 		if contentHash == "" {
 			contentHash = hashPayload(payload)
 		}
+		eventUpstreamSrc, eventUpstreamID := eventUpstreamTuple(event.Provenance.Source, event.ID, event.UpstreamID)
 		if _, err := queries.UpsertMarketsCatalogEvent(ctx, dbqueries.UpsertMarketsCatalogEventParams{
 			EventID:           event.ID,
 			Slug:              event.Slug,
@@ -116,6 +117,8 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			ContentHash:       contentHash,
 			Payload:           payload,
 			ObservedAt:        requiredTimestamptz(event.Provenance.ObservedAt),
+			UpstreamID:        eventUpstreamID,
+			UpstreamSource:    eventUpstreamSrc,
 		}); err != nil {
 			return fmt.Errorf("apply markets catalog page: event %s: %w", event.ID, err)
 		}
@@ -138,6 +141,7 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 		if contentHash == "" {
 			contentHash = hashPayload(payload)
 		}
+		marketUpstreamSrc, marketUpstreamID := marketUpstreamTuple(market.Provenance.Source, market.ID, market.UpstreamID)
 		if _, err := queries.UpsertMarketsCatalogMarket(ctx, dbqueries.UpsertMarketsCatalogMarketParams{
 			MarketID:          market.ID,
 			EventID:           optionalText(market.EventID),
@@ -154,6 +158,8 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			ContentHash:       contentHash,
 			Payload:           payload,
 			ObservedAt:        requiredTimestamptz(market.Provenance.ObservedAt),
+			UpstreamID:        marketUpstreamID,
+			UpstreamSource:    marketUpstreamSrc,
 		}); err != nil {
 			return fmt.Errorf("apply markets catalog page: market %s: %w", market.ID, err)
 		}
@@ -162,6 +168,7 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			if tokenID == "" {
 				tokenID = outcome.ID
 			}
+			outcomeUpstreamSrc, outcomeUpstreamID := outcomeUpstreamTuple(market.Provenance.Source, tokenID)
 			if _, err := queries.UpsertMarketsCatalogOutcome(ctx, dbqueries.UpsertMarketsCatalogOutcomeParams{
 				OutcomeID:       outcome.ID,
 				MarketID:        market.ID,
@@ -171,6 +178,8 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 				Price:           optionalDecimal(outcome.Price),
 				Winner:          optionalBool(outcome.Winner),
 				ObservedAt:      requiredTimestamptz(market.Provenance.ObservedAt),
+				UpstreamID:      outcomeUpstreamID,
+				UpstreamSource:  outcomeUpstreamSrc,
 			}); err != nil {
 				return fmt.Errorf("apply markets catalog page: outcome %s: %w", outcome.ID, err)
 			}
@@ -180,6 +189,7 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 		if ruleHash == "" {
 			ruleHash = hashPayload([]byte(market.Resolution.Description + "\x00" + sourceURL))
 		}
+		ruleUpstreamSrc, ruleUpstreamID := ruleUpstreamTuple(marketUpstreamSrc, marketUpstreamID)
 		if _, err := queries.UpsertMarketsCatalogRule(ctx, dbqueries.UpsertMarketsCatalogRuleParams{
 			MarketID:             market.ID,
 			Description:          market.Resolution.Description,
@@ -188,6 +198,8 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			ContentHash:          ruleHash,
 			UpstreamUpdatedAt:    optionalTimePointer(market.Resolution.UpdatedAt),
 			ObservedAt:           requiredTimestamptz(market.Provenance.ObservedAt),
+			UpstreamID:           ruleUpstreamID,
+			UpstreamSource:       ruleUpstreamSrc,
 		}); err != nil {
 			return fmt.Errorf("apply markets catalog page: rule %s: %w", market.ID, err)
 		}
@@ -199,6 +211,7 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 	}
 
 	for _, raw := range page.RawEvents {
+		rawUpstreamSrc, rawUpstreamID := rawEventUpstreamTuple(raw.Source, raw.UpstreamEventID)
 		if err := queries.InsertMarketsRawUpstreamEvent(ctx, dbqueries.InsertMarketsRawUpstreamEventParams{
 			Source:          raw.Source,
 			UpstreamEventID: raw.UpstreamEventID,
@@ -208,18 +221,21 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			Payload:         raw.Payload,
 			ObservedAt:      requiredTimestamptz(raw.ObservedAt),
 			ExpiresAt:       requiredTimestamptz(raw.ExpiresAt),
+			UpstreamSource:  rawUpstreamSrc,
+			UpstreamID:      rawUpstreamID,
 		}); err != nil {
 			return fmt.Errorf("apply markets catalog page: raw event %s: %w", raw.UpstreamEventID, err)
 		}
 	}
 
 	if _, err := queries.UpsertMarketsSyncCheckpoint(ctx, dbqueries.UpsertMarketsSyncCheckpointParams{
-		Source:        page.Checkpoint.Source,
-		Stream:        page.Checkpoint.Stream,
-		Cursor:        page.Checkpoint.Cursor,
-		HighWatermark: optionalTimestamptz(page.Checkpoint.HighWatermark),
-		LastSuccessAt: requiredTimestamptz(page.Checkpoint.LastSuccessAt),
-		Metadata:      checkpointMetadata(ctx, queries, page.Checkpoint.Source, page.Checkpoint.Stream),
+		Source:         page.Checkpoint.Source,
+		Stream:         page.Checkpoint.Stream,
+		Cursor:         page.Checkpoint.Cursor,
+		HighWatermark:  optionalTimestamptz(page.Checkpoint.HighWatermark),
+		LastSuccessAt:  requiredTimestamptz(page.Checkpoint.LastSuccessAt),
+		Metadata:       checkpointMetadata(ctx, queries, page.Checkpoint.Source, page.Checkpoint.Stream),
+		UpstreamSource: checkpointUpstreamSource(page.Checkpoint.Source),
 	}); err != nil {
 		return fmt.Errorf("apply markets catalog page: checkpoint: %w", err)
 	}
@@ -249,12 +265,13 @@ func (s *Store) UpsertCheckpoint(ctx context.Context, checkpoint Checkpoint) err
 		metadata = json.RawMessage(`{}`)
 	}
 	_, err := s.queries.UpsertMarketsSyncCheckpoint(ctx, dbqueries.UpsertMarketsSyncCheckpointParams{
-		Source:        checkpoint.Source,
-		Stream:        checkpoint.Stream,
-		Cursor:        checkpoint.Cursor,
-		HighWatermark: optionalTimestamptz(checkpoint.HighWatermark),
-		LastSuccessAt: requiredTimestamptz(checkpoint.LastSuccessAt),
-		Metadata:      metadata,
+		Source:         checkpoint.Source,
+		Stream:         checkpoint.Stream,
+		Cursor:         checkpoint.Cursor,
+		HighWatermark:  optionalTimestamptz(checkpoint.HighWatermark),
+		LastSuccessAt:  requiredTimestamptz(checkpoint.LastSuccessAt),
+		Metadata:       metadata,
+		UpstreamSource: checkpointUpstreamSource(checkpoint.Source),
 	})
 	if err != nil {
 		return fmt.Errorf("upsert markets checkpoint: %w", err)
@@ -292,6 +309,7 @@ func (s *Store) UpsertEvent(ctx context.Context, record EventRecord) error {
 	if len(payload) == 0 {
 		payload = json.RawMessage(`{}`)
 	}
+	eventUpstreamSrc, eventUpstreamID := eventUpstreamTuple(record.Source, record.ID, "")
 	_, err := s.queries.UpsertMarketsCatalogEvent(ctx, dbqueries.UpsertMarketsCatalogEventParams{
 		EventID:           record.ID,
 		Slug:              record.Slug,
@@ -305,6 +323,8 @@ func (s *Store) UpsertEvent(ctx context.Context, record EventRecord) error {
 		ContentHash:       record.ContentHash,
 		Payload:           payload,
 		ObservedAt:        requiredTimestamptz(record.ObservedAt),
+		UpstreamID:        eventUpstreamID,
+		UpstreamSource:    eventUpstreamSrc,
 	})
 	if err != nil {
 		return fmt.Errorf("upsert markets catalog event: %w", err)
@@ -339,6 +359,7 @@ func (s *Store) SaveRawEvent(ctx context.Context, record RawEvent) error {
 		!record.ExpiresAt.After(record.ObservedAt) || len(record.Payload) == 0 {
 		return fmt.Errorf("markets postgres: invalid raw event")
 	}
+	rawUpstreamSrc, rawUpstreamID := rawEventUpstreamTuple(record.Source, record.UpstreamEventID)
 	if err := s.queries.InsertMarketsRawUpstreamEvent(ctx, dbqueries.InsertMarketsRawUpstreamEventParams{
 		Source:          record.Source,
 		UpstreamEventID: record.UpstreamEventID,
@@ -348,6 +369,8 @@ func (s *Store) SaveRawEvent(ctx context.Context, record RawEvent) error {
 		Payload:         record.Payload,
 		ObservedAt:      requiredTimestamptz(record.ObservedAt),
 		ExpiresAt:       requiredTimestamptz(record.ExpiresAt),
+		UpstreamSource:  rawUpstreamSrc,
+		UpstreamID:      rawUpstreamID,
 	}); err != nil {
 		return fmt.Errorf("insert markets raw upstream event: %w", err)
 	}

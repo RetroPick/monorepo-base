@@ -149,7 +149,7 @@ go test ./internal/markets/... -count=1
 
 **Out of scope for this suite**
 
-- Wallet, order submit, funding POST paths (PHASE-2+)
+- Wallet, order submit, funding POST paths (PHASE-2+) — **exception:** MKT-P2-004 account-wallet link POST paths (`linkExistingWallet`, `previewAccountWallet`, `relayAccountWallet`) are **spec-frozen in YAML**; runtime kin-openapi conformance for wallet writes remains deferred until Chat G2 router wiring and optional contract tests. Validation for the OpenAPI freeze: structural load/validate only (see [MKT-P2-004-openapi-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-004-openapi-evidence.md)).
 - Realtime WebSocket wire conformance (see `realtime/` tests and API doc §13)
 - Observability metric wiring (`MKT-P1-009` / Chat J)
 

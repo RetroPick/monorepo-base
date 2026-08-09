@@ -8,7 +8,7 @@
 
 ## Description
 
-This document is the semantics overlay for the Markets V1 **HTTP and realtime surface** shared by web and Android. It inventories operations (eligibility, capabilities, catalog, me/*, funding, orders, intelligence, alerts, …), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels, error envelope, idempotency store, `/api/v1` versioning, and timeout budgets—without inventing paths. Canonical schemas live in `schemas/openapi/markets-v1.yaml` (v1.1.1).
+This document is the semantics overlay for the Markets V1 **HTTP and realtime surface** shared by web and Android. It inventories operations (eligibility, capabilities, catalog, me/*, funding, orders, intelligence, alerts, …), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels, error envelope, idempotency store, `/api/v1` versioning, and timeout budgets—without inventing paths. Canonical schemas live in `schemas/openapi/markets-v1.yaml` (v1.3.0).
 
 It sits in Wave 3 beside auth/eligibility and architecture. Mutating POSTs require `Idempotency-Key` with 24h replay; phase gates keep unfinished surfaces dark via capabilities. PHASE-1 market book realtime uses `streamEpoch` + `deliveryCounter` (Polymarket has no authoritative `sequence`); gaps heal via REST order book snapshot. Phase-2+ alert inbox may use separate resume semantics. Clients retry catalog with backoff; never auto-retry preview/submit.
 
@@ -29,7 +29,7 @@ Short orientation for implementers and agents. Read this before the normative se
 
 ### Worked example
 
-**Happy path — preview then submit.** Client reads `GET /markets/capabilities` and `GET /markets/eligibility`, loads `GET /markets/markets/{marketId}/orderbook`, then `POST /markets/orders/preview` (auth + `Idempotency-Key`, PHASE-3 — not yet in OpenAPI) receiving EIP-712 payload with `MoneyAmount` / `DecimalString`. After wallet signature, `POST /markets/orders/submit` returns order id; client subscribes to `user.orders` / `user.fills` and reconciles with `GET /markets/me/orders`. Contract tests load YAML `examples` and assert handler JSON.
+**Happy path — preview then submit.** Client reads `GET /markets/capabilities` (check `features.order_submit`) and `GET /markets/eligibility`, loads `GET /markets/markets/{marketId}/orderbook`, then `POST /markets/orders/preview` (auth + `Idempotency-Key`, spec-frozen v1.2.0+) receiving EIP-712 payload with `DecimalString` sizes/prices. After wallet signature, `POST /markets/orders/submit` with `previewId`, `contentHash`, `signature`, and `Idempotency-Key` returns order id; client subscribes to `user.orders` / `user.fills` and reconciles with `GET /markets/me/orders` and `GET /markets/me/fills`. Contract tests load YAML `examples` and assert handler JSON.
 
 **Happy path — funding track + realtime inbox.** `POST /markets/funding/quote` then `track` (Phase 2, auth). On credit, notification path may push inbox; WS `alerts.inbox` (Phase 2+) delivers alert envelopes with 30s heartbeats.
 
@@ -112,18 +112,11 @@ Do **not** implement handlers or clients until the path exists in YAML.
 |--------|------|-------------|-------|------|
 | `GET` | `/markets/me/wallets` | `listMyWallets` | 2 | yes |
 | `GET` | `/markets/me/balances` | `listMyBalances` | 2 | yes |
-| `POST` | `/markets/account-wallet/preview` | `previewAccountWallet` | 2 | yes |
-| `POST` | `/markets/account-wallet/relay` | `relayAccountWallet` | 2 | yes |
 | `POST` | `/markets/approvals/preview` | `previewApproval` | 2 | yes |
 | `POST` | `/markets/approvals/relay` | `relayApproval` | 2 | yes |
 | `POST` | `/markets/funding/quote` | `quoteFunding` | 2 | yes |
 | `POST` | `/markets/funding/track` | `trackFunding` | 2 | yes |
-| `GET` | `/markets/me/orders` | `listMyOrders` | 3 | yes |
 | `GET` | `/markets/me/activity` | `listMyActivity` | 3 | yes |
-| `POST` | `/markets/orders/preview` | `previewOrder` | 3 | yes |
-| `POST` | `/markets/orders/submit` | `submitOrder` | 3 | yes |
-| `POST` | `/markets/orders/{orderId}/cancel-preview` | `previewCancelOrder` | 3 | yes |
-| `POST` | `/markets/orders/{orderId}/cancel` | `cancelOrder` | 3 | yes |
 | `GET` | `/markets/intelligence/whales` | `listWhaleActivity` | 3 | yes |
 | `GET` | `/markets/intelligence/wallets/{address}` | `getWalletIntelligence` | 3 | yes |
 | `GET` | `/markets/markets/{marketId}/flow` | `getMarketFlow` | 3 | no |
@@ -142,6 +135,89 @@ Do **not** implement handlers or clients until the path exists in YAML.
 | `POST` | `/markets/watchlists` | `createWatchlist` | 1 | yes |
 
 Watchlist paths are PHASE-1 scope but deferred until a dedicated OpenAPI task adds them.
+
+### 3.3 PHASE-2 — me/* and account-wallet link writes (MKT-P2-004 OpenAPI)
+
+Account-wallet link write operations are **spec-frozen** in [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml) v1.1.1. Handlers live in `apps/backend/internal/markets/wallet/`; production router wiring is Chat G2 scope.
+
+**Auth:** All operations require `MarketsSession` (HttpOnly cookie). `signerAddress` in responses comes from the session resolver only — never from the request body (ADR-003). Responses use `Cache-Control: private, no-store`.
+
+| Method | Path | operationId | Idempotency-Key |
+|--------|------|-------------|-----------------|
+| `GET` | `/markets/me/wallets` | `listMyWallets` | — |
+| `POST` | `/markets/me/wallets/link` | `linkExistingWallet` | required |
+| `POST` | `/markets/account-wallet/preview` | `previewAccountWallet` | — (non-mutating stub) |
+| `POST` | `/markets/account-wallet/relay` | `relayAccountWallet` | required |
+
+**`linkExistingWallet`** — Connect-existing path. Client supplies `accountWallet` + `walletType` (`LinkExistingWalletRequest`). Optional `linkStatus`, `isPrimary` (default `true`), `chainId`, `linkageProofHash`. BFF never generates or invents addresses. HTTP 200 returns a **bare** `LinkedWallet` object (not wrapped). Consumed by `GET /markets/me/wallets`.
+
+**`previewAccountWallet`** — Metadata-only preview. Request body `AccountWalletPreviewRequest` with optional `action` (`link_existing` | `deploy_deposit_wallet`; default `deploy_deposit_wallet`). Response `AccountWalletPreviewResponse`: `schemaVersion`, `signerAddress`, `action`, `chainId` (137), `message`. **No** `typedData`, `previewId`, or relayer secrets in the current stub; no persistence.
+
+**`relayAccountWallet`** — Persist client-supplied deployed Deposit Wallet. Request `AccountWalletRelayRequest` (`accountWallet` required). BFF upserts `walletType: DEPOSIT_WALLET`, `linkStatus: linked`. Response `AccountWalletRelayResponse` wraps `wallet: LinkedWallet`. Store-layer upsert is idempotent.
+
+**Error codes** (handler `writeWalletError`):
+
+| HTTP | `error.code` | When |
+|------|--------------|------|
+| 401 | `unauthorized` | Missing or invalid session |
+| 400 | `invalid_request` | Malformed body or invalid address |
+| 409 | `conflict` | Linkage conflict |
+| 503 | `service_unavailable` | Linker/store not wired |
+
+**Money:** These endpoints carry no `MoneyAmount` or `DecimalString` fields.
+
+**Web divergence:** Provisional `apps/web/src/products/markets/funding/lib/fundingApiClient.ts` types (`chainId` preview body, `previewId`/`signature` relay body, `typedData` response) are **not** canonical. Chat W2 may regenerate typed client from OpenAPI after this freeze.
+
+### 3.4 PHASE-3 — orders preview/submit/cancel/list (MKT-P3 OpenAPI freeze)
+
+Order write and list operations are **spec-frozen** in [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml) v1.3.0. Handlers live in `apps/backend/internal/markets/orders/`; CLOB submit wiring is MKT-P3-002 / MKT-P3-003 scope. Runtime remains gated by `GET /markets/capabilities` → `features.order_submit` (default `false`).
+
+**Auth:** All operations require `MarketsSession` (HttpOnly cookie). Mutating POSTs also require `RequireEligible`. Responses use `Cache-Control: private, no-store`.
+
+| Method | Path | operationId | Idempotency-Key |
+|--------|------|-------------|-----------------|
+| `POST` | `/markets/orders/preview` | `previewOrder` | required |
+| `POST` | `/markets/orders/submit` | `submitOrder` | required |
+| `POST` | `/markets/orders/{orderId}/cancel-preview` | `previewCancelOrder` | — (non-mutating preview) |
+| `POST` | `/markets/orders/{orderId}/cancel` | `cancelOrder` | required |
+| `GET` | `/markets/me/orders` | `listMyOrders` | — |
+| `GET` | `/markets/me/fills` | `listMyFills` | — |
+
+**Submit hash binding** (MKT-P3-001 handoff → MKT-P3-002):
+
+1. Client sends `previewId`, `contentHash`, and `signature` from the prior preview response.
+2. Server loads the preview record by `previewId` and recomputes the binding hash via `VerifyContentHash(unsignedPayload, metadata, contentHash)` where metadata is `{ chainId, marketId, tokenId }` and the envelope is canonical JSON `{ unsignedPayload, metadata }` → SHA-256 → `0x` + 64 hex (see `apps/backend/internal/markets/orders/hash.go`).
+3. Hash mismatch → HTTP 409 `integrity_mismatch` — **no CLOB POST**.
+4. Preview TTL ≤ 5 minutes; expired → HTTP 410 `preview_expired` — client must re-preview.
+5. Single-use `previewId` consumed on successful submit.
+
+**Cancel binding:** Same preview-before-sign rules as submit. `previewCancelOrder` returns `previewId`, `contentHash`, `unsignedPayload`, and `humanSummary.action: CANCEL`. `cancelOrder` accepts the same three-field signed body plus `Idempotency-Key`.
+
+**Idempotency:** 24h replay window. Same `Idempotency-Key` + identical body → same 2xx response; same key + different body → HTTP 422 `idempotency_conflict`. Clients MUST NOT auto-retry preview or submit on timeout.
+
+**Money:** Order sizes and prices use `DecimalString`. Fill fees use `MoneyAmount` (pUSD, `decimals: 6`). Never binary floating point.
+
+**Capability gate:** When `features.order_submit` is `false`, submit/cancel POST handlers MUST NOT be mounted; HTTP 503 `capability_disabled` if invoked before wiring check.
+
+**Timeout class:** Submit and cancel POST — 15s server budget (§10). On upstream timeout, submit response `status: unknown`; client polls `GET /markets/me/orders` — **never auto-resubmit** (ORDER_LIFECYCLE D-06).
+
+**List projections:**
+
+- `GET /markets/me/orders` — venue-aligned order projections; optional `status=open` filter for resting/in-flight orders.
+- `GET /markets/me/fills` — venue-aligned fill projections; REST counterpart to WS `user.fills`.
+
+**Error codes** (order submit/cancel):
+
+| HTTP | `error.code` | When |
+|------|--------------|------|
+| 401 | `unauthorized` | Missing or invalid session |
+| 403 | `eligibility_denied` | Eligibility middleware deny |
+| 404 | `preview_not_found` / order not found | Unknown preview or order |
+| 409 | `integrity_mismatch` | contentHash mismatch |
+| 410 | `preview_expired` | Preview TTL exceeded |
+| 422 | `idempotency_conflict` | Idempotency key replay with different body |
+| 502 | `upstream_unavailable` | CLOB unavailable |
+| 503 | `capability_disabled` | `order_submit` false |
 
 ## 4. Shared components
 

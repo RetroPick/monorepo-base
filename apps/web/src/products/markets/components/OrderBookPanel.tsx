@@ -7,9 +7,10 @@ import { FreshnessBadge } from "./FreshnessBadge";
 interface OrderBookPanelProps {
   snapshot?: OrderBookSnapshot;
   isLoading?: boolean;
+  onSelectPrice?: (price: string) => void;
 }
 
-export function OrderBookPanel({ snapshot, isLoading }: OrderBookPanelProps) {
+export function OrderBookPanel({ snapshot, isLoading, onSelectPrice }: OrderBookPanelProps) {
   const spread = snapshot?.spread;
   const hasBothSides =
     snapshot && snapshot.bids.length > 0 && snapshot.asks.length > 0 && spread != null;
@@ -47,8 +48,20 @@ export function OrderBookPanel({ snapshot, isLoading }: OrderBookPanelProps) {
         <p className="text-sm text-amber-400">One-sided or empty book — spread not shown.</p>
       )}
       <div className="grid grid-cols-2 gap-3 text-xs">
-        <OrderBookSide title="Bids" levels={snapshot.bids} tone="text-emerald-400" maxSize={maxSize} />
-        <OrderBookSide title="Asks" levels={snapshot.asks} tone="text-rose-400" maxSize={maxSize} />
+        <OrderBookSide
+          title="Bids"
+          levels={snapshot.bids}
+          tone="text-emerald-400"
+          maxSize={maxSize}
+          onSelectPrice={onSelectPrice}
+        />
+        <OrderBookSide
+          title="Asks"
+          levels={snapshot.asks}
+          tone="text-rose-400"
+          maxSize={maxSize}
+          onSelectPrice={onSelectPrice}
+        />
       </div>
     </section>
   );
@@ -65,11 +78,13 @@ function OrderBookSide({
   levels,
   tone,
   maxSize,
+  onSelectPrice,
 }: {
   title: string;
   levels: OrderBookSnapshot["bids"];
   tone: string;
   maxSize: string;
+  onSelectPrice?: (price: string) => void;
 }) {
   return (
     <div>
@@ -85,10 +100,21 @@ function OrderBookSide({
                 style={{ width: `${depthBarWidth(level.size, maxSize)}%` }}
                 aria-hidden
               />
-              <div className="relative flex justify-between gap-2 px-1 py-0.5">
-                <span>{formatPrice(level.price)}</span>
-                <span className="text-muted-foreground">{formatSize(level.size)}</span>
-              </div>
+              {onSelectPrice ? (
+                <button
+                  type="button"
+                  className="relative flex w-full justify-between gap-2 px-1 py-0.5 text-left hover:bg-muted/30"
+                  onClick={() => onSelectPrice(level.price)}
+                >
+                  <span>{formatPrice(level.price)}</span>
+                  <span className="text-muted-foreground">{formatSize(level.size)}</span>
+                </button>
+              ) : (
+                <div className="relative flex justify-between gap-2 px-1 py-0.5">
+                  <span>{formatPrice(level.price)}</span>
+                  <span className="text-muted-foreground">{formatSize(level.size)}</span>
+                </div>
+              )}
             </li>
           ))}
         </ul>

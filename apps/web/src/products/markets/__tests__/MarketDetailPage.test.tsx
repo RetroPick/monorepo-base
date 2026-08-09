@@ -23,11 +23,24 @@ vi.mock("../hooks/useMarketsQueries", () => ({
       asks: [{ price: "0.43", size: "50" }],
       spread: "0.02",
       freshness: { state: "fresh", observedAt: "2026-07-30T12:00:00Z", ageMillis: 1000 },
+      timestamp: "2026-07-30T12:00:00Z",
     },
     isLoading: false,
     error: null,
     refetch: vi.fn(),
   }),
+}));
+
+vi.mock("../trading/components/OrderTicketPanel", () => ({
+  OrderTicketPanel: () => (
+    <section aria-label="Order ticket">
+      <h3>Order ticket</h3>
+      <button type="button" disabled>
+        Preview order
+      </button>
+      <p>Order submission unavailable</p>
+    </section>
+  ),
 }));
 
 function renderMarketPage(marketId: string) {
@@ -49,7 +62,8 @@ describe("MarketDetailPage", () => {
 
     expect(screen.getByRole("heading", { name: sampleMarketDetail.question })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Official results" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /trading unavailable/i })).toBeDisabled();
+    expect(screen.getByRole("region", { name: /order ticket/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /preview order/i })).toBeDisabled();
   });
 
   it("shows invalid id empty state", () => {

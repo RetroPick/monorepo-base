@@ -1,0 +1,50 @@
+=== RUN   TestListMyBalances_Unauthorized
+=== PAUSE TestListMyBalances_Unauthorized
+=== RUN   TestListMyBalances_AccountNotLinked
+=== PAUSE TestListMyBalances_AccountNotLinked
+=== RUN   TestListMyBalances_UpstreamUnwired
+=== PAUSE TestListMyBalances_UpstreamUnwired
+=== RUN   TestListMyBalances_PrimaryWalletSelection
+=== PAUSE TestListMyBalances_PrimaryWalletSelection
+=== RUN   TestListMyBalances_MoneyAmountFixedPoint
+=== PAUSE TestListMyBalances_MoneyAmountFixedPoint
+=== RUN   TestListMyBalances_JSONContract
+=== PAUSE TestListMyBalances_JSONContract
+=== RUN   TestPrimaryAccountWallet
+=== PAUSE TestPrimaryAccountWallet
+=== RUN   TestParseBaseUnits_Zero
+=== PAUSE TestParseBaseUnits_Zero
+=== RUN   TestParseBaseUnits_Large
+=== PAUSE TestParseBaseUnits_Large
+=== RUN   TestCollateralFromWei
+=== PAUSE TestCollateralFromWei
+=== RUN   TestParseBaseUnits_RejectsNegative
+=== PAUSE TestParseBaseUnits_RejectsNegative
+=== RUN   TestParseBaseUnits_RejectsInvalid
+=== PAUSE TestParseBaseUnits_RejectsInvalid
+=== CONT  TestListMyBalances_Unauthorized
+=== CONT  TestPrimaryAccountWallet
+--- PASS: TestPrimaryAccountWallet (0.00s)
+=== CONT  TestParseBaseUnits_Large
+--- PASS: TestParseBaseUnits_Large (0.00s)
+=== CONT  TestParseBaseUnits_Zero
+--- PASS: TestParseBaseUnits_Zero (0.00s)
+=== CONT  TestParseBaseUnits_RejectsInvalid
+--- PASS: TestParseBaseUnits_RejectsInvalid (0.00s)
+=== CONT  TestListMyBalances_PrimaryWalletSelection
+--- PASS: TestListMyBalances_Unauthorized (0.00s)
+=== CONT  TestListMyBalances_UpstreamUnwired
+=== CONT  TestCollateralFromWei
+=== CONT  TestListMyBalances_MoneyAmountFixedPoint
+=== CONT  TestListMyBalances_AccountNotLinked
+--- PASS: TestListMyBalances_PrimaryWalletSelection (0.00s)
+--- PASS: TestCollateralFromWei (0.00s)
+=== CONT  TestParseBaseUnits_RejectsNegative
+--- PASS: TestParseBaseUnits_RejectsNegative (0.00s)
+--- PASS: TestListMyBalances_UpstreamUnwired (0.00s)
+=== CONT  TestListMyBalances_JSONContract
+--- PASS: TestListMyBalances_AccountNotLinked (0.00s)
+--- PASS: TestListMyBalances_JSONContract (0.00s)
+--- PASS: TestListMyBalances_MoneyAmountFixedPoint (0.00s)
+PASS
+ok  	retropick/apps/backend/internal/markets/balances	0.015s

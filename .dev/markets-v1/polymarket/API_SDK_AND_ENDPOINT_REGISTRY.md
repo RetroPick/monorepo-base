@@ -188,7 +188,36 @@ Pagination: **keyset** (`after_cursor`) — `offset` rejected per official docs.
 | GET | `/balances` | L2 | 200 GET | — | MUST | forbidden |
 | POST | `/balance-allowance/update` | L2 | 50 | — | MUST | forbidden |
 
-### 6.7 Data API — portfolio reads
+#### 6.6.1 MKT-P3-002 — POST /order wire contract (implemented in `clob/`)
+
+**Status:** Client layer shipped (`apps/backend/internal/markets/clob/`); BFF HTTP submit deferred to glue chat. **BLK-004 remains open** until ops clears the real on-chain transaction gate; tests use **httptest/sandbox credentials only** — no live mainnet claims.
+
+**V2 only:** Path is `/order` (not `/v1/order`). Builder attribution is the `builder` bytes32 field on the signed order object (server-injected at preview). **V1 `POLY_BUILDER_*` HMAC headers are removed** (EV-010).
+
+**Request body** (`SendOrder`):
+
+| Field | Source | Notes |
+|-------|--------|-------|
+| `order.salt` | preview | numeric or string on wire |
+| `order.maker`, `order.signer` | preview | lowercase `0x` addresses |
+| `order.tokenId`, `order.makerAmount`, `order.takerAmount` | preview | fixed-point strings |
+| `order.side` | preview `Side` int | wire uses `"BUY"` / `"SELL"` strings (0→BUY, 1→SELL) |
+| `order.signatureType`, `order.timestamp`, `order.metadata` | preview | EIP-712 V2 fields |
+| `order.builder` | preview (server) | `0x` + 64 hex chars |
+| `order.signature` | client wallet | user-signed EIP-712 |
+| `order.expiration` | wire-only | `"0"` for GTC; GTD uses unix seconds (not in signed struct) |
+| `owner` | L2 `POLY_API_KEY` UUID | not the wallet address |
+| `orderType` | preview TIF | `GTC` default; also `FOK`, `GTD`, `FAK` |
+| `deferExec`, `postOnly` | BFF | default `false` |
+
+**L2 headers:** `POLY_ADDRESS`, `POLY_SIGNATURE`, `POLY_TIMESTAMP`, `POLY_API_KEY`, `POLY_PASSPHRASE`. HMAC message = `timestamp + METHOD + /order + exact JSON body`.
+
+**Timeout / retry:** 15s request timeout; **0 retries** on POST /order. Network timeout → `unknown_reconciling` at BFF; **never auto-resubmit** (ORDER_LIFECYCLE D-06).
+
+**Live credentials:** Env `MARKETS_CLOB_L2_*` requires human approval ([BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) §4). Default dev/test uses `clob.SandboxCredentials()` + httptest.
+
+**Glue handoff (not in MKT-P3-002):** `POST /markets/orders/submit` with `previewId` + `contentHash` + signature; 409 on hash mismatch; 410 on expired preview; `Idempotency-Key` store; kill switch `order_submit: false`.
+
 
 | Method | Path | Rate/10s | BFF | Client |
 |--------|------|----------|-----|--------|

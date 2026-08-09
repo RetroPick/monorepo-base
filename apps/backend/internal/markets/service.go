@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"retropick/apps/backend/internal/markets/clob"
+	"retropick/apps/backend/internal/markets/eligibility"
+	"retropick/apps/backend/internal/markets/eligibility/geo"
 	"retropick/apps/backend/internal/markets/gamma"
 )
 
@@ -103,6 +105,8 @@ type ServiceConfig struct {
 	RealtimeOperational  bool
 	RealtimeState        RealtimeStateProvider
 	Metrics              *Metrics
+	Eligibility          *eligibility.Evaluator
+	IPTrust              eligibility.IPTrustOptions
 	BookMaxAge        time.Duration
 	Now               func() time.Time
 }
@@ -111,6 +115,17 @@ type Service struct {
 	cfg        ServiceConfig
 	now        func() time.Time
 	bookMaxAge time.Duration
+}
+
+// ProductionEligibilityEvaluator builds the fail-closed evaluator for API entrypoints.
+// Geo and geoblock checkers are env-gated via ResolverFromEnv and GeoblockFromEnv.
+// DefaultEvaluator (deny-all) remains for tests without injection.
+func ProductionEligibilityEvaluator(metrics *Metrics) *eligibility.Evaluator {
+	eval := eligibility.EvaluatorWithGeoblock(geo.ResolverFromEnv(), eligibility.GeoblockFromEnv())
+	if metrics != nil {
+		eval.Metrics = metrics
+	}
+	return eval
 }
 
 func NewService(cfg ServiceConfig) *Service {
@@ -129,12 +144,32 @@ func (s *Service) nowUTC() time.Time {
 	return s.now().UTC()
 }
 
-// Eligibility fails closed until geoblock/upstream checks are wired.
-func (s *Service) Eligibility(_ context.Context) EligibilityResponse {
+func (s *Service) IPTrust() eligibility.IPTrustOptions {
+	return s.cfg.IPTrust
+}
+
+func (s *Service) eligibilityEvaluator() *eligibility.Evaluator {
+	if s.cfg.Eligibility != nil {
+		return s.cfg.Eligibility
+	}
+	eval := eligibility.DefaultEvaluator()
+	if s.cfg.Now != nil {
+		eval.Now = s.cfg.Now
+	}
+	if s.cfg.Metrics != nil {
+		eval.Metrics = s.cfg.Metrics
+	}
+	return eval
+}
+
+// Eligibility evaluates server-authoritative jurisdiction eligibility fail-closed.
+func (s *Service) Eligibility(ctx context.Context, in eligibility.Input) EligibilityResponse {
+	decision := s.eligibilityEvaluator().Check(ctx, in)
 	return EligibilityResponse{
-		Eligible:  false,
-		Reason:    "markets_platform_not_enabled",
-		CheckedAt: s.nowUTC(),
+		Eligible:  decision.Eligible,
+		Reason:    decision.Reason,
+		Region:    decision.Region,
+		CheckedAt: decision.CheckedAt,
 	}
 }
 

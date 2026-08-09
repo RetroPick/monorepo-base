@@ -41,6 +41,7 @@ func TestMetricsExposeBoundedPrometheusSeries(t *testing.T) {
 		`retropick_markets_books_total{state="stale"} 1`,
 		`retropick_markets_books_total{state="resyncing"} 1`,
 		`retropick_markets_signals_total{result="created"} 1`,
+		"retropick_markets_eligibility_fail_closed_total 0",
 	}
 	for _, line := range required {
 		if !strings.Contains(output, line) {
@@ -49,6 +50,62 @@ func TestMetricsExposeBoundedPrometheusSeries(t *testing.T) {
 	}
 	if strings.Contains(output, "market-1") {
 		t.Fatal("high-cardinality market label leaked into metrics")
+	}
+}
+
+func TestMetricsRecordPreviewSignMatch(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics()
+	metrics.RecordPreviewSignMatch(true)
+	metrics.RecordPreviewSignMatch(true)
+	metrics.RecordPreviewSignMatch(false)
+
+	output := metrics.Prometheus()
+	if !strings.Contains(output, `retropick_markets_preview_sign_match_total{result="match"} 2`) {
+		t.Fatalf("metrics missing preview_sign_match match:\n%s", output)
+	}
+	if !strings.Contains(output, `retropick_markets_preview_sign_match_total{result="mismatch"} 1`) {
+		t.Fatalf("metrics missing preview_sign_match mismatch:\n%s", output)
+	}
+}
+
+func TestMetricsRecordEligibilityFailClosed(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics()
+	metrics.RecordEligibilityFailClosed("geo_unknown")
+	metrics.RecordEligibilityFailClosed("geo_unknown")
+
+	output := metrics.Prometheus()
+	if !strings.Contains(output, "retropick_markets_eligibility_fail_closed_total 2") {
+		t.Fatalf("metrics missing eligibility_fail_closed:\n%s", output)
+	}
+}
+
+func TestMetricsRecordReconcile(t *testing.T) {
+	t.Parallel()
+
+	metrics := NewMetrics()
+	metrics.RecordReconcileScanned(2)
+	metrics.RecordReconcileRun(1, 500*time.Millisecond)
+	metrics.RecordReconcileRepair("open")
+	metrics.RecordReconcileRepair("rejected")
+	metrics.RecordReconcileError("upstream")
+
+	output := metrics.Prometheus()
+	required := []string{
+		"retropick_markets_order_reconcile_scanned_total 2",
+		`retropick_markets_order_reconcile_repairs_total{outcome="open"} 1`,
+		`retropick_markets_order_reconcile_repairs_total{outcome="rejected"} 1`,
+		`retropick_markets_order_reconcile_errors_total{kind="upstream"} 1`,
+		"retropick_markets_order_reconcile_lag_seconds_count 1",
+		"retropick_markets_reconciliation_lag_seconds_count 1",
+	}
+	for _, line := range required {
+		if !strings.Contains(output, line) {
+			t.Fatalf("metrics missing %q:\n%s", line, output)
+		}
 	}
 }
 

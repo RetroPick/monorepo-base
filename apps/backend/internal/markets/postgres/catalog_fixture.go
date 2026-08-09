@@ -49,22 +49,25 @@ func DefaultCatalogTokenFixture(marketID, tokenID string) CatalogTokenFixture {
 // Insert writes the fixture rows using canonical status vocabulary.
 func (f CatalogTokenFixture) Insert(ctx context.Context, pool *pgxpool.Pool) error {
 	_, err := pool.Exec(ctx, `
-INSERT INTO markets_catalog_events (event_id, slug, title, status, source, content_hash, observed_at)
-VALUES ($1, $1, 'event', $2, 'test', 'hash', NOW())
+INSERT INTO markets_catalog_events (
+    event_id, id, upstream_id, upstream_source, slug, title, status, source, content_hash, observed_at
+) VALUES ($1, gen_random_uuid(), $1, 'test', $1, 'event', $2, 'test', 'hash', NOW())
 ON CONFLICT (event_id) DO UPDATE SET status = EXCLUDED.status`, f.EventID, f.EventStatus)
 	if err != nil {
 		return err
 	}
 	_, err = pool.Exec(ctx, `
-INSERT INTO markets_catalog_markets (market_id, event_id, condition_id, slug, question, status, source, content_hash, observed_at)
-VALUES ($1, $2, $3, $1, 'q', $4, 'test', 'hash', NOW())
+INSERT INTO markets_catalog_markets (
+    market_id, id, upstream_id, upstream_source, event_id, condition_id, slug, question, status, source, content_hash, observed_at
+) VALUES ($1, gen_random_uuid(), $1, 'test', $2, $3, $1, 'q', $4, 'test', 'hash', NOW())
 ON CONFLICT (market_id) DO UPDATE SET status = EXCLUDED.status`, f.MarketID, f.EventID, f.ConditionID, f.MarketStatus)
 	if err != nil {
 		return err
 	}
 	_, err = pool.Exec(ctx, `
-INSERT INTO markets_catalog_outcomes (outcome_id, market_id, upstream_token_id, outcome_index, name, observed_at)
-VALUES ($1, $2, $3, 0, 'Yes', NOW())
+INSERT INTO markets_catalog_outcomes (
+    outcome_id, id, upstream_id, upstream_source, market_id, upstream_token_id, outcome_index, name, observed_at
+) VALUES ($1, gen_random_uuid(), $3, 'test', $2, $3, 0, 'Yes', NOW())
 ON CONFLICT (outcome_id) DO UPDATE SET upstream_token_id = EXCLUDED.upstream_token_id`,
 		f.OutcomeID, f.MarketID, f.TokenID)
 	return err

@@ -13,7 +13,7 @@ import (
 
 func TestEligibilityHTTP(t *testing.T) {
 	r := chi.NewRouter()
-	markets.RegisterRoutes(r, markets.NewHandler(markets.NewService(markets.ServiceConfig{})))
+	markets.RegisterRoutes(r, markets.NewHandler(markets.NewService(markets.ServiceConfig{})), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/eligibility", nil)
 	rec := httptest.NewRecorder()
@@ -28,6 +28,9 @@ func TestEligibilityHTTP(t *testing.T) {
 	}
 	if body["eligible"] != false {
 		t.Fatalf("expected eligible false, got %v", body["eligible"])
+	}
+	if body["reason"] != "geo_unknown" {
+		t.Fatalf("expected geo_unknown reason, got %v", body["reason"])
 	}
 	assertNoBinaryFloats(t, rec.Body.Bytes())
 }

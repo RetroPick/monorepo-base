@@ -67,6 +67,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Status v
 | 5 | [03_BUSINESS_MODEL_AND_UNIT_ECONOMICS.md](03_BUSINESS_MODEL_AND_UNIT_ECONOMICS.md) | PRD | reviewed |
 | 6 | [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md) | PRD | reviewed |
 | 7 | [05_NON_FUNCTIONAL_REQUIREMENTS.md](05_NON_FUNCTIONAL_REQUIREMENTS.md) | PRD | reviewed |
+| 7a | [.whatNeeded.md](.whatNeeded.md) | ops-preflight | reviewed |
 | 8 | [research/EVIDENCE_REGISTER.md](research/EVIDENCE_REGISTER.md) | research | reviewed |
 | 9 | [research/evidence-register.yaml](research/evidence-register.yaml) | research | reviewed |
 | 10 | [research/POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md) | research | reviewed |

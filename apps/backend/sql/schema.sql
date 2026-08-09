@@ -663,6 +663,9 @@ CREATE TABLE fee_route_batches (
 -- Markets V1 backend-first projections (migration 000016)
 CREATE TABLE markets_catalog_events (
     event_id TEXT PRIMARY KEY,
+    id UUID NOT NULL,
+    upstream_id TEXT NOT NULL,
+    upstream_source TEXT NOT NULL,
     slug TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
@@ -678,6 +681,10 @@ CREATE TABLE markets_catalog_events (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX idx_markets_catalog_events_row_id
+    ON markets_catalog_events (id);
+CREATE UNIQUE INDEX idx_markets_catalog_events_upstream_tuple
+    ON markets_catalog_events (upstream_source, upstream_id);
 CREATE UNIQUE INDEX idx_markets_catalog_events_slug
     ON markets_catalog_events (slug) WHERE slug <> '';
 CREATE INDEX idx_markets_catalog_events_status_end
@@ -687,6 +694,9 @@ CREATE INDEX idx_markets_catalog_events_observed
 
 CREATE TABLE markets_catalog_markets (
     market_id TEXT PRIMARY KEY,
+    id UUID NOT NULL,
+    upstream_id TEXT NOT NULL,
+    upstream_source TEXT NOT NULL,
     event_id TEXT REFERENCES markets_catalog_events(event_id) ON DELETE SET NULL,
     condition_id TEXT NOT NULL UNIQUE,
     slug TEXT NOT NULL DEFAULT '',
@@ -705,6 +715,10 @@ CREATE TABLE markets_catalog_markets (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE UNIQUE INDEX idx_markets_catalog_markets_row_id
+    ON markets_catalog_markets (id);
+CREATE UNIQUE INDEX idx_markets_catalog_markets_upstream_tuple
+    ON markets_catalog_markets (upstream_source, upstream_id);
 CREATE INDEX idx_markets_catalog_markets_event
     ON markets_catalog_markets (event_id, status);
 CREATE INDEX idx_markets_catalog_markets_status_end
@@ -712,6 +726,9 @@ CREATE INDEX idx_markets_catalog_markets_status_end
 
 CREATE TABLE markets_catalog_outcomes (
     outcome_id TEXT PRIMARY KEY,
+    id UUID NOT NULL,
+    upstream_id TEXT NOT NULL,
+    upstream_source TEXT NOT NULL,
     market_id TEXT NOT NULL REFERENCES markets_catalog_markets(market_id) ON DELETE CASCADE,
     upstream_token_id TEXT NOT NULL UNIQUE,
     outcome_index INT NOT NULL CHECK (outcome_index >= 0),
@@ -724,11 +741,18 @@ CREATE TABLE markets_catalog_outcomes (
     UNIQUE (market_id, outcome_index)
 );
 
+CREATE UNIQUE INDEX idx_markets_catalog_outcomes_row_id
+    ON markets_catalog_outcomes (id);
+CREATE UNIQUE INDEX idx_markets_catalog_outcomes_upstream_tuple
+    ON markets_catalog_outcomes (upstream_source, upstream_id);
 CREATE INDEX idx_markets_catalog_outcomes_market
     ON markets_catalog_outcomes (market_id, outcome_index);
 
 CREATE TABLE markets_catalog_rules (
     market_id TEXT PRIMARY KEY REFERENCES markets_catalog_markets(market_id) ON DELETE CASCADE,
+    id UUID NOT NULL,
+    upstream_id TEXT NOT NULL,
+    upstream_source TEXT NOT NULL,
     description TEXT NOT NULL,
     resolution_source_name TEXT NOT NULL DEFAULT '',
     resolution_source_url TEXT NOT NULL DEFAULT '',
@@ -738,6 +762,11 @@ CREATE TABLE markets_catalog_rules (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX idx_markets_catalog_rules_row_id
+    ON markets_catalog_rules (id);
+CREATE UNIQUE INDEX idx_markets_catalog_rules_upstream_tuple
+    ON markets_catalog_rules (upstream_source, upstream_id);
 
 CREATE TABLE markets_market_data_latest (
     token_id TEXT PRIMARY KEY,
@@ -788,6 +817,8 @@ CREATE INDEX idx_markets_health_latest
 CREATE TABLE markets_raw_upstream_events (
     id BIGSERIAL PRIMARY KEY,
     source TEXT NOT NULL,
+    upstream_source TEXT NOT NULL,
+    upstream_id TEXT NOT NULL,
     upstream_event_id TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     entity_id TEXT NOT NULL,
@@ -799,6 +830,8 @@ CREATE TABLE markets_raw_upstream_events (
     UNIQUE (source, upstream_event_id)
 );
 
+CREATE UNIQUE INDEX idx_markets_raw_upstream_upstream_tuple
+    ON markets_raw_upstream_events (upstream_source, upstream_id);
 CREATE INDEX idx_markets_raw_upstream_expiry
     ON markets_raw_upstream_events (expires_at);
 CREATE INDEX idx_markets_raw_upstream_entity
@@ -806,6 +839,7 @@ CREATE INDEX idx_markets_raw_upstream_entity
 
 CREATE TABLE markets_sync_checkpoints (
     source TEXT NOT NULL,
+    upstream_source TEXT NOT NULL,
     stream TEXT NOT NULL,
     cursor TEXT NOT NULL DEFAULT '',
     high_watermark TIMESTAMPTZ,
@@ -899,3 +933,33 @@ CREATE TABLE markets_realtime_recovery (
     last_validated_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE markets_watchlists (
+    id UUID PRIMARY KEY,
+    owner_wallet_address TEXT NOT NULL CHECK (owner_wallet_address = lower(owner_wallet_address)),
+    name TEXT NOT NULL DEFAULT 'default',
+    is_default BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (owner_wallet_address, name)
+);
+
+CREATE UNIQUE INDEX idx_markets_watchlists_one_default
+    ON markets_watchlists (owner_wallet_address)
+    WHERE is_default = TRUE;
+
+CREATE INDEX idx_markets_watchlists_owner
+    ON markets_watchlists (owner_wallet_address);
+
+CREATE TABLE markets_watchlist_items (
+    id UUID PRIMARY KEY,
+    watchlist_id UUID NOT NULL REFERENCES markets_watchlists (id) ON DELETE CASCADE,
+    item_kind TEXT NOT NULL CHECK (item_kind IN ('event', 'market', 'wallet', 'tag', 'category')),
+    target_id TEXT NOT NULL,
+    sort_order INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (watchlist_id, item_kind, target_id)
+);
+
+CREATE INDEX idx_markets_watchlist_items_watchlist_sort
+    ON markets_watchlist_items (watchlist_id, sort_order);

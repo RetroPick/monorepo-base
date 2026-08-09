@@ -1,0 +1,19 @@
+vectors:
+  - name: buy_limit_standard
+    payload:
+      salt: "4242424242424242"
+      maker: "0x1111111111111111111111111111111111111111"
+      signer: "0x2222222222222222222222222222222222222222"
+      tokenId: "999001"
+      makerAmount: "100000000"
+      takerAmount: "42000000"
+      side: 0
+      signatureType: 0
+      timestamp: "1710000000000"
+      metadata: ""
+      builder: "0000000000000000000000000000000000000000000000000000000000000001"
+    metadata:
+      chainId: 137
+      marketId: polymarket:market:456
+      tokenId: "999001"
+    contentHash: "0x8ff5b36b12c7cb42f697de3936d80c5fb9e965e46fd05c85d35f822f2e43b1ff"

@@ -1,5 +1,8 @@
 import type { MarketDetail } from "@retropick/polymarket";
 
+import { discoverChipActive, discoverChipIdle, discoverChipPill } from "@/shared/lib/ui/discover-chip-styles";
+import { cn } from "@/shared/lib/utils";
+
 import { formatProbability } from "../lib/decimal";
 
 type Outcome = MarketDetail["outcomes"][number];
@@ -20,11 +23,10 @@ export function OutcomeTabs({ outcomes, selectedTokenId, onSelect }: OutcomeTabs
           type="button"
           role="tab"
           aria-selected={selectedTokenId === outcome.upstreamId}
-          className={`rounded-full border px-3 py-1.5 text-sm ${
-            selectedTokenId === outcome.upstreamId
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border text-muted-foreground"
-          }`}
+          className={cn(
+            discoverChipPill(),
+            selectedTokenId === outcome.upstreamId ? discoverChipActive : discoverChipIdle,
+          )}
           onClick={() => onSelect(outcome.upstreamId)}
         >
           {outcome.name}

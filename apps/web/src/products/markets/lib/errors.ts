@@ -1,4 +1,4 @@
-import { MarketsApiError } from "@retropick/polymarket";
+import { MarketsApiError, type MarketsErrorCode } from "@retropick/polymarket";
 
 export type MarketsUiErrorKind =
   | "not_found"
@@ -7,8 +7,42 @@ export type MarketsUiErrorKind =
   | "stale"
   | "validation"
   | "network"
+  | "malformed"
+  | "timeout"
+  | "rate_limit"
   | "unknown"
   | "cancelled";
+
+function mapApiErrorCode(code: MarketsErrorCode): MarketsUiErrorKind {
+  switch (code) {
+    case "aborted":
+      return "cancelled";
+    case "malformed":
+      return "malformed";
+    case "timeout":
+      return "timeout";
+    case "rate_limit":
+      return "rate_limit";
+    case "validation":
+      return "validation";
+    case "not_found":
+      return "not_found";
+    case "upstream":
+      return "upstream";
+    case "stale":
+      return "stale";
+    case "unavailable":
+      return "unavailable";
+    case "network":
+      return "network";
+    case "unknown":
+      return "unknown";
+    default: {
+      const _exhaustive: never = code;
+      return _exhaustive;
+    }
+  }
+}
 
 export function mapQueryError(error: unknown): {
   kind: MarketsUiErrorKind;
@@ -17,7 +51,7 @@ export function mapQueryError(error: unknown): {
 } {
   if (error instanceof MarketsApiError) {
     return {
-      kind: error.code === "aborted" ? "cancelled" : (error.code as MarketsUiErrorKind),
+      kind: mapApiErrorCode(error.code),
       message: error.message,
       requestId: error.requestId,
     };
@@ -42,6 +76,12 @@ export function userFacingErrorMessage(kind: MarketsUiErrorKind): string {
       return "The request was invalid.";
     case "network":
       return "Could not reach the RetroPick API. Check your connection or API URL.";
+    case "malformed":
+      return "Could not read the Markets API response. Start the Go BFF on port 8080 or set NEXT_PUBLIC_API_BASE_URL.";
+    case "timeout":
+      return "The Markets API request timed out. Try again in a moment.";
+    case "rate_limit":
+      return "Too many requests. Wait a moment and try again.";
     case "cancelled":
       return "Request was cancelled.";
     case "unknown":
@@ -51,4 +91,9 @@ export function userFacingErrorMessage(kind: MarketsUiErrorKind): string {
       return _exhaustive;
     }
   }
+}
+
+export function isSameQueryErrorKind(a: unknown, b: unknown): boolean {
+  if (!a || !b) return false;
+  return mapQueryError(a).kind === mapQueryError(b).kind;
 }

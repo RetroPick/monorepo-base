@@ -102,8 +102,10 @@ Specify signer vs account wallet vs funder semantics, wallet types, CLOB L1/L2 a
 ## 5. Current state
 
 - ADR-003 accepted: user signs, backend never silent-signs.
-- Wallet flows documented upstream (EV-009); BFF account module not implemented.
-- OpenAPI includes account session routes (EV-005).
+- Wallet flows documented upstream (EV-009).
+- **MKT-P2-003 (2026-08-09):** Account wallet discovery module at `apps/backend/internal/markets/wallet/` serves `GET /markets/me/wallets` (`listMyWallets`). Session auth wired (MKT-P2-GLUE); `UnwiredStore` returns empty `wallets` until Postgres store is mounted in router (Chat G2).
+- OpenAPI `listMyWallets` + `WalletsListResponse` in `schemas/openapi/markets-v1.yaml` (phase 2).
+- **MKT-P2-004 backend (2026-08-09):** Postgres `markets_wallet_accounts` + `PostgresAccountStore` + link write handlers (`POST /me/wallets/link`, `POST /account-wallet/preview`, `POST /account-wallet/relay` stubs). Production reads/writes require Chat G2 router wiring; no relayer secrets in repo.
 
 ## 6. Target design
 
@@ -149,12 +151,16 @@ Default for new accounts: **DEPOSIT_WALLET** per https://docs.polymarket.com/tra
 4. BFF stores: `signer_address`, `account_wallet`, `wallet_type`, encrypted relayer key ref.
 5. L1 auth establishes CLOB L2 credentials bound to signer.
 
+**P2-003 scope:** `GET /markets/me/wallets` reads persisted linkage only. Linking UI and store writes are P2-004+.
+
 ### 6.5 Create new account flow (Deposit Wallet)
 
 1. Signer EOA signs factory deploy via relayer (gasless).
 2. BFF polls relayer until wallet deployed.
 3. L1 CLOB auth + L2 credential creation.
 4. Initial funding via bridge or on-chain transfer (separate doc).
+
+**P2-003 scope:** discovery does **not** deploy Deposit Wallets. Deploy + relay are **MKT-P2-004**; funding UX consumes `accountWallet` in **MKT-P2-006**.
 
 ### 6.6 Field mapping (OpenAPI)
 
@@ -179,6 +185,84 @@ Default for new accounts: **DEPOSIT_WALLET** per https://docs.polymarket.com/tra
 - Android MUST use Android Keystore / per-app keys for any local signing helper.
 - Deep links MUST NOT carry private keys.
 - Biometric gate before sign dialog.
+
+### 6.9 `GET /markets/me/wallets` (listMyWallets) — MKT-P2-003
+
+| Property | Value |
+|----------|-------|
+| Method / path | `GET /api/v1/markets/me/wallets` |
+| operationId | `listMyWallets` |
+| Auth | Markets session required (`MarketsSession` cookie — wired MKT-P2-005) |
+| Phase | 2 (`x-phase: 2`) |
+| Handler | `apps/backend/internal/markets/wallet/` |
+
+**Response (`WalletsListResponse`):**
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `schemaVersion` | `"1"` | |
+| `signerAddress` | `0x…` | Always from session; never derived from `accountWallet` |
+| `wallets` | `LinkedWallet[]` | May be empty when not linked |
+| `wallets[].accountWallet` | `0x…` | Polymarket trading wallet; separate JSON key from signer |
+| `wallets[].walletType` | enum | `EOA`, `POLY_PROXY`, `GNOSIS_SAFE`, `DEPOSIT_WALLET` |
+| `wallets[].linkStatus` | enum | `linked`, `pending_verification` |
+| `wallets[].isPrimary` | boolean | Primary trading wallet for UI |
+| `wallets[].chainId` | integer | Polygon mainnet `137` |
+| `checkedAt` | ISO8601 | |
+
+**Errors:**
+
+| HTTP | code | When |
+|------|------|------|
+| 401 | `unauthorized` | No session (default until auth middleware) |
+| 400 | `invalid_request` | Malformed session signer address |
+
+**Invariants (ADR-003):**
+
+- Empty `wallets` is valid — UI shows “Linked after account setup”, not a synthetic address.
+- EOA accounts may have equal signer and account values but **must** expose both keys (`signerAddress` + `wallets[].accountWallet`).
+- Discovery never calls relayer deploy or invents Deposit Wallet addresses.
+
+**Handoff:**
+
+- **Chat G2:** wire `PostgresAccountStore` into `wallet.HandlerConfig` and mount `RegisterAccountWalletRoutes` at `/api/v1/markets/account-wallet`.
+- **MKT-P2-006:** deposit flow reads primary `accountWallet` from this response.
+
+### 6.10 Store (`markets_wallet_accounts`) — MKT-P2-004 backend
+
+| Property | Value |
+|----------|-------|
+| Table | `markets_wallet_accounts` (migration `000020`) |
+| Store | `wallet.PostgresAccountStore` — `ListBySigner` + `UpsertLink` |
+| PK | UUID v7 (`uuid.NewV7()` on insert) |
+| Natural key | `UNIQUE (user_id, signer_address, account_wallet)` |
+
+**Columns (API-owned linkage, not upstream projection):**
+
+| Column | Notes |
+|--------|-------|
+| `user_id` | RetroPick session user |
+| `signer_address` | Lowercase EOA from session only |
+| `account_wallet` | Polymarket trading wallet; client/upstream supplied on link/relay |
+| `wallet_type` | `EOA`, `POLY_PROXY`, `GNOSIS_SAFE`, `DEPOSIT_WALLET` |
+| `link_status` | `linked`, `pending_verification` |
+| `is_primary` | One primary per `(user_id, signer_address)` |
+| `chain_id` | Default `137` |
+| `linkage_proof_hash` | Optional signature-challenge hash; **no relayer API keys** |
+
+**Write routes (auth-only; mounted by Chat G2):**
+
+| Method / path | Purpose |
+|---------------|---------|
+| `POST /api/v1/markets/me/wallets/link` | Connect-existing account wallet |
+| `POST /api/v1/markets/account-wallet/preview` | Preview metadata (no relayer HTTP) |
+| `POST /api/v1/markets/account-wallet/relay` | Persist client-supplied deployed Deposit Wallet address |
+
+**Invariants:**
+
+- BFF never generates or invents `accountWallet` addresses.
+- Signer identity from session context only — never from client body.
+- Until router wiring lands, `DefaultDiscoverer()` keeps `UnwiredStore` (empty reads) and nil linker returns `503` on writes.
 
 
 ```mermaid

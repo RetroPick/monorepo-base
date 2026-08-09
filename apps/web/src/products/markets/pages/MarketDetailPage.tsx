@@ -5,11 +5,11 @@ import { MarketsApiError } from "@retropick/polymarket";
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { DataStateBanner, DataStateEmpty, StaleBanner } from "../components/DataState";
 import { FreshnessBadge } from "../components/FreshnessBadge";
-import { MarketsReadLayout } from "../components/MarketsReadLayout";
+import { MarketsShellLayout } from "../components/MarketsShellLayout";
 import { OrderBookPanel } from "../components/OrderBookPanel";
 import { OutcomeTabs } from "../components/OutcomeTabs";
 import { ResolutionPanel } from "../components/ResolutionPanel";
-import { TradingUnavailable } from "../components/TradingUnavailable";
+import { OrderTicketPanel } from "../trading";
 import {
   useMarketsCapabilities,
   useMarketsMarket,
@@ -28,9 +28,11 @@ export function MarketDetailPage() {
 
   const outcomes = market.data?.outcomes ?? [];
   const [selectedTokenId, setSelectedTokenId] = useState("");
+  const [selectedPrice, setSelectedPrice] = useState<string | undefined>();
 
   useEffect(() => {
     setSelectedTokenId("");
+    setSelectedPrice(undefined);
   }, [decodedId]);
 
   const tokenId = selectedTokenId || outcomes[0]?.upstreamId || "";
@@ -49,7 +51,7 @@ export function MarketDetailPage() {
 
   if (!idValid) {
     return (
-      <MarketsReadLayout>
+      <MarketsShellLayout>
         <DataStateEmpty
           title="Invalid market identifier"
           description="Market links must use a RetroPick canonical ID (polymarket:market:…)."
@@ -59,15 +61,15 @@ export function MarketDetailPage() {
             </Link>
           }
         />
-      </MarketsReadLayout>
+      </MarketsShellLayout>
     );
   }
 
   if (market.isLoading) {
     return (
-      <MarketsReadLayout>
+      <MarketsShellLayout>
         <p className="text-sm text-muted-foreground">Loading market…</p>
-      </MarketsReadLayout>
+      </MarketsShellLayout>
     );
   }
 
@@ -77,7 +79,7 @@ export function MarketDetailPage() {
       mapped.kind === "not_found" ||
       (market.error instanceof MarketsApiError && market.error.status === 404);
     return (
-      <MarketsReadLayout>
+      <MarketsShellLayout>
         <DataStateEmpty
           title={isNotFound ? "Market not found" : "Could not load market"}
           description={
@@ -92,13 +94,13 @@ export function MarketDetailPage() {
           }
         />
         <DataStateBanner error={market.error} onRetry={() => market.refetch()} />
-      </MarketsReadLayout>
+      </MarketsShellLayout>
     );
   }
 
   if (!market.data) {
     return (
-      <MarketsReadLayout>
+      <MarketsShellLayout>
         <DataStateEmpty
           title="Market not found"
           action={
@@ -107,12 +109,12 @@ export function MarketDetailPage() {
             </Link>
           }
         />
-      </MarketsReadLayout>
+      </MarketsShellLayout>
     );
   }
 
   return (
-    <MarketsReadLayout>
+    <MarketsShellLayout>
       <Breadcrumbs
         eventId={market.data.eventId}
         eventTitle={undefined}
@@ -123,30 +125,27 @@ export function MarketDetailPage() {
 
       {isDegradedFreshness(market.data.freshness) ? <StaleBanner /> : null}
 
-      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-start">
         <div className="space-y-6">
-          <header>
+          <header className="rounded-2xl border border-border/60 bg-card p-6 shadow-sm dark:border-white/[0.08]">
             <FreshnessBadge freshness={market.data.freshness} marketStatus={market.data.status} />
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight">{market.data.question}</h1>
-            <p className="mt-2 font-mono text-xs text-muted-foreground">{market.data.id}</p>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">{market.data.question}</h1>
             {market.data.description ? (
               <p className="mt-4 whitespace-pre-wrap text-muted-foreground">{market.data.description}</p>
             ) : null}
           </header>
 
-          <OutcomeTabs
-            outcomes={outcomes}
-            selectedTokenId={tokenId}
-            onSelect={setSelectedTokenId}
-          />
+          <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm dark:border-white/[0.08]">
+            <OutcomeTabs outcomes={outcomes} selectedTokenId={tokenId} onSelect={setSelectedTokenId} />
+          </div>
 
           <ResolutionPanel resolution={market.data.resolution} />
         </div>
 
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <h3 className="mb-3 text-sm font-medium">Order book</h3>
-            <p className="mb-2 text-xs text-muted-foreground">
+        <div className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+          <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm dark:border-white/[0.08]">
+            <h3 className="mb-3 text-sm font-semibold text-foreground">Order book</h3>
+            <p className="mb-3 text-xs text-muted-foreground">
               {realtimeEnabled
                 ? "Realtime unavailable in Phase 1 module — REST polling"
                 : pollingEnabled
@@ -155,14 +154,25 @@ export function MarketDetailPage() {
                     ? "Order book unavailable"
                     : "Final snapshot — polling disabled for closed markets"}
             </p>
-            <OrderBookPanel snapshot={orderBook.data} isLoading={orderBook.isLoading} />
+            <OrderBookPanel
+              snapshot={orderBook.data}
+              isLoading={orderBook.isLoading}
+              onSelectPrice={setSelectedPrice}
+            />
             <DataStateBanner error={orderBook.error} onRetry={() => orderBook.refetch()} />
           </div>
 
-          <TradingUnavailable />
+          <OrderTicketPanel
+            market={market.data}
+            tokenId={tokenId}
+            outcomeName={outcomes.find((o) => o.upstreamId === tokenId)?.name}
+            orderBook={orderBook.data}
+            selectedPrice={selectedPrice}
+            onPriceConsumed={() => setSelectedPrice(undefined)}
+          />
         </div>
       </section>
-    </MarketsReadLayout>
+    </MarketsShellLayout>
   );
 }
 

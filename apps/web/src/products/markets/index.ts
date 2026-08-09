@@ -9,3 +9,16 @@ export { marketsRoutes } from "./routes/marketsRoutes";
 export { EventsDiscoverPage } from "./pages/EventsDiscoverPage";
 export { EventDetailPage } from "./pages/EventDetailPage";
 export { MarketDetailPage } from "./pages/MarketDetailPage";
+export { PortfolioPage } from "./pages/PortfolioPage";
+export { MarketsShellLayout } from "./components/MarketsShellLayout";
+export {
+  ConnectWalletButton,
+  ChainGuardBanner,
+  MarketsWalletProvider,
+  WalletAddressDisclosure,
+  WalletConnectHarness,
+  WalletConnectPage,
+  useMarketsWalletConnect,
+  useMarketsWalletGate,
+  useMarketsWalletSession,
+} from "./wallet";

@@ -26,7 +26,7 @@ func TestOpenAPIRuntimeCapabilitiesResponse(t *testing.T) {
 		Now:           func() time.Time { return fixed },
 	})
 	r := chi.NewRouter()
-	RegisterRoutes(r, NewHandler(svc))
+	RegisterRoutes(r, NewHandler(svc), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/capabilities", nil)
 	rec := httptest.NewRecorder()
@@ -64,7 +64,7 @@ func TestRuntimeSmokeEventsListWeakETag(t *testing.T) {
 		Now:           func() time.Time { return fixed },
 	})
 	r := chi.NewRouter()
-	RegisterRoutes(r, NewHandler(svc))
+	RegisterRoutes(r, NewHandler(svc), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/events", nil)
 	rec := httptest.NewRecorder()

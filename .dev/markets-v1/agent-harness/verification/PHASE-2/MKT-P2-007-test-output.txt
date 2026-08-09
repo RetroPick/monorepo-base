@@ -1,0 +1,152 @@
+=== MKT-P2-007 verification 2026-08-09T14:02:52Z ===
+
+=== git rev-parse HEAD ===
+591ad7137b68fd64dfbecbe2893aeabec6566b32
+
+=== pnpm smoke:markets-stack ===
+
+> retropick-v1@ smoke:markets-stack /home/asyam/dev/set-up/projects/retropick
+> bash scripts/markets-dev-smoke.sh
+
+ok    health live
+ok    health ready (HTTP 200)
+ok    capabilities
+ok    events list
+ok    seeded event polymarket:event:seed-multi
+ok    events schemaVersion present
+Markets stack smoke passed.
+
+=== curl capabilities order_submit ===
+order_submit= False
+
+=== curl eligibility ===
+eligible= False reason= geo_unknown
+
+=== go test auth wallet balances eligibility ===
+ok  	retropick/apps/backend/internal/markets/auth	0.016s
+ok  	retropick/apps/backend/internal/markets/wallet	0.022s
+ok  	retropick/apps/backend/internal/markets/balances	0.226s
+ok  	retropick/apps/backend/internal/markets/eligibility	0.012s
+ok  	retropick/apps/backend/internal/markets/eligibility/geo	0.012s
+ok  	retropick/apps/backend/internal/markets/eligibility/geoblock	0.013s
+
+=== go test markets subset ===
+=== RUN   TestReadinessReportsDisabledMarketDataAndSignals
+=== PAUSE TestReadinessReportsDisabledMarketDataAndSignals
+=== RUN   TestReadinessTypedNilRealtimeRuntime
+=== PAUSE TestReadinessTypedNilRealtimeRuntime
+=== RUN   TestReadinessUsesLiveWorkerState
+=== PAUSE TestReadinessUsesLiveWorkerState
+=== RUN   TestMetricsRecordEligibilityFailClosed
+=== PAUSE TestMetricsRecordEligibilityFailClosed
+=== RUN   TestProductionEligibilityEvaluatorEnvWiring
+--- PASS: TestProductionEligibilityEvaluatorEnvWiring (0.00s)
+=== RUN   TestProductionEligibilityEvaluatorFailsClosedWithoutGeoEnv
+--- PASS: TestProductionEligibilityEvaluatorFailsClosedWithoutGeoEnv (0.00s)
+=== RUN   TestCapabilitiesStub
+--- PASS: TestCapabilitiesStub (0.00s)
+=== RUN   TestReadinessIntegrationTransitions
+    readiness_integration_test.go:26: DATABASE_URL not set
+--- SKIP: TestReadinessIntegrationTransitions (0.00s)
+=== CONT  TestReadinessReportsDisabledMarketDataAndSignals
+=== CONT  TestReadinessUsesLiveWorkerState
+--- PASS: TestReadinessReportsDisabledMarketDataAndSignals (0.00s)
+=== CONT  TestReadinessTypedNilRealtimeRuntime
+--- PASS: TestReadinessTypedNilRealtimeRuntime (0.00s)
+=== CONT  TestMetricsRecordEligibilityFailClosed
+--- PASS: TestMetricsRecordEligibilityFailClosed (0.00s)
+--- PASS: TestReadinessUsesLiveWorkerState (0.00s)
+PASS
+ok  	retropick/apps/backend/internal/markets	0.023s
+
+=== go build ===
+BUILD_OK
+
+=== pnpm test:markets ===
+
+> @retropick/markets-web@0.0.0 test:markets /home/asyam/dev/set-up/projects/retropick/apps/web
+> vitest run --config src/products/markets/vitest.config.ts
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v3.2.4 /home/asyam/dev/set-up/projects/retropick/apps/web/src/products/markets
+
+ ✓ funding/__tests__/fundingCopy.test.ts (1 test) 10ms
+ ✓ wallet/__tests__/readCookie.test.ts (3 tests) 26ms
+ ✓ funding/__tests__/fundingApiClient.test.ts (4 tests) 18ms
+ ✓ __tests__/copy.test.ts (1 test) 9ms
+ ✓ __tests__/errors.test.ts (8 tests) 14ms
+ ✓ funding/__tests__/useMarketsCollateralBalance.test.tsx (6 tests) 249ms
+ ✓ __tests__/ResolutionPanel.test.tsx (1 test) 436ms
+   ✓ ResolutionPanel > renders resolution description and linked sources  433ms
+ ✓ wallet/__tests__/ConnectWalletButton.test.tsx (2 tests) 365ms
+   ✓ ConnectWalletButton > calls connect when clicked  336ms
+ ✓ funding/__tests__/FundingPage.test.tsx (3 tests) 473ms
+   ✓ FundingPage > does not show setup or balance panels without session  331ms
+stderr | wallet/__tests__/marketsAuthClient.test.ts
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+stderr | funding/__tests__/useDepositWalletSetup.test.tsx
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+ ✓ wallet/__tests__/marketsAuthClient.test.ts (7 tests) 69ms
+ ✓ funding/__tests__/useDepositWalletSetup.test.tsx (4 tests) 78ms
+stderr | wallet/__tests__/WalletAddressDisclosure.test.tsx
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+ ✓ funding/__tests__/fundingCustody.test.ts (2 tests) 13ms
+ ✓ __tests__/freshness.test.ts (5 tests) 7ms
+ ✓ wallet/__tests__/WalletAddressDisclosure.test.tsx (3 tests) 377ms
+stderr | wallet/__tests__/useMarketsWalletSession.test.tsx
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+ ✓ __tests__/ids.test.ts (4 tests) 5ms
+ ✓ funding/__tests__/formatCollateral.test.ts (2 tests) 7ms
+ ✓ wallet/__tests__/useMarketsWalletSession.test.tsx (4 tests) 281ms
+stderr | __tests__/MarketDetailPage.test.tsx
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+stderr | __tests__/PortfolioPage.test.tsx
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+stderr | wallet/__tests__/custodyInvariants.test.ts
+Lit is in dev mode. Not recommended for production! See https://lit.dev/msg/dev-mode for more information.
+
+ ✓ wallet/__tests__/custodyInvariants.test.ts (4 tests) 4ms
+stderr | __tests__/PortfolioPage.test.tsx > PortfolioPage > renders guest portfolio dashboard shell
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ __tests__/PortfolioPage.test.tsx (1 test) 177ms
+stderr | __tests__/MarketDetailPage.test.tsx > MarketDetailPage > renders resolution rules and source links for canonical ids
+⚠️ React Router Future Flag Warning: React Router will begin wrapping state updates in `React.startTransition` in v7. You can use the `v7_startTransition` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_starttransition.
+⚠️ React Router Future Flag Warning: Relative route resolution within Splat routes is changing in v7. You can use the `v7_relativeSplatPath` future flag to opt-in early. For more information, see https://reactrouter.com/v6/upgrading/future#v7_relativesplatpath.
+
+ ✓ __tests__/MarketDetailPage.test.tsx (2 tests) 341ms
+   ✓ MarketDetailPage > renders resolution rules and source links for canonical ids  312ms
+
+ Test Files  20 passed (20)
+      Tests  67 passed (67)
+   Start at  21:03:03
+   Duration  6.49s (transform 2.88s, setup 4.01s, collect 18.58s, tests 2.96s, environment 35.85s, prepare 8.05s)
+
+
+=== pnpm typecheck ===
+
+> @retropick/markets-web@0.0.0 typecheck /home/asyam/dev/set-up/projects/retropick/apps/web
+> tsc --noEmit
+
+
+=== harness doctor (no project) ===
+=== harness doctor ===
+OK: git git version 2.43.0
+OK: node v24.16.0
+OK: npm 11.13.0
+OK: bubblewrap available
+INFO: no local project registry; projects are optional
+INFO: no project selected; Harness diagnostics are project-independent
+INFO: Hermes is available but optional; doctor does not start or configure it
+=== summary: 0 errors, 0 warnings ===
+
+=== git diff --check ===
+CLEAN
