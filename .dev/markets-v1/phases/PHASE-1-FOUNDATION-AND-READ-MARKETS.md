@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -12,6 +12,8 @@
 ## Description
 
 PHASE-1 is the first executable product phase: read-only Markets foundation — OpenAPI expansion, Gamma catalog client, DB cache/migrations, web read routes, signal schema foundation, realtime snapshot/gap-recovery design, Android scaffold *plan*, contract conformance, and observability. No wallet signing or fund movement.
+
+After the catalog shell exists, optional parallel Smart Money **I0 + I1–I3 PUBLIC** may proceed: whale feed via Data `/trades`, wallet search/profile/metrics, leaderboard/holders — behind `intelligence.*` flags. Specs: [`INTELLIGENCE_LAUNCH_V1.md`](../intelligence/INTELLIGENCE_LAUNCH_V1.md), [`01`](../intelligence/01_WHALE_TRADE_FEED.md)…[`05`](../intelligence/05_SMART_MONEY_LEADERBOARD.md), [`07`](../intelligence/07_TOP_HOLDERS.md). PHASE-1 **exit remains gated by catalog/read** (`MKT-P1-010`); intelligence completion is **non-blocking** for that gate.
 
 Catalog/detail/book with explicit staleness is the trust base for later trading. Freeze OpenAPI before parallel backend/web work. Complete `MKT-P1-010` before any PHASE-2 wallet/funding authorization.
 
@@ -24,8 +26,8 @@ Orientation for agents executing **PHASE-1 — Foundation and Read Markets**. Th
 | Dimension | Intent |
 |-----------|--------|
 | **Who** | be-api / be-indexer / be-data, fe-markets, schema owners; qa for contract tests; orchestrator for `MKT-P1-010`. Manifest currently lists `current_phase: PHASE-1` as the first executable product phase after Wave 9 — still confirm the live file before acting. |
-| **What** | Read-only Markets foundation: OpenAPI expansion, Gamma catalog client, DB cache/migrations, web read routes, signal schema foundation, realtime snapshot/gap-recovery design, Android scaffold *plan*, contract conformance, observability — **no** signing or fund movement. |
-| **When** | Only after PHASE-0 exit gate. Freeze OpenAPI before parallel backend/web. Complete `MKT-P1-010` before any PHASE-2 wallet/funding authorization. |
+| **What** | Read-only Markets foundation: OpenAPI expansion, Gamma catalog client, DB cache/migrations, web read routes, signal schema foundation, realtime snapshot/gap-recovery design, Android scaffold *plan*, contract conformance, observability — **no** signing or fund movement. Optional parallel Smart Money **I0 + I1–I3 PUBLIC** (non-blocking for exit). |
+| **When** | Only after PHASE-0 exit gate. Freeze OpenAPI before parallel backend/web. Complete `MKT-P1-010` (catalog/read) before any PHASE-2 wallet/funding authorization; intel finish is not required for that gate. |
 | **Where** | `schemas/openapi/`, `apps/backend/internal/markets/` (gamma/catalog), migrations `*catalog*`, `apps/web/src/products/markets/`, design notes under `.dev/markets-v1/`. External: Polymarket Gamma + CLOB **read** endpoints. |
 | **Why** | Catalog/detail/book with explicit staleness is the trust base for later trading. Wallet or submit code in this phase would violate read-before-write and preview-before-sign sequencing. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
@@ -35,10 +37,12 @@ Orientation for agents executing **PHASE-1 — Foundation and Read Markets**. Th
 - `MKT-P1-001`…`MKT-P1-010`: OpenAPI, Gamma client, schema v1, web read routes, signals, realtime design, Android scaffold plan, contracts, observability, exit gate
 - Types/events such as EventDetail, MarketSummary, OrderBookSnapshot, SignalEnvelope
 - Expand-only migrations (catalog events, watchlists, sync checkpoints)
+- Optional parallel Smart Money **I0–I3 PUBLIC** behind `intelligence.*` flags (whale via Data `/trades`, search/profile/metrics, leaderboard/holders); lag-honesty SLOs — see [`01`](../intelligence/01_WHALE_TRADE_FEED.md)…[`05`](../intelligence/05_SMART_MONEY_LEADERBOARD.md), [`07`](../intelligence/07_TOP_HOLDERS.md), [Launch V1](../intelligence/INTELLIGENCE_LAUNCH_V1.md)
 
 ### Out of scope (do not implement under this phase authorization)
 
 - Wallet connect, order submit, CTF operations, production deploy
+- ACCOUNT follow / basic whale alerts (PHASE-2 **I4**); paper that claims venue/Polymarket fills; wallet funding
 - PRISM / legacy epoch feature work; custom exchange
 
 ### Exit gate — what “done” means for an agent
@@ -49,6 +53,7 @@ A single task is done only with verification evidence + handoff. The **phase** i
 - OpenAPI validate + go/web/contract tests green per task commands
 - REQ rows (e.g. MKT-FR-001/002/010, MKT-NFR-001/060, MKT-WEB-001) evidenced
 - Exit gate task complete; handoff to `MKT-P2-001` only after orchestrator advance
+- Smart Money I0–I3 completion is **non-blocking** for `MKT-P1-010` (catalog/read still gates exit)
 
 Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
 
@@ -66,6 +71,9 @@ Agent on `MKT-P1-004` builds web read routes consuming frozen OpenAPI types, sho
 
 They explicitly do not add WalletConnect or order ticket submit — those belong to PHASE-2/3 — even if the UI mock looks incomplete without them.
 
+## Production path
+
+Staging read Markets (+ optional PUBLIC intel under flags) → harden (PHASE-6) → PHASE-7 production. Keep optional PUBLIC intel flags **off in prod** until PHASE-7 canary; catalog/read exit (`MKT-P1-010`) does not wait on intel completion.
 
 ## Phase ID and exact name
 
@@ -104,6 +112,7 @@ PHASE-0 exit gate; ADRs accepted.
 - Android scaffold plan
 - Contract tests
 - Observability
+- Optional parallel I0–I3 PUBLIC intel (`intelligence.*`); lag honesty SLOs
 
 ## Out of scope
 
@@ -111,6 +120,7 @@ PHASE-0 exit gate; ADRs accepted.
 - Order submit
 - CTF
 - Production deploy
+- ACCOUNT follow/alerts (PHASE-2); paper claiming venue fills; wallet funding
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 

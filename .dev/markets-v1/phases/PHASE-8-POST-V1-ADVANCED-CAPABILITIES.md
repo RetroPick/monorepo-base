@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -11,7 +11,9 @@
 
 ## Description
 
-PHASE-8 covers post-V1 advanced capabilities under explicit ADR/flag/approval: Combos gate, unusual activity heuristics, relationship scanner, cross-venue normalization, AI evidence narration, manual copy-intent, professional API, execution analytics, wallet/onramp providers, and scope review. It is not a bundle that quietly expands V1.
+PHASE-8 covers post-V1 advanced capabilities under explicit ADR/flag/approval: Combos gate, manual copy-intent, professional API, execution analytics, wallet/onramp providers, AI evidence narration (verified evidence only), cross-venue research, and scope review. It is not a bundle that quietly expands V1.
+
+**UV / relationship / complex alert DSL** are **archived research gates only** under `intelligence/archive/` — **not** the default “next intel after launch.” Launch intel ends at Paper/Backtest/Alerts ([INTELLIGENCE_LAUNCH_V1.md](../intelligence/INTELLIGENCE_LAUNCH_V1.md)). Combos and manual-copy gates are unchanged; **no guaranteed arb**; [ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md).
 
 Prerequisites: PHASE-7 launch **and** V1 SLOs stable 30+ days. Each `MKT-P8-*` may proceed only after its capability gate. LLM is narration-only over verified evidence; trading path isolation is mandatory. Autonomous/automatic copy trading and guaranteed-arbitrage labels remain Never-V1.
 
@@ -24,29 +26,30 @@ Orientation for agents executing **PHASE-8 — Post-V1 Advanced Capabilities**. 
 | Dimension | Intent |
 |-----------|--------|
 | **Who** | Per-capability feature owners; product+legal+security approvers for each gate; orchestrator preventing silent V1 scope creep. |
-| **What** | Post-V1 advanced capabilities under explicit ADR/flag/approval: combos gate, unusual activity heuristics, relationship scanner, cross-venue normalization, AI evidence narration, manual copy-intent, professional API, execution analytics, wallet/onramp providers, scope review. |
-| **When** | After PHASE-7 launch **and** V1 SLOs stable 30+ days (prerequisites). Each `MKT-P8-*` may proceed independently only after its capability gate review — not as a bundle that expands V1 quietly. |
-| **Where** | Feature-flagged modules under `internal/markets/advanced/`, intelligence/, optional API v2 pro tier. LLM allowed for narration only; trading path isolation mandatory. |
-| **Why** | Combos liquidity, AI hallucination, and autonomous copy trading are high-risk. V1 users must not inherit unfinished advanced surfaces without flags and rollback isolation. |
+| **What** | Post-V1 gated capabilities: combos, manual copy-intent, pro API, exec analytics, onramps, AI narration, optional cross-venue research. UV/relationship/complex alert DSL = archived research only unless a gate reopens them. |
+| **When** | After PHASE-7 launch **and** V1 SLOs stable 30+ days. Each `MKT-P8-*` only after its capability gate — not as a silent V1 expansion or default intel backlog. |
+| **Where** | Feature-flagged modules under `internal/markets/advanced/`; optional API v2 pro tier. Archived research lives under `intelligence/archive/` (not default agent load). LLM narration only; trading path isolation mandatory. |
+| **Why** | Combos liquidity, AI hallucination, and autonomous copy trading are high-risk. Treating archived UV/relationship as “next after launch” recreates Wave-6 scope creep. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
 
 ### In scope (agent boundary for this phase)
 
-- `MKT-P8-001`…`MKT-P8-010` as separately gated deliverables
-- Official Combos API only when capability true; manual copy-intent still preview+eligibility+explicit auth
+- `MKT-P8-001`…`MKT-P8-010` as separately gated deliverables (see archive annotation on unusual-activity)
+- Official Combos API only when capability true; manual copy-intent still preview+eligibility+explicit auth (ADR-009; no guaranteed arb)
 - Per-feature SLOs, LLM cost caps, flag-disable rollback with no V1 impact
 
 ### Out of scope (do not implement under this phase authorization)
 
 - Autonomous/automatic copy trading; AI classification that invents metrics or triggers orders
 - Guaranteed arbitrage labels; silent V1 creep; PRISM/legacy; custom exchange
+- Default implementation of UV / relationship / complex alert DSL from `intelligence/archive/` without an explicit research reopen gate
 
 ### Exit gate — what “done” means for an agent
 
 A single task is done only with verification evidence + handoff. The **phase** is done only when **all** of the following hold (orchestrator records manifest advance):
 
 - Each shipped capability has ADR + approvals + evidence + flag rollback
-- REQ MKT-FR-090/091 evidenced (combos gated; no auto copy trade)
+- REQ MKT-FR-090/091 evidenced (combos gated; no auto copy trade / ADR-009)
 - Terminal program phase: further work needs new ADRs and manifest entries — not ad-hoc edits to V1 paths
 
 Until those are true, keep task statuses honest (`planned` / `ready` / `in_progress` / `blocked`). Do not advance dependents early.
@@ -56,14 +59,18 @@ Until those are true, keep task statuses honest (`planned` / `ready` / `in_progr
 1. Confirm 30d SLO prerequisite and per-feature human approvals before coding
 2. Implement behind flags; keep intelligence failures isolated from balances/settlement
 3. AI narration consumes verified deterministic evidence only
-4. Manual copy-intent never skips preview/eligibility/authorization
-5. Disable flag for rollback; run flagged integration tests; update traceability
+4. Manual copy-intent never skips preview/eligibility/authorization; never claim guaranteed arb
+5. Disable flag for rollback; run flagged integration tests; update traceability — do not pull archive UV/relationship as default work
 
 ### Worked example
 
 Agent on `MKT-P8-005` wires narration over signal envelopes with provenance IDs; model output cannot call order submit. Cost caps alert when exceeded.
 
-`MKT-P8-001` hides Combos UI whenever `/markets/capabilities` is false; tests fail the build if UI appears while the flag is off.
+`MKT-P8-001` hides Combos UI whenever `/markets/capabilities` is false; tests fail the build if UI appears while the flag is off. Agent asked to “ship relationship scanner next” points at `intelligence/archive/` and refuses unless an explicit gate reopens research.
+
+## Production path
+
+Post-V1 band after 30d SLO stability. Combos / manual-copy gates unchanged (ADR-009; no guaranteed arb). UV / relationship / complex alert DSL remain archived research — not default next intel after Launch. See [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md).
 
 
 ## Phase ID and exact name
@@ -73,11 +80,11 @@ Agent on `MKT-P8-005` wires narration over signal envelopes with provenance IDs;
 
 ## Business outcome
 
-Post-V1 capabilities without silent V1 expansion.
+Post-V1 capabilities without silent V1 expansion; archived intel research not treated as Launch follow-on by default.
 
 ## Technical outcome
 
-Each capability has ADR, evidence, approval; no autonomous copy trading.
+Each shipped capability has ADR, evidence, approval; no autonomous copy trading (ADR-009); no guaranteed arb.
 
 ## Prerequisites
 
@@ -94,15 +101,15 @@ PHASE-7 launch; V1 SLOs stable 30+ days.
 
 ## In scope
 
-- Combos gate
-- Unusual activity
-- Relationship scanner
-- Cross-venue research
+- Combos gate (unchanged; official API only when capability true)
+- Manual copy-intent (ADR-009; no auto; no guaranteed arb)
+- Cross-venue research (gated)
 - AI narration
-- Manual copy-intent
 - Pro API
 - Exec analytics
 - Onramps
+- ~~Unusual activity~~ → **archived research** (`intelligence/archive/`) unless explicit gate reopens — see `MKT-P8-002`
+- ~~Relationship scanner~~ → **archived research** (`intelligence/archive/`) — not default post-launch intel
 
 ## Out of scope
 
@@ -110,13 +117,14 @@ PHASE-7 launch; V1 SLOs stable 30+ days.
 - Silent V1 creep
 - Guaranteed arb
 - AI trade signals
+- Default-load of `intelligence/archive/**` as implementation authority
 - PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
 ## Repository areas affected
 
 - internal/markets/advanced/
-- intelligence/
+- `intelligence/archive/` only if a research gate reopens UV/relationship/DSL — not default Load
 
 ## New modules/files expected
 
@@ -197,12 +205,12 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 | Task ID | Title | Goal | Handoff |
 |---|---|---|---|
-| MKT-P8-001 | Combos capability gate | Deliver combos capability gate | MKT-P8-002 |
-| MKT-P8-002 | Unusual activity heuristics | Deliver unusual activity heuristics | MKT-P8-003 |
-| MKT-P8-003 | Relationship scanner | Deliver relationship scanner | MKT-P8-004 |
+| MKT-P8-001 | Combos capability gate | Deliver combos capability gate (ADR-009; no guaranteed arb) | MKT-P8-004 |
+| MKT-P8-002 | Unusual activity heuristics | **ARCHIVED** unless explicit gate reopens research (`intelligence/archive/`). Not default next intel after Launch. | — |
+| MKT-P8-003 | Relationship scanner | **ARCHIVED** research gate only (`intelligence/archive/`) — not default post-launch intel | — |
 | MKT-P8-004 | Cross-venue normalization | Deliver cross-venue normalization | MKT-P8-005 |
 | MKT-P8-005 | AI evidence narration | Deliver ai evidence narration | MKT-P8-006 |
-| MKT-P8-006 | Manual copy-intent | Deliver manual copy-intent | MKT-P8-007 |
+| MKT-P8-006 | Manual copy-intent | Manual copy-intent (ADR-009; preview+sign; no auto; no guaranteed arb) | MKT-P8-007 |
 | MKT-P8-007 | Professional API | Deliver professional api | MKT-P8-008 |
 | MKT-P8-008 | Execution analytics | Deliver execution analytics | MKT-P8-009 |
 | MKT-P8-009 | Wallet/onramp providers | Deliver wallet/onramp providers | MKT-P8-010 |
@@ -220,23 +228,27 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P8-002 — Unusual activity heuristics
 
-**Goal:** Implement Unusual activity heuristics within owned_paths in task-graph.yaml.
+> **Annotation (2026-08-09):** **Archived** unless an explicit human/research gate reopens work under `intelligence/archive/`. Not default “next intel after launch.” Launch alerts authority remains [08_BASIC_WHALE_ALERTS.md](../intelligence/08_BASIC_WHALE_ALERTS.md). Task-graph may still list this ID — do not implement from archive by default.
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Goal:** Historical / research-gated only — do not implement as default PHASE-8 backlog.
 
-**Commands:** See task-graph.yaml `commands` array.
+**Acceptance:** N/A unless gate reopens; then ADR + approvals + evidence + flag rollback; no guaranteed arb.
 
-**Owned paths:** Exclusive during execution per §17.3.
+**Commands:** See task-graph.yaml `commands` array (pending gate).
+
+**Owned paths:** Do not treat archive paths as default exclusive ownership.
 
 ### MKT-P8-003 — Relationship scanner
 
-**Goal:** Implement Relationship scanner within owned_paths in task-graph.yaml.
+> **Annotation (2026-08-09):** **Archived research** under `intelligence/archive/` — not default post-launch intel. Explicit gate required to reopen.
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Goal:** Historical / research-gated only — do not implement as default PHASE-8 backlog.
 
-**Commands:** See task-graph.yaml `commands` array.
+**Acceptance:** N/A unless gate reopens; no guaranteed arbitrage labels (ADR-009 / Never V1).
 
-**Owned paths:** Exclusive during execution per §17.3.
+**Commands:** See task-graph.yaml `commands` array (pending gate).
+
+**Owned paths:** Do not treat archive paths as default exclusive ownership.
 
 ### MKT-P8-004 — Cross-venue normalization
 
@@ -260,9 +272,9 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P8-006 — Manual copy-intent
 
-**Goal:** Implement Manual copy-intent within owned_paths in task-graph.yaml.
+**Goal:** Manual copy-intent with preview + eligibility + explicit user auth only ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)); no auto-copy; no guaranteed arb labels.
 
-**Acceptance:** Tests pass; no path conflicts; evidence filed.
+**Acceptance:** Tests pass; no path conflicts; evidence filed; capability-gated.
 
 **Commands:** See task-graph.yaml `commands` array.
 

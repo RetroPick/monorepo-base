@@ -2,19 +2,21 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 
 ---
 
-PHASE-0…PHASE-8 per master prompt §15. Each file implements §16 contract.
+PHASE-0…PHASE-8 per master prompt §15. Each file implements §16 contract. Phase IDs are locked — do **not** invent PHASE-9.
 
 ## Description
 
-This index maps PHASE-0…PHASE-8 for RetroPick Markets V1: exact phase names, dependency edges, §16 contract expectations, `MKT-P0-001`…`MKT-P8-010` task ranges, parallelization rules, and human gates. Open it to navigate, then open the matching phase file — it does **not** replace live `current_phase` in `implementation-manifest.yaml` or task statuses in `task-graph.yaml`.
+This index maps PHASE-0…PHASE-8 for RetroPick Markets V1 with a **dual track** (Markets Core + Smart Money) and **delivery bands** (Spec → Build → Harden → Production → Post-V1). It does **not** replace live `current_phase` in `implementation-manifest.yaml` or task statuses in `task-graph.yaml`.
 
-V1 delivery is PHASE-0–7; PHASE-8 is post-V1 under explicit gates. Parallelization reminders include schemas→clients, migrations→code, read→write, preview→sign, Android after stable web trading, and launch after hardening.
+Senior reaudit: [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md). Smart Money feature authority: [../intelligence/INTELLIGENCE_LAUNCH_V1.md](../intelligence/INTELLIGENCE_LAUNCH_V1.md). Prefer active `intelligence/` docs; exclude `intelligence/archive/**` from default agent load.
 
-**How to use:** confirm manifest `current_phase` → find the phase in the registry → open its spec → pick one ready task in range → obey owned-path and human-gate rules. Exit-gate proof lives on the phase file + `PHASE_GATE_TEMPLATE`, not checkboxes on this README.
+V1 delivery is PHASE-0–7; PHASE-8 is post-V1 under explicit gates. Public Smart Money (I0–I3) may proceed after the PHASE-1 read shell **without** waiting for PHASE-4 portfolio/CTF.
+
+**How to use:** confirm manifest `current_phase` → find the phase in the registry → open its spec → pick one ready task → obey owned-path and human-gate rules. Exit-gate proof lives on the phase file + `PHASE_GATE_TEMPLATE`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -74,25 +76,60 @@ An agent is asked to “add wallet connect.” This index shows wallet work is P
 | PHASE-8 | Post-V1 Advanced Capabilities | [PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md](PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md) | PHASE-7 | See spec |
 
 ```mermaid
-flowchart LR
-  P0[PHASE-0]
-  P1[PHASE-1]
-  P2[PHASE-2]
-  P3[PHASE-3]
-  P4[PHASE-4]
-  P5[PHASE-5]
-  P6[PHASE-6]
-  P7[PHASE-7]
-  P8[PHASE-8]
-  P0-->P1
-  P1-->P2
-  P2-->P3
-  P3-->P4
-  P4-->P5
-  P5-->P6
-  P6-->P7
-  P7-->P8
+flowchart TB
+  subgraph bands [DeliveryBands]
+    Spec[PHASE0_SpecFreeze]
+    Build[PHASE1to5_Build]
+    Harden[PHASE6_Harden]
+    Prod[PHASE7_Production]
+    Post[PHASE8_PostV1]
+  end
+  Spec --> Build --> Harden --> Prod --> Post
+  subgraph core [MarketsCore]
+    P1[PHASE1_Read]
+    P2[PHASE2_Account]
+    P3[PHASE3_Trading]
+    P4[PHASE4_PortfolioCTF]
+    P5[PHASE5_Android]
+  end
+  subgraph intel [SmartMoneyTrack]
+    I0[I0_DataFoundation]
+    I13[I1toI3_PublicIntel]
+    I4[I4_FollowAlerts]
+    I56[I5toI6_BacktestPaper]
+    I7[I7_ManualCopy_Future]
+  end
+  P1 --> P2 --> P3 --> P4
+  P3 --> P5
+  P4 --> P5
+  I0 -.->|after_P1_shell| I13
+  I13 -.->|auth| I4
+  I4 --> I56
+  I56 -.->|after_P3| I7
+  P1 -.-> I0
+  P2 -.-> I4
+  P3 -.-> I7
 ```
+
+## Delivery bands (developing → production)
+
+| Band | Phases | Meaning |
+|------|--------|---------|
+| Spec | PHASE-0 | Freeze ADRs/OpenAPI/scope; no product code |
+| Build | PHASE-1…5 | Features to staging-capable quality |
+| Harden | PHASE-6 | Feature freeze; security/SLO/DR/kill-switch |
+| Production | PHASE-7 | Legal/Builder/canary/Play; live traffic |
+| Post-V1 | PHASE-8 | Flagged capabilities after 30d SLO stability |
+
+## Smart Money micro-phase mapping (I*)
+
+| Micro | Delivers | Canonical home | Blocks phase exit? |
+|-------|----------|----------------|--------------------|
+| I0 | Data adapters, provenance, OpenAPI stubs | PHASE-1 | No |
+| I1–I3 | Whale, search/profile/metrics, LB/holders (PUBLIC) | PHASE-1 parallel | No — catalog/read still gates P1 |
+| I4 | Follow + basic whale alerts (ACCOUNT) | PHASE-2 | No — auth/funding still gates P2 |
+| I5–I6 | Quick backtest + paper copy | After auth; may overlap P2/P3 | Must not CLOB-submit |
+| I7 | Manual copy preview + user sign | PHASE-3+ | Future; ADR-009 forbids auto |
 
 ## §16 contract checklist
 
@@ -150,6 +187,9 @@ flowchart LR
 1. Reconcile before prod orders
 1. Android after stable web trading
 1. Launch after hardening
+1. **Public Smart Money (I0–I3) after PHASE-1 shell — do not wait for PHASE-4 portfolio/CTF**
+1. Intelligence failures stay isolated from balances/settlement (ADR-008)
+1. Prefer `intelligence/` active tree; never treat `intelligence/archive/**` as default load
 
 ## Human gates (§18)
 
@@ -168,6 +208,8 @@ flowchart LR
 
 ## Related docs
 
+- [Phase reassessment / production roadmap](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md)
+- [Smart Money Launch](../intelligence/INTELLIGENCE_LAUNCH_V1.md)
 - [Doc map](../00_DOCUMENT_MAP.md)
 - [Tasks](../agent-harness/task-graph.yaml)
 - [Requirements](../04_REQUIREMENTS_AND_TRACEABILITY.md)

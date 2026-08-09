@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 
 ---
@@ -12,6 +12,8 @@
 ## Description
 
 PHASE-2 delivers account, wallet, and funding without order submission: eligibility, session, wallet connect, account-wallet discovery, token approvals, balance projections, deposit flow, withdrawal preview, funding notifications, and relayer sandbox — proving signer ≠ account wallet and fail-closed regions.
+
+Smart Money **I4** (ACCOUNT) lands here: Follow Wallet + Basic Whale Alerts — private follows by default; alerts deep-link to market view only (`VIEW_MARKET`); never execute. Specs: [`06_FOLLOW_WALLET.md`](../intelligence/06_FOLLOW_WALLET.md), [`08_BASIC_WHALE_ALERTS.md`](../intelligence/08_BASIC_WHALE_ALERTS.md). **I5–I6** (paper/backtest) may start after auth but must **not** submit orders.
 
 Custody mistakes and open-when-unknown geoblock are irreversible trust failures. Funding without reconcile FSMs creates double-credit risk before any trade exists. Scan blockers (e.g. BLK-001 geoblock, BLK-005 wallet flows) before coding; never hardcode `eligible=true`.
 
@@ -24,8 +26,8 @@ Orientation for agents executing **PHASE-2 — Account Wallet and Funding**. The
 | Dimension | Intent |
 |-----------|--------|
 | **Who** | fe-wallet, be-api auth/eligibility/funding agents; ops for sandbox wallet & relayer creds; security for custody/session binding review. |
-| **What** | Eligibility, session, wallet connect, account-wallet discovery, token approvals, balance projections, deposit flow, withdrawal preview, funding notifications, and relayer sandbox — proving signer ≠ account wallet and fail-closed regions. |
-| **When** | After PHASE-1 exit and drafted auth schemas. Wallet/session before funding; human sandbox approvals before relayer budgeted work. No order submission until PHASE-3. |
+| **What** | Eligibility, session, wallet connect, account-wallet discovery, token approvals, balance projections, deposit flow, withdrawal preview, funding notifications, and relayer sandbox — proving signer ≠ account wallet and fail-closed regions. Plus Smart Money **I4** ACCOUNT: private follows + whale alerts (deep-link only). |
+| **When** | After PHASE-1 exit and drafted auth schemas. Wallet/session before funding; human sandbox approvals before relayer budgeted work. No order submission until PHASE-3. I5–I6 may start after auth but must not submit. |
 | **Where** | `internal/markets/auth|eligibility|wallet|funding/`, web wallet surfaces, migrations `*users*` / sessions / eligibility / funding_transactions. Integrations: geoblock API, WalletConnect, Builder relayer sandbox, Polygon RPC reads. |
 | **Why** | Custody mistakes and open-when-unknown geoblock are irreversible trust failures. Funding without reconcile FSMs creates double-credit risk before any trade exists. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
@@ -35,10 +37,13 @@ Orientation for agents executing **PHASE-2 — Account Wallet and Funding**. The
 - `MKT-P2-001`…`MKT-P2-010` wallet through exit gate
 - APIs: EligibilityResponse, WalletSession, DepositStatus, WithdrawalPreview
 - User-signed ERC-20 approve; account-wallet deploy in sandbox; balance reads — never server-held user keys
+- Smart Money **I4**: Follow Wallet + Basic Whale Alerts (ACCOUNT); private follows; alerts deep-link only (`VIEW_MARKET`); no execute — [`06_FOLLOW_WALLET.md`](../intelligence/06_FOLLOW_WALLET.md), [`08_BASIC_WHALE_ALERTS.md`](../intelligence/08_BASIC_WHALE_ALERTS.md)
+- Optional early **I5–I6** after auth (paper/backtest simulation only; must not submit orders)
 
 ### Out of scope (do not implement under this phase authorization)
 
-- CLOB order submission, CTF production, Android trading, combos
+- CLOB order submission (PHASE-3), CTF production, Android trading, combos
+- Auto-copy / signal→order path (ADR-009)
 - PRISM/legacy; custom exchange; bypassing open blockers by hardcoding eligible=true
 
 ### Exit gate — what “done” means for an agent
@@ -65,6 +70,9 @@ Agent on `MKT-P2-002` encodes geoblock timeout as `eligible: false`, adds unit/c
 
 Deposit work (`MKT-P2-006`) records transition metrics and reconcile hooks but never calls CLOB submit APIs.
 
+## Production path
+
+Staging account/funding (+ I4 ACCOUNT intel behind flags) → harden (PHASE-6) → PHASE-7 production. Funding and follow/alerts canaries stay separate from CLOB write enablement.
 
 ## Phase ID and exact name
 
@@ -103,10 +111,12 @@ PHASE-1 exit; auth schemas drafted.
 - Withdrawal
 - Notifications
 - Relayer sandbox
+- I4 Follow Wallet + Basic Whale Alerts (ACCOUNT; deep-link only)
 
 ## Out of scope
 
-- Order submission
+- Order submission / CLOB submit (PHASE-3)
+- Auto-copy (ADR-009)
 - CTF production
 - Android trading
 - Combos

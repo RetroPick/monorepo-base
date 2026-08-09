@@ -1,0 +1,4 @@
+[submodule "apps/android"]
+	path = apps/android
+	url = git@github.com:RetroPick/RetroPick-Android.git
+	branch = main

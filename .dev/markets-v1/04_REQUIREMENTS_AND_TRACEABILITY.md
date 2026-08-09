@@ -110,8 +110,26 @@ No launch-critical requirement may remain unmapped.
 | MKT-FR-042 | Redeem resolved positions | PHASE-4 | MKT-P4-005 | E2E | redemption_success |
 | MKT-FR-050 | Watchlist with price-cross alerts | PHASE-1 | MKT-P1-005 | integration | alert_delivery |
 | MKT-FR-051 | Push notification for fills | PHASE-5 | MKT-P5-008 | E2E | push_latency |
-| MKT-FR-060 | Whale/large-trade feed with reason codes | PHASE-4 | MKT-P4-003 | signal test | signal_latency |
-| MKT-FR-061 | Wallet profile descriptive labels only | PHASE-4 | MKT-P4-007 | unit | N/A |
+| MKT-FR-060 | Whale/large-trade feed with reason codes | INTEL I1 | SM-I-001 | golden + signal test | signal_latency |
+| MKT-FR-061 | Wallet profile descriptive labels only | INTEL I2 | SM-I-003 | unit | N/A |
+
+## Smart Money Intelligence Launch (SM-I)
+
+Canonical feature specs: [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md). INTEL-DOC does not advance Markets `current_phase`.
+
+| ID | Description | Micro-phase | Spec | Test | Metric |
+|---|---|---|---|---|---|
+| SM-I-001 | Whale Trade Feed (Data `/trades` attribution) | I1 | [01_WHALE_TRADE_FEED.md](intelligence/01_WHALE_TRADE_FEED.md) | `testdata/whale_feed_vectors.yaml` | whale_feed_lag |
+| SM-I-002 | Wallet Search | I2 | [02_WALLET_SEARCH.md](intelligence/02_WALLET_SEARCH.md) | contract | search_p95 |
+| SM-I-003 | Wallet Profile | I2 | [03_WALLET_PROFILE.md](intelligence/03_WALLET_PROFILE.md) | unit + contract | hydrate_p95 |
+| SM-I-004 | P&L / ROI / Win Rate (shrinkage) | I2 | [04_WALLET_PERFORMANCE_METRICS.md](intelligence/04_WALLET_PERFORMANCE_METRICS.md) | `wallet_performance_vectors.yaml` | N/A |
+| SM-I-005 | Smart Money Leaderboard (shadow then public) | I3 | [05_SMART_MONEY_LEADERBOARD.md](intelligence/05_SMART_MONEY_LEADERBOARD.md) | `smart_money_vectors.yaml` | rank_job_duration |
+| SM-I-006 | Follow Wallet (private) | I4 | [06_FOLLOW_WALLET.md](intelligence/06_FOLLOW_WALLET.md) | authz | N/A |
+| SM-I-007 | Top Holders (≤20) | I3 | [07_TOP_HOLDERS.md](intelligence/07_TOP_HOLDERS.md) | contract | holders_freshness |
+| SM-I-008 | Basic Whale Alerts (deep-link only) | I4 | [08_BASIC_WHALE_ALERTS.md](intelligence/08_BASIC_WHALE_ALERTS.md) | dedup + E2E | alert_delivery |
+| SM-I-009 | Paper Copy (simulated; not venue fill) | I6 | [09_PAPER_COPY.md](intelligence/09_PAPER_COPY.md) | `paper_copy_vectors.yaml` | N/A |
+| SM-I-010 | Quick Backtest (anti-lookahead) | I5 | [10_QUICK_BACKTEST.md](intelligence/10_QUICK_BACKTEST.md) | `backtest_vectors.yaml` | backtest_p95 |
+| SM-I-091 | No autonomous copy from intelligence | ALL | ADR-009 | policy | N/A |
 | MKT-FR-070 | Android catalog parity with web | PHASE-5 | MKT-P5-004 | contract | N/A |
 | MKT-FR-071 | Android trading parity | PHASE-5 | MKT-P5-006 | E2E | N/A |
 | MKT-FR-090 | Combos only when capability flag true | PHASE-8 | MKT-P8-001 | gate test | N/A |

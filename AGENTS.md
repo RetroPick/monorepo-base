@@ -82,6 +82,23 @@ read `.ai/AGENTS-opensrc.md` first. Treat external repositories as references
 only; do not replace RetroPick's Go backend, Postgres projection model, Next
 frontends, or pool-based `MarketEngine` architecture.
 
+## Learned User Preferences
+
+- Markets V1 markdown under `.dev/markets-v1/` should keep a short `## Description` then `## 0. Developer intent (5W+1H)` (Who/What/When/Where/Why/How plus a worked example) after title/metadata and before normative body; do not rewrite existing body when adding those sections.
+- Avoid gambling UX copy in Markets docs and product language (no bet-slip / wager / casino / jackpot framing).
+- Do not invent APIs, addresses, or ADRs when editing Markets V1 docs; preserve Never V1 / ADR-009 language (no auto-copy, no signal→order path).
+- Treat local `ECC/` as read-only engineering methodology reference; RetroPick code and contracts remain authoritative—do not install ECC, commit ECC changes, or copy the framework into the repo.
+- Prefer plan → verify → implement loops for Markets V1 doc/architecture work; keep documentation accurate and agent-usable rather than merely longer.
+- Money amounts in Markets backend docs/code guidance are fixed-point, never floating point.
+
+## Learned Workspace Facts
+
+- Markets V1 product goal and phase framing live in `.dev/MARKETS.md`; the engineering doc system is `.dev/markets-v1/**` (including `phases/`, `architecture/` with C4/ADRs, and domain folders).
+- Smart Money / trader intelligence specs live under `.dev/markets-v1/intelligence/`; compute belongs in `apps/backend/internal/markets/intelligence/` with params such as `intelligence_params_v1.yaml`.
+- Polymarket is the venue authority for Markets V1; RetroPick does not define a custom Markets exchange.
+- Intelligence follow lists are private by default; paper copy and backtests are simulated only and must not be presented as venue/Polymarket fills.
+- Markets V1 Android surfaces are Kotlin + Jetpack Compose.
+- Backend Markets data is projection/read models, not ownership authority, unless a doc explicitly says otherwise.
 
 <claude-mem-context>
 # Memory Context

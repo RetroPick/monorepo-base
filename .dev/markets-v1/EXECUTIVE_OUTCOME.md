@@ -6,9 +6,11 @@
 
 ## Description
 
-This is the executive outcome snapshot for Markets V1 documentation baseline (Wave 9 complete as of 2026-07-25): the reviewed corpus and agent harness are ready for spec freeze, but **product code is not started** as executable Markets work — PHASE-1 is the first implementation phase.
+This is the executive outcome snapshot for Markets V1 documentation baseline (Wave 9 complete as of 2026-07-25; Smart Money Launch docs + dual-track phase reposition as of 2026-08-09): the reviewed corpus and agent harness are ready for spec freeze, but **product code is not “live”** — PHASE-1 remains the first implementation phase (`current_phase: PHASE-1`).
 
-It separates documentation completeness from shipping reality, summarizes recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later), custody/signing posture, Polymarket constraints, intelligence tiers, and critical blockers (BLK-*). Use at kickoff, phase-gate reviews, and whenever someone claims “Markets is live.”
+It separates documentation completeness from shipping reality, summarizes recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later), custody/signing posture, Polymarket constraints, **Smart Money Launch** (ten features under `intelligence/`, archived Wave-6 bulk), dual-track phases (Core + Smart Money; Spec→Build→Harden→Production), and critical blockers (BLK-*). Use at kickoff, phase-gate reviews, and whenever someone claims “Markets is live.”
+
+Phase ownership authority: [phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md). Intelligence product scope: [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md).
 
 Live progress belongs in harness `implementation-manifest.yaml` / `task-graph.yaml` and code stubs under `apps/` — not this narrative alone. Do not clear BLK rows without evidence; do not treat Wave language as staging-live or production trading.
 

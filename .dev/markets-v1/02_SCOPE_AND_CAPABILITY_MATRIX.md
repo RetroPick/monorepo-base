@@ -309,53 +309,43 @@ Capability rollout via `capabilities` flags and phased releases (PHASE-1–7). R
 
 ## §6A — Trader intelligence (tiered)
 
-### §6A.1 Locked V1 feature set
+**Authority:** Smart Money Intelligence Launch V1 — [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md). Older TI-V1 broad registry is historical ([intelligence/archive/](intelligence/archive/README.md)). `archive/**` is not default agent load.
 
-| Capability | V1 | V1.1 | Post-V1 | Phase | Req | Launch | Notes |
-|------------|-----|------|---------|-------|-----|--------|-------|
-| Watchlists (markets, events, wallets, tags, categories) | BFF/W/A | — | — | PHASE-1 | MKT-FR-050 | not_started | — |
-| Price / prob crossing rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
-| Log-odds movement rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
-| Volume / trade-count spike rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
-| Spread / depth / liquidity / imbalance rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
-| New listing / rule-change rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
-| Cutoff / resolution / redemption rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
-| Own order / fill / position / funding rules | BFF/W/A | — | — | PHASE-3 | MKT-FR-031 | not_started | — |
-| Large-trade / whale / watched-wallet rules | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
-| Normalized signal inbox + push | BFF/W/A | — | — | PHASE-4 | MKT-FR-050 | not_started | ADR-008 |
-| Dedup / cooldown / quiet hours / snooze / severity | BFF | — | — | PHASE-4 | MKT-FR-050 | not_started | — |
-| Whale / large-trade feed | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | MIT whales selective port |
-| Wallet profiles (performance, volume, concentration) | BFF/W | A | — | PHASE-4 | MKT-FR-060 | not_started | No insider labels |
-| Market intelligence (flow, vol, spread, depth, health) | BFF/W/A | — | — | PHASE-4 | MKT-FR-060 | not_started | — |
-| Resolution-integrity panel (rule hash, diffs, source health) | BFF/W/A | — | — | PHASE-4 | MKT-FR-002 | not_started | — |
-| Pre-trade scenario simulator (fresh preview) | BFF/W/A | — | — | PHASE-3 | MKT-FR-030 | not_started | — |
-| Portfolio exposure by event/category/time | W | A | pro | PHASE-4 | MKT-FR-040 | not_started | — |
-| Realized / unrealized PnL provenance | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
-| Claimable assets view | BFF/W/A | — | — | PHASE-4 | MKT-FR-040 | not_started | — |
-| Export (positions / history) | — | W | pro API | V1.1 | — | not_started | product |
-| Trade journal | — | W/A | — | V1.1 | — | not_started | — |
-| Android Glance widgets (public + opt-in private) | — | A | — | V1.1 | — | not_started | clean-room from PolymarketViewer patterns |
+### §6A.1 Smart Money Launch V1 (ten features)
 
-### §6A.2 Feature-gated V1.1
+| Capability | Gate | Components | Micro-phase | Req | Flag | Launch | Notes |
+|------------|------|------------|-------------|-----|------|--------|-------|
+| Whale Trade Feed | PUBLIC | BFF/W/A | I1 | SM-I-001 / MKT-FR-060 | `intelligence.whale_feed` | not_started | Data `/trades` attribution only |
+| Wallet Search | PUBLIC | BFF/W/A | I2 | SM-I-002 | `intelligence.wallet_profile` | not_started | Gamma `/public-search` |
+| Wallet Profile | PUBLIC | BFF/W/A | I2 | SM-I-003 / MKT-FR-061 | `intelligence.wallet_profile` | not_started | No insider labels |
+| P&L / ROI / Win Rate | PUBLIC | BFF/W/A | I2 | SM-I-004 | `intelligence.wallet_profile` | not_started | Shrinkage; n≥15 public |
+| Smart Money Leaderboard | PUBLIC | BFF/W/A | I3 | SM-I-005 | `intelligence.leaderboard` | not_started | Shadow before marketing |
+| Follow Wallet | ACCOUNT | BFF/W/A | I4 | SM-I-006 | `intelligence.follow` | not_started | Private follows; needs auth |
+| Top Holders | PUBLIC | BFF/W/A | I3 | SM-I-007 | `intelligence.holders` | not_started | Data `/holders` ≤20 |
+| Basic Whale Alerts | ACCOUNT | BFF/W/A | I4 | SM-I-008 | `intelligence.whale_alerts` | not_started | Deep-link only; no execute |
+| Paper Copy | ACCOUNT | BFF/W/A | I6 | SM-I-009 | `intelligence.paper_copy` | not_started | Simulated; not venue fill |
+| Quick Backtest | ACCOUNT | BFF/W/A | I5 | SM-I-010 | `intelligence.backtest` | not_started | Anti-lookahead |
 
-| Capability | V1 | V1.1 | Post-V1 | Reason if not V1 |
-|------------|-----|------|---------|------------------|
-| Unusual-activity heuristics (velocity, clustering) | — | yes | — | product: false-positive risk |
-| Trader leaderboard / archetype | — | yes | — | product decision |
-| Related-market / dependency graph | — | yes | — | product decision |
-| Telegram / Discord / email / webhooks | — | yes | — | policy + abuse review |
-| Evidence / news context summaries | — | yes | — | product |
-| Read-only cross-market discrepancy scanner | — | yes | — | Oracle3 research ref |
+Adjacent Markets capabilities (watchlists, own-order alerts, resolution panel, portfolio PnL, pre-trade preview) remain in §6 / other FR rows — they are **not** the ten-feature Smart Money Launch set.
 
-### §6A.3 Post-V1 research
+### §6A.2 Archived / deferred (not Launch default-on)
 
-| Capability | V1 | V1.1 | Post-V1 | Reason |
-|------------|-----|------|---------|--------|
-| PMXT multi-venue adapters | — | — | yes | scope: Polymarket-only V1 |
-| Constraint classes (equivalence, exclusivity, …) | — | — | yes | Oracle3 Phase 8 |
-| AI research summaries | — | — | yes | product |
-| Manual copy-intent (previewed order) | — | — | yes | ADR-009 |
-| Autonomous copy trading | — | — | reject | ADR-009; separate product |
+| Capability | Status | Reason | Cite |
+|------------|--------|--------|------|
+| Unusual-activity heuristics | archived | False-positive / not Launch | `intelligence/archive/UNUSUAL_ACTIVITY_HEURISTICS.md` |
+| Related-market / discrepancy scanner | archived | Deferred; no “guaranteed arb” | `intelligence/archive/RELATIONSHIP_AND_ARBITRAGE_SCANNER.md` |
+| Full market-health dashboard | archived | Deferred; slippage rehomed to Paper | `09_PAPER_COPY.md` |
+| Complex alert DSL | archived | Launch uses basic whale/follow alerts | `08_BASIC_WHALE_ALERTS.md` |
+| Telegram / Discord / email / webhooks | V1.1 gated | Policy + abuse | product |
+| Evidence / news context summaries | V1.1 gated | Product | product |
+
+### §6A.3 Post-V1 / future
+
+| Capability | Status | Reason |
+|------------|--------|--------|
+| Manual copy-intent (previewed user-signed order) | future I7 | After PHASE-3 trading; ADR-009 |
+| Autonomous copy trading | **reject** | ADR-009 |
+| PMXT multi-venue / constraint classes / AI research summaries | Post-V1 research | Out of Launch |
 
 ---
 
