@@ -49,3 +49,6 @@ package/prediction-v2/logs/
 
 # TypeScript incremental build metadata
 *.tsbuildinfo
+
+# Local SSH keys / private credentials
+.pub/
