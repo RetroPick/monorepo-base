@@ -1,0 +1,21 @@
+=== ADR-009 / INVARIANT greps 2026-08-09T16:54:36Z ===
+
+--- rg autoCopy|mirrorTrade|followWallet apps/ schemas/openapi/ ---
+
+--- rg POST /markets/copy ---
+
+--- rg PLACE_ORDER apps/ ---
+
+--- rg copy trading in trading module ---
+
+--- INVARIANT_CHECK product boundary ---
+.dev/markets-v1/phases/PHASE-5-ANDROID-COMPOSE-MARKETS.md
+.dev/markets-v1/phases/PHASE-6-HARDENING-CI-CD-AND-SRE.md
+.dev/markets-v1/phases/PHASE-3-WEB-TRADING-CORE.md
+.dev/markets-v1/phases/PHASE-7-PRODUCTION-LAUNCH.md
+.dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
+.dev/markets-v1/architecture/adr/README.md:It sits at `architecture/adr/` as the discovery layer over accepted Decisions. Summary rows here must not weaken ADR-001 (no custom exchange) or ADR-009 (no auto copy). Material decisions also belong in the harness decision log with traceability updates; each ADR’s Context / Decision / Consequences remain authoritative.
+.dev/markets-v1/architecture/adr/README.md:This README is **index + governance**, not a tenth decision. Each ADR’s Context / Decision / Consequences remain authoritative. Summary rows here must not weaken [ADR-001](ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md) (no custom exchange) or [ADR-009](ADR-009-NO-AUTO-COPY-TRADING-V1.md) (no auto copy).
+.dev/markets-v1/architecture/adr/README.md:| **Why** | Durable decisions—no custom exchange, BFF ACL, user signing, shared OpenAPI, no auto copy—must stay discoverable and hard to reverse casually. The index stops contradictory “local” decisions in feature PRs. |
+.dev/markets-v1/architecture/adr/README.md:    ADR001[ADR-001 No custom exchange]
+.dev/markets-v1/architecture/adr/README.md:| No custom exchange | ADR-001 | No `contracts/markets/`; CLOB-only trading |

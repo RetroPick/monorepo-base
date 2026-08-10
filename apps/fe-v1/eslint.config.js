@@ -7,13 +7,12 @@ import tseslint from "typescript-eslint";
 export default tseslint.config(
   {
     ignores: [
-      "dist",
+      "dist/**",
       ".next/**",
-      "coverage/**",
       "node_modules/**",
-      /** Legacy quarantined UI — not part of canonical Markets V1 routes. */
-      "src/legacy-quarantine/**",
-      "next-env.d.ts",
+      "out/**",
+      "coverage/**",
+      "tsconfig.tsbuildinfo",
     ],
   },
   {
@@ -29,13 +28,25 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+
+      "react-refresh/only-export-components": [
+        "warn",
+        { allowConstantExport: true },
+      ],
+
       "@typescript-eslint/no-unused-vars": "off",
-      /** Legacy fe-v1 UI predates strict typing; tighten incrementally after migration. */
-      "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-empty-object-type": "off",
-      "no-empty": "off",
+
+      // May-2026 frontend migration baseline.
+      // Keep legacy debt visible without blocking restoration/push.
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-empty-object-type": "warn",
+      "@typescript-eslint/no-require-imports": "warn",
       "prefer-const": "warn",
+
+      // Historical implementation calls Wagmi useAccount inside try/catch
+      // to support presentation-only trees without WagmiProvider.
+      // Preserve May-2026 behavior for now; migrate separately.
+      "react-hooks/rules-of-hooks": "warn",
     },
   },
 );

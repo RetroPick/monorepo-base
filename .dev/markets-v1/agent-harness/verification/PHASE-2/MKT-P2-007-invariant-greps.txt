@@ -1,0 +1,29 @@
+=== MKT-P2-007 invariant greps 2026-08-09T14:02:57Z ===
+
+=== INVARIANT: orders/submit route in markets backend ===
+(no matches — expected)
+
+=== INVARIANT: privateKey in auth package ===
+apps/backend/internal/markets/auth/auth_test.go:func testModule(t *testing.T, users auth.UserStore) (*auth.Module, *ecdsa.PrivateKey, time.Time) {
+apps/backend/internal/markets/auth/auth_test.go:func buildSignedSIWE(t *testing.T, mod *auth.Module, key *ecdsa.PrivateKey, fixed time.Time, domain string) (string, string) {
+
+=== INVARIANT: order_submit in capabilities ===
+			"order_submit":    false,
+
+=== WALLET NEGATIVE GREP: apps/web products markets ===
+apps/web/src/products/markets/wallet/lib/custodyInvariants.ts:// MARKETS_CUSTODY: ADR-003 — no T4 (privateKey|seed|mnemonic) storage in Markets wallet code
+apps/web/src/products/markets/wallet/lib/custodyInvariants.ts:  /privateKey/i,
+apps/web/src/products/markets/wallet/lib/custodyInvariants.ts:  /mnemonic/i,
+
+=== ORDER SUBMIT NEGATIVE GREP: web markets ===
+(no matches — expected)
+
+=== OpenAPI orders/submit paths ===
+(no matches — expected)
+
+=== Gambling copy scan (product test exists) ===
+const FORBIDDEN = /\b(bet-slip|wager|jackpot|casino|parlay)\b/i;
+
+=== float64 in balances (should be none in production code) ===
+apps/backend/internal/markets/balances/handler_test.go:	decimals, ok := collateral["decimals"].(float64)
+apps/backend/internal/markets/balances/handler_test.go:	case float64:

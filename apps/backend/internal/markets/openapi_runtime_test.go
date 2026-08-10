@@ -1,5 +1,5 @@
-// Package markets runtime smoke tests exercise handlers without full OpenAPI schema validation.
-// Full OpenAPI 3.1 conformance remains a follow-up gate (MKT-P1R-FIX-006).
+// Package markets runtime smoke tests exercise handlers with lightweight checks.
+// Durable OpenAPI 3.1 conformance is enforced by TestOpenAPIRuntimeConformancePhaseOne (MKT-P1-008).
 package markets
 
 import (
@@ -26,7 +26,7 @@ func TestOpenAPIRuntimeCapabilitiesResponse(t *testing.T) {
 		Now:           func() time.Time { return fixed },
 	})
 	r := chi.NewRouter()
-	RegisterRoutes(r, NewHandler(svc))
+	RegisterRoutes(r, NewHandler(svc), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/capabilities", nil)
 	rec := httptest.NewRecorder()
@@ -64,7 +64,7 @@ func TestRuntimeSmokeEventsListWeakETag(t *testing.T) {
 		Now:           func() time.Time { return fixed },
 	})
 	r := chi.NewRouter()
-	RegisterRoutes(r, NewHandler(svc))
+	RegisterRoutes(r, NewHandler(svc), nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/markets/events", nil)
 	rec := httptest.NewRecorder()

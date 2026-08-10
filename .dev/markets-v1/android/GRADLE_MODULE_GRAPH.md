@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09 (MKT-P1-007 inventory + gap map)
 **Product:** RetroPick Markets V1
 **Wave:** 5 — Android Compose Markets
 
@@ -87,7 +87,7 @@ Define acyclic Gradle module graph: app, core/*, data/*, domain, feature/* with 
 - RetroPick Markets V1 native Android client (Kotlin, Jetpack Compose, Material 3).
 - Consumption of shared Markets BFF at `/api/v1/markets/*` per ADR-004.
 - Feature parity targets defined in [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md).
-- Gradle modularization under `apps/android-markets/` (greenfield; `apps/android/` is README-only placeholder).
+- Gradle modularization under `apps/android-markets/` (greenfield Compose product; `apps/android/` is Capacitor prototype — see §5).
 
 ### Out of scope
 
@@ -105,7 +105,7 @@ Define acyclic Gradle module graph: app, core/*, data/*, domain, feature/* with 
 - [architecture/adr/ADR-004-SHARED-WEB-ANDROID-API.md](../architecture/adr/ADR-004-SHARED-WEB-ANDROID-API.md)
 - [architecture/adr/ADR-006-ANDROID-JETPACK-COMPOSE.md](../architecture/adr/ADR-006-ANDROID-JETPACK-COMPOSE.md)
 - [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml)
-- [apps/android/README.md](../../../apps/android/README.md) — current greenfield status.
+- [apps/android/README.md](../../../apps/android/README.md) — Capacitor prototype inventory, OpenAPI gap map, ADR conflict (MKT-P1-007).
 
 ## 4. Authoritative sources
 
@@ -123,13 +123,39 @@ Define acyclic Gradle module graph: app, core/*, data/*, domain, feature/* with 
 
 ## 5. Current state
 
-`apps/android/` contains a README-only greenfield pointer. No Gradle project, modules, or
-generated API client exist on disk. Implementation is scheduled for PHASE-5 per
-[implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+**Markets V1 Compose Android is not shipped.** As of MKT-P1-007 (2026-08-09), disk state:
 
-The target module tree is documented in [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md) §4 and
-expanded in [GRADLE_MODULE_GRAPH.md](./GRADLE_MODULE_GRAPH.md). CI will add an Android job once
-`apps/android-markets/settings.gradle.kts` lands.
+| Path | What exists | Role |
+|------|-------------|------|
+| `apps/android/` | Capacitor 8 + Next.js 16 static export; full Markets UI (screens, trade sheet, modals) | **Prototype / UX reference only** — not ADR-006 product |
+| `apps/android/android/` | Capacitor `BridgeActivity` shell (`com.retropick.app`) | WebView wrapper; not Compose product UI |
+| `apps/android-markets/` | **Not created** | PHASE-5 target per ADR-006 and §6 below |
+
+Screen inventory, OpenAPI v1.1.1 gap table, and architecture conflicts:
+[apps/android/README.md](../../../apps/android/README.md).
+
+**Data boundary conflict:** the prototype calls Polymarket Gamma directly via
+`apps/android/lib/polymarket-service.ts` (through a CORS proxy). Production V1 must use
+`/api/v1/markets/*` only (D-AND-004, ADR-004). No OpenAPI-generated Kotlin client exists yet.
+
+Implementation of the Compose product is scheduled for PHASE-5 per
+[implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+CI will add an Android job once `apps/android-markets/settings.gradle.kts` lands.
+
+### Prototype vs product boundary
+
+- **Prototype (`apps/android/`):** internal demo, design parity checklist, Capacitor WebView.
+  Must not ship to Play as Markets V1 without an ADR-006 amendment (Option B — not recommended).
+- **Product (`apps/android-markets/`):** Kotlin + Jetpack Compose, OpenAPI codegen, BFF-only
+  networking, UDF ViewModels — per ADR-006.
+
+**Human decision pending (D-AND-008):** retain prototype as reference and build Compose in
+PHASE-5 (Option A, recommended) vs amend ADR-006 for Capacitor (Option B). See
+[apps/android/README.md § Decision gate](../../../apps/android/README.md).
+
+Upstream research note [ANDROID_AND_PLAY_CURRENT_STATE.md](../research/ANDROID_AND_PLAY_CURRENT_STATE.md)
+§5.1 still describes README-only greenfield; that section is stale relative to the submodule
+contents documented here and in `apps/android/README.md`.
 
 ## 6. Target design
 
@@ -170,7 +196,8 @@ apps/android-markets/
 └── benchmark/              # Macrobenchmark + baseline profile
 ```
 
-`apps/android/` remains README-only until cutover; new work lands in `android-markets`.
+`apps/android/` remains the Capacitor prototype (documented in its README); V1 Compose product
+work lands in `apps/android-markets/`.
 
 ### Dependency graph (acyclic)
 
@@ -306,8 +333,9 @@ See [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md) §4 for authoritative tr
 | D-AND-003 | Jetpack Compose + UDF | ADR-006; immutable UiState, event intents, StateFlow |
 | D-AND-004 | BFF-only network boundary | ADR-002; no upstream Polymarket calls in production |
 | D-AND-005 | Server-authoritative orders | Preview hash from backend; client verifies before sign |
-| D-AND-006 | `apps/android-markets/` module root | Keeps README placeholder stable during greenfield bootstrap |
+| D-AND-006 | `apps/android-markets/` module root | Compose product separate from Capacitor prototype in `apps/android/` |
 | D-AND-007 | No PRISM dependencies | Zero imports from `packages/prism` or PRISM schemas |
+| D-AND-008 | Capacitor prototype vs Compose product *(pending human approval)* | Option A (recommended): keep `apps/android/` as UX reference; ship V1 from `apps/android-markets/`. Option B: amend ADR-006 for Capacitor — requires formal ADR change |
 
 ## 9. Data and control flows
 

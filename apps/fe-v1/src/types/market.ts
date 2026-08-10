@@ -1,19 +1,19 @@
 export interface MarketOutcome {
   id: string;
   label: string;
-  /** Implied probability in percent (0–100). Omit when upstream price is unavailable. */
-  probability?: number;
-  probabilityUnavailable?: boolean;
+  probability: number;
 }
 
 export interface Market {
   id: string;
+  /** Template slug from indexer (`GET /api/v1/markets`); used for discover filters, not on-chain id. */
+  slug?: string;
   title: string;
   category: string;
   icon: string;
   /**
    * Product family for routing and card UI (see `resolveMarketCardLayout` in `@/lib/market-card-layout`).
-   * **`Range`** — one pool, mutually exclusive bins. **Multi Yes/No** — omit `isBinary` or use 3+ outcomes: each row is its own Yes/No (not range rules).
+   * **`Range`**: one pool, mutually exclusive bins. **Multi Yes/No**: omit `isBinary` or use 3+ outcomes: each row is its own Yes/No (not range rules).
    * Also: `Threshold`, `Directional`, `Relative`, etc.
    */
   primitive?: string;
@@ -40,6 +40,15 @@ export interface Market {
   resolutionFormula?: string;
   invalidationRule?: string;
   settlementLabel?: string;
+  /**
+   * Indexer: `ExecutionMode` (0=Manual, 1=Rolling) when the card is built from a chain `MarketRow`.
+   * Used for Discover subtitles and featured eyebrow; omitted for off-chain discovery fixtures.
+   */
+  chainExecutionMode?: 0 | 1;
+  /**
+   * Indexer: Solidity `marketType` uint. Used for stable classification labels alongside `marketType` string.
+   */
+  chainMarketTypeId?: number;
 }
 
 export interface Position {

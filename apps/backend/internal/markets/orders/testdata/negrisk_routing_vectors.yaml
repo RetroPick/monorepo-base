@@ -1,0 +1,56 @@
+version: negrisk_routing_v1
+feature: MKT-POLY-003
+updated: "2026-08-09"
+
+vectors:
+  - id: routing_standard_clob_false
+    input:
+      clobNegRisk: false
+      catalogNegRisk: false
+    expected:
+      exchangeDomain: standard
+      verifyingContract: "0xe111180000d2663c0091e4f400237545b87b996b"
+
+  - id: routing_neg_risk_clob_true
+    input:
+      clobNegRisk: true
+      catalogNegRisk: true
+    expected:
+      exchangeDomain: neg_risk
+      verifyingContract: "0xe2222d279d744050d28e00520010520000310f59"
+
+  - id: routing_catalog_fallback_neg_risk
+    input:
+      clobNegRisk: null
+      catalogNegRisk: true
+    expected:
+      exchangeDomain: neg_risk
+      verifyingContract: "0xe2222d279d744050d28e00520010520000310f59"
+      warnings:
+        - exchange_routing_catalog_fallback
+
+  - id: routing_catalog_fallback_standard
+    input:
+      clobNegRisk: null
+      catalogNegRisk: false
+    expected:
+      exchangeDomain: standard
+      verifyingContract: "0xe111180000d2663c0091e4f400237545b87b996b"
+      warnings:
+        - exchange_routing_catalog_fallback
+
+  - id: routing_book_catalog_mismatch
+    input:
+      clobNegRisk: false
+      catalogNegRisk: true
+    expected:
+      error: exchange_routing_conflict
+
+  - id: routing_title_noise_ignored
+    input:
+      clobNegRisk: false
+      catalogNegRisk: false
+      noiseQuestion: "Negative risk election market"
+    expected:
+      exchangeDomain: standard
+      verifyingContract: "0xe111180000d2663c0091e4f400237545b87b996b"

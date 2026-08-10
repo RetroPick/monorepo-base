@@ -1,14 +1,17 @@
 openapi: 3.1.0
 info:
   title: RetroPick Markets API
-  version: 1.1.1
+  version: 1.3.0
   description: |
-    Public, Polymarket-native read BFF shared by future web and Android clients.
+    Public, Polymarket-native BFF shared by future web and Android clients.
     Polymarket remains the venue and settlement authority.
 
     Money representations (no binary floating point):
     - DecimalString — unsigned decimal strings for prices, probabilities, and book sizes (PHASE-1 read).
     - MoneyAmount — integer base units plus currency and decimals for balances, funding, and fees (PHASE-2+).
+
+    PHASE-3 order submit, cancel, and list paths are spec-frozen in this document.
+    Runtime handlers remain gated by GET /markets/capabilities features.order_submit until MKT-P3-002 wiring.
 
     Every upstream-derived response carries provenance and freshness metadata.
 servers:
@@ -40,6 +43,854 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CapabilitiesResponse"
+              examples:
+                phase2NoSubmit:
+                  summary: PHASE-2 default — order submit disabled
+                  value:
+                    version: "1.3.0"
+                    catalog: true
+                    trading: false
+                    combos: false
+                    intelligence: true
+                    features:
+                      order_submit: false
+                      orderbook_read: true
+                    source: retropick
+                    checkedAt: "2026-08-09T10:00:00Z"
+  /markets/me/wallets:
+    get:
+      tags: [Markets]
+      operationId: listMyWallets
+      summary: List linked Polymarket account wallets for the authenticated session
+      description: |
+        Returns the session signer EOA and any linked Polymarket trading wallets
+        (proxy, Safe, or Deposit Wallet). signerAddress and accountWallet MUST remain
+        distinct fields per ADR-003. Empty wallets means not yet linked — not an error.
+      x-phase: 2
+      security:
+        - MarketsSession: []
+      responses:
+        "200":
+          description: Signer and linked account wallets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletsListResponse"
+              examples:
+                linkedProxy:
+                  summary: Proxy linked — signer differs from account wallet
+                  value:
+                    schemaVersion: "1"
+                    signerAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    wallets:
+                      - accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                        walletType: GNOSIS_SAFE
+                        linkStatus: linked
+                        isPrimary: true
+                        chainId: 137
+                    checkedAt: "2026-08-09T10:00:00Z"
+                notLinked:
+                  summary: No linked account wallet yet
+                  value:
+                    schemaVersion: "1"
+                    signerAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    wallets: []
+                    checkedAt: "2026-08-09T10:00:00Z"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/me/balances:
+    get:
+      tags: [Markets]
+      operationId: listMyBalances
+      summary: Read tradable pUSD collateral for the primary account wallet
+      description: |
+        Returns the session signer's primary linked accountWallet and its tradable pUSD
+        collateral balance from the Polymarket CLOB (venue authority). Fixed-point
+        MoneyAmount only — never binary floating point. Requires a linked account wallet;
+        returns 404 when none is linked yet.
+      x-phase: 2
+      security:
+        - MarketsSession: []
+      responses:
+        "200":
+          description: Primary account wallet collateral balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalancesListResponse"
+              examples:
+                linkedWithCollateral:
+                  summary: Linked proxy wallet with tradable pUSD
+                  value:
+                    schemaVersion: "1"
+                    signerAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    collateral:
+                      amount: "10500000"
+                      currency: pUSD
+                      decimals: 6
+                    checkedAt: "2026-08-09T10:00:00Z"
+                    provenance:
+                      source: polymarket_clob
+                      upstreamId: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                      observedAt: "2026-08-09T10:00:00Z"
+                    freshness:
+                      state: fresh
+                      observedAt: "2026-08-09T10:00:00Z"
+                      ageMillis: 0
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked primary account wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                accountNotLinked:
+                  summary: Session authenticated but no linked account wallet
+                  value:
+                    error:
+                      code: account_not_linked
+                      message: no linked account wallet
+        "502":
+          description: Venue balance upstream unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/me/orders:
+    get:
+      tags: [Markets]
+      operationId: listMyOrders
+      summary: List the authenticated user's order projections
+      description: |
+        Returns venue-aligned order projections for the session's linked account wallet.
+        Use status=open to list resting and in-flight orders (open, partially_filled,
+        cancel_pending, unknown). Reconcile with user.orders WebSocket and venue truth.
+        Responses MUST NOT be cached (private, no-store).
+      x-phase: 3
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/OrderListStatus"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - name: tokenId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+      responses:
+        "200":
+          description: Paginated order list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrdersListResponse"
+              examples:
+                openOrders:
+                  summary: One open buy limit order
+                  value:
+                    schemaVersion: "1"
+                    orders:
+                      - orderId: "11111111-1111-4111-8111-111111111111"
+                        venueOrderId: "0xabc123"
+                        marketId: polymarket:market:456
+                        tokenId: token-yes
+                        side: BUY
+                        price: "0.42"
+                        originalSize: "100"
+                        filledSize: "0"
+                        remainingSize: "100"
+                        status: open
+                        exchangeDomain: standard
+                        createdAt: "2026-08-09T10:05:00Z"
+                        updatedAt: "2026-08-09T10:05:00Z"
+                    page:
+                      nextCursor: null
+                      limit: 50
+                    checkedAt: "2026-08-09T10:06:00Z"
+                    provenance:
+                      source: polymarket_clob
+                      observedAt: "2026-08-09T10:06:00Z"
+                    freshness:
+                      state: fresh
+                      observedAt: "2026-08-09T10:06:00Z"
+                      ageMillis: 0
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked primary account wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/me/fills:
+    get:
+      tags: [Markets]
+      operationId: listMyFills
+      summary: List the authenticated user's fill projections
+      description: |
+        Returns venue-aligned fill projections for the session's linked account wallet.
+        REST counterpart to the user.fills WebSocket channel. Fees use fixed-point
+        MoneyAmount (pUSD). Never invent fills the venue did not produce.
+      x-phase: 3
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/OrderIDQuery"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - name: tokenId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: Paginated fill list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FillsListResponse"
+              examples:
+                recentFill:
+                  summary: Single partial fill
+                  value:
+                    schemaVersion: "1"
+                    fills:
+                      - fillId: "22222222-2222-4222-8222-222222222222"
+                        orderId: "11111111-1111-4111-8111-111111111111"
+                        venueTradeId: "trade-789"
+                        marketId: polymarket:market:456
+                        tokenId: token-yes
+                        side: BUY
+                        price: "0.42"
+                        size: "25"
+                        fee:
+                          amount: "10000"
+                          currency: pUSD
+                          decimals: 6
+                        filledAt: "2026-08-09T10:07:00Z"
+                        provenance:
+                          source: polymarket_clob
+                          upstreamId: trade-789
+                          observedAt: "2026-08-09T10:07:00Z"
+                    page:
+                      nextCursor: null
+                      limit: 50
+                    checkedAt: "2026-08-09T10:07:30Z"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked primary account wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/orders/preview:
+    post:
+      tags: [Markets]
+      operationId: previewOrder
+      summary: Preview a limit order before wallet signing
+      description: |
+        Assembles an unsigned CLOB V2 order payload, binds it to a contentHash, and
+        returns human-readable summary metadata for client confirmation. Requires an
+        authenticated, eligible session and a makerAddress linked to the session.
+        Does not submit to CLOB. Builder attribution is attached server-side only.
+      x-phase: 3
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderPreviewRequest"
+            examples:
+              buyLimit:
+                summary: Buy limit preview
+                value:
+                  marketId: polymarket:market:456
+                  tokenId: token-yes
+                  side: BUY
+                  price: "0.42"
+                  size: "100"
+                  orderType: LIMIT
+                  timeInForce: GTC
+                  makerAddress: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      responses:
+        "200":
+          description: Order preview ready for signing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPreviewResponse"
+        "400":
+          description: Invalid order parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Eligibility denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Market or token not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Maker wallet not linked to session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: Upstream validation unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/orders/submit:
+    post:
+      tags: [Markets]
+      operationId: submitOrder
+      summary: Submit a signed limit order to CLOB V2
+      description: |
+        Accepts a wallet signature bound to a prior previewId and contentHash. The BFF
+        reloads the preview record, recomputes the binding hash, and relays the signed
+        order upstream when integrity checks pass. Requires RequireEligible and a linked
+        maker. On upstream timeout the response status is unknown — clients MUST poll
+        GET /markets/me/orders and MUST NOT auto-resubmit. Gated by features.order_submit.
+      x-phase: 3
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderSubmitRequest"
+            examples:
+              signedSubmit:
+                summary: Submit after preview + wallet sign
+                value:
+                  previewId: "33333333-3333-4333-8333-333333333333"
+                  contentHash: "0x8ff5b36b12c7cb42f697de3936d80c5fb9e965e46fd05c85d35f822f2e43b1ff"
+                  signature: "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef01"
+      responses:
+        "201":
+          description: Order accepted or submitted (venue-dependent status)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderSubmitResponse"
+              examples:
+                acceptedOpen:
+                  summary: Venue accepted — resting on book
+                  value:
+                    schemaVersion: "1"
+                    orderId: "11111111-1111-4111-8111-111111111111"
+                    venueOrderId: "0xabc123"
+                    status: open
+                    clientOrderId: "client-001"
+                    submittedAt: "2026-08-09T10:05:00Z"
+                    provenance:
+                      source: polymarket_clob
+                      upstreamId: "0xabc123"
+                      observedAt: "2026-08-09T10:05:00Z"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Eligibility denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Preview not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                previewNotFound:
+                  value:
+                    error:
+                      code: preview_not_found
+                      message: preview session not found
+        "409":
+          description: Content hash mismatch — no upstream submit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                integrityMismatch:
+                  summary: Tampered contentHash
+                  value:
+                    error:
+                      code: integrity_mismatch
+                      message: preview content hash does not match stored payload
+        "410":
+          description: Preview expired — re-preview required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                previewExpired:
+                  value:
+                    error:
+                      code: preview_expired
+                      message: preview TTL exceeded
+        "422":
+          description: Idempotency key replay with different body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: CLOB upstream unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Order submit capability disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                capabilityDisabled:
+                  value:
+                    error:
+                      code: capability_disabled
+                      message: order_submit is disabled
+  /markets/orders/{orderId}/cancel-preview:
+    post:
+      tags: [Markets]
+      operationId: previewCancelOrder
+      summary: Preview canceling an open order before wallet signing
+      description: |
+        Assembles an unsigned CLOB V2 cancel payload for the given orderId, binds it
+        to a contentHash, and returns human-readable summary metadata. Does not cancel
+        on venue. Same hash envelope rules as order preview (unsignedPayload + metadata).
+      x-phase: 3
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/OrderID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        "200":
+          description: Cancel preview ready for signing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCancelPreviewResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Eligibility denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Order not found or not cancelable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Order not owned by session maker
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: Upstream validation unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/orders/{orderId}/cancel:
+    post:
+      tags: [Markets]
+      operationId: cancelOrder
+      summary: Submit a signed cancel to CLOB V2
+      description: |
+        Accepts a wallet signature bound to a prior cancel previewId and contentHash.
+        Same integrity and idempotency rules as submitOrder. Gated by features.order_submit.
+      x-phase: 3
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/OrderID"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCancelRequest"
+      responses:
+        "200":
+          description: Cancel accepted or pending venue confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderCancelResponse"
+        "400":
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Eligibility denied
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Preview or order not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Content hash mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "410":
+          description: Preview expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "422":
+          description: Idempotency key replay with different body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "502":
+          description: CLOB upstream unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Order submit capability disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/me/wallets/link:
+    post:
+      tags: [Markets]
+      operationId: linkExistingWallet
+      summary: Connect an existing Polymarket account wallet to the session signer
+      description: |
+        Persists a connect-existing linkage between the session signer EOA and a
+        client-supplied Polymarket trading wallet. The BFF never generates or invents
+        accountWallet addresses. Response is a bare LinkedWallet object. Responses
+        MUST NOT be cached (private, no-store).
+      x-phase: 2
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkExistingWalletRequest"
+            examples:
+              linkProxy:
+                summary: Link existing Gnosis Safe proxy wallet
+                value:
+                  accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                  walletType: GNOSIS_SAFE
+                  isPrimary: true
+      responses:
+        "200":
+          description: Linked account wallet persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LinkedWallet"
+              examples:
+                linkedProxy:
+                  summary: Proxy linked — signer differs from account wallet
+                  value:
+                    accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    walletType: GNOSIS_SAFE
+                    linkStatus: linked
+                    isPrimary: true
+                    chainId: 137
+        "400":
+          description: Invalid wallet address or malformed request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                invalidRequest:
+                  value:
+                    error:
+                      code: invalid_request
+                      message: invalid wallet address
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Wallet linkage conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                conflict:
+                  value:
+                    error:
+                      code: conflict
+                      message: wallet linkage conflict
+        "503":
+          description: Wallet linking is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                serviceUnavailable:
+                  value:
+                    error:
+                      code: service_unavailable
+                      message: wallet linking is not configured
+  /markets/account-wallet/preview:
+    post:
+      tags: [Markets]
+      operationId: previewAccountWallet
+      summary: Preview metadata for deposit-wallet deploy or link-existing
+      description: |
+        Returns preview metadata for the requested account-wallet action. Does not
+        call upstream relayer HTTP, does not persist linkage, and exposes no relayer
+        secrets. When action is omitted, defaults to deploy_deposit_wallet. Responses
+        MUST NOT be cached (private, no-store).
+      x-phase: 2
+      security:
+        - MarketsSession: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountWalletPreviewRequest"
+            examples:
+              deployDepositWallet:
+                summary: Preview deposit wallet deploy
+                value:
+                  action: deploy_deposit_wallet
+              emptyBody:
+                summary: Default action when body is empty object
+                value: {}
+      responses:
+        "200":
+          description: Preview metadata for client confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountWalletPreviewResponse"
+              examples:
+                deployDepositWallet:
+                  summary: Deploy Deposit Wallet preview
+                  value:
+                    schemaVersion: "1"
+                    signerAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    action: deploy_deposit_wallet
+                    chainId: 137
+                    message: Sign and deploy Deposit Wallet via upstream relayer; BFF persists the deployed address on relay.
+        "400":
+          description: Invalid action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Wallet linking is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /markets/account-wallet/relay:
+    post:
+      tags: [Markets]
+      operationId: relayAccountWallet
+      summary: Persist client-supplied deployed Deposit Wallet address
+      description: |
+        Persists a deployed Deposit Wallet address supplied by the client after
+        upstream relayer deploy. The BFF never generates or invents accountWallet
+        addresses. Idempotent upsert at the store layer. Responses MUST NOT be cached
+        (private, no-store).
+      x-phase: 2
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountWalletRelayRequest"
+            examples:
+              relayDepositWallet:
+                summary: Persist deployed Deposit Wallet
+                value:
+                  accountWallet: "0xdddddddddddddddddddddddddddddddddddddddd"
+                  isPrimary: true
+      responses:
+        "200":
+          description: Deposit Wallet linkage persisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountWalletRelayResponse"
+              examples:
+                relayed:
+                  summary: Relay persisted deposit wallet
+                  value:
+                    schemaVersion: "1"
+                    signerAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    wallet:
+                      accountWallet: "0xdddddddddddddddddddddddddddddddddddddddd"
+                      walletType: DEPOSIT_WALLET
+                      linkStatus: linked
+                      isPrimary: true
+                      chainId: 137
+        "400":
+          description: Missing or invalid account wallet address
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Wallet linkage conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Wallet linking is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /markets/events:
     get:
       tags: [Markets]
@@ -231,6 +1082,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthResponse"
 components:
+  securitySchemes:
+    MarketsSession:
+      type: apiKey
+      in: cookie
+      name: retropick_markets_session
+      description: HttpOnly session cookie issued by Markets auth (MKT-P2-005).
   parameters:
     Cursor:
       name: cursor
@@ -270,6 +1127,37 @@ components:
         type: string
         minLength: 1
         maxLength: 256
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: UUID for mutating POST idempotency (24h replay window).
+      schema:
+        type: string
+        format: uuid
+    OrderID:
+      name: orderId
+      in: path
+      required: true
+      description: Internal RetroPick order UUID.
+      schema:
+        type: string
+        format: uuid
+    OrderIDQuery:
+      name: orderId
+      in: query
+      description: Filter fills by internal RetroPick order UUID.
+      schema:
+        type: string
+        format: uuid
+    OrderListStatus:
+      name: status
+      in: query
+      description: |
+        Filter orders by status. Use open for resting and in-flight orders
+        (open, partially_filled, cancel_pending, unknown).
+      schema:
+        $ref: "#/components/schemas/OrderListStatusFilter"
   responses:
     Eligibility:
       description: Eligibility decision
@@ -928,6 +1816,533 @@ components:
           format: date-time
         region:
           type: string
+    WalletType:
+      type: string
+      enum: [EOA, POLY_PROXY, GNOSIS_SAFE, DEPOSIT_WALLET]
+      description: Polymarket wallet type per EV-009.
+    LinkStatus:
+      type: string
+      enum: [linked, pending_verification]
+    LinkedWallet:
+      type: object
+      additionalProperties: false
+      required: [accountWallet, walletType, linkStatus, isPrimary, chainId]
+      properties:
+        accountWallet:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Polymarket trading wallet holding collateral and positions.
+        walletType:
+          $ref: "#/components/schemas/WalletType"
+        linkStatus:
+          $ref: "#/components/schemas/LinkStatus"
+        isPrimary:
+          type: boolean
+        chainId:
+          type: integer
+          minimum: 1
+          examples: [137]
+    AccountWalletAction:
+      type: string
+      enum: [link_existing, deploy_deposit_wallet]
+      description: Intended account-wallet operation for preview.
+    LinkExistingWalletRequest:
+      type: object
+      additionalProperties: false
+      required: [accountWallet, walletType]
+      properties:
+        accountWallet:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Existing Polymarket trading wallet to link.
+        walletType:
+          $ref: "#/components/schemas/WalletType"
+        linkStatus:
+          $ref: "#/components/schemas/LinkStatus"
+        isPrimary:
+          type: boolean
+          default: true
+        chainId:
+          type: integer
+          minimum: 1
+          examples: [137]
+        linkageProofHash:
+          type: string
+          description: Optional signature-challenge hash; no relayer API keys.
+    AccountWalletPreviewRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          $ref: "#/components/schemas/AccountWalletAction"
+          default: deploy_deposit_wallet
+    AccountWalletPreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, signerAddress, action, chainId, message]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        signerAddress:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Session signer EOA (ADR-003); never from request body.
+        action:
+          $ref: "#/components/schemas/AccountWalletAction"
+        chainId:
+          type: integer
+          minimum: 1
+          examples: [137]
+        message:
+          type: string
+          description: Human-readable preview summary for client confirmation modal.
+    AccountWalletRelayRequest:
+      type: object
+      additionalProperties: false
+      required: [accountWallet]
+      properties:
+        accountWallet:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Deployed Deposit Wallet address supplied by the client.
+        chainId:
+          type: integer
+          minimum: 1
+          examples: [137]
+        isPrimary:
+          type: boolean
+          default: true
+        linkageProofHash:
+          type: string
+          description: Optional signature-challenge hash; no relayer API keys.
+    AccountWalletRelayResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, signerAddress, wallet]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        signerAddress:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Session signer EOA (ADR-003); never from request body.
+        wallet:
+          $ref: "#/components/schemas/LinkedWallet"
+    WalletsListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, signerAddress, wallets, checkedAt]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        signerAddress:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: EOA that signs L1 auth and EIP-712 payloads (ADR-003).
+        wallets:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinkedWallet"
+        checkedAt:
+          type: string
+          format: date-time
+    BalancesListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, signerAddress, accountWallet, collateral, checkedAt, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        signerAddress:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: EOA that signs L1 auth and EIP-712 payloads (ADR-003).
+        accountWallet:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Primary linked Polymarket trading wallet whose collateral was queried.
+        collateral:
+          $ref: "#/components/schemas/MoneyAmount"
+        checkedAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+    OrderSide:
+      type: string
+      enum: [BUY, SELL]
+    OrderType:
+      type: string
+      enum: [LIMIT]
+    OrderTimeInForce:
+      type: string
+      enum: [GTC, GTD]
+    OrderPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [marketId, tokenId, side, price, size, orderType, makerAddress]
+      properties:
+        marketId:
+          type: string
+          minLength: 1
+          description: Canonical market id (polymarket:market:{upstreamId}).
+        tokenId:
+          type: string
+          minLength: 1
+          description: Outcome token id (upstream CLOB token id).
+        side:
+          $ref: "#/components/schemas/OrderSide"
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        size:
+          $ref: "#/components/schemas/DecimalString"
+          description: USDC collateral amount for BUY; outcome shares for SELL.
+        orderType:
+          $ref: "#/components/schemas/OrderType"
+        timeInForce:
+          $ref: "#/components/schemas/OrderTimeInForce"
+        makerAddress:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+        idempotencyKey:
+          type: string
+          maxLength: 128
+    OrderPreviewHumanSummary:
+      type: object
+      additionalProperties: false
+      required: [action, market, outcome, size, price, chainId]
+      properties:
+        action:
+          $ref: "#/components/schemas/OrderSide"
+        market:
+          type: string
+        outcome:
+          type: string
+        size:
+          type: string
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        estimatedFee:
+          type: string
+        chainId:
+          type: integer
+          minimum: 1
+    UnsignedOrderPayload:
+      type: object
+      additionalProperties: false
+      required: [salt, maker, signer, tokenId, makerAmount, takerAmount, side, signatureType, timestamp, metadata, builder]
+      properties:
+        salt:
+          type: string
+        maker:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+        signer:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+        tokenId:
+          type: string
+        makerAmount:
+          type: string
+          pattern: '^[0-9]+$'
+        takerAmount:
+          type: string
+          pattern: '^[0-9]+$'
+        side:
+          type: integer
+          minimum: 0
+          maximum: 1
+        signatureType:
+          type: integer
+          minimum: 0
+        timestamp:
+          type: string
+          pattern: '^[0-9]+$'
+        metadata:
+          type: string
+        builder:
+          type: string
+    OrderPreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, previewId, contentHash, expiresAt, humanSummary, unsignedPayload, exchangeDomain]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        previewId:
+          type: string
+          format: uuid
+        contentHash:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{64}$'
+        expiresAt:
+          type: string
+          format: date-time
+        humanSummary:
+          $ref: "#/components/schemas/OrderPreviewHumanSummary"
+        unsignedPayload:
+          $ref: "#/components/schemas/UnsignedOrderPayload"
+        exchangeDomain:
+          type: string
+          enum: [standard, neg_risk]
+        warnings:
+          type: array
+          items:
+            type: string
+    OrderStatus:
+      type: string
+      enum: [submitted, open, partially_filled, filled, cancel_pending, canceled, rejected, expired, unknown]
+    OrderListStatusFilter:
+      type: string
+      enum: [open, submitted, partially_filled, filled, cancel_pending, canceled, rejected, expired, unknown]
+    OrderSubmitRequest:
+      type: object
+      additionalProperties: false
+      required: [previewId, contentHash, signature]
+      properties:
+        previewId:
+          type: string
+          format: uuid
+        contentHash:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{64}$'
+        signature:
+          type: string
+          pattern: '^0x[0-9a-fA-F]+$'
+          description: EIP-712 order signature from the user's wallet.
+    OrderSubmitResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, orderId, status, submittedAt, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        orderId:
+          type: string
+          format: uuid
+          description: Internal RetroPick order id.
+        venueOrderId:
+          type: string
+          description: Polymarket CLOB order id when known.
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        clientOrderId:
+          type: string
+          maxLength: 128
+        submittedAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        warnings:
+          type: array
+          items:
+            type: string
+    OrderCancelHumanSummary:
+      type: object
+      additionalProperties: false
+      required: [action, market, outcome, size, price, chainId]
+      properties:
+        action:
+          type: string
+          const: CANCEL
+        market:
+          type: string
+        outcome:
+          type: string
+        size:
+          type: string
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        chainId:
+          type: integer
+          minimum: 1
+    UnsignedCancelPayload:
+      type: object
+      additionalProperties: false
+      required: [orderId, maker, tokenId, salt, timestamp]
+      properties:
+        orderId:
+          type: string
+          description: Venue order id to cancel.
+        maker:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+        tokenId:
+          type: string
+        salt:
+          type: string
+        timestamp:
+          type: string
+          pattern: '^[0-9]+$'
+    OrderCancelPreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, previewId, contentHash, expiresAt, humanSummary, unsignedPayload, orderId]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        previewId:
+          type: string
+          format: uuid
+        contentHash:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{64}$'
+        expiresAt:
+          type: string
+          format: date-time
+        humanSummary:
+          $ref: "#/components/schemas/OrderCancelHumanSummary"
+        unsignedPayload:
+          $ref: "#/components/schemas/UnsignedCancelPayload"
+        orderId:
+          type: string
+          format: uuid
+          description: Internal RetroPick order id being canceled.
+        warnings:
+          type: array
+          items:
+            type: string
+    OrderCancelRequest:
+      type: object
+      additionalProperties: false
+      required: [previewId, contentHash, signature]
+      properties:
+        previewId:
+          type: string
+          format: uuid
+        contentHash:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{64}$'
+        signature:
+          type: string
+          pattern: '^0x[0-9a-fA-F]+$'
+          description: EIP-712 cancel signature from the user's wallet.
+    OrderCancelResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, orderId, status]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        orderId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [cancel_pending, canceled]
+        canceledAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    UserOrder:
+      type: object
+      additionalProperties: false
+      required: [orderId, marketId, tokenId, side, price, originalSize, filledSize, remainingSize, status, exchangeDomain, createdAt, updatedAt]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        venueOrderId:
+          type: string
+        marketId:
+          type: string
+          minLength: 1
+        tokenId:
+          type: string
+          minLength: 1
+        side:
+          $ref: "#/components/schemas/OrderSide"
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        originalSize:
+          $ref: "#/components/schemas/DecimalString"
+        filledSize:
+          $ref: "#/components/schemas/DecimalString"
+        remainingSize:
+          $ref: "#/components/schemas/DecimalString"
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        exchangeDomain:
+          type: string
+          enum: [standard, neg_risk]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    OrdersListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, orders, page, checkedAt, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        orders:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserOrder"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+        checkedAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+    UserFill:
+      type: object
+      additionalProperties: false
+      required: [fillId, orderId, venueTradeId, marketId, tokenId, side, price, size, fee, filledAt, provenance]
+      properties:
+        fillId:
+          type: string
+          format: uuid
+        orderId:
+          type: string
+          format: uuid
+        venueTradeId:
+          type: string
+        marketId:
+          type: string
+          minLength: 1
+        tokenId:
+          type: string
+          minLength: 1
+        side:
+          $ref: "#/components/schemas/OrderSide"
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        size:
+          $ref: "#/components/schemas/DecimalString"
+        fee:
+          $ref: "#/components/schemas/MoneyAmount"
+        filledAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    FillsListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, fills, page, checkedAt]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        fills:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserFill"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+        checkedAt:
+          type: string
+          format: date-time
     CapabilitiesResponse:
       type: object
       additionalProperties: false
@@ -949,6 +2364,13 @@ components:
           type: object
           additionalProperties:
             type: boolean
+          properties:
+            order_submit:
+              type: boolean
+              description: |
+                When false, submit and cancel POST handlers MUST NOT be mounted;
+                clients hide trade CTAs. Runtime remains false until MKT-P3-002 wiring.
+          required: [order_submit]
         source:
           type: string
         checkedAt:

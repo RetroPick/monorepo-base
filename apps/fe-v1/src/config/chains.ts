@@ -1,10 +1,8 @@
 /**
  * Chain configuration for RetroPick Protocol
  *
- * Deployment chain  : Arbitrum One (42161)
- * Stake token       : USDC (native) — 0xaf88d065e77c8cC2239327C5EDb3A432268e5831
- * Cross-chain paths : Ethereum, Base, Optimism, Polygon, zkSync Era, Scroll, Linea
- *                     (users can deposit from any of these; LiFi bridges to Arbitrum USDC)
+ * MarketEngine (indexed deployment) : Base Sepolia per `@retropick/contracts` registry.
+ * Additional chains               : sources for bridges / funding; Arbitrum envs remain for legacy tooling.
  */
 
 import {
@@ -22,39 +20,41 @@ import {
   zksync,
   linea,
   scroll,
-} from '@reown/appkit/networks'
+} from "@reown/appkit/networks";
 
-// ── Primary deployment chain ─────────────────────────────────────────────────
+import { REGISTRY_CHAIN_ID } from "@/contracts/config";
 
-/** Arbitrum One — the chain where MarketEngineDispatcher is deployed. */
-export const DEPLOYMENT_CHAIN = arbitrum
-export const DEPLOYMENT_CHAIN_ID = 42161
+// ── Primary MarketEngine chain (registry) ────────────────────────────────────
 
-/** Arbitrum Sepolia — staging / testnet deployment. */
-export const DEPLOYMENT_TESTNET_CHAIN = arbitrumSepolia
-export const DEPLOYMENT_TESTNET_CHAIN_ID = 421614
+/** Base Sepolia: current registry chain for the MarketEngine proxy. */
+export const DEPLOYMENT_CHAIN = baseSepolia;
+export const DEPLOYMENT_CHAIN_ID = REGISTRY_CHAIN_ID;
+
+/** Alias: same as `DEPLOYMENT_CHAIN` for testnet-only naming. */
+export const DEPLOYMENT_TESTNET_CHAIN = baseSepolia;
+export const DEPLOYMENT_TESTNET_CHAIN_ID = REGISTRY_CHAIN_ID;
 
 // ── All supported networks ────────────────────────────────────────────────────
 
 /**
  * Networks shown in the wallet connection modal.
- * Arbitrum One is first (default). Others are cross-chain deposit sources.
+ * Base Sepolia first (registry / MarketEngine). Others include L2s and legacy testnets.
  */
 export const SUPPORTED_NETWORKS: [AppKitNetwork, ...AppKitNetwork[]] = [
-  arbitrum,         // 42161  — primary deployment
-  arbitrumSepolia,  // 421614 — testnet
-  mainnet,          // 1      — cross-chain source
-  base,             // 8453   — cross-chain source
-  optimism,         // 10     — cross-chain source
-  polygon,          // 137    — cross-chain source
-  zksync,           // 324    — cross-chain source
-  linea,            // 59144  — cross-chain source
-  scroll,           // 534352 — cross-chain source
-  sepolia,          // 11155111 — dev testnet
-  baseSepolia,      // 84532  — dev testnet
-  optimismSepolia,  // 11155420 — dev testnet
-  polygonAmoy,      // 80002  — dev testnet
-]
+  baseSepolia, // 84532, MarketEngine (registry)
+  arbitrum,
+  arbitrumSepolia,
+  mainnet,
+  base,
+  optimism,
+  polygon,
+  zksync,
+  linea,
+  scroll,
+  sepolia,
+  optimismSepolia,
+  polygonAmoy,
+];
 
 /** Chain IDs that are valid sources for cross-chain deposits (via LiFi bridge). */
 export const CROSS_CHAIN_SOURCE_IDS = new Set<number>([
@@ -161,5 +161,9 @@ export function isCrossChainSource(chainId: number): boolean {
 }
 
 export function isDeploymentChain(chainId: number): boolean {
-  return chainId === DEPLOYMENT_CHAIN_ID || chainId === DEPLOYMENT_TESTNET_CHAIN_ID
+  return (
+    chainId === DEPLOYMENT_CHAIN_ID ||
+    chainId === 42161 ||
+    chainId === 421614
+  );
 }

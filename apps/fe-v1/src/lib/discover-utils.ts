@@ -1,16 +1,19 @@
-import type { DiscoveryMarket } from "@/types/discovery-market";
+import type { Market } from "@/types/market";
+import { buildDiscoverSubtitle } from "@/lib/market-data/discoverMarketClassification";
 
-export function yesPercentFromPools(market: DiscoveryMarket) {
-  const t = market.yesPoolValue + market.noPoolValue;
-  if (t <= 0) return 50;
-  return Math.round((market.yesPoolValue / t) * 100);
+function firstOutcomeYesPercent(market: Market) {
+  const y =
+    market.outcomes.find((o) => /^(yes|up)\b/i.test(o.label)) ?? market.outcomes[0];
+  if (y) return Math.round(y.probability);
+  return 50;
 }
 
-export function thresholdSubtitle(market: DiscoveryMarket) {
-  const v = market.thresholdValue;
-  const price =
-    v >= 1000
-      ? `$${v.toLocaleString("en-US", { maximumFractionDigits: 0 })}`
-      : `$${v.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-  return `${price} · ${market.thresholdLabel}`;
+/** Implied “yes / up” share for rail list until list API includes pool totals. */
+export function yesPercentFromPools(market: Market) {
+  return firstOutcomeYesPercent(market);
+}
+
+/** One line under title for discover rail: type, Manual/Rolling, slug when indexer fields are present. */
+export function discoverListSubtitle(market: Market) {
+  return buildDiscoverSubtitle(market);
 }

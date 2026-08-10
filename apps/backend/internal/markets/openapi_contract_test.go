@@ -18,8 +18,11 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 	}
 	var document struct {
 		OpenAPI string            `yaml:"openapi"`
-		Paths   map[string]any    `yaml:"paths"`
-		Parts   openAPIComponents `yaml:"components"`
+		Info    struct {
+			Version string `yaml:"version"`
+		} `yaml:"info"`
+		Paths map[string]any    `yaml:"paths"`
+		Parts openAPIComponents `yaml:"components"`
 	}
 	if err := yaml.Unmarshal(body, &document); err != nil {
 		t.Fatalf("parse OpenAPI: %v", err)
@@ -27,8 +30,12 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 	if document.OpenAPI != "3.1.0" {
 		t.Fatalf("openapi = %q", document.OpenAPI)
 	}
+	if document.Info.Version != "1.3.0" {
+		t.Fatalf("info.version = %q", document.Info.Version)
+	}
 
 	requiredPaths := []string{
+		"/markets/eligibility",
 		"/markets/capabilities",
 		"/markets/events",
 		"/markets/events/{eventId}",
@@ -37,6 +44,12 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 		"/markets/markets/{marketId}/history",
 		"/markets/markets/{marketId}/health",
 		"/markets/intelligence/signals",
+		"/markets/orders/preview",
+		"/markets/orders/submit",
+		"/markets/orders/{orderId}/cancel-preview",
+		"/markets/orders/{orderId}/cancel",
+		"/markets/me/orders",
+		"/markets/me/fills",
 	}
 	for _, required := range requiredPaths {
 		if _, ok := document.Paths[required]; !ok {
@@ -46,6 +59,8 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 
 	requiredSchemas := []string{
 		"ApiError",
+		"DecimalString",
+		"MoneyAmount",
 		"EventSummary",
 		"EventDetail",
 		"MarketSummary",
@@ -64,11 +79,42 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 		"SignalEvidence",
 		"MarketHealthSnapshot",
 		"RealtimeEnvelope",
+		"EligibilityResponse",
+		"OrderPreviewRequest",
+		"OrderPreviewResponse",
+		"OrderPreviewHumanSummary",
+		"UnsignedOrderPayload",
+		"OrderSubmitRequest",
+		"OrderSubmitResponse",
+		"OrderCancelPreviewResponse",
+		"OrderCancelRequest",
+		"OrderCancelResponse",
+		"OrdersListResponse",
+		"FillsListResponse",
+		"UserOrder",
+		"UserFill",
+		"OrderStatus",
 	}
 	for _, required := range requiredSchemas {
 		if _, ok := document.Parts.Schemas[required]; !ok {
 			t.Errorf("missing schema %s", required)
 		}
+	}
+
+	decimalSchema, ok := document.Parts.Schemas["DecimalString"].(map[string]any)
+	if !ok {
+		t.Fatal("DecimalString schema is not an object")
+	}
+	if decimalSchema["type"] != "string" {
+		t.Fatalf("DecimalString.type = %v", decimalSchema["type"])
+	}
+
+	moneySchema, ok := document.Parts.Schemas["MoneyAmount"].(map[string]any)
+	if !ok {
+		t.Fatal("MoneyAmount schema is not an object")
+	}
+	if moneySchema["type"] != "object" {
+		t.Fatalf("MoneyAmount.type = %v", moneySchema["type"])
 	}
 }
 

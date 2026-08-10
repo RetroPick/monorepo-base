@@ -110,179 +110,57 @@ flowchart TD
 On submit timeout: persist `unknown` status; reconciliation polls CLOB by
 client_order_id / payload hash. Never auto-resubmit.
 
+### 5.1 Unknown-order worker (MKT-P3-005)
+
+**Implementation:** [`apps/backend/internal/markets/reconcile/`](../../../../apps/backend/internal/markets/reconcile/)
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Poll interval | 10s | Env `MARKETS_RECONCILE_ENABLED` (default on) gates worker in `markets-api` |
+| Unknown grace | 90s | Before grace, stay `unknown`; after grace with no venue match → `rejected` (`reconcile_not_found`) |
+| Venue lookup | `GET /data/orders` (L2) | Also ingests fills via `GET /data/trades` |
+| Fill ingest | idempotent by `venue_trade_id` | Natural key dedup in projection store |
+
+**Match order (fail closed on ambiguity):**
+
+1. `client_order_id` — stored salt/COID ↔ CLOB `client_order_id` or `salt`
+2. Fingerprint — `maker|tokenId|salt|makerAmount|takerAmount` (lowercase)
+3. Legacy fallback — token + side + price + size (when amount fields absent)
+
+**State transitions:**
+
+| From | To | Condition |
+|------|-----|-----------|
+| `unknown` | `open` | Venue match on CLOB open orders |
+| `unknown` | `rejected` | No match after grace window |
+| `unknown` | `unknown` | Upstream error or ambiguous match (retry next tick) |
+| `cancel_pending` | `canceled` | Venue order no longer in open set |
+
+**Safety:** Worker holds read-only CLOB clients. **Never** calls `POST /order` or auto-resubmits.
+
+**Metrics (Prometheus):**
+
+- `retropick_markets_order_reconcile_lag_seconds_{sum,count}`
+- `retropick_markets_order_reconcile_repairs_total{outcome="open|rejected|canceled|fill"}`
+- `retropick_markets_order_reconcile_scanned_total`
+- `retropick_markets_order_reconcile_errors_total{kind="upstream|credentials_unwired"}`
+- Alias: `retropick_markets_reconciliation_lag_seconds_*` (same lag histogram)
+
+**Ops audit:** `reconciliation_runs` Postgres table is **future**; v1 records metrics only.
+
 ## 6. Metrics
 
-- `markets_reconciliation_lag_seconds`
-- `markets_reorg_events_total`
-- `markets_drift_repairs_total`
+- `markets_order_reconcile_lag_seconds` (implemented as `retropick_markets_order_reconcile_lag_seconds`)
+- `markets_reconciliation_lag_seconds` (alias in metrics export)
+- `markets_reorg_events_total` (chain indexer — future)
+- `markets_drift_repairs_total` (fill/position/deep loops — future)
 
-## Scenario 1: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 2: reconciliation edge case
+## Scenario reference: reconciliation edge cases
 
 Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
 and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 3: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 4: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 5: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 6: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 7: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 8: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 9: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 10: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 11: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 12: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 13: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 14: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 15: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 16: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 17: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 18: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 19: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 20: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 21: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 22: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 23: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
-
-## Scenario 24: reconciliation edge case
-
-Documented behavior for duplicate fill events, partial cancels, neg-risk conversions,
-and delayed chain confirmations. All paths idempotent via natural keys. User sees
-`reconciling` badge until terminal state. Ops runbook: check `reconciliation_runs`
-table for `drift_count` and `repair_actions`.
+`reconciling` badge until terminal state. Ops runbook: check metrics and (future)
+`reconciliation_runs` for `drift_count` and `repair_actions`.
 
 ## Appendix 1
 

@@ -337,7 +337,7 @@ tasks:
   phase: PHASE-1
   title: OpenAPI markets-v1 expansion
   goal: Extend schemas/openapi/markets-v1.yaml for catalog read models.
-  status: planned
+  status: done
   depends_on:
   - MKT-P0-008
   may_run_in_parallel_with: []
@@ -367,7 +367,7 @@ tasks:
   phase: PHASE-1
   title: Gamma catalog client hardening
   goal: Normalize Polymarket Gamma responses in internal/markets/gamma.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-001
   may_run_in_parallel_with: []
@@ -395,7 +395,7 @@ tasks:
   phase: PHASE-1
   title: Markets database schema v1
   goal: Migrations for catalog cache and watchlist foundation.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-001
   may_run_in_parallel_with:
@@ -422,7 +422,7 @@ tasks:
   phase: PHASE-1
   title: Web markets read routes
   goal: Product shell routes under apps/web/src/products/markets for event list and detail.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-002
   may_run_in_parallel_with: []
@@ -441,7 +441,8 @@ tasks:
   - Same canonical market ID as OpenAPI
   - Stale state visible
   - Rules and resolution source shown
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-1/MKT-P1-010-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -449,7 +450,7 @@ tasks:
   phase: PHASE-1
   title: Signal schema foundation
   goal: Shared signal envelope for alerts (ADR-008).
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-003
   may_run_in_parallel_with: []
@@ -466,7 +467,8 @@ tasks:
   commands: []
   acceptance_criteria:
   - Signal versioned, evidence-linked, retractable
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-1/MKT-P1-010-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -474,7 +476,7 @@ tasks:
   phase: PHASE-1
   title: Realtime snapshot and gap recovery design
   goal: Document and implement WS snapshot/gap protocol per ADR-005.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-002
   may_run_in_parallel_with:
@@ -501,7 +503,7 @@ tasks:
   phase: PHASE-1
   title: Android module scaffold plan
   goal: Gradle module graph and README alignment (implementation in PHASE-5).
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-001
   may_run_in_parallel_with: []
@@ -527,7 +529,7 @@ tasks:
   phase: PHASE-1
   title: Contract conformance tests
   goal: OpenAPI conformance tests for markets handlers.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-002
   may_run_in_parallel_with: []
@@ -544,7 +546,8 @@ tasks:
   - contract tests pass
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-1/MKT-P1-008-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -552,7 +555,7 @@ tasks:
   phase: PHASE-1
   title: Observability baseline
   goal: Metrics for catalog freshness and Gamma error rate.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-002
   may_run_in_parallel_with:
@@ -571,7 +574,8 @@ tasks:
   acceptance_criteria:
   - SLO dashboards defined
   - infra cost estimate documented
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-1/MKT-P1-009-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -579,7 +583,7 @@ tasks:
   phase: PHASE-1
   title: PHASE-1 exit gate verification
   goal: Web renders canonical market; no signing or fund movement.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-004
   - MKT-P1-008
@@ -598,7 +602,8 @@ tasks:
   - Schema conformance SLOs pass
   - Signal reproducible from evidence
   - No wallet connect or order submit in PHASE-1
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-1/MKT-P1-010-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -606,7 +611,7 @@ tasks:
   phase: PHASE-2
   title: Wallet connect flow (web)
   goal: Implement wallet connect without raw key custody per ADR-003.
-  status: planned
+  status: done
   depends_on:
   - MKT-P1-010
   may_run_in_parallel_with: []
@@ -624,7 +629,10 @@ tasks:
   acceptance_criteria:
   - No T4 data stored
   - Signer distinct from account wallet
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-001-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-001-handoff.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-001-invariant-greps.txt
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -632,7 +640,7 @@ tasks:
   phase: PHASE-2
   title: Fail-closed eligibility service
   goal: Server-side geoblock and eligibility checks.
-  status: planned
+  status: blocked
   depends_on:
   - MKT-P1-010
   may_run_in_parallel_with: []
@@ -650,7 +658,10 @@ tasks:
   acceptance_criteria:
   - Unknown region returns eligible:false
   - No VPN bypass logic
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-002-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-002-test-output.txt
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -658,7 +669,7 @@ tasks:
   phase: PHASE-2
   title: Account wallet discovery
   goal: Discover and link Polymarket account wallet addresses.
-  status: planned
+  status: done
   depends_on:
   - MKT-P2-001
   may_run_in_parallel_with: []
@@ -674,7 +685,9 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-003-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-003-test-output.txt
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -682,7 +695,7 @@ tasks:
   phase: PHASE-2
   title: Deposit wallet creation flow
   goal: Deposit Wallet creation with human approval gate.
-  status: planned
+  status: done
   depends_on:
   - MKT-P2-003
   may_run_in_parallel_with: []
@@ -698,7 +711,11 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-004-backend-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-004-web-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-004-openapi-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-004-web-openapi-align-evidence.md
   rollback: ''
   human_approval_required: true
   handoff_to: []
@@ -706,7 +723,7 @@ tasks:
   phase: PHASE-2
   title: Session and auth middleware
   goal: Markets session management without key custody.
-  status: planned
+  status: done
   depends_on:
   - MKT-P2-001
   may_run_in_parallel_with:
@@ -723,7 +740,10 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-005-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-005-web-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-005-test-output.txt
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -731,7 +751,7 @@ tasks:
   phase: PHASE-2
   title: pUSD balance read
   goal: Read collateral balance from venue via BFF.
-  status: planned
+  status: done
   depends_on:
   - MKT-P2-003
   may_run_in_parallel_with: []
@@ -746,7 +766,12 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-006-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-006-main-wire-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-006-venue-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-006-test-output.txt
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-006-venue-test-output.txt
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -754,7 +779,7 @@ tasks:
   phase: PHASE-2
   title: PHASE-2 exit gate verification
   goal: Wallet connect, eligibility, and funding foundations verified.
-  status: planned
+  status: done
   depends_on:
   - MKT-P2-004
   - MKT-P2-005
@@ -772,7 +797,11 @@ tasks:
   acceptance_criteria:
   - eligibility_fail_closed metric green
   - No order submit yet
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-007-evidence.md
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-007-test-output.txt
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-007-invariant-greps.txt
+  - .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-007-phase-gate.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -780,7 +809,7 @@ tasks:
   phase: PHASE-3
   title: Order preview endpoint
   goal: Preview-before-sign binding per MKT-SEC-002.
-  status: planned
+  status: done
   depends_on:
   - MKT-P2-007
   may_run_in_parallel_with: []
@@ -797,7 +826,8 @@ tasks:
   commands: []
   acceptance_criteria:
   - Preview hash matches EIP-712 payload
-  verification_evidence: []
+  verification_evidence:
+  - .dev/markets-v1/agent-harness/verification/PHASE-3/MKT-P3-001-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []

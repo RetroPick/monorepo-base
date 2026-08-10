@@ -99,12 +99,13 @@ entries:
 
   - id: EV-009
     topic: geoblock-api
-    claim: Polymarket exposes a geographic restriction / geoblock check API that returns whether trading is permitted for the caller context.
+    claim: Polymarket geoblock API at GET https://polymarket.com/api/geoblock returns JSON {blocked, ip, country, region}; blocked=true means trading denied for the evaluated IP.
     source_url: https://docs.polymarket.com/api-reference/geoblock
+    source_path: apps/backend/internal/markets/eligibility/geoblock/client.go
     source_type: official-docs
-    retrieved: 2026-07-25
-    confidence: partially_verified
-    consequence: BFF /markets/eligibility must call upstream geoblock plus RetroPick policy layer; fail closed when upstream unavailable.
+    retrieved: 2026-08-09
+    confidence: verified
+    consequence: BFF /markets/eligibility calls upstream geoblock with X-Forwarded-For client IP plus RetroPick policy layer; fail closed when upstream unavailable.
     revalidation_trigger: geoblock response schema or blocked-country list change.
     owner: markets-backend
 

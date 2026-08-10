@@ -10,13 +10,22 @@ type DiscoverFeaturedHeroProps = {
   /** Top-line context, e.g. schedule tag */
   eyebrow?: string;
   countdownLabel?: string;
+  /** On-chain market detail; defaults to `chain-markets` when `id` is template id. */
+  detailHref?: string;
   onOpen: () => void;
 };
 
-export default function DiscoverFeaturedHero({ market, eyebrow, countdownLabel, onOpen }: DiscoverFeaturedHeroProps) {
+export default function DiscoverFeaturedHero({
+  market,
+  eyebrow,
+  countdownLabel,
+  detailHref,
+  onOpen,
+}: DiscoverFeaturedHeroProps) {
+  const fullPageHref = detailHref ?? `/app/chain-markets/${encodeURIComponent(market.id)}`;
   const { yes, no } = pickBinaryOutcomes(market);
   const yesPct = yes ? Math.round(yes.probability) : 50;
-  const vol = market.totalPool || market.volume || "—";
+  const vol = market.totalPool || market.volume || "-";
 
   return (
     <section
@@ -34,7 +43,15 @@ export default function DiscoverFeaturedHero({ market, eyebrow, countdownLabel, 
               )}
             >
               {market.image ? (
-                <img src={market.image} alt="" className="size-full object-cover" />
+                <img
+                  src={market.image}
+                  alt=""
+                  width={56}
+                  height={56}
+                  loading="eager"
+                  decoding="async"
+                  className="size-full object-cover"
+                />
               ) : (
                 <Icon name={market.icon} className={cn("text-2xl", market.iconColor || "text-foreground")} />
               )}
@@ -80,8 +97,7 @@ export default function DiscoverFeaturedHero({ market, eyebrow, countdownLabel, 
               <ChevronRight className="size-4 opacity-90" aria-hidden />
             </button>
             <Link
-              to={`/app/market/${market.id}`}
-              state={{ market }}
+              to={fullPageHref}
               className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
               Open full page

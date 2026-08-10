@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09
 **Product:** RetroPick Markets V1
 **Wave:** 3 — Backend architecture and API contracts
 
@@ -98,9 +98,27 @@ stateDiagram-v2
 | Setting | Value |
 |---------|-------|
 | Access token TTL | 15m |
-| Refresh token TTL | 30d |
-| Step-up TTL | 5m |
-| Max devices | 10 per user |
+| Refresh token TTL | 30d (deferred — access-only re-SIWE for P2-005) |
+| Step-up TTL | 5m (deferred) |
+| Max devices | 10 per user (deferred) |
+
+### 3.1 Implementation status (MKT-P2-005)
+
+| Component | Status | Location |
+|-----------|--------|----------|
+| SIWE verify (EIP-4361) | **shipped** | `internal/markets/auth/siwe.go` |
+| Server nonce store | **shipped** | `internal/markets/auth/nonce.go` |
+| Session JWT (HttpOnly cookie `mkt_session`) | **shipped** | `internal/markets/auth/session.go` |
+| Auth HTTP endpoints | **shipped** | `GET/POST /api/v1/markets/auth/*` |
+| In-memory user store | **shipped** | `internal/markets/auth/store.go` (Postgres deferred) |
+| `OptionalSession` middleware | **shipped** | `internal/markets/auth/middleware.go` |
+| `AccountContext` → eligibility | **shipped** | `handler.go` Eligibility + middleware |
+| Refresh rotation / step-up | deferred | Future task |
+| Postgres sessions / users | deferred | Future migration |
+
+**Env:** `MARKETS_AUTH_SESSION_SECRET` (fallback `AUTH_SESSION_SECRET`), `MARKETS_AUTH_ACCESS_TTL` (default 15m), `MARKETS_AUTH_NONCE_TTL` (default 10m), `MARKETS_CORS_ALLOWED_ORIGINS` (default `http://localhost:3001`).
+
+**Client hookup (web follow-up):** `useMarketsWalletSession` must call `GET /api/v1/markets/auth/nonce` before signing; replace client-side `crypto.randomUUID()` nonce. Session restore via `GET /api/v1/markets/auth/session` on connect.
 
 ## 4. Eligibility
 
@@ -115,18 +133,131 @@ Checks (in order):
 
 Persist decisions in `markets.eligibility_decisions` for audit (hashed IP, region code).
 
+### 4.1 Implementation status (MKT-P2-002)
+
+| Component | Status | Location |
+|-----------|--------|----------|
+| Fail-closed evaluator pipeline | **shipped** | `apps/backend/internal/markets/eligibility/` |
+| `GET /markets/eligibility` HTTP wiring | **shipped** | `handler.go` → `service.go` → `eligibility.Evaluator` |
+| GeoIP resolver | **shipped (env-gated)** | `eligibility/geo` — `ResolverFromEnv()` → `HTTPResolver` when `MARKETS_GEOIP_BASE_URL` set; else `UnwiredResolver` → `geo_unknown` |
+| Polymarket geoblock ACL | **adapter shipped (env-gated)** | `eligibility/geoblock` — `GeoblockFromEnv()` → `HTTPChecker` when `MARKETS_GEOBLOCK_BASE_URL` set; else `UnwiredChecker` → `geoblock_upstream_unavailable` |
+| `eligibility_fail_closed` metric | **shipped** | `retropick_markets_eligibility_fail_closed_total` |
+| Redis cache `mkt:eligibility:{ip_hash}` | deferred | See cache doc |
+| Postgres `eligibility_decisions` audit | deferred | Future migration |
+
+**BLK-001 honesty:** GeoIP and geoblock adapters are shipped and env-gated. `ProductionEligibilityEvaluator` in `service.go` wires `geo.ResolverFromEnv()` and `eligibility.GeoblockFromEnv()` (both `cmd/api` and `cmd/markets-api` pass the same evaluator to the auth module). **BLK-001 remains open** until ops injects both geo + geoblock env in target deploy and integration proves `eligible: true` for an allowed region — default deploy (no env) still returns `geo_unknown` / `geoblock_upstream_unavailable`. `DefaultEvaluator()` keeps deny-all for tests without injection. Full tracker: [MKT-P2-002-BLK001-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md).
+
+**GeoIP environment variables (Chat Geo):**
+
+| Variable | Required to wire | Purpose |
+|----------|------------------|---------|
+| `MARKETS_GEOIP_BASE_URL` | Yes | Enables HTTP GeoIP resolver (example: `https://ipinfo.io`) |
+| `MARKETS_GEOIP_PATH` | No | Path template with `{ip}` placeholder; default `/{ip}/json` |
+| `MARKETS_GEOIP_API_KEY` | No | Provider token; appended as `token` query param when set |
+| `MARKETS_GEOIP_TIMEOUT` | No | HTTP timeout; default `5s` |
+
+Also accepts `GEO_PROVIDER_API_KEY` when `MARKETS_GEOIP_API_KEY` is unset (platform doc alias).
+
+**Example (non-normative):** `MARKETS_GEOIP_BASE_URL=https://ipinfo.io`, `MARKETS_GEOIP_PATH=/{ip}/json`, `MARKETS_GEOIP_API_KEY=<secret>` plus `MARKETS_GEOBLOCK_BASE_URL=https://polymarket.com` for full eligibility pipeline.
+
+**Remaining BLK-001 clearance (orchestrator / ops):**
+
+- Ops checklist: [MKT-P2-BLK001-ops-staging-checklist.md](../agent-harness/verification/PHASE-2/MKT-P2-BLK001-ops-staging-checklist.md)
+- Ops inject `MARKETS_GEOIP_*` (or `GEO_PROVIDER_API_KEY`) in target deploy
+- Ops inject `MARKETS_GEOBLOCK_BASE_URL` (+ optional `MARKETS_GEOBLOCK_PATH`)
+- Integration proof `eligible: true` for allowed fixture IP
+
+**Client geo headers:** Server ignores `X-Geo-*`, `Accept-Language`, and device locale for eligibility. Only trusted server-side IP resolution (CIDR-gated `X-Forwarded-For` when configured) is used.
+
+### 4.2 Chat M / Chat N ownership boundaries
+
+| Topic | Owner | Location |
+|-------|-------|----------|
+| Evaluator, geoblock ACL, reason codes, fail-closed metric | Chat M (MKT-P2-002) | `internal/markets/eligibility/` |
+| Session JWT, refresh, step-up, middleware gate | Chat N (MKT-P2-005) | `internal/markets/auth/` + §3/§5 |
+| `AccountContext` injection into evaluator | **shipped** (MKT-P2-005) | `handler.go` Eligibility call site |
+| `eligibility_decisions` audit persistence | Future migration task | Postgres |
+
+Chat N must call the same `eligibility.Evaluator` (or cached decision keyed by IP hash) — do not duplicate geoblock logic in auth middleware.
+
+### 4.3 API reason codes
+
+| Reason | Meaning |
+|--------|---------|
+| `maintenance_mode` | Ops maintenance flag active |
+| `geo_unknown` | GeoIP unknown, timeout, or error |
+| `region_blocked` | Region in `eligibility-rules-v1` block list |
+| `geoblock_denied` | Polymarket geoblock cross-check denied |
+| `geoblock_upstream_unavailable` | Geoblock upstream not wired (BLK-001) |
+| `geoblock_timeout` | Geoblock upstream timeout or 5xx |
+| `sanctions_blocked` | Sanctions screening hit (when enabled) |
+| `account_suspended` | Account standing suspended/banned |
+| `terms_not_accepted` | Required terms version not accepted |
+
+Clients display API `reason` strings only; never infer allow/deny from on-device geo.
+
 ## 5. Middleware
 
+Chi wiring (MKT-P2-005 + MKT-P2-GLUE nested `/me` groups):
+
+```text
+Request → RequestID → OptionalSession → handler
+/api/v1/markets/*     → OptionalSession (parent)
+/me/*                 → RequireAuthenticated
+  GET /me/wallets     → handler (auth-only — no RequireEligible)
+  eligible subgroup   → RequireEligible (same Evaluator as GET /markets/eligibility)
+    GET /me/balances  → handler
+    future trading/funding/withdrawal → handler
 ```
-Request → extract session → load user → eligibility cache → handler gate
+
+| Middleware | Behavior |
+|------------|----------|
+| `OptionalSession` | Parse `mkt_session` cookie; load `AccountContext` into request context when valid |
+| `RequireAuthenticated` | `401 UNAUTHENTICATED` when no session |
+| `RequireEligible` | Calls shared `eligibility.Evaluator`; `403 ELIGIBILITY_DENIED` with `{ details.reason }` when `eligible: false` |
+
+### 5.1 Route gate table
+
+| Route | Middleware stack | Rationale |
+|-------|------------------|-----------|
+| `GET /api/v1/markets/eligibility` | `OptionalSession` | Public; injects `AccountContext` when session present |
+| `GET /api/v1/markets/me/wallets` | `OptionalSession` → `RequireAuthenticated` | Account setup after SIWE; must return **200** (empty `wallets[]` OK) while BLK-001 active — see [MKT-P2-GLUE-session-wallet-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-GLUE-session-wallet-evidence.md) |
+| `GET /api/v1/markets/me/balances` | `OptionalSession` → `RequireAuthenticated` → `RequireEligible` | Transactional read; fail-closed per BLK-001 |
+| Future trading / funding / withdrawal | Same as balances | Must mount inside eligible subgroup; do not copy wallets auth-only gate |
+
+### 5.2 Request flows
+
+**Wallets (auth-only):**
+
+```text
+GET /api/v1/markets/me/wallets
+  → OptionalSession (parse mkt_session JWT → context)
+  → RequireAuthenticated (401 if missing)
+  → wallet.ListMyWallets → 200 WalletsListResponse
 ```
+
+**Balances (eligible-gated):**
+
+```text
+GET /api/v1/markets/me/balances
+  → OptionalSession
+  → RequireAuthenticated (401 if missing)
+  → RequireEligible (403 ELIGIBILITY_DENIED if eligible: false)
+  → balances.ListMyBalances → 200
+```
+
+`GET /markets/eligibility` is public but injects `AccountContext` when a session cookie is present (account standing / terms checks apply after geo/geoblock).
 
 Trading routes require `eligible: true` AND capability flag AND step-up if configured.
 
 ## 6. Wallet binding
 
+SIWE session (MKT-P2-005) binds the **signer EOA** to a RetroPick session only — no private keys stored server-side (ADR-003).
+
 User may link multiple proxy/Safe addresses. `wallet_accounts` stores linkage proof
 (signature challenge). Orders must use linked maker address.
+
+**MKT-P2-003** mounts `GET /api/v1/markets/me/wallets` under the authenticated `/me` subgroup (**auth-only**, not eligible-gated) so SIWE users can discover/link account wallets while BLK-001 keeps transactional routes fail-closed. Balance and trading routes mount in the nested `RequireEligible` subgroup (§5.1).
 
 ## 7. Security controls
 
@@ -135,167 +266,18 @@ User may link multiple proxy/Safe addresses. `wallet_accounts` stores linkage pr
 - Revoke all sessions on password change.
 - No PII in eligibility logs; redact IP to /24 hash.
 
-## Eligibility rule pack 1
+## Eligibility rule pack: eligibility-rules-v1
 
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
+Ops-owned config bundle (in-memory default until config service wiring). Version string: `eligibility-rules-v1`.
 
-## Eligibility rule pack 2
+| Flag / map | Default | Notes |
+|------------|---------|-------|
+| `maintenance_mode` | `false` | When true → `maintenance_mode` |
+| `sanctions_enabled` | `false` | Requires session `AccountContext` when enabled |
+| `blocked_regions` | `{}` | ISO region codes → `region_blocked` |
+| `required_terms_version` | `""` | Compared to session acceptance when set |
 
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 3
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 4
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 5
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 6
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 7
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 8
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 9
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 10
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 11
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 12
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 13
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 14
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 15
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 16
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 17
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 18
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 19
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 20
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 21
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 22
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 23
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 24
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 25
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 26
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
-
-## Eligibility rule pack 27
-
-Documented mapping from region code to `eligible` boolean and `reason` code.
-Updated via config bundle version `eligibility-rules-v{n}`. Clients display
-reason string from API only; never infer from client-side geo alone.
+Region allow/deny beyond Polymarket geoblock is ops-controlled via `blocked_regions`; clients never hardcode region maps.
 
 ## Appendix 1
 

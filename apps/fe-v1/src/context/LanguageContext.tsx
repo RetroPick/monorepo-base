@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { translations, Language } from '@/data/translations';
+import { translations, type Language } from '@/data/translations';
+
+const SAVED_LANGUAGES = new Set<Language>(['en', 'id', 'zh', 'hi', 'es']);
 
 
 // Helper type for nested keys
@@ -21,12 +23,21 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
     const [language, setLanguage] = useState<Language>(() => {
-        const saved = localStorage.getItem('language');
-        return (saved as Language) || 'en';
+        try {
+            const saved = localStorage.getItem('language');
+            if (saved && SAVED_LANGUAGES.has(saved as Language)) return saved as Language;
+        } catch {
+            /* private mode / denied */
+        }
+        return 'en';
     });
 
     useEffect(() => {
-        localStorage.setItem('language', language);
+        try {
+            localStorage.setItem('language', language);
+        } catch {
+            /* ignore */
+        }
     }, [language]);
 
     const t = (key: TranslationKey): string => {

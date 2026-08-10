@@ -2,7 +2,7 @@ product: retropick-markets
 version: v1
 mode: spec_freeze_ready
 last_updated: 2026-07-25
-current_phase: PHASE-1
+current_phase: PHASE-2
 wave: 9
 wave_status: complete
 
@@ -64,7 +64,7 @@ phase_order:
       - Requirements baseline in 04_REQUIREMENTS_AND_TRACEABILITY.md
   - id: PHASE-1
     name: Foundation and Read Markets
-    status: ready
+    status: complete
     spec: .dev/markets-v1/phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md
     prerequisites: [PHASE-0]
     parallel_groups:
@@ -87,7 +87,7 @@ phase_order:
       - OpenAPI conformance tests pass
   - id: PHASE-2
     name: Account Wallet and Funding
-    status: planned
+    status: ready
     spec: .dev/markets-v1/phases/PHASE-2-ACCOUNT-WALLET-AND-FUNDING.md
     prerequisites: [PHASE-1]
     parallel_groups:
@@ -235,9 +235,9 @@ human_approval_gates:
 
 unresolved_blockers:
   - id: BLK-001
-    title: Geoblock eligibility upstream not wired
+    title: GeoIP + geoblock adapters shipped; ops staging proof pending
     phase: PHASE-2
-    doc: .dev/markets-v1/backend/AUTH_SESSION_AND_ELIGIBILITY.md
+    doc: .dev/markets-v1/agent-harness/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md
   - id: BLK-002
     title: Android app scaffold beyond README
     phase: PHASE-5

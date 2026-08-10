@@ -1,0 +1,15 @@
+export { MarketsWalletProvider } from "./providers/MarketsWalletProvider";
+export { MarketsWalletSessionProvider } from "./providers/MarketsWalletSessionProvider";
+export { ConnectWalletButton } from "./components/ConnectWalletButton";
+export { ChainGuardBanner } from "./components/ChainGuardBanner";
+export { WalletAddressDisclosure } from "./components/WalletAddressDisclosure";
+export { WalletConnectHarness } from "./components/WalletConnectHarness";
+export { WalletConnectPage } from "./pages/WalletConnectPage";
+export { useMarketsWalletConnect } from "./hooks/useMarketsWalletConnect";
+export { useMarketsWalletSession } from "./hooks/useMarketsWalletSession";
+export type { WalletSessionState } from "./hooks/useMarketsWalletSession";
+export { useMarketsWalletGate } from "./hooks/useMarketsWalletGate";
+export { useMarketsTradingWallets } from "./hooks/useMarketsTradingWallets";
+export type { TradingWalletsState } from "./hooks/useMarketsTradingWallets";
+export { POLYGON_CHAIN_ID } from "./config/chains";
+export { MARKETS_CUSTODY_INVARIANT, FORBIDDEN_CUSTODY_PATTERNS } from "./lib/custodyInvariants";

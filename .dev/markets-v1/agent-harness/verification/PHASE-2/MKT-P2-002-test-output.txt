@@ -1,0 +1,10 @@
+# MKT-P2-002 eligibility test output — 2026-08-09T11:28Z
+
+## Full eligibility packages
+ok  	retropick/apps/backend/internal/markets/eligibility	0.060s
+ok  	retropick/apps/backend/internal/markets/eligibility/geo	0.089s
+ok  	retropick/apps/backend/internal/markets/eligibility/geoblock	0.105s
+
+## Auth + service eligibility wiring
+ok  	retropick/apps/backend/internal/markets/auth	0.021s
+ok  	retropick/apps/backend/internal/markets	0.053s

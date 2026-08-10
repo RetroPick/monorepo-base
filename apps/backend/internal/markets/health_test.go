@@ -33,6 +33,41 @@ func TestReadinessReportsDisabledMarketDataAndSignals(t *testing.T) {
 	}
 }
 
+// typedNilRealtimeProvider is a pointer-receiver RealtimeStateProvider used to
+// reproduce Go's typed-nil interface trap without importing markets/realtime
+// (which would create an import cycle via realtime → markets).
+type typedNilRealtimeProvider struct{}
+
+func (*typedNilRealtimeProvider) CapabilitiesRealtime() bool    { panic("typed-nil CapabilitiesRealtime") }
+func (*typedNilRealtimeProvider) CapabilitiesLiveSignals() bool { panic("typed-nil CapabilitiesLiveSignals") }
+func (*typedNilRealtimeProvider) HealthRealtime() string        { panic("typed-nil HealthRealtime") }
+
+func TestReadinessTypedNilRealtimeRuntime(t *testing.T) {
+	t.Parallel()
+	var rt *typedNilRealtimeProvider
+	rec := httptest.NewRecorder()
+	checker := HealthChecker{
+		Service:               NewService(ServiceConfig{}),
+		Worker:                CatalogWorkerSnapshotFrom(true, false, true),
+		SignalsOperational:    false,
+		MarketDataOperational: false,
+		RealtimeState:         rt,
+		ServiceName:           "retropick-markets-api",
+		Now:                   func() time.Time { return time.Date(2026, 7, 30, 0, 0, 0, 0, time.UTC) },
+	}
+	checker.Ready(rec, httptest.NewRequest(http.MethodGet, "/health/ready", nil))
+	if rec.Code == http.StatusInternalServerError {
+		t.Fatalf("typed-nil realtime must not 500: %s", rec.Body.String())
+	}
+	var body HealthResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Checks["realtime"] != "disabled" {
+		t.Fatalf("realtime check=%q want disabled; checks %+v", body.Checks["realtime"], body.Checks)
+	}
+}
+
 func TestReadinessUsesLiveWorkerState(t *testing.T) {
 	t.Parallel()
 	ready := false

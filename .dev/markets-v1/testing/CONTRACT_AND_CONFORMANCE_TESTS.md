@@ -109,6 +109,74 @@ OpenAPI contract tests, Polymarket ACL golden files, and client conformance requ
 | Error shape | all handlers | `ErrorResponse` schema |
 | Pagination | list endpoints | `cursor` + `limit` bounds |
 
+### 6.1 PHASE-1 backend read conformance (MKT-P1-008)
+
+Durable OpenAPI conformance for PHASE-1 read handlers lives under `apps/backend/internal/markets/`:
+
+| File | Role |
+|------|------|
+| `openapi_semantics_test.go` | Shared kin-openapi loader/validator and semantic helpers (no fractional floats, freshness/provenance, canonical IDs, no `MoneyAmount` on read payloads) |
+| `openapi_conformance_test.go` | `TestOpenAPIRuntimeConformancePhaseOne` — primary gate for eligibility, capabilities, events, event detail, market detail, orderbook, history, health, signals, health probes, and error envelopes |
+| `openapi_contract_test.go` | Structural guard on `markets-v1.yaml` v1.1.1 paths and money schemas |
+| `handler_test.go` | Behavioral HTTP tests wired to shared OpenAPI + semantic helpers |
+| `openapi_runtime_test.go` | Fast smoke tests; full validation defers to conformance suite |
+
+**How to run**
+
+```bash
+cd apps/backend
+go test ./internal/markets/... \
+  -run 'TestOpenAPIRuntimeConformancePhaseOne|TestMarketsOpenAPIContainsPhaseOneReadContract|TestPhaseOne' \
+  -count=1 -v
+```
+
+Full markets package (recommended before handoff):
+
+```bash
+cd apps/backend
+go test ./internal/markets/... -count=1
+```
+
+**What the suite proves**
+
+- kin-openapi response validation against `schemas/openapi/markets-v1.yaml` v1.1.1 for PHASE-1 GET handlers
+- Decimal/money fields encoded as strings (prices, book levels, depths); no fractional JSON numbers; no `MoneyAmount` objects on read responses (MKT-NFR-060)
+- `freshness` + `provenance` on upstream-derived catalog and market-data payloads
+- Canonical RetroPick IDs (`polymarket:event|market|token:{upstreamId}`)
+- Order book `freshness.state=stale` when snapshot age exceeds `BookMaxAge` (MKT-FR-010)
+- Structured `ApiError` on invalid pagination and missing `tokenId`
+- Upstream ID paths (e.g. `/events/1`) normalize to canonical IDs in responses
+
+**Out of scope for this suite**
+
+- Wallet, order submit, funding POST paths (PHASE-2+) — **exception:** MKT-P2-004 account-wallet link POST paths (`linkExistingWallet`, `previewAccountWallet`, `relayAccountWallet`) are **spec-frozen in YAML**; runtime kin-openapi conformance for wallet writes remains deferred until Chat G2 router wiring and optional contract tests. Validation for the OpenAPI freeze: structural load/validate only (see [MKT-P2-004-openapi-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-004-openapi-evidence.md)).
+- Realtime WebSocket wire conformance (see `realtime/` tests and API doc §13)
+- Observability metric wiring (`MKT-P1-009` / Chat J)
+
+**Exit evidence (MKT-P1-008)**
+
+Fill [`VERIFICATION_EVIDENCE_TEMPLATE.md`](../agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md) with command output and traceability:
+
+| Requirement | Test | Expected |
+|-------------|------|----------|
+| MKT-FR-001 | `TestOpenAPIRuntimeConformancePhaseOne/events` | Pass |
+| MKT-FR-002 | `TestOpenAPIRuntimeConformancePhaseOne/market detail` | Pass |
+| MKT-FR-010 | `TestOpenAPIRuntimeConformancePhaseOne/orderbook stale when snapshot age exceeded` | Pass |
+| MKT-NFR-060 | `assertNoBinaryFloats` / decimal string field guards | Pass |
+| MKT-WEB-001 | `TestMarketsOpenAPIContainsPhaseOneReadContract` + kin-openapi | Pass |
+
+**Handoff checklist → Chat K (`MKT-P1-010` PHASE-1 exit gate)**
+
+Prepare (orchestrator executes gate; do not advance `current_phase` from this task):
+
+- [ ] MKT-P1-008 verification evidence archived
+- [ ] Full markets package green: `go test ./internal/markets/... -count=1`
+- [ ] Invariant grep: `rg "float64|binary float" .dev/markets-v1/backend/ schemas/openapi/` (paste results; test helpers may mention `float64` when decoding JSON integers)
+- [ ] Confirm no PHASE-2+ paths tested (wallet, order submit, funding)
+- [ ] Chat J (`MKT-P1-009`) observability metrics — separate owned_paths; not blocking contract task
+- [ ] Phase gate template ([`PHASE_GATE_TEMPLATE.md`](../agent-harness/PHASE_GATE_TEMPLATE.md)) ready for orchestrator review
+- [ ] Realtime WS conformance (`sequence:null`, gap recovery) tracked separately for exit gate or PHASE-6 hardening
+
 ## 7. OpenAPI CI gates
 
 - Spectral rules: no breaking change without version bump.

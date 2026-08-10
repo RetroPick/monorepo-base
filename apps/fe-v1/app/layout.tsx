@@ -1,18 +1,28 @@
 import type { Metadata } from "next";
-
-/** Self-hosted fonts (same origin; avoids Google Fonts DNS/TLS on critical path). */
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
-import "@fontsource/plus-jakarta-sans/400.css";
-import "@fontsource/plus-jakarta-sans/500.css";
-import "@fontsource/plus-jakarta-sans/600.css";
-import "@fontsource/plus-jakarta-sans/700.css";
-import "@fontsource/jetbrains-mono/400.css";
-import "@fontsource/jetbrains-mono/500.css";
+import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 
 import "../src/index.css";
+
+const fontSans = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans",
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const fontDisplay = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display",
+  weight: ["400", "500", "600", "700", "800"],
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-mono",
+  weight: ["400", "500"],
+});
 
 export const metadata: Metadata = {
   title: "RetroPick",
@@ -32,7 +42,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}
+    >
+      <head>
+        {/* Material Symbols Outlined (icon font) — no next/font analogue. */}
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );

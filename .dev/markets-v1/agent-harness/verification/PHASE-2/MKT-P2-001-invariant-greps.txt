@@ -1,0 +1,23 @@
+=== MARKETS_CUSTODY markers ===
+apps/web/src/products/markets/wallet/index.ts:12:export { MARKETS_CUSTODY_INVARIANT, FORBIDDEN_CUSTODY_PATTERNS } from "./lib/custodyInvariants";
+apps/web/src/products/markets/wallet/config/chains.ts:1:// MARKETS_CUSTODY: ADR-003 — Polygon-only Markets wallet chain config (no T4 storage)
+apps/web/src/products/markets/wallet/config/wagmiConfig.ts:1:// MARKETS_CUSTODY: wagmi config — user keys remain in wallet extension only
+apps/web/src/products/markets/wallet/config/appKit.ts:1:// MARKETS_CUSTODY: AppKit init — wallet connectors only, no embedded key custody
+apps/web/src/products/markets/wallet/config/runtimeEnv.ts:1:// MARKETS_CUSTODY: env helpers only — never read or store private keys here
+apps/web/src/products/markets/wallet/lib/custodyInvariants.ts:1:// MARKETS_CUSTODY: ADR-003 — no T4 (privateKey|seed|mnemonic) storage in Markets wallet code
+apps/web/src/products/markets/wallet/lib/custodyInvariants.ts:12:export const MARKETS_CUSTODY_INVARIANT = "MARKETS_CUSTODY: ADR-003 — no T4 storage";
+apps/web/src/products/markets/wallet/lib/custodyInvariants.ts:17:      throw new Error(`${fileLabel} violates ${MARKETS_CUSTODY_INVARIANT}: ${pattern}`);
+apps/web/src/products/markets/wallet/__tests__/custodyInvariants.test.ts:3:import { FORBIDDEN_CUSTODY_PATTERNS, MARKETS_CUSTODY_INVARIANT } from "../lib/custodyInvariants";
+apps/web/src/products/markets/wallet/__tests__/custodyInvariants.test.ts:8:  it("exports greppable MARKETS_CUSTODY marker", () => {
+apps/web/src/products/markets/wallet/__tests__/custodyInvariants.test.ts:9:    expect(MARKETS_CUSTODY_INVARIANT).toContain("MARKETS_CUSTODY");
+apps/web/src/products/markets/wallet/__tests__/custodyInvariants.test.ts:10:    expect(MARKETS_CUSTODY_INVARIANT).toContain("ADR-003");
+
+=== T4 forbidden patterns (runtime code) ===
+(no matches)
+
+=== Order preview/submit absent ===
+(no matches)
+
+=== fe-v1 Header quarantine ===
+76:  const isMarketsShellRoute =
+253:            {!isMarketsShellRoute &&

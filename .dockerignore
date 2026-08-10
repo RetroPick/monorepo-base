@@ -17,3 +17,13 @@ apps/public
 package/prediction-v2/cache
 package/prediction-v2/out
 package/prediction-v2/broadcast
+graphify-out
+apps/fe-v1
+apps/ops-web
+android
+contracts
+docs
+.dev
+archive/**
+!archive/packages/legacy/abi/**
+*.md

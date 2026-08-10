@@ -103,8 +103,43 @@ Implementation-grade funding flows: bridge, direct transfer, pUSD wrap/onramp, a
 
 - V2 collateral is pUSD (EV-007); legacy USDC.e paths deprecated for new trading.
 - Bridge and onramp not wired in BFF.
+- **MKT-P2-004-web (2026-08-09):** Sandbox funding page at `/markets/funding` (`apps/web/src/products/markets/funding/`). Requires Markets session; shows signer vs linked `accountWallet`; reads `GET /me/balances` with explicit 404/502 UX; deposit-wallet create/link calls `POST /account-wallet/preview` + `/relay` only when `NEXT_PUBLIC_MARKETS_ACCOUNT_WALLET_CREATE=1` and BFF is wired. **Not production-ready** — see [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) Production wallet creation gate.
 
 ## 6. Target design
+
+### 6.0 Web sandbox UX (MKT-P2-004-web)
+
+| Property | Value |
+|----------|-------|
+| Route | `/markets/funding` (J05) |
+| Code | `apps/web/src/products/markets/funding/` |
+| Session | Required (`MarketsSession` cookie) before setup or balance reads |
+| Chain | Polygon `137` only for mutating setup CTAs |
+
+**BFF endpoints consumed (read-only unless noted):**
+
+| Method | Path | When |
+|--------|------|------|
+| `GET` | `/markets/me/wallets` | Always when session authenticated |
+| `GET` | `/markets/me/balances` | When primary `accountWallet` linked |
+| `POST` | `/markets/account-wallet/preview` | Feature flag on + user starts setup |
+| `POST` | `/markets/account-wallet/relay` | After mandatory preview modal + wallet signature |
+
+**UI states:**
+
+- Unauthenticated → connect + sign-in CTA; no funding API calls.
+- No linked wallet → deposit wallet setup panel (unavailable when flag off or BFF 501).
+- Balance 404 `account_not_linked` → account setup required (no invented balance).
+- Balance 502 → venue degraded banner + retry.
+- Linked + balance 200 → formatted pUSD `MoneyAmount` (display only).
+
+**Explicit non-goals (this task):**
+
+- Bridge deposit address, wrap/onramp, token approvals, order submit.
+- Relayer API key or mnemonic capture in the client.
+- Production wallet deploy without ops + security gate clearance.
+
+**Feature flag:** `NEXT_PUBLIC_MARKETS_ACCOUNT_WALLET_CREATE=1` enables create/link attempts; default off shows graceful unavailable copy.
 
 
 ### 6.1 Distinct operations
@@ -153,6 +188,42 @@ idle → preview → sign → submitting → bridge_pending → completed | fail
 | Underfunded | balance check | Min deposit message |
 | Stuck bridge | SLA timeout | Support ticket + hash |
 | Wrap reverted | relayer tx fail | Retry with gas estimate |
+
+### 6.7 BFF collateral balance read (MKT-P2-006 L2)
+
+Read-only tradable pUSD display for funding UX. Code: `apps/backend/internal/markets/balances/`.
+
+| Property | Value |
+|----------|-------|
+| BFF route | `GET /api/v1/markets/me/balances` (`listMyBalances`) |
+| Upstream | CLOB `GET /balance-allowance?asset_type=COLLATERAL&signature_type={walletType}` |
+| Auth | CLOB L2 HMAC (server-held `apiKey` / `secret` / `passphrase` per session signer) |
+| Wallet resolution | Primary linked `accountWallet` from `GET /me/wallets` discovery — never client-supplied |
+| `signature_type` | Maps OpenAPI `walletType`: EOA=0, POLY_PROXY=1, GNOSIS_SAFE=2, DEPOSIT_WALLET=3 |
+| Response field | `collateral` only (`MoneyAmount`, 6 decimals, integer base units) — allowance not exposed |
+| Timeout | 10s balance-read SLA; upstream failure → **502** `upstream_unavailable` |
+
+**Fail-closed HTTP mapping:**
+
+| Condition | BFF response |
+|-----------|--------------|
+| No session | 401 |
+| No linked primary wallet | 404 `account_not_linked` |
+| L2 store unwired / missing creds | 502 |
+| CLOB timeout / 5xx / malformed payload | 502 |
+| Never | Invent or cache-fabricate balances |
+
+**Production wiring (G3 main handoff):**
+
+```go
+balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
+    Discoverer: wallet.NewDiscoverer(store, metrics),
+    CLOBURL:    cfg.CLOBAPIURL,
+    L2Store:    balances.UnwiredL2CredentialStore{}, // swap when L2 auth lands
+}))
+```
+
+**Explicit non-goals:** `POST /balance-allowance/update`, bridge deposit create, wrap/onramp, token approvals, order submit.
 
 
 ```mermaid

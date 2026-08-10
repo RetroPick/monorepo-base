@@ -246,7 +246,15 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-2">
                   {assetImage ? (
-                    <img src={assetImage} alt="" className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border" />
+                    <img
+                      src={assetImage}
+                      alt=""
+                      width={32}
+                      height={32}
+                      loading="lazy"
+                      decoding="async"
+                      className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
+                    />
                   ) : null}
                   <div className="flex min-w-0 items-center gap-1 text-xs font-semibold text-foreground">
                     <PlayCircle className="size-3.5 shrink-0 text-primary" aria-hidden />
@@ -283,7 +291,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                 <div>
                   <div className="text-[10px] font-medium text-muted-foreground">{isThreshold ? "Price" : "Price"}</div>
                   <div className="mt-0.5 text-sm font-semibold tabular-nums text-foreground">
-                    {spotPrice !== undefined ? (isThreshold ? formatPriceThreshold(spotPrice) : formatPrice(spotPrice)) : "—"}
+                    {spotPrice !== undefined ? (isThreshold ? formatPriceThreshold(spotPrice) : formatPrice(spotPrice)) : "-"}
                   </div>
                 </div>
                 <div className="text-right">
@@ -394,7 +402,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-[10px] text-muted-foreground">To win</span>
                     <span className="text-base font-semibold tabular-nums text-foreground">
-                      {potentialWin ? formatUsd(potentialWin) : "—"}
+                      {potentialWin ? formatUsd(potentialWin) : "-"}
                     </span>
                   </div>
                   <p className="text-[10px] text-muted-foreground">{selectedPayout.toFixed(2)}× payout</p>
@@ -415,7 +423,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                       isPositiveEntry ? marketCtaUp3d : marketCtaDown3d,
                     )}
                   >
-                    {!isConnected ? "Connect wallet" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
+                    {!isConnected ? "Sign in" : entryAmount ? `Commit $${entryAmount}` : "Commit $0"}
                   </button>
                 </div>
               </div>
@@ -460,7 +468,15 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
         <div className="relative flex shrink-0 items-start justify-between gap-1.5">
           <div className="flex min-w-0 items-center gap-1.5">
             {assetImage ? (
-              <img src={assetImage} alt="" className="size-7 shrink-0 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15" />
+              <img
+                src={assetImage}
+                alt=""
+                width={28}
+                height={28}
+                loading="lazy"
+                decoding="async"
+                className="size-7 shrink-0 rounded-full object-cover ring-1 ring-black/10 dark:ring-white/15"
+              />
             ) : null}
             <div
               className={cn(
@@ -493,7 +509,7 @@ export function UnifiedRoundCard(props: UnifiedRoundCardProps) {
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-[9px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    {outcomePayout != null ? `${outcomePayout.toFixed(2)}x` : "—"}
+                    {outcomePayout != null ? `${outcomePayout.toFixed(2)}x` : "-"}
                   </div>
                   <div className="mt-1 text-[11px] font-semibold text-foreground">Payout</div>
                 </div>

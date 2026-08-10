@@ -37,9 +37,17 @@ vi.mock("@reown/appkit-pay", () => ({
   ethereumUSDT: { network: "eip155:1", asset: "0xethusdt", metadata: { name: "Tether", symbol: "USDT", decimals: 6 } },
 }));
 
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: { faucetRelayEnabled: false } }),
+}));
+
 vi.mock("wagmi", () => ({
   useAccount: () => ({ chainId: 43113 }),
   useSwitchChain: () => ({ switchChainAsync: switchChainAsyncMock, isPending: false }),
+  useSignTypedData: () => ({
+    signTypedDataAsync: vi.fn().mockResolvedValue(`0x${"11".repeat(65)}`),
+    isPending: false,
+  }),
   useWriteContract: () => ({
     writeContractAsync: writeContractAsyncMock,
     data: undefined,
@@ -54,6 +62,25 @@ vi.mock("wagmi", () => ({
 vi.mock("@/components/ui/use-toast", () => ({
   useToast: () => ({ toast: toastMock }),
 }));
+
+vi.mock("@/config/funding", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/config/funding")>();
+  return {
+    ...actual,
+    activeFundingProfile: {
+      ...actual.activeFundingProfile,
+      chainId: 43113,
+      chainLabel: "Avalanche Fuji",
+      faucet: {
+        chainId: 43113,
+        chainLabel: "Avalanche Fuji",
+        tokenSymbol: "USDC",
+        tokenAddress: "0x0000000000000000000000000000000000000001" as const,
+        contractAddress: undefined as `0x${string}` | undefined,
+      },
+    },
+  };
+});
 
 describe("FundWalletDialog", () => {
   beforeEach(() => {
@@ -97,10 +124,18 @@ describe("FundWalletDialog", () => {
     });
   });
 
-  it("does not show faucet controls when profile has no faucet", () => {
+  it("claims Fuji faucet funds when already on Fuji", async () => {
     render(<FundWalletDialog address="0x1234567890abcdef" isOpen onOpenChange={vi.fn()} />);
 
-    expect(screen.queryByRole("button", { name: /claim .*faucet/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/faucet/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /claim avalanche fuji test usdc/i }));
+
+    await waitFor(() => {
+      expect(writeContractAsyncMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "claim",
+        }),
+      );
+    });
+    expect(switchChainAsyncMock).not.toHaveBeenCalled();
   });
 });

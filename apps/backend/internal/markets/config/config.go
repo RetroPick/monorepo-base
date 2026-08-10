@@ -46,9 +46,12 @@ type Config struct {
 	RealtimeAllowedOrigins []string
 	DBMaxConns            int32
 	DBMinConns            int32
+	TrustedProxyCIDRs     []string
 }
 
 func Load() (Config, error) {
+	// MKT-NFR-002 / P1-006: production/staging should set MARKETS_BOOK_MAX_AGE=5s
+	// for order-book staleness SLO; unset env keeps 10s dev default.
 	bookMaxAge := 10 * time.Second
 	if raw := strings.TrimSpace(os.Getenv("MARKETS_BOOK_MAX_AGE")); raw != "" {
 		parsed, err := time.ParseDuration(raw)
@@ -115,6 +118,7 @@ func Load() (Config, error) {
 		RealtimeAllowedOrigins: parseCSV(envDefault("MARKETS_REALTIME_ALLOWED_ORIGINS", "")),
 		DBMaxConns:            8,
 		DBMinConns:            1,
+		TrustedProxyCIDRs:     parseCSV(envDefault("TRUSTED_PROXY_CIDRS", "")),
 	}
 	var err error
 	if cfg.HTTPPort, err = parseEnvInt("MARKETS_HTTP_PORT", defaultHTTPPort); err != nil {

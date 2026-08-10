@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import QRCode from "qrcode";
+import { useQuery } from "@tanstack/react-query";
 import { useAppKit } from "@reown/appkit/react";
 import { usePay } from "@reown/appkit-pay/react";
-import { useAccount, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useSignTypedData, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { AlertCircle, Copy, CreditCard, Droplets, Landmark, QrCode, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,8 +12,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
-import { ABIS, getContractAddresses } from "@/contracts/config";
+import { ABIS, CONTRACT_ADDRESSES, REGISTRY_CHAIN_ID } from "@/contracts/config";
+import { parseUsdc } from "@/config/tokens";
 import { activeFundingProfile } from "@/config/funding";
+import { fetchFaucetRelay, fetchFaucetState, fetchRegistryContracts } from "@/lib/api/retropickApi";
+import { buildFaucetMintSignRequest } from "@/lib/faucetTypedData";
 
 type FundWalletDialogProps = {
   address?: string;
@@ -24,6 +28,7 @@ export default function FundWalletDialog({ address, isOpen, onOpenChange }: Fund
   const { open } = useAppKit();
   const { chainId } = useAccount();
   const { switchChainAsync, isPending: isSwitchingNetwork } = useSwitchChain();
+  const { signTypedDataAsync, isPending: isFaucetSignPending } = useSignTypedData();
   const { toast } = useToast();
   const { open: openExchangeFunding, isPending: isExchangePending } = usePay({
     onError: (error) => {
@@ -39,6 +44,7 @@ export default function FundWalletDialog({ address, isOpen, onOpenChange }: Fund
   const [selectedAssetId, setSelectedAssetId] = useState(activeFundingProfile.assets[0]?.id ?? "");
   const [amount, setAmount] = useState("100");
   const [isOnRampPending, setIsOnRampPending] = useState(false);
+  const [faucetRelayPending, setFaucetRelayPending] = useState(false);
   const { writeContractAsync, data: faucetTxHash, isPending: isFaucetWritePending } = useWriteContract();
   const { isLoading: isFaucetConfirming, isSuccess: isFaucetSuccess } = useWaitForTransactionReceipt({
     hash: faucetTxHash,
@@ -51,6 +57,12 @@ export default function FundWalletDialog({ address, isOpen, onOpenChange }: Fund
   const faucet = activeFundingProfile.faucet;
   const isFundingChain = chainId === activeFundingProfile.chainId;
   const hasFaucet = Boolean(faucet);
+
+  const registryQ = useQuery({
+    queryKey: ["retropick-api", "registry-contracts"],
+    queryFn: fetchRegistryContracts,
+    staleTime: 3600_000,
+  });
 
   useEffect(() => {
     if (!isOpen || !address) return;
@@ -164,18 +176,64 @@ export default function FundWalletDialog({ address, isOpen, onOpenChange }: Fund
         return;
       }
 
-      const faucetAddress = faucet.contractAddress ?? getContractAddresses(faucet.chainId).Faucet;
-      if (!faucetAddress) {
-        toast({
-          title: "Faucet not configured",
-          description: `${activeFundingProfile.chainLabel} does not currently expose a faucet contract.`,
-          variant: "destructive",
-        });
+      const faucetAddr = (faucet.contractAddress || CONTRACT_ADDRESSES.Faucet) as `0x${string}`;
+
+      if (chainId === REGISTRY_CHAIN_ID) {
+        if (registryQ.data?.faucetRelayEnabled && address) {
+          const state = await fetchFaucetState(address);
+          const maxRaw = state.maxMintAmount;
+          const nonceRaw = state.nonce;
+          if (!maxRaw || !/^\d+$/.test(maxRaw) || !nonceRaw || !/^\d+$/.test(nonceRaw)) {
+            toast({
+              title: "Faucet unavailable",
+              description: "Could not read faucet limits from the API.",
+              variant: "destructive",
+            });
+            return;
+          }
+          const maxAmt = BigInt(maxRaw);
+          const n = BigInt(nonceRaw);
+          const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+          const signReq = buildFaucetMintSignRequest({
+            chainId: REGISTRY_CHAIN_ID,
+            faucetAddress: faucetAddr,
+            recipient: address as `0x${string}`,
+            amount: maxAmt,
+            nonce: n,
+            deadline,
+          });
+          const signature = await signTypedDataAsync(
+            signReq as unknown as Parameters<typeof signTypedDataAsync>[0],
+          );
+          setFaucetRelayPending(true);
+          try {
+            await fetchFaucetRelay({
+              recipient: address,
+              amount: maxAmt.toString(),
+              deadline: Number(deadline),
+              signature: signature as `0x${string}`,
+            });
+            toast({
+              title: "Faucet claimed",
+              description: `${faucet?.chainLabel ?? activeFundingProfile.chainLabel} test ${faucet?.tokenSymbol ?? "tokens"} submitted via gasless relay.`,
+            });
+          } finally {
+            setFaucetRelayPending(false);
+          }
+          return;
+        }
+
+        await writeContractAsync({
+          address: faucetAddr,
+          abi: ABIS.TokenFaucet,
+          functionName: "request",
+          args: [parseUsdc(amount)],
+        } as unknown as Parameters<typeof writeContractAsync>[0]);
         return;
       }
 
       await writeContractAsync({
-        address: faucetAddress,
+        address: faucetAddr,
         abi: ABIS.Faucet,
         functionName: "claim",
         args: [faucet.tokenAddress],
@@ -237,27 +295,37 @@ export default function FundWalletDialog({ address, isOpen, onOpenChange }: Fund
               <div className="rounded-2xl border border-border/60 bg-background/70 p-4">
                 <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
                   <Droplets className="h-4 w-4" />
-                  {faucet?.chainLabel ?? activeFundingProfile.chainLabel} faucet
+                  {faucet?.chainLabel} faucet
                 </div>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  Claim test {faucet?.tokenSymbol ?? selectedAsset.label} directly for the configured trading network.
+                  Claim test {faucet?.tokenSymbol} directly for the configured trading network.
                 </p>
                 <Button
                   type="button"
                   variant="secondary"
                   className="w-full"
                   onClick={() => void handleFaucetClaim()}
-                  disabled={isSwitchingNetwork || isFaucetWritePending || isFaucetConfirming}
+                  disabled={
+                    isSwitchingNetwork ||
+                    isFaucetWritePending ||
+                    isFaucetConfirming ||
+                    isFaucetSignPending ||
+                    faucetRelayPending
+                  }
                 >
                   {isSwitchingNetwork
-                    ? `Switching to ${faucet?.chainLabel ?? activeFundingProfile.chainLabel}...`
-                    : isFaucetWritePending
-                      ? "Confirm faucet claim..."
-                      : isFaucetConfirming
-                        ? "Claim pending..."
-                        : isFundingChain
-                          ? `Claim ${faucet?.chainLabel ?? activeFundingProfile.chainLabel} Test ${faucet?.tokenSymbol ?? selectedAsset.label}`
-                          : `Switch to ${faucet?.chainLabel ?? activeFundingProfile.chainLabel} for Faucet`}
+                    ? `Switching to ${faucet?.chainLabel}...`
+                    : isFaucetSignPending
+                      ? "Sign in wallet…"
+                      : faucetRelayPending
+                        ? "Submitting gasless claim…"
+                        : isFaucetWritePending
+                          ? "Confirm faucet claim..."
+                          : isFaucetConfirming
+                            ? "Claim pending..."
+                            : isFundingChain
+                              ? `Claim ${faucet?.chainLabel} Test ${faucet?.tokenSymbol}`
+                              : `Switch to ${faucet?.chainLabel} for Faucet`}
                 </Button>
               </div>
             ) : null}

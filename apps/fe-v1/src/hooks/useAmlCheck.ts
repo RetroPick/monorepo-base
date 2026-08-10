@@ -1,9 +1,9 @@
 /**
- * useAmlCheck — Combined AML compliance hook
+ * useAmlCheck: combined AML compliance hook
  *
  * Runs both layers of the AML policy's dual-layer enforcement:
- *   Layer 1: IP geofencing (§5)  — blocked if country is on hard-block list
- *   Layer 2: Wallet screening (§6) — blocked if TRM score ≥ 80 or sanctions match
+ *   Layer 1: IP geofencing (§5); blocked if country is on hard-block list
+ *   Layer 2: Wallet screening (§6); blocked if TRM score ≥ 80 or sanctions match
  *
  * Usage:
  *   const { isBlocked, blockReason, isLoading, isEnhancedMonitoring } = useAmlCheck()
@@ -63,7 +63,7 @@ export function useAmlCheck(): AmlCheckResult {
       setCountryCode(geo.countryCode)
 
       if (!geo.allowed) {
-        setBlockReason('reason' in geo ? geo.reason : 'Access restricted in your region')
+        setBlockReason("reason" in geo ? geo.reason : "Access is restricted for this jurisdiction.")
         setStatus('blocked_geo')
         return
       }

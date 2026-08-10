@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -16,15 +17,22 @@ import (
 
 	"retropick/apps/backend/internal/db"
 	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/auth"
+	"retropick/apps/backend/internal/markets/balances"
 	"retropick/apps/backend/internal/markets/catalog"
-	"retropick/apps/backend/internal/markets/syncworker"
 	"retropick/apps/backend/internal/markets/clob"
 	marketsconfig "retropick/apps/backend/internal/markets/config"
+	"retropick/apps/backend/internal/markets/devseed"
+	"retropick/apps/backend/internal/markets/eligibility"
 	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/markets/marketdata"
+	"retropick/apps/backend/internal/markets/orders"
 	"retropick/apps/backend/internal/markets/postgres"
+	"retropick/apps/backend/internal/markets/reconcile"
 	"retropick/apps/backend/internal/markets/realtime"
 	"retropick/apps/backend/internal/markets/signals"
+	"retropick/apps/backend/internal/markets/syncworker"
+	"retropick/apps/backend/internal/markets/wallet"
 )
 
 func main() {
@@ -39,7 +47,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := db.WaitForSchema(ctx, cfg.DatabaseURL, log); err != nil {
+	bootstrapDev := os.Getenv("MARKETS_BOOTSTRAP") == "migrate-and-seed"
+	if bootstrapDev {
+		if err := db.RunMigrations(cfg.DatabaseURL); err != nil {
+			log.Error("RunMigrations", "err", err)
+			os.Exit(1)
+		}
+	} else if err := db.WaitForSchema(ctx, cfg.DatabaseURL, log); err != nil {
 		log.Error("wait for schema", "err", err)
 		os.Exit(1)
 	}
@@ -53,6 +67,18 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+
+	if bootstrapDev {
+		scenario := os.Getenv("MARKETS_DEV_SEED_SCENARIO")
+		if scenario == "" {
+			scenario = "populated"
+		}
+		if err := devseed.Apply(ctx, pool, scenario); err != nil {
+			log.Error("dev seed", "err", err, "scenario", scenario)
+			os.Exit(1)
+		}
+		log.Info("dev seed complete", "scenario", scenario)
+	}
 
 	store, err := postgres.New(pool)
 	if err != nil {
@@ -82,7 +108,7 @@ func main() {
 	}
 
 	syncer, err := catalog.NewSyncer(catalog.SyncerConfig{
-		Source: gamma.NewClient(cfg.GammaAPIURL),
+		Source: gamma.NewResilientClient(cfg.GammaAPIURL, gamma.ResilientConfig{}),
 		Store:  store,
 	})
 	if err != nil {
@@ -91,6 +117,7 @@ func main() {
 	}
 
 	metrics := markets.NewMetrics()
+	eligibilityEval := markets.ProductionEligibilityEvaluator(metrics)
 	clobClient := clob.NewClient(cfg.CLOBAPIURL)
 	var rtRuntime *realtime.Runtime
 	var tokenRegistry *postgres.CatalogTokenRegistry
@@ -121,6 +148,7 @@ func main() {
 		MaxStaleAge:   cfg.CatalogMaxStaleAge,
 		Backoff:       cfg.CatalogBackoff,
 		ShutdownGrace: cfg.ShutdownTimeout,
+		Metrics:       metrics,
 		OnCatalogSynced: func(ctx context.Context) error {
 			if tokenRegistry == nil {
 				return nil
@@ -181,16 +209,35 @@ func main() {
 		SignalsOperational: store.SignalsOperational(),
 		RealtimeState:      rtRuntime,
 		Metrics:            metrics,
+		Eligibility:        eligibilityEval,
 		BookMaxAge:         cfg.BookMaxAge,
+		IPTrust: eligibility.IPTrustOptions{
+			TrustForwardedFor: len(cfg.TrustedProxyCIDRs) > 0,
+			TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
+		},
+	})
+
+	authCfg, err := auth.LoadConfig()
+	if err != nil {
+		log.Error("auth config", "err", err)
+		os.Exit(1)
+	}
+	authMod := auth.NewModule(auth.ModuleConfig{
+		Config:    authCfg,
+		Evaluator: eligibilityEval,
+		IPTrust: eligibility.IPTrustOptions{
+			TrustForwardedFor: len(cfg.TrustedProxyCIDRs) > 0,
+			TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
+		},
 	})
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.Logger, middleware.Recoverer, middleware.Timeout(60*time.Second))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "HEAD", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "If-None-Match"},
-		AllowCredentials: false,
+		AllowedOrigins:   auth.ParseCORSOrigins(os.Getenv("MARKETS_CORS_ALLOWED_ORIGINS")),
+		AllowedMethods:   []string{"GET", "HEAD", "OPTIONS", "POST"},
+		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "If-None-Match", "X-CSRF-Token"},
+		AllowCredentials: true,
 	}))
 
 	markets.RegisterHealthRoutes(r, markets.HealthChecker{
@@ -202,7 +249,40 @@ func main() {
 		RealtimeState:         rtRuntime,
 		ServiceName:           "retropick-markets-api",
 	})
-	markets.RegisterRoutes(r, markets.NewHandler(marketsSvc))
+	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = fmt.Fprint(w, metrics.Prometheus())
+	})
+	walletCfg := wallet.HandlerConfigFromPool(pool)
+	ordersHandlerCfg := orders.NewProductionHandlerConfig(orders.ProductionConfig{
+		Discoverer:    walletCfg.Discoverer,
+		Pool:          pool,
+		Catalog:       projection,
+		CLOBURL:       cfg.CLOBAPIURL,
+		Metrics:       metrics,
+		SubmitMetrics: metrics,
+	})
+	markets.RegisterRoutesWithDepsAndMarketRoutes(
+		r,
+		markets.NewHandler(marketsSvc),
+		authMod,
+		markets.RouteDeps{Wallet: walletCfg},
+		[]markets.EligibleMeRouteRegistrar{
+			func(r chi.Router) {
+				balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
+					Discoverer: walletCfg.Discoverer,
+					CLOBURL:    cfg.CLOBAPIURL,
+					L2Store:    balances.UnwiredL2CredentialStore{},
+				}))
+				orders.RegisterMeRoutes(r, ordersHandlerCfg)
+			},
+		},
+		[]markets.EligibleMarketRouteRegistrar{
+			func(r chi.Router) {
+				orders.RegisterRoutes(r, ordersHandlerCfg)
+			},
+		},
+	)
 	if rtRuntime != nil {
 		rtRuntime.Handler.RegisterRoutes(r)
 	}
@@ -214,6 +294,24 @@ func main() {
 			log.Error("catalog worker stopped", "err", err)
 		}
 	}()
+	if cfg.CLOBAPIURL != "" && marketsReconcileEnabled() {
+		tradingClient := clob.NewTradingClient(clob.TradingClientConfig{
+			BaseURL: cfg.CLOBAPIURL,
+			Creds:   clob.UnwiredCredentialProvider{},
+		})
+		reconcileWorker := reconcile.NewWorker(reconcile.WorkerConfig{
+			Store:        ordersHandlerCfg.Service.Projections(),
+			Venue:        reconcile.NewCLOBVenueReader(tradingClient),
+			Metrics:      metrics,
+			Interval:     10 * time.Second,
+			UnknownGrace: 90 * time.Second,
+		})
+		go func() {
+			if err := reconcileWorker.Run(workerCtx); err != nil && err != context.Canceled {
+				log.Error("reconcile worker stopped", "err", err)
+			}
+		}()
+	}
 	if rtRuntime != nil {
 		rtRuntime.Start(workerCtx)
 		defer rtRuntime.Stop()
@@ -233,4 +331,13 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer shutdownCancel()
 	_ = srv.Shutdown(shutdownCtx)
+}
+
+func marketsReconcileEnabled() bool {
+	switch strings.TrimSpace(strings.ToLower(os.Getenv("MARKETS_RECONCILE_ENABLED"))) {
+	case "false", "0", "off":
+		return false
+	default:
+		return true
+	}
 }

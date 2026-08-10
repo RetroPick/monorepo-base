@@ -90,15 +90,27 @@ frontends, or pool-based `MarketEngine` architecture.
 - Treat local `ECC/` as read-only engineering methodology reference; RetroPick code and contracts remain authoritative—do not install ECC, commit ECC changes, or copy the framework into the repo.
 - Prefer plan → verify → implement loops for Markets V1 doc/architecture work; keep documentation accurate and agent-usable rather than merely longer.
 - Money amounts in Markets backend docs/code guidance are fixed-point, never floating point.
+- Markets V1 phased implementation tasks use PLAN MODE first; implement only after explicit user approval.
+- Do not advance `current_phase` in `implementation-manifest.yaml` unless the user explicitly requests it.
+- When a phased task's `owned_paths` omit HTTP wiring files but end-to-end contract tests require them, include minimal glue in parent modules (e.g. `service.go`/`handler.go`/`metrics.go`) after user approval.
+- When implementing an approved harness plan, do not edit the attached plan file; execute against it and record evidence elsewhere.
+- Parallel harness chats must honor frozen `owned_paths` (one writer per path); cross-package wiring belongs in explicit glue/handoff tasks.
+- Live Polymarket CLOB credentials require explicit human approval; local tests and default dev paths use sandbox/httptest only (no mainnet submit claims).
 
 ## Learned Workspace Facts
 
-- Markets V1 product goal and phase framing live in `.dev/MARKETS.md`; the engineering doc system is `.dev/markets-v1/**` (including `phases/`, `architecture/` with C4/ADRs, and domain folders).
-- Smart Money / trader intelligence specs live under `.dev/markets-v1/intelligence/`; compute belongs in `apps/backend/internal/markets/intelligence/` with params such as `intelligence_params_v1.yaml`.
+- Markets V1 product goal and phase framing live in `.dev/MARKETS.md`; engineering docs under `.dev/markets-v1/**` use a dual-track model (Markets Core PHASE-0…8 + parallel Smart Money I0–I6) per `.dev/markets-v1/phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md`.
+- Smart Money / trader intelligence specs live under `.dev/markets-v1/intelligence/`; compute belongs in `apps/backend/internal/markets/intelligence/` with params such as `intelligence_params_v1.yaml`. Whale feed and wallet profiles are I1/I2, not PHASE-4 portfolio ownership.
 - Polymarket is the venue authority for Markets V1; RetroPick does not define a custom Markets exchange.
 - Intelligence follow lists are private by default; paper copy and backtests are simulated only and must not be presented as venue/Polymarket fills.
-- Markets V1 Android surfaces are Kotlin + Jetpack Compose.
+- Markets V1 Android product target is Kotlin + Jetpack Compose (ADR-006); `apps/android` submodule is currently a Capacitor+Next prototype that must migrate and use BFF-only (no direct Polymarket/Gamma client).
 - Backend Markets data is projection/read models, not ownership authority, unless a doc explicitly says otherwise.
+- Canonical Markets catalog IDs use `polymarket:{kind}:{upstreamId}` (events, markets, tokens).
+- Greenfield Markets read UI lives in `apps/web/src/products/markets/` with a minimal Next.js dev shell (`pnpm dev`, port 3001) and fe-v1 visual chrome; production deploy still uses `apps/fe-v1` until PHASE-6 integration. Local dev must call the Go BFF (`NEXT_PUBLIC_API_BASE_URL` or dev fallback `http://127.0.0.1:8080`); misconfigured base URL hits Next.js HTML and surfaces catalog `malformed` errors. fe-v1 global Header `WalletButton` on markets routes is accepted PHASE-1 debt; MKT-P2-001 must quarantine it before trading UX.
+- RetroPick Go module root is `apps/backend/` (no repo-root `go.mod`); run Markets BFF with `go -C apps/backend run ./cmd/markets-api` (or `cd apps/backend` first). Local Postgres via compose uses port `:5433` (`DATABASE_URL=postgres://retropick:retropick@127.0.0.1:5433/retropick?sslmode=disable`).
+- `implementation-manifest.yaml` `current_phase` is **PHASE-2**; MKT-P2-007 exit **CONDITIONAL** (BLK-001 ops staging open). PHASE-3 order preview/submit/cancel backend in `orders/` + `clob/` (V2, sandbox/httptest default, BLK-004 open); OpenAPI `markets-v1.yaml` **v1.3.0**; in-memory order `ProjectionStore` until Postgres handoff; public `order_submit` kill switch default **false** (`MARKETS_ORDER_SUBMIT_ENABLED`); manifest advance requires explicit user authorization + BLK-001 staging proof.
+- Markets `/me` auth gating: wallet discovery (`/me/wallets`) is auth-only; balances and transactional routes require `RequireEligible` (see AUTH §5).
+- Post-dev infrastructure, VPS, external APIs, and secrets preflight: `.dev/markets-v1/.whatNeeded.md`.
 
 <claude-mem-context>
 # Memory Context

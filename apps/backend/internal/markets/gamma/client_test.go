@@ -95,6 +95,24 @@ func TestGetEventNormalizesNestedMarkets(t *testing.T) {
 	}
 }
 
+func TestGetMarketCanonicalIDShape(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":456,"question":"Will A happen?"}`))
+	}))
+	defer srv.Close()
+
+	got, err := NewClient(srv.URL).GetMarket(context.Background(), "456")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if CanonicalMarketID(got.ID) != "polymarket:market:456" {
+		t.Fatalf("canonical %q from upstream id %q", CanonicalMarketID(got.ID), got.ID)
+	}
+}
+
 func TestGetMarketRejectsMismatchedOutcomeArrays(t *testing.T) {
 	t.Parallel()
 

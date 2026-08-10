@@ -1,9 +1,11 @@
 -- name: UpsertMarketsCatalogEvent :one
 INSERT INTO markets_catalog_events (
     event_id, slug, title, description, status, start_at, end_at, source,
-    upstream_updated_at, content_hash, payload, observed_at
+    upstream_updated_at, content_hash, payload, observed_at,
+    id, upstream_id, upstream_source
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+    gen_random_uuid(), $13, $14
 )
 ON CONFLICT (event_id) DO UPDATE SET
     slug = EXCLUDED.slug,
@@ -17,6 +19,8 @@ ON CONFLICT (event_id) DO UPDATE SET
     content_hash = EXCLUDED.content_hash,
     payload = EXCLUDED.payload,
     observed_at = EXCLUDED.observed_at,
+    upstream_id = EXCLUDED.upstream_id,
+    upstream_source = EXCLUDED.upstream_source,
     updated_at = NOW()
 RETURNING *;
 
@@ -64,9 +68,11 @@ WHERE event_id = $1;
 INSERT INTO markets_catalog_markets (
     market_id, event_id, condition_id, slug, question, description, status,
     end_at, enable_order_book, neg_risk, source, upstream_updated_at,
-    content_hash, payload, observed_at
+    content_hash, payload, observed_at,
+    id, upstream_id, upstream_source
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+    gen_random_uuid(), $16, $17
 )
 ON CONFLICT (market_id) DO UPDATE SET
     event_id = EXCLUDED.event_id,
@@ -83,6 +89,8 @@ ON CONFLICT (market_id) DO UPDATE SET
     content_hash = EXCLUDED.content_hash,
     payload = EXCLUDED.payload,
     observed_at = EXCLUDED.observed_at,
+    upstream_id = EXCLUDED.upstream_id,
+    upstream_source = EXCLUDED.upstream_source,
     updated_at = NOW()
 RETURNING *;
 
@@ -100,9 +108,11 @@ ORDER BY market_id;
 -- name: UpsertMarketsCatalogOutcome :one
 INSERT INTO markets_catalog_outcomes (
     outcome_id, market_id, upstream_token_id, outcome_index, name, price,
-    winner, observed_at
+    winner, observed_at,
+    id, upstream_id, upstream_source
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8,
+    gen_random_uuid(), $9, $10
 )
 ON CONFLICT (outcome_id) DO UPDATE SET
     upstream_token_id = EXCLUDED.upstream_token_id,
@@ -111,6 +121,8 @@ ON CONFLICT (outcome_id) DO UPDATE SET
     price = EXCLUDED.price,
     winner = EXCLUDED.winner,
     observed_at = EXCLUDED.observed_at,
+    upstream_id = EXCLUDED.upstream_id,
+    upstream_source = EXCLUDED.upstream_source,
     updated_at = NOW()
 RETURNING *;
 
@@ -123,9 +135,11 @@ ORDER BY outcome_index;
 -- name: UpsertMarketsCatalogRule :one
 INSERT INTO markets_catalog_rules (
     market_id, description, resolution_source_name, resolution_source_url,
-    content_hash, upstream_updated_at, observed_at
+    content_hash, upstream_updated_at, observed_at,
+    id, upstream_id, upstream_source
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6, $7,
+    gen_random_uuid(), $8, $9
 )
 ON CONFLICT (market_id) DO UPDATE SET
     description = EXCLUDED.description,
@@ -134,6 +148,8 @@ ON CONFLICT (market_id) DO UPDATE SET
     content_hash = EXCLUDED.content_hash,
     upstream_updated_at = EXCLUDED.upstream_updated_at,
     observed_at = EXCLUDED.observed_at,
+    upstream_id = EXCLUDED.upstream_id,
+    upstream_source = EXCLUDED.upstream_source,
     updated_at = NOW()
 RETURNING *;
 
@@ -203,9 +219,9 @@ LIMIT 1;
 -- name: InsertMarketsRawUpstreamEvent :exec
 INSERT INTO markets_raw_upstream_events (
     source, upstream_event_id, entity_type, entity_id, schema_version, payload,
-    observed_at, expires_at
+    observed_at, expires_at, upstream_source, upstream_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 )
 ON CONFLICT (source, upstream_event_id) DO NOTHING;
 
@@ -220,15 +236,16 @@ WHERE source = $1 AND stream = $2;
 
 -- name: UpsertMarketsSyncCheckpoint :one
 INSERT INTO markets_sync_checkpoints (
-    source, stream, cursor, high_watermark, last_success_at, metadata
+    source, stream, cursor, high_watermark, last_success_at, metadata, upstream_source
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 )
 ON CONFLICT (source, stream) DO UPDATE SET
     cursor = EXCLUDED.cursor,
     high_watermark = EXCLUDED.high_watermark,
     last_success_at = EXCLUDED.last_success_at,
     metadata = EXCLUDED.metadata,
+    upstream_source = EXCLUDED.upstream_source,
     updated_at = NOW()
 RETURNING *;
 

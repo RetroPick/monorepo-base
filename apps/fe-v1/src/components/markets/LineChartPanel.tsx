@@ -1,48 +1,50 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { ColorType, createChart, CrosshairMode, LineSeries } from "lightweight-charts";
+
+import { ChartLabelWatermark } from "@/components/market/ChartLabelWatermark";
 import type { LinePoint } from "@/lib/market-data/types";
+
+export interface LineChartPriceLine {
+  price: number;
+  title: string;
+  color: string;
+}
 
 interface LineChartPanelProps {
   points: LinePoint[];
   height?: number;
-  title: string;
-  subtitle: string;
-  sourceLine: string;
+  /** Kept for call-site compatibility; header chrome is not rendered. */
+  title?: string;
+  subtitle?: string;
+  sourceLine?: string;
   formatValue?: (n: number) => string;
+  /** Horizontal reference lines (e.g. threshold) on the price scale. */
+  priceLines?: LineChartPriceLine[];
 }
 
 function getChartColors() {
   const styles = getComputedStyle(document.documentElement);
-  const isDark = document.documentElement.classList.contains("dark");
   const mutedToken = styles.getPropertyValue("--muted-foreground").trim();
-  const borderToken = styles.getPropertyValue("--border").trim();
 
   return {
-    isDark,
-    surface: isDark
-      ? `hsl(${styles.getPropertyValue("--background").trim()})`
-      : `hsl(${styles.getPropertyValue("--card").trim()})`,
-    foreground: `hsl(${styles.getPropertyValue("--foreground").trim()})`,
+    surface: `hsl(${styles.getPropertyValue("--background").trim()})`,
     muted: `hsl(${mutedToken})`,
-    border: `hsl(${borderToken})`,
-    grid: isDark ? `hsl(${borderToken} / 0.08)` : `hsl(${mutedToken} / 0.2)`,
     line: `hsl(${styles.getPropertyValue("--accent-cyan").trim()})`,
-    shadow: isDark
-      ? "0 28px 80px -44px rgba(2,6,23,0.82)"
-      : "0 24px 64px -40px rgba(15,23,42,0.18)",
   };
 }
 
 export function LineChartPanel({
   points,
   height = 320,
-  title,
-  subtitle,
-  sourceLine,
   formatValue = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 2 }),
+  priceLines = [],
 }: LineChartPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const priceLinesKey = useMemo(
+    () => priceLines.map((l) => `${l.price}:${l.title}:${l.color}`).join("|"),
+    [priceLines],
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -58,8 +60,8 @@ export function LineChartPanel({
           attributionLogo: false,
         },
         grid: {
-          vertLines: { color: colors.grid },
-          horzLines: { color: colors.grid },
+          vertLines: { color: "transparent" },
+          horzLines: { color: "transparent" },
         },
         crosshair: {
           mode: CrosshairMode.Normal,
@@ -67,10 +69,10 @@ export function LineChartPanel({
           horzLine: { color: `${colors.line}30`, width: 1 },
         },
         rightPriceScale: {
-          borderColor: `${colors.border}${colors.isDark ? "1f" : "99"}`,
+          borderColor: "transparent",
         },
         timeScale: {
-          borderColor: `${colors.border}${colors.isDark ? "1f" : "99"}`,
+          borderColor: "transparent",
           timeVisible: true,
           secondsVisible: false,
         },
@@ -80,24 +82,25 @@ export function LineChartPanel({
       });
       series.applyOptions({ color: colors.line, lineWidth: 2 });
       wrapper.style.backgroundColor = colors.surface;
-      wrapper.style.boxShadow = colors.shadow;
+      wrapper.style.boxShadow = "none";
     };
 
+    const chartHeight = Math.max(height, 200);
     const chart = createChart(container, {
       autoSize: true,
-      height: Math.max(height - 64, 200),
+      height: chartHeight,
       layout: {
         background: { type: ColorType.Solid, color: "#ffffff" },
         textColor: "#64748b",
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: "rgba(148,163,184,0.2)" },
-        horzLines: { color: "rgba(148,163,184,0.2)" },
+        vertLines: { color: "transparent" },
+        horzLines: { color: "transparent" },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "rgba(148,163,184,0.4)" },
-      timeScale: { borderColor: "rgba(148,163,184,0.4)", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: "transparent" },
+      timeScale: { borderColor: "transparent", timeVisible: true, secondsVisible: false },
       localization: { priceFormatter: formatValue },
     });
 
@@ -105,7 +108,7 @@ export function LineChartPanel({
       color: "#0891b2",
       lineWidth: 2,
       priceLineVisible: false,
-      lastValueVisible: true,
+      lastValueVisible: false,
     });
 
     series.setData(
@@ -114,6 +117,17 @@ export function LineChartPanel({
         value: p.value,
       })),
     );
+
+    priceLines.forEach((line) => {
+      series.createPriceLine({
+        price: line.price,
+        color: line.color,
+        lineWidth: 2,
+        lineStyle: 2,
+        axisLabelVisible: true,
+        title: line.title,
+      });
+    });
 
     chart.timeScale().fitContent();
     applyTheme();
@@ -127,36 +141,13 @@ export function LineChartPanel({
       themeObserver.disconnect();
       chart.remove();
     };
-  }, [points, height, formatValue]);
-
-  const colors = getChartColors();
-  const last = points[points.length - 1];
-  const prev = points[points.length - 2];
-  const delta = last && prev ? last.value - prev.value : 0;
-  const deltaPct = last && prev && prev.value !== 0 ? (delta / prev.value) * 100 : 0;
+  }, [points, height, formatValue, priceLinesKey]);
 
   return (
-    <div
-      ref={wrapperRef}
-      className="overflow-hidden rounded-[28px] border border-slate-800 text-slate-100 shadow-[0_28px_80px_-44px_rgba(2,6,23,0.82)]"
-      style={{ height }}
-    >
-      <div className="border-b px-4 py-2.5" style={{ borderColor: colors.border }}>
-        <div className="text-sm font-semibold" style={{ color: colors.foreground }}>
-          {title}
-        </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: colors.muted }}>
-          {subtitle} · {sourceLine}
-          {last && prev ? (
-            <span className="ml-1 tabular-nums" style={{ color: delta >= 0 ? "#22c55e" : "#ef4444" }}>
-              {delta >= 0 ? "+" : ""}
-              {formatValue(delta)} ({delta >= 0 ? "+" : ""}
-              {deltaPct.toFixed(2)}%)
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <div ref={containerRef} className="w-full" style={{ height: Math.max(height - 64, 200) }} />
+    <div ref={wrapperRef} className="relative w-full overflow-hidden bg-background" style={{ height }}>
+      <div ref={containerRef} className="relative z-0 w-full" style={{ height: Math.max(height, 200) }} />
+      {/** After chart mount target so canvas paints underneath; lightweight-charts uses sibling canvases. */}
+      <ChartLabelWatermark variant="markets" className="absolute right-2 top-2 z-20 sm:right-3 sm:top-3" />
     </div>
   );
 }

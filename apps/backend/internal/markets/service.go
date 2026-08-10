@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"retropick/apps/backend/internal/markets/clob"
+	"retropick/apps/backend/internal/markets/eligibility"
+	"retropick/apps/backend/internal/markets/eligibility/geo"
 	"retropick/apps/backend/internal/markets/gamma"
 )
 
@@ -103,6 +105,8 @@ type ServiceConfig struct {
 	RealtimeOperational  bool
 	RealtimeState        RealtimeStateProvider
 	Metrics              *Metrics
+	Eligibility          *eligibility.Evaluator
+	IPTrust              eligibility.IPTrustOptions
 	BookMaxAge        time.Duration
 	Now               func() time.Time
 }
@@ -111,6 +115,17 @@ type Service struct {
 	cfg        ServiceConfig
 	now        func() time.Time
 	bookMaxAge time.Duration
+}
+
+// ProductionEligibilityEvaluator builds the fail-closed evaluator for API entrypoints.
+// Geo and geoblock checkers are env-gated via ResolverFromEnv and GeoblockFromEnv.
+// DefaultEvaluator (deny-all) remains for tests without injection.
+func ProductionEligibilityEvaluator(metrics *Metrics) *eligibility.Evaluator {
+	eval := eligibility.EvaluatorWithGeoblock(geo.ResolverFromEnv(), eligibility.GeoblockFromEnv())
+	if metrics != nil {
+		eval.Metrics = metrics
+	}
+	return eval
 }
 
 func NewService(cfg ServiceConfig) *Service {
@@ -129,12 +144,32 @@ func (s *Service) nowUTC() time.Time {
 	return s.now().UTC()
 }
 
-// Eligibility fails closed until geoblock/upstream checks are wired.
-func (s *Service) Eligibility(_ context.Context) EligibilityResponse {
+func (s *Service) IPTrust() eligibility.IPTrustOptions {
+	return s.cfg.IPTrust
+}
+
+func (s *Service) eligibilityEvaluator() *eligibility.Evaluator {
+	if s.cfg.Eligibility != nil {
+		return s.cfg.Eligibility
+	}
+	eval := eligibility.DefaultEvaluator()
+	if s.cfg.Now != nil {
+		eval.Now = s.cfg.Now
+	}
+	if s.cfg.Metrics != nil {
+		eval.Metrics = s.cfg.Metrics
+	}
+	return eval
+}
+
+// Eligibility evaluates server-authoritative jurisdiction eligibility fail-closed.
+func (s *Service) Eligibility(ctx context.Context, in eligibility.Input) EligibilityResponse {
+	decision := s.eligibilityEvaluator().Check(ctx, in)
 	return EligibilityResponse{
-		Eligible:  false,
-		Reason:    "markets_platform_not_enabled",
-		CheckedAt: s.nowUTC(),
+		Eligible:  decision.Eligible,
+		Reason:    decision.Reason,
+		Region:    decision.Region,
+		CheckedAt: decision.CheckedAt,
 	}
 }
 
@@ -211,6 +246,7 @@ func (s *Service) ListEvents(ctx context.Context, cursor string, limit int) (Eve
 	if err != nil {
 		return EventsListResponse{}, classifyCatalogError(err)
 	}
+	s.observeCatalogFreshness(status.LatestObserved, now)
 	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
 	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
 		return EventsListResponse{}, freshnessErr
@@ -255,6 +291,7 @@ func (s *Service) GetEvent(ctx context.Context, eventID string) (EventDetail, er
 	if err != nil {
 		return EventDetail{}, classifyCatalogError(err)
 	}
+	s.observeCatalogFreshness(status.LatestObserved, now)
 	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
 	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
 		return EventDetail{}, freshnessErr
@@ -283,6 +320,7 @@ func (s *Service) GetMarket(ctx context.Context, marketID string) (MarketDetail,
 	if err != nil {
 		return MarketDetail{}, classifyCatalogError(err)
 	}
+	s.observeCatalogFreshness(status.LatestObserved, now)
 	freshness, freshnessErr := evaluateCatalogFreshness(status.LatestObserved, now, s.catalogMaxStale(), s.cfg.CatalogWorker)
 	if freshnessErr != nil && freshness.State == FreshnessUnavailable {
 		return MarketDetail{}, freshnessErr
@@ -445,6 +483,18 @@ func validHistoryInterval(value string) bool {
 	default:
 		return false
 	}
+}
+
+func (s *Service) observeCatalogFreshness(observedAt, now time.Time) {
+	if observedAt.IsZero() {
+		return
+	}
+	age := now.Sub(observedAt)
+	if s.cfg.Metrics != nil {
+		s.cfg.Metrics.ObserveCatalogFreshness(age)
+		return
+	}
+	gamma.ObserveCatalogFreshnessSeconds(age.Seconds())
 }
 
 func (s *Service) observeUpstream(upstream string, succeeded bool, duration time.Duration) {

@@ -59,6 +59,9 @@ func TestLoad_MarketsAPIDefaults(t *testing.T) {
 	if cfg.CatalogSyncInterval != 5*time.Minute {
 		t.Fatalf("sync interval %s", cfg.CatalogSyncInterval)
 	}
+	if cfg.BookMaxAge != 10*time.Second {
+		t.Fatalf("book max age %s", cfg.BookMaxAge)
+	}
 	if !cfg.CatalogEnabled || !cfg.MarketDataEnabled {
 		t.Fatalf("flags catalog=%v data=%v", cfg.CatalogEnabled, cfg.MarketDataEnabled)
 	}

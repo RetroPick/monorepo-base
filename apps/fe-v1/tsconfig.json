@@ -2,7 +2,18 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@retropick/abi/*": [
+        "../../package/abi/*"
+      ],
+      "@retropick/contracts": [
+        "../../packages/contracts"
+      ],
+      "@retropick/contracts/*": [
+        "../../packages/contracts/*"
+      ]
     },
     "noImplicitAny": false,
     "noUnusedParameters": false,
@@ -11,7 +22,11 @@
     "noUnusedLocals": false,
     "strictNullChecks": false,
     "target": "ES2022",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "strict": false,
     "noEmit": true,
     "incremental": true,
@@ -22,7 +37,11 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "plugins": [{ "name": "next" }]
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
   },
   "include": [
     "next-env.d.ts",
@@ -39,7 +58,6 @@
     "src/**/*.test.ts",
     "src/**/*.test.tsx",
     "src/test",
-    "src/legacy-quarantine/**",
     "vite.config.ts"
   ]
 }

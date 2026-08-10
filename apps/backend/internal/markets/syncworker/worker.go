@@ -12,6 +12,7 @@ import (
 
 	"retropick/apps/backend/internal/markets"
 	"retropick/apps/backend/internal/markets/catalog"
+	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/markets/postgres"
 )
 
@@ -145,6 +146,7 @@ type Config struct {
 	ShutdownGrace time.Duration
 	Now           func() time.Time
 	OnCatalogSynced func(ctx context.Context) error
+	Metrics       *markets.Metrics
 }
 
 // CatalogWorker runs periodic catalog sync with advisory-lock single-flight semantics.
@@ -273,17 +275,21 @@ func (w *CatalogWorker) runOnce(ctx context.Context) error {
 		return err
 	}
 
+	syncStarted := time.Now()
 	result, err := w.cfg.Syncer.Run(ctx, catalog.RunOptions{
 		PageSize:    w.cfg.PageSize,
 		MaxPages:    w.cfg.MaxPages,
 		StartOffset: startOffset,
 		Cycle:       cycle,
 	})
+	elapsed := time.Since(syncStarted)
 	if err != nil {
+		w.observeSyncRun(catalog.Result{}, err, elapsed, now)
 		w.status.setBackoff(now.Add(w.cfg.Backoff), err)
 		_ = w.refreshProjectionState(ctx, true)
 		return err
 	}
+	w.observeSyncRun(result, nil, elapsed, now)
 	if result.CycleComplete {
 		if err := w.resetScanCycle(ctx, now, result); err != nil {
 			w.status.setBackoff(now.Add(w.cfg.Backoff), err)
@@ -392,3 +398,33 @@ func (w *CatalogWorker) resetScanCycle(ctx context.Context, now time.Time, resul
 }
 
 var _ markets.CatalogWorkerState = (*CatalogWorker)(nil)
+
+func classifyGammaErrorKind(err error) string {
+	switch {
+	case errors.Is(err, gamma.ErrRateLimited):
+		return "rate_limited"
+	case errors.Is(err, gamma.ErrNotFound):
+		return "not_found"
+	case errors.Is(err, gamma.ErrInvalidPayload):
+		return "invalid_payload"
+	case err != nil:
+		return "upstream"
+	default:
+		return ""
+	}
+}
+
+func (w *CatalogWorker) observeSyncRun(result catalog.Result, syncErr error, elapsed time.Duration, now time.Time) {
+	if w.cfg.Metrics == nil {
+		return
+	}
+	if syncErr != nil {
+		w.cfg.Metrics.ObserveUpstream("gamma", false, elapsed)
+		if kind := classifyGammaErrorKind(syncErr); kind != "" {
+			w.cfg.Metrics.RecordGammaError(kind)
+		}
+		return
+	}
+	w.cfg.Metrics.ObserveUpstream("gamma", true, elapsed)
+	w.cfg.Metrics.RecordCatalogSync(result.Events+result.Markets, now)
+}

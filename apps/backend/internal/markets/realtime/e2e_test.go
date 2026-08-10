@@ -192,6 +192,89 @@ func TestSlowClientE2EDoesNotBlockHealthyClient(t *testing.T) {
 	}
 }
 
+func TestResyncRequiredOnShardDisconnect(t *testing.T) {
+	t.Parallel()
+	upstream := upstreamws.NewFakeServer()
+	defer upstream.Close()
+	const (
+		marketID = "market-resync"
+		tokenID  = "token-resync"
+	)
+	registry := &memRegistry{tokens: map[string]string{tokenID: marketID}}
+	rt := startRuntime(t, upstream, registry, false)
+	conn := dialPublicWS(t, rt)
+	_, _, _ = conn.ReadMessage() // hello
+
+	sub, _ := json.Marshal(map[string]string{"command": "subscribe", "marketId": marketID, "tokenId": tokenID})
+	if err := conn.WriteMessage(websocket.TextMessage, sub); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(8 * time.Second)
+	var firstEpoch float64
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			continue
+		}
+		var envelope map[string]any
+		if json.Unmarshal(data, &envelope) != nil {
+			continue
+		}
+		if envelope["eventType"] == realtime.TypeOrderBookSnapshot {
+			firstEpoch, _ = envelope["streamEpoch"].(float64)
+			break
+		}
+	}
+	if firstEpoch == 0 {
+		t.Fatal("expected initial orderbook snapshot")
+	}
+
+	rt.Producer.OnUpstreamShardDisconnect(0, []string{tokenID})
+
+	var sawResync bool
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			continue
+		}
+		var envelope map[string]any
+		if json.Unmarshal(data, &envelope) != nil {
+			continue
+		}
+		if envelope["eventType"] == realtime.TypeResyncRequired {
+			sawResync = true
+			break
+		}
+	}
+	if !sawResync {
+		t.Fatal("expected resync.required after shard disconnect")
+	}
+
+	upstream.PushBook(tokenID, "resync-hash")
+	for time.Now().Before(deadline) {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+		_, data, err := conn.ReadMessage()
+		if err != nil {
+			continue
+		}
+		var envelope map[string]any
+		if json.Unmarshal(data, &envelope) != nil {
+			continue
+		}
+		if envelope["eventType"] != realtime.TypeOrderBookSnapshot {
+			continue
+		}
+		nextEpoch, _ := envelope["streamEpoch"].(float64)
+		if nextEpoch > firstEpoch {
+			return
+		}
+	}
+	t.Fatal("expected post-resync snapshot with higher streamEpoch")
+}
+
 func TestCapabilitiesRealtimeStableWhileConnecting(t *testing.T) {
 	t.Parallel()
 	status := realtime.NewStatusProvider(true)

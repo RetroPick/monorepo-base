@@ -1,4 +1,5 @@
 import type { LinePoint } from "./types";
+import { getPublicEnv } from "@/lib/runtimeEnv";
 
 const TTL_MS = 60 * 60_000;
 const cache = new Map<string, { expiresAt: number; value: LinePoint[] }>();
@@ -13,7 +14,7 @@ export type FredObservationsResponse = {
 /** Same-origin proxy in dev (see vite.config); production needs an equivalent /api/fred route. */
 const FRED_PROXY_PREFIX = "/api/fred";
 
-/** Pure parse for tests — FRED observation value can be "." for missing. */
+/** Pure parse for tests: FRED observation value can be "." for missing. */
 export function parseFredObservationsToLinePoints(json: FredObservationsResponse): LinePoint[] {
   const rows = json.observations;
   if (!Array.isArray(rows)) return [];
@@ -32,7 +33,7 @@ export function parseFredObservationsToLinePoints(json: FredObservationsResponse
 }
 
 export async function fetchFredSeries(seriesId: string, observationYears = 10): Promise<LinePoint[]> {
-  const apiKey = typeof import.meta !== "undefined" ? import.meta.env?.VITE_FRED_API_KEY as string | undefined : undefined;
+  const apiKey = getPublicEnv("FRED_API_KEY");
   if (!apiKey) {
     throw new Error("missing_fred_key");
   }

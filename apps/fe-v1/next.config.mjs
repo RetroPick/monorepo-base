@@ -1,89 +1,43 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import bundleAnalyzer from "@next/bundle-analyzer";
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const withBundleAnalyzer = bundleAnalyzer({
-  enabled: process.env.ANALYZE === "true",
-  /** Default off so CI/agents can run `pnpm analyze` without a browser. Set OPEN_ANALYZER=true to open the treemap. */
-  openAnalyzer: process.env.OPEN_ANALYZER === "true",
-});
-
 if (process.env.VERCEL) {
-  const rawApi = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "";
-  if (!rawApi) {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim() ?? "";
+  if (!raw) {
     throw new Error(
       "Vercel build: set NEXT_PUBLIC_API_URL to your deployed Go API origin (https://…). " +
         "This project root only ships fe-v1; apps/backend is not run on Vercel.",
     );
   }
-  const lowerApi = rawApi.toLowerCase();
-  if (lowerApi.includes("127.0.0.1") || lowerApi.includes("localhost")) {
+  const lower = raw.toLowerCase();
+  if (lower.includes("127.0.0.1") || lower.includes("localhost")) {
     throw new Error(
       "Vercel build: NEXT_PUBLIC_API_URL must not point at localhost; browsers load the app from the public internet. " +
         "Deploy apps/backend (see repo README) and set this to that API's HTTPS URL.",
     );
-  }
-
-  const rawDocs = process.env.NEXT_PUBLIC_DOCS_URL?.trim() ?? "";
-  if (rawDocs) {
-    const lowerDocs = rawDocs.toLowerCase();
-    if (lowerDocs.includes("127.0.0.1") || lowerDocs.includes("localhost")) {
-      throw new Error(
-        "Vercel build: NEXT_PUBLIC_DOCS_URL must not point at localhost; public docs links need a reachable HTTPS URL.",
-      );
-    }
   }
 }
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  poweredByHeader: false,
-  transpilePackages: [
-    "wagmi",
-    "viem",
-    "@wagmi/core",
-    "@wagmi/connectors",
-    "@reown/appkit",
-    "@reown/appkit-adapter-wagmi",
-    "@safe-global/safe-apps-sdk",
-    "@safe-global/safe-apps-provider",
-  ],
-  compiler: {
-    /** Strip debug `console.*` in production bundles (keeps error/warn). */
-    removeConsole:
-      process.env.NODE_ENV === "production"
-        ? { exclude: ["error", "warn"] }
-        : false,
-  },
   experimental: {
-    esmExternals: "loose",
     /**
      * Strips barrel imports for the listed packages so the bundler only ships
      * the icons/components actually used. See:
      * https://vercel.com/blog/how-we-optimized-package-imports-in-next-js
      */
     optimizePackageImports: [
-      "@tanstack/react-query",
-      "sonner",
-      "embla-carousel-react",
-      "react-day-picker",
       "lucide-react",
       "date-fns",
       "cmdk",
       "vaul",
       "recharts",
-      "lightweight-charts",
       "framer-motion",
-      "@reown/appkit",
-      "@reown/appkit-pay",
-      "@reown/appkit-adapter-wagmi",
       "wagmi",
       "viem",
-      "@worldcoin/idkit",
       "@radix-ui/react-accordion",
       "@radix-ui/react-alert-dialog",
       "@radix-ui/react-aspect-ratio",
@@ -123,7 +77,6 @@ const nextConfig = {
       { protocol: "https", hostname: "cdn.jsdelivr.net" },
       { protocol: "https", hostname: "images.unsplash.com" },
       { protocol: "https", hostname: "**.googleusercontent.com" },
-      { protocol: "https", hostname: "polymarket-upload.s3.us-east-2.amazonaws.com" },
     ],
   },
   webpack(config) {
@@ -134,10 +87,12 @@ const nextConfig = {
     });
     config.resolve.alias = {
       ...config.resolve.alias,
-      "@": path.resolve(__dirname, "src"),      "@retropick/contracts": path.resolve(__dirname, "../../packages/contracts"),
+      "@": path.resolve(__dirname, "src"),
+      "@retropick/abi": path.resolve(__dirname, "../../package/abi"),
+      "@retropick/contracts": path.resolve(__dirname, "../../packages/contracts"),
     };
     return config;
   },
 };
 
-export default withBundleAnalyzer(nextConfig);
+export default nextConfig;

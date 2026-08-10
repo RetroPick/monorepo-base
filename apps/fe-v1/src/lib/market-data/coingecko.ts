@@ -1,6 +1,7 @@
 import { AssetUniverseEntry, CoinGeckoMarket } from "./types";
 import { isStablecoin } from "./stablecoins";
 import { mapCoinGeckoIdToBinanceSymbol } from "./symbol-map";
+import { getPublicEnv } from "@/lib/runtimeEnv";
 
 const COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3";
 const TOP_ASSETS_TTL_MS = 60_000;
@@ -167,8 +168,9 @@ export async function fetchTopNonStableChartableAssets(targetCount = 20, fetchCo
   });
 
   const headers: HeadersInit = { accept: "application/json" };
-  if (import.meta.env.VITE_COINGECKO_DEMO_API_KEY) {
-    headers["x-cg-demo-api-key"] = import.meta.env.VITE_COINGECKO_DEMO_API_KEY;
+  const apiKey = getPublicEnv("COINGECKO_DEMO_API_KEY");
+  if (apiKey) {
+    headers["x-cg-demo-api-key"] = apiKey;
   }
 
   topAssetsInflight = (async () => {

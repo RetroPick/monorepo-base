@@ -1,0 +1,94 @@
+# Markets V1 local dev stack: Postgres → migrate/seed (markets-api) → apps/web
+# Usage: pnpm dev:markets-stack  (requires Docker daemon running)
+
+name: retropick-markets-dev
+
+x-markets-backend-env: &markets-backend-env
+  DATABASE_URL: ${RETROPICK_MARKETS_DATABASE_URL:-postgres://retropick:retropick@postgres:5432/retropick?sslmode=disable}
+  MARKETS_HTTP_PORT: "8080"
+  PORT: "8080"
+  MARKETS_CATALOG_ENABLED: "1"
+  MARKETS_MARKET_DATA_ENABLED: "0"
+  MARKETS_SIGNALS_ENABLED: "1"
+  MARKETS_CORS_ALLOWED_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001"
+  MARKETS_GAMMA_API_URL: "http://127.0.0.1:9"
+  MARKETS_CLOB_API_URL: "http://127.0.0.1:9"
+  MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
+  MARKETS_BOOTSTRAP: "migrate-and-seed"
+  MARKETS_DEV_SEED_SCENARIO: "populated"
+  # BLK-001 eligibility upstreams — set values in gitignored .env (see .env.markets-dev.example)
+  MARKETS_GEOIP_BASE_URL: ${MARKETS_GEOIP_BASE_URL:-}
+  MARKETS_GEOIP_PATH: ${MARKETS_GEOIP_PATH:-/{ip}/json}
+  MARKETS_GEOIP_API_KEY: ${MARKETS_GEOIP_API_KEY:-}
+  MARKETS_GEOBLOCK_BASE_URL: ${MARKETS_GEOBLOCK_BASE_URL:-}
+  MARKETS_GEOBLOCK_PATH: ${MARKETS_GEOBLOCK_PATH:-/api/geoblock}
+  TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.16.0.0/12,127.0.0.0/8,10.0.0.0/8}
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: retropick-markets-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: retropick
+      POSTGRES_PASSWORD: retropick
+      POSTGRES_DB: retropick
+    ports:
+      - "5433:5432"
+    volumes:
+      - markets_dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retropick -d retropick"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+      start_interval: 2s
+
+  markets-api:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: retropick-markets-dev-backend
+    container_name: retropick-markets-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *markets-backend-env
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "/healthcheck", "/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  markets-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8080
+        NEXT_PUBLIC_PRODUCT: markets
+    container_name: retropick-markets-web
+    restart: unless-stopped
+    depends_on:
+      markets-api:
+        condition: service_healthy
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3001/markets"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+volumes:
+  markets_dev_postgres_data:

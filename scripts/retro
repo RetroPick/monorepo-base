@@ -13,6 +13,7 @@ Usage: retro <command>
   doctor
   costs estimate [estimator args]
   stack dev  up|down|status|logs [compose args]
+  stack markets up|down|status|logs|smoke [args]
   stack prod config|up|down|status|logs|smoke [compose args]
   db backup [output-dir]
   db restore-drill <dump-file>
@@ -103,6 +104,11 @@ case "$cmd" in
       dev:down) exec docker compose -f "$V1_ROOT/docker-compose.yml" down "$@" ;;
       dev:status) exec docker compose -f "$V1_ROOT/docker-compose.yml" ps "$@" ;;
       dev:logs) exec docker compose -f "$V1_ROOT/docker-compose.yml" logs "$@" ;;
+      markets:up) exec bash "$V1_ROOT/scripts/markets-dev-up.sh" "$@" ;;
+      markets:down) exec bash "$V1_ROOT/scripts/markets-dev-down.sh" "$@" ;;
+      markets:status) exec docker compose -f "$V1_ROOT/docker-compose.markets-dev.yml" ps "$@" ;;
+      markets:logs) exec docker compose -f "$V1_ROOT/docker-compose.markets-dev.yml" logs "$@" ;;
+      markets:smoke) exec bash "$V1_ROOT/scripts/markets-dev-smoke.sh" "$@" ;;
       prod:config) exec "$V1_ROOT/scripts/compose-production.sh" config "$@" ;;
       prod:up) exec "$V1_ROOT/scripts/compose-production.sh" up "$@" ;;
       prod:down) exec "$V1_ROOT/scripts/compose-production.sh" down "$@" ;;

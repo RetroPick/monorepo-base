@@ -158,22 +158,37 @@ func (r *Runtime) statusLoop(ctx context.Context) {
 }
 
 func (r *Runtime) Operational() bool {
+	if r == nil || r.Status == nil {
+		return false
+	}
 	return r.Status.Operational()
 }
 
 func (r *Runtime) CapabilitiesRealtime() bool {
+	if r == nil || r.Status == nil {
+		return false
+	}
 	return r.Status.CapabilitiesRealtime()
 }
 
 func (r *Runtime) CapabilitiesLiveSignals() bool {
-	return r.Signals != nil && r.Signals.Operational()
+	if r == nil || r.Signals == nil {
+		return false
+	}
+	return r.Signals.Operational()
 }
 
 func (r *Runtime) HealthRealtime() string {
+	if r == nil || r.Status == nil {
+		return "disabled"
+	}
 	return r.Status.HealthCheck()
 }
 
 func (r *Runtime) SetRegistryReady(ok bool) {
+	if r == nil || r.Status == nil {
+		return
+	}
 	r.Status.SetRegistryReady(ok)
 }
 

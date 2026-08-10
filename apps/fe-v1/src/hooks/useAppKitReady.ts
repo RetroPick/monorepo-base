@@ -12,7 +12,7 @@ function ensureAppKitReadyPromise(): Promise<void> {
 
 /**
  * True once Reown AppKit has finished async init (modal UI, auth connector, embedded-wallet chunks).
- * Needed so "Continue with Google" can run without `await` inside the click handler — awaiting there
+ * Needed so "Continue with Google" can run without `await` inside the click handler; awaiting there
  * breaks the browser popup user-gesture chain for `window.open`.
  */
 export function useAppKitReady(): boolean {

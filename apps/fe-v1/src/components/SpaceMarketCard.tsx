@@ -2,7 +2,7 @@
 import { Market } from "@/types/market";
 import { cn } from "@/lib/utils";
 import { useState, memo , MouseEvent } from "react";
-import BetModal from "./BetModal";
+import BetModal from "./LazyBetModal";
 import { Rocket, Satellite, Radio } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 

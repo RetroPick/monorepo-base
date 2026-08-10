@@ -1,35 +1,42 @@
-import type { DiscoveryMarket } from "@/types/discovery-market";
+import type { Market } from "@/types/market";
+import { inferChainAssetFromSlug } from "@/lib/market-data/chainDiscover";
 
 /** Single primary horizon bucket per market for Crypto left nav. */
 export type CryptoHorizonId = "all" | "5m" | "daily" | "weekly" | "ending_soon";
 
-export type CryptoAssetFilterId = "all" | "BTC" | "ETH" | "SOL";
+export type CryptoAssetFilterId = "all" | "BTC" | "ETH" | "SOL" | "LINK";
 
-export function getCryptoHorizon(m: DiscoveryMarket): Exclude<CryptoHorizonId, "all"> {
-  const mt = (m.marketType ?? "").toLowerCase();
-  if (mt.includes("5 minute") || m.expiry === "5m") return "5m";
-  if (m.schedule === "Weekly") return "weekly";
-  if (m.timeBucket === "Ending Soon") return "ending_soon";
+/**
+ * List API has no per-epoch timing; Discover crypto rail only offers “All” for horizon
+ * (see `horizonOptions` in MarketsAll).
+ */
+export function getCryptoHorizonId(_m: Market): Exclude<CryptoHorizonId, "all"> {
   return "daily";
 }
 
-export function marketMatchesHorizon(m: DiscoveryMarket, horizon: CryptoHorizonId): boolean {
+export function marketChainMatchesHorizon(m: Market, horizon: CryptoHorizonId): boolean {
   if (horizon === "all") return true;
-  return getCryptoHorizon(m) === horizon;
+  return getCryptoHorizonId(m) === horizon;
 }
 
-export function countByHorizon(markets: DiscoveryMarket[]): Record<Exclude<CryptoHorizonId, "all">, number> {
-  const acc = { "5m": 0, daily: 0, weekly: 0, ending_soon: 0 };
-  for (const m of markets) {
-    acc[getCryptoHorizon(m)] += 1;
-  }
-  return acc;
+export function marketChainMatchesAsset(m: Market, filter: CryptoAssetFilterId): boolean {
+  if (filter === "all") return true;
+  const slug = m.slug;
+  if (!slug) return false;
+  return inferChainAssetFromSlug(slug) === filter;
 }
 
-export function countByAsset(markets: DiscoveryMarket[]): Record<"BTC" | "ETH" | "SOL", number> {
-  const acc = { BTC: 0, ETH: 0, SOL: 0 };
+export function countByHorizon(_markets: Market[]): Record<Exclude<CryptoHorizonId, "all">, number> {
+  return { "5m": 0, daily: 0, weekly: 0, ending_soon: 0 };
+}
+
+export function countByAsset(markets: Market[]): Record<"BTC" | "ETH" | "SOL" | "LINK", number> {
+  const acc = { BTC: 0, ETH: 0, SOL: 0, LINK: 0 };
   for (const m of markets) {
-    acc[m.assetSymbol] += 1;
+    const s = m.slug;
+    if (!s) continue;
+    const a = inferChainAssetFromSlug(s);
+    if (a) acc[a] += 1;
   }
   return acc;
 }

@@ -120,20 +120,25 @@ Route map, navigation hierarchy, public vs authenticated IA, SEO, deep links.
 
 ## 5. Current state
 
-`marketsRoutes.tsx` → `MarketsHomePage` only.
+**Phase-1 read module:** [`apps/web/src/products/markets/`](../../../apps/web/src/products/markets/) — greenfield product package (`@retropick/markets-web-product`) with discover, event detail, and market detail pages, TanStack Query hooks against `@retropick/polymarket`, and `routes/marketsRoutes.tsx` for React Router integration.
 
+**Deploy surface (interim):** Production web still ships from [`apps/fe-v1/`](../../../apps/fe-v1/) (`@retropick/markets-v1`). The product module is **not** wired into fe-v1 in PHASE-1; shell integration is deferred to **PHASE-6** (Next.js / App Router migration).
+
+**PHASE-1 scope in product module:** Read-only catalog and order book (REST polling when realtime capability is off). No wallet connect, no order preview/submit, no gambling UX copy.
+
+**PHASE-6 integration:** Mount `marketsRoutes` from `apps/web/src/products/markets/routes/marketsRoutes.tsx` in the Next.js App Router shell (or equivalent), wrapping pages with `QueryClientProvider` and the shared Markets layout. Route params must remain canonical (`polymarket:event:*`, `polymarket:market:*`) with `encodeURIComponent` in links. Do not import from `apps/fe-v1` in owned product code.
 
 
 ## 6. Target design
 
 ### 6.1 Route map
 
-| Route | Purpose | Auth | Phase |
-|-------|---------|------|-------|
-| `/markets` | Discovery | Public | 1 |
-| `/markets/search` | Search | Public | 1 |
-| `/markets/events/[eventId]` | Event | Public | 1 |
-| `/markets/m/[marketId]` | Market + ticket | Public read | 1/3 |
+| Route | Purpose | Auth | Phase | Product module |
+|-------|---------|------|-------|----------------|
+| `/markets` | Discovery | Public | 1 | `EventsDiscoverPage` ✅ |
+| `/markets/search` | Search | Public | 1 | Redirect → `/markets` ✅ |
+| `/markets/events/[eventId]` | Event | Public | 1 | `EventDetailPage` ✅ |
+| `/markets/m/[marketId]` | Market + ticket | Public read | 1/3 | `MarketDetailPage` (read + book) ✅ |
 | `/markets/portfolio` | Positions | Auth | 4 |
 | `/markets/orders` | Open orders | Auth | 3 |
 | `/markets/funding` | Deposit | Auth | 2 |
@@ -275,7 +280,7 @@ Web routes map to Android feature modules per ADR-004.
 |-------------|--------|------|------|-------|
 | getMarketsEligibility | GET | /markets/eligibility | useMarketsEligibility | 1 |
 | getMarketsCapabilities | GET | /markets/capabilities | useMarketsCapabilities | 1 |
-| listMarketsEvents | GET | /markets/events | useMarketsEvents | 1 |
+| listMarketsEvents | GET | /markets/events | useMarketsEventsInfinite | 1 |
 | getMarketsEvent | GET | /markets/events/{eventId} | useMarketsEvent | 1 |
 | getMarketsMarket | GET | /markets/markets/{marketId} | useMarketsMarket | 1 |
 | getMarketsOrderBook | GET | /markets/markets/{marketId}/book | useMarketsOrderBook | 1 |
@@ -310,7 +315,7 @@ Web routes map to Android feature modules per ADR-004.
 
 | Phase | Deliverable |
 |-------|-------------|
-| PHASE-1 | MarketsHomePage, events, eligibility |
+| PHASE-1 | Discover, event, market read routes in `apps/web/src/products/markets/` |
 | PHASE-2 | Wallet connect, SIWE, funding |
 | PHASE-3 | Book WS, ticket, orders |
 | PHASE-4 | Portfolio, redeem, withdraw |

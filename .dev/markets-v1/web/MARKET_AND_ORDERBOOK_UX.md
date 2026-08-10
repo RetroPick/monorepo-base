@@ -124,7 +124,7 @@ Order book, order ticket, depth visualization, stale book handling.
 
 ## 5. Current state
 
-No market detail page; only `fetchMarketsEvents` on home.
+Market detail page renders order book snapshot (REST polling in Phase 1) and **order ticket** (`apps/web/src/products/markets/trading/OrderTicketPanel.tsx`) with preview-before-sign flow gated on `capabilities.features.order_submit`.
 
 
 
@@ -144,13 +144,15 @@ Chart + rules | order book ladder | order ticket (desktop). Mobile: ticket botto
 
 | Field | Rule |
 |-------|------|
-| Side | YES/NO |
+| Side | YES/NO (outcome selection via token tab) |
 | Type | Limit (V1) |
-| Price | 1–99¢, tick from BFF |
-| Size | USDC base units |
-| Max loss | Prominent |
+| Price | 0.01–0.99, tick from BFF |
+| Size | USDC for BUY; shares for SELL |
+| Max loss / fees | From preview response only (`humanSummary`) |
 
-Disabled when: !trading, !eligible, stale book >5s without ack, disconnected wallet.
+Implementation: `OrderTicketPanel` refetches eligibility on each preview; disables marketable limits when book stale (>5s); submit CTA requires `features.order_submit === true`.
+
+Disabled when: !session, !eligible (fresh check), stale book + marketable price, disconnected wallet, market closed.
 
 ### 6.4 Stale book (J14)
 
@@ -300,8 +302,8 @@ Collapsible book; sticky ticket.
 | MarketsShell | layout | Nav, eligibility banner |
 | DiscoverGrid | catalog | Event cards |
 | MarketBook | trading | Bid/ask ladder |
-| OrderTicket | trading | Limit order form |
-| PreviewModal | wallet | Sign preview + hash |
+| OrderTicket | trading | Limit order form — `trading/components/OrderTicketPanel.tsx` |
+| PreviewModal | trading | Sign preview + hash — `trading/components/OrderPreviewModal.tsx` |
 | PortfolioTable | portfolio | Positions |
 | FundingWizard | funding | Deposit flow |
 | DegradedBanner | shared | Stale/outage |

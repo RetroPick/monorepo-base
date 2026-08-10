@@ -1,0 +1,25 @@
+--- FAIL: TestOpenAPIRuntimeConformancePhaseOne (0.04s)
+    openapi_conformance_test.go:18: load spec: map key "AccountWalletPreviewRequest" not found
+--- FAIL: TestOrderBookRequiresTokenID (0.04s)
+    handler_test.go:113: load spec: not a map, slice nor struct
+--- FAIL: TestInvalidPaginationUsesStructuredBadRequest (0.04s)
+    handler_test.go:41: load spec: map key "AccountWalletPreviewRequest" not found
+FAIL
+FAIL	retropick/apps/backend/internal/markets	0.211s
+ok  	retropick/apps/backend/internal/markets/auth	0.046s
+ok  	retropick/apps/backend/internal/markets/balances	0.053s
+ok  	retropick/apps/backend/internal/markets/catalog	0.040s
+ok  	retropick/apps/backend/internal/markets/clob	0.137s
+ok  	retropick/apps/backend/internal/markets/config	0.004s
+ok  	retropick/apps/backend/internal/markets/eligibility	0.090s
+?   	retropick/apps/backend/internal/markets/eligibility/geo	[no test files]
+ok  	retropick/apps/backend/internal/markets/eligibility/geoblock	0.091s
+ok  	retropick/apps/backend/internal/markets/gamma	0.157s
+ok  	retropick/apps/backend/internal/markets/marketdata	0.046s
+ok  	retropick/apps/backend/internal/markets/postgres	0.027s
+ok  	retropick/apps/backend/internal/markets/realtime	0.286s
+ok  	retropick/apps/backend/internal/markets/signals	0.039s
+ok  	retropick/apps/backend/internal/markets/syncworker	0.060s
+ok  	retropick/apps/backend/internal/markets/upstream/ws	0.023s
+ok  	retropick/apps/backend/internal/markets/wallet	0.024s
+FAIL

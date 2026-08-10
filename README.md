@@ -10,22 +10,198 @@
 
 Legacy epoch v1 (MarketEngine) is **archived** under [`archive/`](archive/) — not part of the active build.
 
-## Quick start
+## Prerequisites
+
+| Tool | Version | Used for |
+|------|---------|----------|
+| [Docker](https://docs.docker.com/get-docker/) | Desktop or Engine + Compose v2 | **Recommended** — full Markets stack |
+| [Node.js](https://nodejs.org/) | 22+ | Web apps, `pnpm` |
+| [pnpm](https://pnpm.io/) | 10 | Monorepo installs |
+| [Go](https://go.dev/) | 1.24+ (1.26 recommended) | Host-run BFF, backend tests |
+| [Foundry](https://book.getfoundry.sh/) | latest | Legacy contract tests only |
+
+On **WSL2**, install Docker Desktop on Windows and enable **WSL integration** for your distro. Verify with `docker info` before starting any compose stack.
+
+---
+
+## Run with Docker (Markets V1 — recommended)
+
+The greenfield Markets product (`apps/web` + `markets-api`) has a **one-command** dev stack. It does **not** use the legacy root [`docker-compose.yml`](docker-compose.yml) (that stack runs epoch `cmd/api`, indexer, and fe-v1).
+
+### Start everything
+
+From the repo root:
 
 ```bash
 pnpm install
-
-# Markets web (default)
-pnpm dev:web
-
-# Go Markets BFF (requires DATABASE_URL, REGISTRY_PATH)
-go -C apps/backend run ./cmd/api
-
-# Android scaffold prompt
-# See apps/android/.dev/BUILD_SESSION_PROMPT.md
+pnpm dev:markets-stack -- --build   # first run or after code changes
+pnpm dev:markets-stack              # reuse existing images (fast)
 ```
 
-Set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8080` for web → BFF catalog.
+Equivalent:
+
+```bash
+bash scripts/markets-dev-up.sh --build
+retro stack markets up
+```
+
+First run with `--build` compiles three images (Postgres base pull, unified Go backend, Next.js web) and can take a few minutes. Subsequent `up` without `--build` reuses images and starts in seconds.
+
+### What runs
+
+Compose file: [`docker-compose.markets-dev.yml`](docker-compose.markets-dev.yml)
+
+```text
+postgres (:5433) → markets-api (migrate + seed + serve :8080) → markets-web (:3001)
+```
+
+| Service | Host port | Purpose |
+|---------|-----------|---------|
+| `postgres` | **5433** → 5432 | Projection DB (`retropick` / `retropick`) |
+| `markets-api` | **8080** | Go Markets BFF — runs migrations, dev seed, and HTTP ([`cmd/markets-api`](apps/backend/cmd/markets-api)) |
+| `markets-web` | **3001** | Next.js Discover UI ([`apps/web`](apps/web)) |
+
+The browser talks to the BFF at `http://127.0.0.1:8080` (baked into the web image). Catalog data comes from a **seeded** Postgres projection — live Polymarket Gamma/CLOB calls are disabled in this stack.
+
+**Open Discover:** [http://localhost:3001/markets](http://localhost:3001/markets)
+
+### Stop, logs, fresh database
+
+```bash
+pnpm dev:markets-stack:down          # stop containers (keep DB volume)
+pnpm dev:markets-stack:down -- -v   # stop and wipe seeded Postgres
+
+retro stack markets status
+retro stack markets logs
+retro stack markets logs markets-api
+```
+
+### Docker Desktop hairpin (WSL / bridge timeouts)
+
+If Postgres or migrations hang from inside containers, use the hairpin env override:
+
+```bash
+docker compose --env-file compose.desktop-hairpin.env \
+  -f docker-compose.markets-dev.yml up --build -d
+```
+
+See [`compose.desktop-hairpin.env`](compose.desktop-hairpin.env) — routes container DB traffic via `host.docker.internal:5433`.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `Cannot connect to Docker daemon` | Start Docker Desktop; enable WSL integration; run `docker info` |
+| `port 8080 is already in use` | Stop legacy [`docker-compose.yml`](docker-compose.yml) `api` service or other process on 8080/3001/5433 |
+| Discover shows API errors | Confirm BFF: `curl -s http://127.0.0.1:8080/api/v1/markets/events \| head` returns JSON, not HTML |
+| Empty catalog after wipe | `pnpm dev:markets-stack:down -- -v` then `pnpm dev:markets-stack -- --build` |
+
+Go module for host-run commands is **`apps/backend/`** — there is no `go.mod` at the repo root.
+
+---
+
+## Test the Markets API
+
+### Automated smoke (stack must be running)
+
+```bash
+pnpm smoke:markets-stack
+# or: retro stack markets smoke
+```
+
+Checks liveness, readiness, capabilities, events JSON, `schemaVersion`, and seeded event id `polymarket:event:seed-multi`.
+
+### Manual curl
+
+Base URL: `http://127.0.0.1:8080`
+
+```bash
+# Liveness (always 200 when process is up)
+curl -s http://127.0.0.1:8080/api/v1/health/live | jq .
+
+# Readiness (200 or 503 with degraded detail)
+curl -s http://127.0.0.1:8080/api/v1/health/ready | jq .
+
+# Runtime capabilities
+curl -s http://127.0.0.1:8080/api/v1/markets/capabilities | jq .
+
+# Paginated event catalog (seeded in dev stack)
+curl -s 'http://127.0.0.1:8080/api/v1/markets/events?limit=5' | jq .
+
+# Event detail (URL-encode canonical ids)
+curl -s 'http://127.0.0.1:8080/api/v1/markets/events/polymarket:event:seed-multi' | jq .
+
+# Market detail
+curl -s 'http://127.0.0.1:8080/api/v1/markets/markets/polymarket:market:seed-binary' | jq .
+```
+
+**Seeded IDs** (populated scenario):
+
+| Resource | ID |
+|----------|-----|
+| Multi-market event | `polymarket:event:seed-multi` |
+| Single-market event | `polymarket:event:seed-single` |
+| Binary market (prices) | `polymarket:market:seed-binary` |
+| Unavailable prices | `polymarket:market:seed-unavailable` |
+| Closed market | `polymarket:market:seed-closed` |
+
+Canonical contract: [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml). Full endpoint list: [`apps/backend/internal/markets/README.md`](apps/backend/internal/markets/README.md).
+
+### Browser checks (apps/web)
+
+| Route | URL |
+|-------|-----|
+| Discover | http://localhost:3001/markets |
+| Event | http://localhost:3001/markets/events/polymarket%3Aevent%3Aseed-multi |
+| Market | http://localhost:3001/markets/m/polymarket%3Amarket%3Aseed-binary |
+
+In DevTools → Network, catalog requests should go to **`127.0.0.1:8080`**, not to `gamma-api.polymarket.com` or the Next.js origin.
+
+---
+
+## Alternative: host-run (no web container)
+
+Use when iterating on `apps/web` with hot reload while BFF runs in Docker or on the host.
+
+**BFF + Postgres (host Go):**
+
+```bash
+docker compose -f docker-compose.markets-dev.yml up -d postgres
+# wait for :5433, then:
+export DATABASE_URL=postgres://retropick:retropick@127.0.0.1:5433/retropick?sslmode=disable
+export MARKETS_CATALOG_ENABLED=1
+go -C apps/backend run ./cmd/markets-seed -scenario populated
+go -C apps/backend run ./cmd/markets-api
+```
+
+**Web dev server:**
+
+```bash
+cd apps/web
+cp .env.local.example .env.local   # optional; defaults to http://127.0.0.1:8080 in dev
+pnpm dev                           # http://localhost:3001
+```
+
+Legacy **fe-v1** + host BFF (Vite on `:5173`): `bash scripts/markets-v1-bff-dev.sh populated`
+
+More detail: [`apps/web/README.md`](apps/web/README.md), [`docs/architecture/fe-v1-markets-bff-dev.md`](docs/architecture/fe-v1-markets-bff-dev.md)
+
+---
+
+## Legacy full stack (`docker-compose.yml`)
+
+Root [`docker-compose.yml`](docker-compose.yml) runs the **archived epoch** backend (`cmd/api`), indexer, price-worker, fe-v1, and ops-web — not Markets V1 `markets-api`.
+
+```bash
+pnpm docker:up              # postgres + legacy api on :8080 (conflicts with markets stack)
+pnpm docker:up:desktop      # hairpin variant
+pnpm docker:down            # down with volume wipe
+retro stack dev up
+```
+
+Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at the same time — both bind **8080**.
+
+---
 
 ## Documentation
 
@@ -33,6 +209,8 @@ Set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8080` for web → BFF catalog.
 |----------|------|
 | Product suite | [`.dev/README.md`](.dev/README.md) |
 | Markets V1 harness | [`.dev/markets-v1/`](.dev/markets-v1/) |
+| Markets web app | [`apps/web/README.md`](apps/web/README.md) |
+| BFF architecture | [`docs/architecture/fe-v1-markets-bff-dev.md`](docs/architecture/fe-v1-markets-bff-dev.md) |
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
 | Agent contract | [`.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md`](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md) |
@@ -41,19 +219,23 @@ Set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8080` for web → BFF catalog.
 ## Monorepo layout
 
 ```text
-apps/web          Markets + PRISM web shells
-apps/android      Markets Android (scaffold)
-apps/backend      Go API — Markets BFF (internal/markets)
-packages/polymarket  Shared TS types
-schemas/openapi   Web + Android API contract
-contracts/prism   Future PRISM contracts
-archive/          Frozen epoch v1 code and docs
+apps/web              Markets Next.js shell (Discover on :3001)
+apps/fe-v1            Legacy Markets UI (Vite; until PHASE-6 cutover)
+apps/android          Markets Android (scaffold)
+apps/backend          Go API — Markets BFF (internal/markets)
+packages/polymarket   Shared TS client + types
+schemas/openapi       Web + Android API contract
+docker-compose.markets-dev.yml   One-button Markets V1 stack
+archive/              Frozen epoch v1 code and docs
 ```
 
-## Verify
+## Verify (without Docker)
 
 ```bash
-pnpm --filter web typecheck
-pnpm --filter web test
+pnpm --filter @retropick/markets-web test:markets
+pnpm --filter @retropick/markets-web typecheck
 go -C apps/backend test ./internal/markets/...
+pnpm smoke                        # full backend Go test suite
 ```
+
+Deploy env templates: [`deploy/web-markets/.env.example`](deploy/web-markets/.env.example), [`apps/web/.env.local.example`](apps/web/.env.local.example).

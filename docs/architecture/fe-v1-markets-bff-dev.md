@@ -1,17 +1,28 @@
-# fe-v1 ↔ BFF ↔ PostgreSQL local integration
+# Markets BFF ↔ PostgreSQL local integration
 
-Deterministic Phase 1.2 read path for browser verification. The browser must talk to the **Go markets-api BFF** only — not Gamma/CLOB upstream hosts.
+Deterministic read path for browser verification. The browser must talk to the **Go markets-api BFF** only — not Gamma/CLOB upstream hosts.
 
-## Prerequisites
+## Quick start — apps/web (full Docker, recommended)
 
-- Docker (for PostgreSQL)
-- Go toolchain
-- `pnpm install` at repo root
-
-## Quick start (populated catalog)
+Requires Docker daemon running (Docker Desktop on WSL with integration enabled).
 
 ```bash
-# Terminal 1 — stack orchestrator (postgres + seed + markets-api + fe-v1)
+pnpm dev:markets-stack
+pnpm smoke:markets-stack
+```
+
+| URL | Purpose |
+|-----|---------|
+| `http://localhost:3001/markets` | Discover (apps/web) |
+| `http://127.0.0.1:8080/api/v1/markets/events` | BFF catalog JSON |
+
+Teardown: `pnpm dev:markets-stack:down`
+
+Compose file: [`docker-compose.markets-dev.yml`](../../docker-compose.markets-dev.yml)
+
+## Quick start — fe-v1 (legacy host-run)
+
+```bash
 bash scripts/markets-v1-bff-dev.sh populated
 ```
 
@@ -20,8 +31,8 @@ Environment variables (optional):
 | Variable | Default |
 |----------|---------|
 | `DATABASE_URL` | `postgres://retropick:retropick@127.0.0.1:5433/retropick?sslmode=disable` |
-| `MARKETS_HTTP_PORT` | `8090` |
-| `VITE_API_URL` | `http://127.0.0.1:8090` |
+| `MARKETS_HTTP_PORT` | `8080` |
+| `VITE_API_URL` | `http://127.0.0.1:8080` |
 
 ## Seed scenarios
 
@@ -57,11 +68,11 @@ export DATABASE_URL=postgres://retropick:retropick@127.0.0.1:5433/retropick?sslm
 go -C apps/backend run ./cmd/markets-seed -scenario populated
 
 cd apps/backend
-export MARKETS_HTTP_PORT=8090 MARKETS_CATALOG_ENABLED=1 MARKETS_SIGNALS_ENABLED=1
-go run ./cmd/markets-api
+export MARKETS_HTTP_PORT=8080 MARKETS_CATALOG_ENABLED=1 MARKETS_SIGNALS_ENABLED=1
+go -C apps/backend run ./cmd/markets-api
 
 cd apps/fe-v1
-export VITE_API_URL=http://127.0.0.1:8090
+export VITE_API_URL=http://127.0.0.1:8080
 pnpm dev:vite
 ```
 
@@ -74,4 +85,10 @@ pnpm dev:vite
 - Signals: `http://127.0.0.1:5173/app/signals`
 - Portfolio placeholder: `http://127.0.0.1:5173/app/portfolio`
 
-Network proof: browser devtools should show requests only to `127.0.0.1:8090` (RetroPick BFF), with zero calls to `gamma-api.polymarket.com`, `clob.polymarket.com`, `data-api.polymarket.com`, `bridge.polymarket.com`, or `relayer.polymarket.com`.
+Network proof: browser devtools should show requests only to `127.0.0.1:8080` (RetroPick BFF), with zero calls to `gamma-api.polymarket.com`, `clob.polymarket.com`, `data-api.polymarket.com`, `bridge.polymarket.com`, or `relayer.polymarket.com`.
+
+### apps/web verification routes
+
+- Discover: `http://localhost:3001/markets`
+- Event detail: `http://localhost:3001/markets/events/polymarket%3Aevent%3Aseed-multi`
+- Market detail: `http://localhost:3001/markets/m/polymarket%3Amarket%3Aseed-binary`

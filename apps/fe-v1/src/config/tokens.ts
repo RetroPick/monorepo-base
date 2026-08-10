@@ -1,25 +1,26 @@
 /**
  * Token addresses per chain for RetroPick Protocol
  *
- * Stake token on deployment chain (Arbitrum One) is native USDC.
+ * On the registry chain (Base Sepolia), the MarketEngine `stakeToken` comes from
+ * `@retropick/contracts` (may differ from “canonical” USDC on that chain).
  * Other chains list USDC variants used as cross-chain deposit sources via LiFi.
- *
- * All addresses lowercase-checksummed `0x${string}`.
  */
-import type { Address } from 'viem'
+import type { Address } from "viem";
+import registry from "@retropick/contracts/registry.base-sepolia.json";
+import { REGISTRY_CHAIN_ID } from "@/contracts/config";
 
 // ── USDC addresses (primary stake token) ─────────────────────────────────────
 
 export const USDC_ADDRESSES: Record<number, Address> = {
   // ── Mainnets ──
-  42161:  '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum One — native USDC (Circle)
+  42161:  '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum One, native USDC (Circle)
   1:      '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Ethereum mainnet
-  8453:   '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // Base — native USDC
-  10:     '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', // Optimism — native USDC
-  137:    '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', // Polygon — native USDC
-  324:    '0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4', // zkSync Era — native USDC
-  59144:  '0x176211869cA2b568f2A7D4EE941E073a821EE1ff', // Linea — USDC
-  534352: '0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4', // Scroll — USDC
+  8453:   '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // Base, native USDC
+  10:     '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85', // Optimism, native USDC
+  137:    '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', // Polygon, native USDC
+  324:    '0x1d17CBcF0D6D143135aE902365D2E5e2A16538D4', // zkSync Era, native USDC
+  59144:  '0x176211869cA2b568f2A7D4EE941E073a821EE1ff', // Linea, USDC
+  534352: '0x06eFdBFf2a14a7c8E15944D1F4A48F9F95F663A4', // Scroll, USDC
 
   // ── Testnets ──
   421614:  '0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d', // Arbitrum Sepolia test USDC
@@ -48,35 +49,59 @@ export const WETH_ADDRESSES: Record<number, Address> = {
 
 // ── Stake token helper ────────────────────────────────────────────────────────
 
-/** Returns the USDC address for a given chainId. Throws if not configured. */
+/** Stake token for MarketEngine txs: registry `stakeToken` on registry chain, else USDC map. */
 export function getStakeTokenAddress(chainId: number): Address {
-  const addr = USDC_ADDRESSES[chainId]
-  if (!addr) throw new Error(`No USDC address configured for chainId ${chainId}`)
-  return addr
+  if (chainId === REGISTRY_CHAIN_ID) {
+    return registry.contracts.stakeToken as Address;
+  }
+  const addr = USDC_ADDRESSES[chainId];
+  if (!addr) throw new Error(`No stake token configured for chainId ${chainId}`);
+  return addr;
 }
 
 /** Returns the USDC address or undefined if chain is not supported. */
 export function tryGetStakeTokenAddress(chainId: number): Address | undefined {
+  if (chainId === REGISTRY_CHAIN_ID) {
+    return registry.contracts.stakeToken as Address;
+  }
   return USDC_ADDRESSES[chainId]
 }
 
-// ── USDC decimals ─────────────────────────────────────────────────────────────
+// ── Stake token units ─────────────────────────────────────────────────────────
 
-/** USDC uses 6 decimals on all supported chains. */
-export const STAKE_TOKEN_DECIMALS = 6
+/** Current MarketEngine stake token decimals. Base Sepolia uses MockERC20 (`mSTK`) from package/abi/address.md. */
+export const STAKE_TOKEN_DECIMALS =
+  Number(registry.tokenMetadata?.stakeTokenDecimals ?? 18)
 
-/** Parse a human-readable USDC amount string to raw bigint (6 decimals). */
+export const STAKE_TOKEN_SYMBOL = registry.tokenMetadata?.stakeTokenSymbol ?? "mSTK"
+
+/** Parse a human-readable stake-token amount string to raw bigint. */
 export function parseUsdc(amount: string | number): bigint {
-  const n = typeof amount === 'string' ? parseFloat(amount) : amount
-  return BigInt(Math.round(n * 10 ** STAKE_TOKEN_DECIMALS))
+  const s = String(amount).replace(/,/g, "").trim();
+  if (!/^\d*(\.\d*)?$/.test(s) || s === "" || s === ".") return 0n;
+  const [wholeRaw, fracRaw = ""] = s.split(".");
+  const whole = wholeRaw === "" ? "0" : wholeRaw;
+  const frac = fracRaw.slice(0, STAKE_TOKEN_DECIMALS).padEnd(STAKE_TOKEN_DECIMALS, "0");
+  return BigInt(whole) * 10n ** BigInt(STAKE_TOKEN_DECIMALS) + BigInt(frac || "0");
 }
 
-/** Format raw USDC bigint to 2dp display string. */
+/** Format raw stake-token bigint to display string. */
 export function formatUsdc(raw: bigint, decimals = 2): string {
-  const divisor = 10 ** STAKE_TOKEN_DECIMALS
-  const value   = Number(raw) / divisor
-  return value.toLocaleString('en-US', {
+  const divisor = 10n ** BigInt(STAKE_TOKEN_DECIMALS);
+  const whole = raw / divisor;
+  const fraction = raw % divisor;
+  const scaledFraction =
+    decimals > 0 ? (fraction * 10n ** BigInt(decimals)) / divisor : 0n;
+  const wholeLabel = whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  if (decimals <= 0) return wholeLabel;
+  return `${wholeLabel}.${scaledFraction.toString().padStart(decimals, "0")}`;
+}
+
+/** Format fiat-like USDC values from non-registry chains when needed. */
+export function formatFiatUsdc(raw: bigint, decimals = 2): string {
+  const value = Number(raw) / 1e6;
+  return value.toLocaleString("en-US", {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
-  })
+  });
 }

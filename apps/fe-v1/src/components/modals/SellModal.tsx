@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import Icon from "../Icon";
 import { cn } from "@/lib/utils";
 import { useAccount } from "wagmi";
-import { relayerApi } from "@/lib/relayerApi";
-import { useYellowSession } from "@/hooks/useYellowSession";
 
 const UsdcLogo = ({ className }: { className?: string }) => (
     <svg viewBox="0 0 24 24" className={className} fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -37,12 +35,9 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
         }
     }, [open, availableShares]);
 
-    // Using useYellowSession hooks (like signOrder) isn't strictly necessary for a backend API sell unless required
-    const { signOrder } = useYellowSession();
-
     const handleSell = async () => {
         if (!address) {
-            alert("Please connect your wallet first!");
+            alert("Please sign in first!");
             return;
         }
         if (sharesToSell <= 0 || sharesToSell > availableShares) {
@@ -52,53 +47,12 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
 
         setIsPending(true);
         try {
-            // Create session id hash for mockup
-            const sessionId = relayerApi.getMarketSessionId(marketTitle);
-            const outcomeIndex = side === 'YES' ? 0 : 1;
-
-            // Ensure session exists
-            try {
-                await relayerApi.getSession(sessionId);
-            } catch (err) {
-                // Just mock the creation if it doesn't exist
-                await relayerApi.createSession({
-                    sessionId,
-                    marketId: "1",
-                    vaultId: "0x1111111111111111111111111111111111111111",
-                    numOutcomes: 2,
-                    b: 100
-                });
-            }
-
-            // We might need to mock credit to have "shares" in the state 
-            // but assuming the backend actually has them
-
-            const signature = await signOrder(sessionId, 'sell', outcomeIndex, sharesToSell);
-            if (!signature) throw new Error("Transaction signature denied.");
-
-            const res = await relayerApi.sellShares({
-                sessionId,
-                outcomeIndex,
-                delta: Number(sharesToSell),
-                userAddress: address,
-                signature
-            });
-
-            if (!res?.ok) {
-                throw new Error('Sell failed');
-            }
-
-            alert(`Successfully sold ${sharesToSell} ${side} shares!`);
+            alert("Legacy sell modal is disabled. Use the backend-driven market Trade panel.");
             onClose();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Trade failed:", err);
-            // Fallback for demo if shares are insufficient in the backend memory:
-            if (err.message.includes('Insufficient shares')) {
-                alert(`Mock success: Sold ${sharesToSell} ${side} shares (bypassed backend limitation for demo)`);
-                onClose();
-            } else {
-                alert(`Sell Error: ${err.message || 'Unknown error'}`);
-            }
+            const msg = err instanceof Error ? err.message : "Unknown error";
+            alert(`Sell Error: ${msg}`);
         } finally {
             setIsPending(false);
         }
@@ -109,7 +63,11 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
     return createPortal(
         <AnimatePresence>
             {open && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    className="fixed inset-0 z-[9999] flex items-end justify-center sm:items-center sm:p-4"
+                >
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -123,7 +81,7 @@ const SellModal = ({ open, onClose, marketTitle, side, availableShares }: SellMo
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 30 }}
                         transition={{ type: "spring", damping: 28, stiffness: 350 }}
-                        className="relative w-full max-w-sm rounded-2xl shadow-2xl border border-border bg-card p-5"
+                        className="relative w-full max-h-[92dvh] overflow-y-auto rounded-t-2xl border border-border bg-card p-5 shadow-2xl pb-[max(env(safe-area-inset-bottom),1.25rem)] sm:max-w-sm sm:max-h-[min(90dvh,40rem)] sm:rounded-2xl sm:overflow-visible sm:pb-5"
                     >
                         <button
                             onClick={onClose}

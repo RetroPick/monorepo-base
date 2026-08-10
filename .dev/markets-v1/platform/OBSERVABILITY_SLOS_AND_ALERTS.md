@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-09 (MKT-P1-009 PHASE-1 observability baseline)
 **Product:** RetroPick Markets V1
 **Wave:** 7 — Security, platform, and testing
 
@@ -24,7 +24,7 @@ Short orientation for implementers and agents. Read this before the normative se
 |------|--------|
 | **Who** | SRE/on-call owning SLOs and alert routes; backend adding OTel metrics/logs/traces; web/Android contributing vitals/crash breadcrumbs; product reviewing error budgets; IR using dashboards during incidents. |
 | **What** | Observability pillars (metrics/logs/traces), golden signals, SLO table (API 99.5%/30d, catalog p95 <500ms, preview p95 <800ms, WS 99%, freshness <120s, alert delivery 95%<60s), error budget (~3.6h/mo), critical dashboards, alert→runbook map, log redaction standards (**never** log private keys, full JWT, builder secrets, raw geo IP). |
-| **When** | Continuously in staging/prod; weekly error-budget review; monthly SLO tune; post-incident SLI gap analysis; when adding new critical routes (must emit latency/error metrics). |
+| **When** | Continuously in staging/prod; weekly error-budget review; monthly SLO tune; post-incident SLI gap analysis; when adding new critical routes (must emit latency/error metrics); **PHASE-1:** wire catalog freshness + Gamma error metrics per MKT-P1-009. |
 | **Where** | Spec: this file. Backend Prometheus/OTel; log aggregator; Grafana (or equiv) dashboards; alert manager → on-call. Cross-ref FAILURE_DOMAINS, INCIDENT_RESPONSE, PRODUCTION_OPERATIONS_RUNBOOK. |
 | **Why** | SLOs turn “is it up?” into user-journey health (eligibility→preview→submit). Redaction prevents T3/T4 leakage through the observability plane. Alerts without runbooks create pages that do not fail closed into known ops actions. |
 | **How** | Emit golden signals with `request_id`/route; define SLI queries; page on burn/threshold with severity; link runbooks; review budget before risky releases; scrub geo to hash/region in logs; propagate `traceparent` optionally with BFF root spans to Polymarket calls. |
@@ -39,6 +39,8 @@ Short orientation for implementers and agents. Read this before the normative se
 | WS connect success | 99% | 7d |
 | Catalog freshness | <120s lag | 7d |
 | Alert delivery | 95% <60s | 7d |
+
+PHASE-1 catalog freshness SLO uses **p95 &lt; 60s** per [MKT-NFR-001](../05_NON_FUNCTIONAL_REQUIREMENTS.md) (`retropick_markets_catalog_freshness_seconds_*`); the 120s row above remains the launch-wide envelope.
 
 ### Alert → first action (samples)
 
@@ -170,7 +172,66 @@ Metrics, logs, traces, SLO definitions, and alerting rules for Markets V1 launch
 | Monthly | SLO target adjustment |
 | Post-incident | SLI gap analysis |
 
-## 13. Related documents
+## 13. PHASE-1 observability baseline (MKT-P1-009)
+
+Implementation: [`apps/backend/internal/markets/metrics.go`](../../../apps/backend/internal/markets/metrics.go) exposes bounded Prometheus text at `/metrics` (via health router). Scraped in-process; no paid APM required for PHASE-1 exit.
+
+### Metric registry
+
+| NFR / SLI | Prometheus metric | Producer (PHASE-1) |
+|-----------|-------------------|-------------------|
+| MKT-NFR-001 catalog freshness p95 &lt; 60s | `retropick_markets_catalog_freshness_seconds_{sum,count}`, `retropick_markets_catalog_freshness_within_slo_total` | **Handoff:** `Service.observeCatalogFreshness` → `Metrics.ObserveCatalogFreshness` |
+| Gamma error rate | `retropick_markets_upstream_requests_total{upstream="gamma",result="error"}` / total | **Handoff:** catalog sync worker after Gamma HTTP |
+| Gamma error class | `retropick_markets_gamma_errors_total{kind="rate_limited\|not_found\|upstream\|invalid_payload"}` | **Handoff:** classify `gamma.ErrRateLimited`, `ErrNotFound`, `ErrUpstream`, `ErrInvalidPayload` at sync boundary |
+| Catalog sync progress | `retropick_markets_catalog_records_processed_total`, `retropick_markets_catalog_last_success_timestamp_seconds` | **Handoff:** `syncworker` after successful `Syncer.Run` |
+| Order book freshness | `retropick_markets_books_total{state=...}` | Wired from order-book reads today |
+
+Gamma error kind mapping:
+
+| `gamma` error | `RecordGammaError` kind |
+|---------------|-------------------------|
+| `ErrRateLimited` | `rate_limited` |
+| `ErrNotFound` | `not_found` |
+| `ErrUpstream` | `upstream` |
+| `ErrInvalidPayload` | `invalid_payload` |
+
+### PHASE-1 dashboard panels (PromQL)
+
+1. **Catalog freshness mean age (5m)** — `rate(retropick_markets_catalog_freshness_seconds_sum[5m]) / rate(retropick_markets_catalog_freshness_seconds_count[5m])` — alert if &gt; 60s sustained.
+2. **Catalog freshness SLO ratio** — `rate(retropick_markets_catalog_freshness_within_slo_total[15m]) / rate(retropick_markets_catalog_freshness_seconds_count[15m])` — target &gt; 0.95.
+3. **Gamma error rate (5m)** — `rate(retropick_markets_upstream_requests_total{upstream="gamma",result="error"}[5m]) / rate(retropick_markets_upstream_requests_total{upstream="gamma"}[5m])`.
+4. **Gamma errors by kind** — `sum by (kind) (rate(retropick_markets_gamma_errors_total[5m]))`.
+5. **Catalog last success age** — `time() - retropick_markets_catalog_last_success_timestamp_seconds`.
+6. **Upstream latency (gamma/clob)** — `rate(retropick_markets_upstream_request_duration_seconds_sum{upstream="gamma"}[5m]) / rate(retropick_markets_upstream_request_duration_seconds_count{upstream="gamma"}[5m])` (repeat for `clob`).
+
+Until PHASE-6 histogram support lands, use mean age + within-SLO ratio as the PHASE-1 freshness SLI; do not invent per-market labels.
+
+### PHASE-1 alerts (read-only catalog)
+
+| Alert | Condition | Severity | First action |
+|-------|-----------|----------|--------------|
+| CatalogFreshnessSLOBreach | within-SLO ratio &lt; 0.95 over 15m OR mean age &gt; 60s | SEV-3 | Check catalog worker / Gamma connectivity |
+| GammaHighErrorRate | gamma error rate &gt; 10% for 5m | SEV-3 | Backoff + serve degraded projection |
+| CatalogSyncStale | `time() - retropick_markets_catalog_last_success_timestamp_seconds > 300` for 10m | SEV-3 | Restart ingest (see §9 CatalogStale) |
+
+### Wiring handoff (outside MKT-P1-009 owned paths)
+
+| Location | Change |
+|----------|--------|
+| [`service.go`](../../../apps/backend/internal/markets/service.go) `observeCatalogFreshness` | Replace `gamma.ObserveCatalogFreshnessSeconds(...)` with `s.cfg.Metrics.ObserveCatalogFreshness(now.Sub(observedAt))` when `Metrics != nil` |
+| [`service_test.go`](../../../apps/backend/internal/markets/service_test.go) | Point freshness test at `Metrics.CatalogFreshnessMeanSeconds()` instead of `gamma.CatalogFreshnessP95()` |
+| [`syncworker/worker.go`](../../../apps/backend/internal/markets/syncworker/worker.go) | After sync: `Metrics.RecordCatalogSync(...)`, `ObserveUpstream("gamma", ...)`, `RecordGammaError(kind)` on classified failures |
+| [`cmd/markets-api/main.go`](../../../apps/backend/cmd/markets-api/main.go) | Pass `metrics` into worker config when wiring lands |
+
+### PHASE-1 observability cost (MKT-NFR-030)
+
+Cross-ref [INFRASTRUCTURE_AND_COST_MODEL.md](./INFRASTRUCTURE_AND_COST_MODEL.md):
+
+- **Incremental observability spend in PHASE-1:** $0 — Grafana Cloud free tier + structured JSON logs on the existing VM; `/metrics` scrape is in-process.
+- **Total pre-funding envelope:** $45–82/mo (cap &lt;$100/mo per MKT-NFR-030).
+- **Upgrade trigger:** monthly bill &gt;$90 or log volume exceeds Grafana free tier → cost review per INF §9.
+
+## 14. Related documents
 
 - [architecture/FAILURE_DOMAINS_AND_DEGRADED_MODES.md](../architecture/FAILURE_DOMAINS_AND_DEGRADED_MODES.md)
 - [INCIDENT_RESPONSE.md](../security/INCIDENT_RESPONSE.md)

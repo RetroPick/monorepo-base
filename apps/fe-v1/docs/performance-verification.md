@@ -1,7 +1,7 @@
 ## FE-V1 Prediction Market Performance Verification
 
 ### Scope
-- Validate backend-first trade/funding integration on `apps/web`.
+- Validate backend-first trade/funding integration on `apps/fe-v1`.
 - Ensure websocket + polling strategy is low-churn and resilient.
 
 ### Core Checks

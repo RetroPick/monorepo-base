@@ -1,0 +1,26 @@
+=== RUN   TestDiscoverer_ProxySignerAccountSeparation
+=== PAUSE TestDiscoverer_ProxySignerAccountSeparation
+=== RUN   TestDiscoverer_EOADistinctFields
+=== PAUSE TestDiscoverer_EOADistinctFields
+=== RUN   TestDiscoverer_NeverInventsAddress
+=== PAUSE TestDiscoverer_NeverInventsAddress
+=== RUN   TestListMyWallets_Unauthorized
+=== PAUSE TestListMyWallets_Unauthorized
+=== RUN   TestListMyWallets_LinkedWithStubAuth
+=== PAUSE TestListMyWallets_LinkedWithStubAuth
+=== RUN   TestWalletsListResponse_JSONContract
+=== PAUSE TestWalletsListResponse_JSONContract
+=== CONT  TestDiscoverer_ProxySignerAccountSeparation
+--- PASS: TestDiscoverer_ProxySignerAccountSeparation (0.00s)
+=== CONT  TestDiscoverer_NeverInventsAddress
+--- PASS: TestDiscoverer_NeverInventsAddress (0.00s)
+=== CONT  TestDiscoverer_EOADistinctFields
+=== CONT  TestListMyWallets_Unauthorized
+--- PASS: TestDiscoverer_EOADistinctFields (0.00s)
+=== CONT  TestListMyWallets_LinkedWithStubAuth
+--- PASS: TestListMyWallets_LinkedWithStubAuth (0.00s)
+--- PASS: TestListMyWallets_Unauthorized (0.00s)
+=== CONT  TestWalletsListResponse_JSONContract
+--- PASS: TestWalletsListResponse_JSONContract (0.00s)
+PASS
+ok  	retropick/apps/backend/internal/markets/wallet	(cached)

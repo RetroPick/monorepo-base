@@ -29,6 +29,27 @@ func TestEnvelopeNeverInventsSequence(t *testing.T) {
 	}
 }
 
+func TestMarshalEnvelopeSequenceIsNull(t *testing.T) {
+	t.Parallel()
+	observed := time.Date(2026, 7, 31, 0, 0, 0, 0, time.UTC)
+	envelope, err := realtime.NewEnvelope(
+		realtime.TypeOrderBookSnapshot,
+		"market-1", "token-1", "token-1", "hash-1",
+		1, 1, observed, observed,
+		map[string]string{"status": "ok"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, err := realtime.MarshalEnvelope(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !realtime.WireSequenceNull(payload) {
+		t.Fatalf("wire %s", string(payload))
+	}
+}
+
 func TestDeliveryTrackerMonotonicWithinEpoch(t *testing.T) {
 	t.Parallel()
 	tracker := realtime.NewDeliveryTracker()
