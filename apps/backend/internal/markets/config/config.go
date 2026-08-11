@@ -12,6 +12,7 @@ const (
 	defaultHTTPPort            = 8080
 	defaultGammaURL            = "https://gamma-api.polymarket.com"
 	defaultCLOBURL             = "https://clob.polymarket.com"
+	defaultDataAPIURL          = "https://data-api.polymarket.com"
 	defaultCatalogSyncInterval = 5 * time.Minute
 	defaultCatalogPageSize     = 50
 	defaultCatalogMaxPages     = 2
@@ -29,6 +30,7 @@ type Config struct {
 	BuildTime             string
 	GammaAPIURL           string
 	CLOBAPIURL            string
+	DataAPIURL            string
 	CatalogEnabled        bool
 	MarketDataEnabled     bool
 	BookMaxAge            time.Duration
@@ -102,6 +104,7 @@ func Load() (Config, error) {
 		BuildTime:             strings.TrimSpace(os.Getenv("BUILD_TIME")),
 		GammaAPIURL:           envDefault("MARKETS_GAMMA_API_URL", defaultGammaURL),
 		CLOBAPIURL:            envDefault("MARKETS_CLOB_API_URL", defaultCLOBURL),
+		DataAPIURL:            envDefault("MARKETS_DATA_API_URL", defaultDataAPIURL),
 		CatalogEnabled:        envDefault("MARKETS_CATALOG_ENABLED", "1") != "0",
 		MarketDataEnabled:     envDefault("MARKETS_MARKET_DATA_ENABLED", "1") != "0",
 		BookMaxAge:            bookMaxAge,

@@ -65,6 +65,21 @@ func TestLoad_MarketsAPIDefaults(t *testing.T) {
 	if !cfg.CatalogEnabled || !cfg.MarketDataEnabled {
 		t.Fatalf("flags catalog=%v data=%v", cfg.CatalogEnabled, cfg.MarketDataEnabled)
 	}
+	if cfg.DataAPIURL != "https://data-api.polymarket.com" {
+		t.Fatalf("data api url %q", cfg.DataAPIURL)
+	}
+}
+
+func TestLoad_DataAPIURLEnvOverride(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("MARKETS_DATA_API_URL", "http://127.0.0.1:9009")
+	cfg, err := marketsconfig.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DataAPIURL != "http://127.0.0.1:9009" {
+		t.Fatalf("data api url %q", cfg.DataAPIURL)
+	}
 }
 
 func TestMain(m *testing.M) {

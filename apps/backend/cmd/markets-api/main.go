@@ -28,6 +28,7 @@ import (
 	"retropick/apps/backend/internal/markets/intelligence"
 	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/markets/orders"
+	"retropick/apps/backend/internal/markets/positions"
 	"retropick/apps/backend/internal/markets/postgres"
 	"retropick/apps/backend/internal/markets/realtime"
 	"retropick/apps/backend/internal/markets/reconcile"
@@ -227,6 +228,8 @@ func main() {
 		},
 	})
 
+	posMetrics := positions.NewRecorder()
+
 	authCfg, err := auth.LoadConfig()
 	if err != nil {
 		log.Error("auth config", "err", err)
@@ -262,8 +265,15 @@ func main() {
 	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		_, _ = fmt.Fprint(w, metrics.Prometheus())
+		_, _ = fmt.Fprint(w, posMetrics.Prometheus())
 	})
 	walletCfg := wallet.HandlerConfigFromPool(pool)
+	posCfg := positions.ProductionConfig{
+		Discoverer: walletCfg.Discoverer,
+		DataAPIURL: cfg.DataAPIURL,
+		Store:      positions.NewProjectionStore(),
+		Metrics:    posMetrics,
+	}
 	ordersHandlerCfg := orders.NewProductionHandlerConfig(orders.ProductionConfig{
 		Discoverer:    walletCfg.Discoverer,
 		Pool:          pool,
@@ -283,6 +293,17 @@ func main() {
 		routeDeps,
 		[]markets.EligibleMeRouteRegistrar{
 			func(r chi.Router) {
+				// Portfolio read surface (OpenAPI v1.4.0: /markets/me/positions,
+				// /markets/me/activity, /markets/me/portfolio/summary) sits behind the
+				// portfolio_read capability gate — 503 capability_disabled until QA green.
+				r.Group(func(r chi.Router) {
+					r.Use(markets.PortfolioReadGate(marketsSvc))
+					positions.RegisterMeRoutes(r, positions.NewProductionHandlerConfig(posCfg))
+					r.Get("/activity", markets.PortfolioNotImplementedHandler())
+					r.Route("/portfolio", func(r chi.Router) {
+						r.Get("/summary", markets.PortfolioNotImplementedHandler())
+					})
+				})
 				balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
 					Discoverer: walletCfg.Discoverer,
 					CLOBURL:    cfg.CLOBAPIURL,
@@ -324,6 +345,13 @@ func main() {
 		go func() {
 			if err := reconcileWorker.Run(workerCtx); err != nil && err != context.Canceled {
 				log.Error("reconcile worker stopped", "err", err)
+			}
+		}()
+	}
+	if positions.PositionReconcileEnabled() {
+		go func() {
+			if err := positions.NewProductionWorker(posCfg).Run(workerCtx); err != nil && err != context.Canceled {
+				log.Error("position reconcile worker stopped", "err", err)
 			}
 		}()
 	}
