@@ -18,6 +18,7 @@ import {
   Globe,
   ArrowUpRight,
 } from 'lucide-react'
+import { LimitOrderModal } from '../limit-order-modal'
 import { type Market, SOURCES, MARKETS, getSafeMarketImage, getOptionThumbnail } from '@/lib/retropick-data'
 import { extractSubTags, getDetailedMarketRules } from '@/lib/polymarket-service'
 import { DetailChart } from '../detail-chart'
@@ -139,6 +140,11 @@ export function MarketDetail({
   const [alertPercentage, setAlertPercentage] = useState('80')
   const [alertCreatedToast, setAlertCreatedToast] = useState(false)
 
+  // Advanced Limit Order Modal state
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false)
+  const [limitModalOutcome, setLimitModalOutcome] = useState<'YES' | 'NO'>('YES')
+  const [limitModalPriceCents, setLimitModalPriceCents] = useState<number>(market.yes || 18)
+
   // Share Deep Link Toast state (NAVIGATION_AND_DEEP_LINKS.md)
   const [shareToast, setShareToast] = useState(false)
 
@@ -218,7 +224,10 @@ export function MarketDetail({
   ]
 
   return (
-    <div className="relative flex flex-col h-full bg-background animate-fade-up px-4 pb-36 pt-3 space-y-4 text-foreground overflow-y-auto min-h-0 no-scrollbar">
+    <div className={cn(
+      "relative flex flex-col h-full bg-background animate-fade-up px-4 pb-36 pt-3 space-y-4 text-foreground min-h-0 no-scrollbar",
+      isLimitModalOpen ? "overflow-hidden" : "overflow-y-auto"
+    )}>
       {/* Floating Non-blocking Toast Notification Banner */}
       {showSuccess && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-sm animate-fade-down">
@@ -480,9 +489,18 @@ export function MarketDetail({
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setSelectedOptionIdx(idx)}
+                  onClick={() => {
+                    setSelectedOptionIdx(idx)
+                    setLimitModalOutcome(opt.label as any)
+                    setLimitModalPriceCents(opt.percentage)
+                    if (onTrade) {
+                      onTrade('yes')
+                    } else {
+                      setIsLimitModalOpen(true)
+                    }
+                  }}
                   className={cn(
-                    "flex items-center justify-between rounded-xl border p-3 text-xs font-bold transition-all text-left",
+                    "flex items-center justify-between rounded-xl border p-3.5 text-xs font-bold transition-all text-left active:scale-[0.98]",
                     selectedOptionIdx === idx
                       ? "border-primary bg-primary/10 text-foreground shadow-xs"
                       : "border-border/60 bg-secondary/20 text-muted-foreground hover:text-foreground"
@@ -518,7 +536,16 @@ export function MarketDetail({
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
-              onClick={() => setTradeSide('yes')}
+              onClick={() => {
+                setTradeSide('yes')
+                setLimitModalOutcome('YES')
+                setLimitModalPriceCents(market.yes || 18)
+                if (onTrade) {
+                  onTrade('yes')
+                } else {
+                  setIsLimitModalOpen(true)
+                }
+              }}
               className={cn(
                 "flex items-center justify-between rounded-xl border p-3.5 text-xs font-bold transition-all text-left active:scale-[0.98]",
                 tradeSide === 'yes'
@@ -536,7 +563,16 @@ export function MarketDetail({
             </button>
             <button
               type="button"
-              onClick={() => setTradeSide('no')}
+              onClick={() => {
+                setTradeSide('no')
+                setLimitModalOutcome('NO')
+                setLimitModalPriceCents(100 - (market.yes || 18))
+                if (onTrade) {
+                  onTrade('no')
+                } else {
+                  setIsLimitModalOpen(true)
+                }
+              }}
               className={cn(
                 "flex items-center justify-between rounded-xl border p-3.5 text-xs font-bold transition-all text-left active:scale-[0.98]",
                 tradeSide === 'no'
@@ -554,78 +590,6 @@ export function MarketDetail({
             </button>
           </div>
         )}
-
-        {/* Amount Input & Preset Chips */}
-        <div className="space-y-2">
-          <div className="flex justify-between text-[11px] font-semibold text-muted-foreground">
-            <span>Amount (USDC)</span>
-            <span>Balance: ${balance.toFixed(2)}</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-secondary/20 px-3.5 py-2.5 focus-within:border-primary">
-            <span className="text-xs font-bold text-muted-foreground">$</span>
-            <input
-              type="number"
-              value={tradeAmount}
-              onChange={(e) => setTradeAmount(e.target.value)}
-              className="w-full bg-transparent text-xs font-bold text-foreground outline-none"
-              placeholder="0.00"
-            />
-          </div>
-
-          {/* Quick Amount Chips */}
-          <div className="flex items-center gap-1.5 pt-1">
-            {['10', '25', '50', '100'].map((amt) => (
-              <button
-                key={amt}
-                type="button"
-                onClick={() => setTradeAmount(amt)}
-                className="flex-1 rounded-lg border border-border/60 bg-secondary/30 py-1.5 text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-colors"
-              >
-                +${amt}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setTradeAmount(balance.toFixed(0))}
-              className="flex-1 rounded-lg border border-primary/40 bg-primary/10 py-1.5 text-[10px] font-bold text-primary hover:bg-primary/20 transition-colors"
-            >
-              Max
-            </button>
-          </div>
-        </div>
-
-        {errorMsg && <p className="text-xs font-bold text-no">{errorMsg}</p>}
-
-        {/* Payout Details */}
-        <div className="rounded-xl bg-secondary/20 p-3 text-[11px] space-y-1.5 text-muted-foreground border border-border/40">
-          <div className="flex justify-between">
-            <span>Avg Share Price:</span>
-            <span className="font-bold text-foreground font-mono">{price}¢</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Est. Shares:</span>
-            <span className="font-bold text-foreground font-mono">{shares} shares</span>
-          </div>
-          <div className="flex justify-between border-t border-border/30 pt-1.5 font-semibold">
-            <span>Est. Payout if Correct:</span>
-            <span className="font-bold text-yes font-mono">${payout} USDC <span className="text-[10px] font-bold text-yes/90">(+{returnPct}%)</span></span>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={handlePlaceTrade}
-          className={cn(
-            "w-full rounded-xl py-3.5 text-xs font-extrabold shadow-md transition-all active:scale-[0.99]",
-            (!market.options || market.options.length === 0)
-              ? (tradeSide === 'yes'
-                  ? "bg-yes text-yes-foreground hover:bg-yes/90 shadow-yes/20"
-                  : "bg-no text-no-foreground hover:bg-no/90 shadow-no/20")
-              : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
-          )}
-        >
-          Buy {label}
-        </button>
       </div>
 
       {/* 7. RELATED EVENTS SECTION (Matching Polymarket Image 3 - Placed Above Rules) */}
@@ -737,6 +701,23 @@ export function MarketDetail({
           </a>
         </div>
       )}
+
+      {/* Advanced Limit Order Modal (Matching provided image mockup) */}
+      <LimitOrderModal
+        isOpen={isLimitModalOpen}
+        onClose={() => setIsLimitModalOpen(false)}
+        marketTitle={market.question}
+        imageUrl={getSafeMarketImage(market)}
+        initialOutcome={limitModalOutcome}
+        initialSide={tradeSide === 'yes' ? 'BUY' : 'BUY'}
+        initialPriceCents={limitModalPriceCents}
+        onTradeSubmit={(tradeDetails) => {
+          onExecuteTrade(tradeDetails.outcome, tradeDetails.limitPriceCents, tradeDetails.shares)
+          setSuccessDetails(`${tradeDetails.side} ${tradeDetails.shares} shares @ ${tradeDetails.limitPriceCents}¢ ($${tradeDetails.totalCost})`)
+          setShowSuccess(true)
+          setTimeout(() => setShowSuccess(false), 4000)
+        }}
+      />
     </div>
   )
 }

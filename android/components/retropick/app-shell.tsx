@@ -18,6 +18,7 @@ import { MarketsScreen } from './screens/markets-screen'
 import { MarketDetail } from './screens/market-detail'
 import { ExploreScreen } from './screens/explore-screen'
 import { PortfolioScreen } from './screens/portfolio-screen'
+import { IntelligenceScreen } from './screens/intelligence-screen'
 import { SplashScreen } from './screens/splash-screen'
 
 import { fetchLivePolymarketMarkets, classifyMarketCategory, extractSubTags } from '@/lib/polymarket-service'
@@ -26,6 +27,7 @@ import { StorageService } from '@/lib/storage-service'
 const TITLES: Record<Tab, string> = {
   explore: 'Explore',
   markets: 'Markets',
+  intelligence: 'Intelligence',
   portfolio: 'Portfolio',
 }
 
@@ -45,7 +47,7 @@ export function AppShell() {
   }, [])
   // State initialized with Local Storage Persistence (STATE_DATA_OFFLINE_AND_REALTIME.md)
   const [balance, setBalance] = useState<number>(() => StorageService.loadBalance(1240.50))
-  const [trade, setTrade] = useState<{ market: Market; side: 'yes' | 'no' } | null>(null)
+  const [trade, setTrade] = useState<{ market: Market; side: 'yes' | 'no'; optionLabel?: string; optionPrice?: number } | null>(null)
 
   // Auth & Wallet States
   const [authenticated, setAuthenticated] = useState<boolean>(() => StorageService.loadAuth().authenticated)
@@ -278,6 +280,13 @@ export function AppShell() {
     setWalletAddress('')
     setWalletProvider('')
     setUserEmail('')
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('retropick_following_wallets')
+      } catch (e) {
+        console.error(e)
+      }
+    }
   }
 
   const handleProvisionWallet = (type: 'embedded' | 'external', provider?: string) => {
@@ -487,6 +496,11 @@ export function AppShell() {
                           onClearCategory={() => setCategoryDetail(null)}
                         />
                       )}
+                      {tab === 'intelligence' && (
+                        <IntelligenceScreen 
+                          onSelectMarket={openMarket}
+                        />
+                      )}
                       {tab === 'portfolio' && (
                         <PortfolioScreen 
                           balance={balance} 
@@ -513,6 +527,11 @@ export function AppShell() {
                     setTab(t)
                     setDetail(null)
                     setCategoryDetail(null)
+                    setTrade(null)
+                    setShowConnectModal(false)
+                    setShowAddFundsModal(false)
+                    setShowAlertsDrawer(false)
+                    setDrawer(false)
                   }} 
                 />
               )}

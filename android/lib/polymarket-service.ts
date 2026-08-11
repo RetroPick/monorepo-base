@@ -31,7 +31,10 @@ const BANNED_KEYWORDS = [
   'government',
 ]
 
-export type MarketCategoryEnum = Market['category']
+export type MarketCategoryEnum = Exclude<
+  Market['category'],
+  'Science' | 'Stocks'
+>
 
 const PRIORITY_ORDER: MarketCategoryEnum[] = [
   'Sports',
@@ -87,7 +90,9 @@ const KEYWORD_MAP: Record<MarketCategoryEnum, string[]> = {
   Climate: [
     'global warming', 'co2 emissions', 'sea level', 'solar power',
     'wind energy', 'renewable energy', 'climate change', 'carbon', 'climate', 'green energy'
-  ]
+  ],
+  Science: ['space', 'physics', 'biology', 'medicine'],
+  Stocks: ['shares', 'equity', 'nasdaq', 'nyse']
 }
 
 export function classifyMarketCategory(
@@ -107,6 +112,8 @@ export function classifyMarketCategory(
     Economics: 0,
     Tech: 0,
     Finance: 0,
+    Science: 0,
+    Stocks: 0,
   }
 
   // Check Head to head or score pattern for sports booster (+5 pts)
@@ -287,7 +294,50 @@ export function extractSubTags(
   return result
 }
 
+const BFF_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
+
 export async function fetchLivePolymarketMarkets(): Promise<Market[]> {
+  // 1. Try Go BFF backend endpoint from monorepo-base
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 1800)
+    const bffRes = await fetch(`${BFF_API_URL}/markets`, { signal: controller.signal })
+    clearTimeout(timeoutId)
+    if (bffRes.ok) {
+      const bffData = await bffRes.json()
+      const rawBffMarkets = Array.isArray(bffData) ? bffData : bffData?.data || bffData?.markets || []
+      if (rawBffMarkets.length > 0) {
+        console.log('[RetroPick] Successfully fetched markets from Go BFF Backend')
+        const bffMapped = rawBffMarkets.map((m: any, idx: number): Market | null => {
+          const qLower = (m.question || '').toLowerCase()
+          const cat = classifyMarketCategory(m.question || '', m.category || '')
+          const yesVal = Math.round(typeof m.yes === 'number' ? m.yes : (parseFloat(m.yesPrice || '0.5') * 100))
+          return {
+            id: m.id || String(idx),
+            question: m.question || 'Untitled Market',
+            category: cat,
+            marketType: m.marketType || 'UP_OR_DOWN',
+            tags: extractSubTags(m.question || '', cat),
+            yes: yesVal,
+            volume: m.volume || '$1.2m',
+            liquidity: m.liquidity || '$450k',
+            participants: m.participants || '1,420 Traders',
+            timeLeft: m.timeLeft || 'Ends Dec 31',
+            trend: yesVal >= 50 ? 'up' : 'down',
+            chart: m.chart || [48, 50, 52, 51, 55, 58, 60, yesVal],
+            verified: true,
+            icon: m.icon,
+            image: m.image,
+            options: m.options
+          }
+        }).filter((m: any): m is Market => m !== null)
+        if (bffMapped.length > 0) return bffMapped
+      }
+    }
+  } catch (_) {
+    // Go BFF unavailable, fallback to direct Polymarket API
+  }
+
   try {
     const targetUrl = 'https://gamma-api.polymarket.com/markets?active=true&closed=false&limit=40&order=volume&ascending=false'
     const response = await fetch('https://corsproxy.io/?' + encodeURIComponent(targetUrl))

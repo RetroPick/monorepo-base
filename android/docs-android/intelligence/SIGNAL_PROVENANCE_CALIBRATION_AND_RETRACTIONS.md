@@ -1,0 +1,6 @@
+# SIGNAL PROVENANCE (moved)
+
+**Status:** superseded  
+**Last updated:** 2026-08-09  
+
+Envelope/lifecycle: [INTELLIGENCE_DATA_MODEL.md](INTELLIGENCE_DATA_MODEL.md). Historical bulk: [archive/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md](archive/SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md).
