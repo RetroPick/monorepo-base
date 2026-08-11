@@ -19,7 +19,7 @@ test.describe("J03 — market and rules review", () => {
 
     await expect(page.getByRole("region", { name: /order ticket/i })).toBeVisible();
     await page.getByPlaceholder("0.42").fill("0.42");
-    await page.getByPlaceholder("USDC amount").fill("100");
+    await page.getByPlaceholder("Shares").fill("100");
     await page.getByRole("button", { name: /preview order/i }).click();
 
     await expect(page.getByText("geo_denied")).toBeVisible();

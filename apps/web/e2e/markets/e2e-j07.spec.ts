@@ -9,7 +9,7 @@ test.describe("J07 — order preview, sign, submit", () => {
     await gotoMarketDetail(page);
 
     await page.getByPlaceholder("0.42").fill("0.42");
-    await page.getByPlaceholder("USDC amount").fill("100");
+    await page.getByPlaceholder("Shares").fill("100");
     await page.getByRole("button", { name: /preview order/i }).click();
 
     const dialog = page.getByRole("dialog");
@@ -33,7 +33,7 @@ test.describe("J07 — order preview, sign, submit", () => {
     await expect(ticket.getByText(/order submission unavailable/i)).toBeVisible();
 
     await page.getByPlaceholder("0.42").fill("0.42");
-    await page.getByPlaceholder("USDC amount").fill("100");
+    await page.getByPlaceholder("Shares").fill("100");
     await page.getByRole("button", { name: /preview order/i }).click();
 
     const dialog = page.getByRole("dialog");

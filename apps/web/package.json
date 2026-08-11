@@ -9,6 +9,7 @@
     "start": "next start -p 3001",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "pnpm test:markets && pnpm test:e2e:markets",
     "test:markets": "vitest run --config src/products/markets/vitest.config.ts",
     "test:e2e:markets": "playwright test --config playwright.config.ts"
   },

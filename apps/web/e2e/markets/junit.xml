@@ -1,16 +1,16 @@
-<testsuites id="" name="" tests="5" failures="0" skipped="0" errors="0" time="119.271578">
-<testsuite name="e2e-j03.spec.ts" timestamp="2026-08-10T06:58:24.501Z" hostname="chromium" tests="3" failures="0" skipped="0" time="16.16" errors="0">
-<testcase name="J03 — market and rules review › e2e-j03 loads market detail with rules and order ticket" classname="e2e-j03.spec.ts" time="11.022">
+<testsuites id="" name="" tests="5" failures="0" skipped="0" errors="0" time="132.416538">
+<testsuite name="e2e-j03.spec.ts" timestamp="2026-08-11T17:54:42.898Z" hostname="chromium" tests="3" failures="0" skipped="0" time="29.084" errors="0">
+<testcase name="J03 — market and rules review › e2e-j03 loads market detail with rules and order ticket" classname="e2e-j03.spec.ts" time="7.641">
 </testcase>
-<testcase name="J03 — market and rules review › e2e-j03 blocked eligibility disables preview flow" classname="e2e-j03.spec.ts" time="2.857">
+<testcase name="J03 — market and rules review › e2e-j03 blocked eligibility disables preview flow" classname="e2e-j03.spec.ts" time="17.047">
 </testcase>
-<testcase name="J03 — market and rules review › e2e-j03 degraded freshness shows stale banner" classname="e2e-j03.spec.ts" time="2.281">
+<testcase name="J03 — market and rules review › e2e-j03 degraded freshness shows stale banner" classname="e2e-j03.spec.ts" time="4.396">
 </testcase>
 </testsuite>
-<testsuite name="e2e-j07.spec.ts" timestamp="2026-08-10T06:58:24.501Z" hostname="chromium" tests="2" failures="0" skipped="0" time="5.686" errors="0">
-<testcase name="J07 — order preview, sign, submit › e2e-j07 happy path with kill switch on submits order" classname="e2e-j07.spec.ts" time="2.803">
+<testsuite name="e2e-j07.spec.ts" timestamp="2026-08-11T17:54:42.898Z" hostname="chromium" tests="2" failures="0" skipped="0" time="9.438" errors="0">
+<testcase name="J07 — order preview, sign, submit › e2e-j07 happy path with kill switch on submits order" classname="e2e-j07.spec.ts" time="5.205">
 </testcase>
-<testcase name="J07 — order preview, sign, submit › e2e-j07 kill switch off does not submit after sign" classname="e2e-j07.spec.ts" time="2.883">
+<testcase name="J07 — order preview, sign, submit › e2e-j07 kill switch off does not submit after sign" classname="e2e-j07.spec.ts" time="4.233">
 </testcase>
 </testsuite>
 </testsuites>
