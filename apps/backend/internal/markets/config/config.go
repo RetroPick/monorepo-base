@@ -38,8 +38,9 @@ type Config struct {
 	CatalogMaxStaleAge    time.Duration
 	CatalogBackoff        time.Duration
 	ShutdownTimeout       time.Duration
-	SignalsEnabled        bool
-	RealtimeEnabled       bool
+	SignalsEnabled              bool
+	IntelligenceWhaleFeedEnabled bool
+	RealtimeEnabled             bool
 	RealtimeWSURL         string
 	RealtimeMaxAssets     int
 	RealtimeMaxPerConn    int
@@ -110,8 +111,9 @@ func Load() (Config, error) {
 		CatalogMaxStaleAge:    maxStale,
 		CatalogBackoff:        backoff,
 		ShutdownTimeout:       shutdown,
-		SignalsEnabled:        envDefault("MARKETS_SIGNALS_ENABLED", "1") != "0",
-		RealtimeEnabled:       envDefault("MARKETS_REALTIME_ENABLED", "0") == "1",
+		SignalsEnabled:              envDefault("MARKETS_SIGNALS_ENABLED", "1") != "0",
+		IntelligenceWhaleFeedEnabled: envDefault("MARKETS_INTELLIGENCE_WHALE_FEED_ENABLED", "0") == "1",
+		RealtimeEnabled:             envDefault("MARKETS_REALTIME_ENABLED", "0") == "1",
 		RealtimeWSURL:         envDefault("MARKETS_REALTIME_WS_URL", "wss://ws-subscriptions-clob.polymarket.com/ws/market"),
 		RealtimeMaxAssets:     200,
 		RealtimeMaxPerConn:    50,

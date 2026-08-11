@@ -11,6 +11,7 @@ import (
 
 	"retropick/apps/backend/internal/markets"
 	"retropick/apps/backend/internal/markets/clob"
+	"retropick/apps/backend/internal/markets/intelligence"
 	"retropick/apps/backend/internal/markets/marketdata"
 )
 
@@ -76,6 +77,7 @@ func TestOpenAPIRuntimeConformancePhaseOne(t *testing.T) {
 		{name: "history", method: http.MethodGet, path: "/api/v1/markets/markets/polymarket:market:1/history?tokenId=token-1&interval=1d&fidelity=60", wantStatus: http.StatusOK, semantics: true},
 		{name: "market health", method: http.MethodGet, path: "/api/v1/markets/markets/polymarket:market:1/health?tokenId=token-1", wantStatus: http.StatusOK, semantics: true},
 		{name: "signals", method: http.MethodGet, path: "/api/v1/markets/intelligence/signals", wantStatus: http.StatusOK},
+		{name: "whales disabled", method: http.MethodGet, path: "/api/v1/markets/intelligence/whales", wantStatus: http.StatusOK},
 		{name: "health live", method: http.MethodGet, path: "/api/v1/health/live", wantStatus: http.StatusOK},
 		{name: "health ready", method: http.MethodGet, path: "/api/v1/health/ready", wantStatus: http.StatusServiceUnavailable},
 		{name: "events bad request", method: http.MethodGet, path: "/api/v1/markets/events?cursor=bad&limit=nope", wantStatus: http.StatusBadRequest},
@@ -167,16 +169,21 @@ func newConformanceRouter(
 ) http.Handler {
 	projection := conformanceProjection{fixed: fixed, event: event, market: market}
 	svc := markets.NewService(markets.ServiceConfig{
-		CatalogEnabled:        true,
-		CatalogProjection:     projection,
-		CatalogWorker:         conformanceWorker{},
-		MarketDataEnabled:     true,
-		MarketData:            marketData,
-		MarketProcessor:       marketdata.Processor{},
-		SignalsOperational:    false,
-		BookMaxAge:            bookMaxAge,
-		Now:                   func() time.Time { return fixed },
+		CatalogEnabled:               true,
+		CatalogProjection:            projection,
+		CatalogWorker:                conformanceWorker{},
+		MarketDataEnabled:            true,
+		MarketData:                   marketData,
+		MarketProcessor:              marketdata.Processor{},
+		SignalsOperational:           false,
+		IntelligenceWhaleFeedEnabled: false,
+		BookMaxAge:                   bookMaxAge,
+		Now:                          func() time.Time { return fixed },
 	})
+	intelMod, err := intelligence.NewModule(intelligence.Config{Enabled: false, Now: func() time.Time { return fixed }})
+	if err != nil {
+		panic(err)
+	}
 	r := chi.NewRouter()
 	markets.RegisterHealthRoutes(r, markets.HealthChecker{
 		Service:               svc,
@@ -185,7 +192,9 @@ func newConformanceRouter(
 		MarketDataOperational: true,
 		RealtimeState:         nil,
 	})
-	markets.RegisterRoutes(r, markets.NewHandler(svc), nil)
+	markets.RegisterRoutesWithDeps(r, markets.NewHandler(svc), nil, markets.RouteDeps{
+		Intelligence: intelMod.RegisterRoutes,
+	})
 	return r
 }
 

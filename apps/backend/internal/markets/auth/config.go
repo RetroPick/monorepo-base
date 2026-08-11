@@ -80,6 +80,9 @@ func LoadConfig() (Config, error) {
 	}
 
 	domains := parseCSV(os.Getenv("MARKETS_AUTH_ALLOWED_DOMAINS"))
+	if len(domains) == 0 {
+		return Config{}, fmt.Errorf("MARKETS_AUTH_ALLOWED_DOMAINS is required")
+	}
 
 	return Config{
 		SessionSecret:  secret,
@@ -125,8 +128,9 @@ func (c Config) domainAllowed(domain string) bool {
 	if domain == "" {
 		return false
 	}
+	// An unconfigured allowlist must never permit an arbitrary SIWE domain.
 	if len(c.AllowedDomains) == 0 {
-		return true
+		return false
 	}
 	for _, allowed := range c.AllowedDomains {
 		if strings.EqualFold(domain, allowed) {

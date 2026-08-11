@@ -61,7 +61,7 @@ func RunMigrations(databaseURL string) error {
 		}
 		if attempt > 0 {
 			if !loggedWait {
-				slog.Default().Info("database not ready, retrying migrations", "backoff", backoff)
+				slog.Default().Info("database not ready, retrying migrations", "backoff", backoff, "err", lastErr)
 				loggedWait = true
 			}
 			time.Sleep(backoff)

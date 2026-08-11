@@ -8,7 +8,7 @@
 
 ## Description
 
-This document is the semantics overlay for the Markets V1 **HTTP and realtime surface** shared by web and Android. It inventories operations (eligibility, capabilities, catalog, me/*, funding, orders, intelligence, alerts, …), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels, error envelope, idempotency store, `/api/v1` versioning, and timeout budgets—without inventing paths. Canonical schemas live in `schemas/openapi/markets-v1.yaml` (v1.3.0).
+This document is the semantics overlay for the Markets V1 **HTTP and realtime surface** shared by web and Android. It inventories operations (eligibility, capabilities, catalog, me/*, funding, orders, portfolio, intelligence, alerts, …), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels, error envelope, idempotency store, `/api/v1` versioning, and timeout budgets—without inventing paths. Canonical schemas live in `schemas/openapi/markets-v1.yaml` (v1.4.0).
 
 It sits in Wave 3 beside auth/eligibility and architecture. Mutating POSTs require `Idempotency-Key` with 24h replay; phase gates keep unfinished surfaces dark via capabilities. PHASE-1 market book realtime uses `streamEpoch` + `deliveryCounter` (Polymarket has no authoritative `sequence`); gaps heal via REST order book snapshot. Phase-2+ alert inbox may use separate resume semantics. Clients retry catalog with backoff; never auto-retry preview/submit.
 
@@ -21,7 +21,7 @@ Short orientation for implementers and agents. Read this before the normative se
 | Lens | Answer |
 |------|--------|
 | **Who** | `be-api` / `be-realtime` implementing `cmd/api` and WebSocket hub; web and Android client authors; contract-test owners of `internal/markets/contract_test.go`; agents adding operations only when present in OpenAPI. |
-| **What** | Semantics overlay for the Markets HTTP + realtime surface: operation inventory (eligibility, capabilities, catalog, me/*, account-wallet/approvals preview+relay, funding quote/track, withdrawals, orders preview/submit/cancel, position ops, watchlists, intelligence, alerts, journal, execution-quality), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels (`market.<id>.book|trades`, `user.orders|fills|positions`, `alerts.inbox`), error envelope, idempotency store, `/api/v1` versioning, timeout budgets. **Canonical schemas live in YAML—this doc does not invent paths.** |
+| **What** | Semantics overlay for the Markets HTTP + realtime surface: operation inventory (eligibility, capabilities, catalog, me/*, account-wallet/approvals preview+relay, funding quote/track, withdrawals, orders preview/submit/cancel, portfolio positions/activity/summary, position ops, watchlists, intelligence, alerts, journal, execution-quality), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels (`market.<id>.book|trades`, `user.orders|fills|positions`, `alerts.inbox`), error envelope, idempotency store, `/api/v1` versioning, timeout budgets. **Canonical schemas live in YAML—this doc does not invent paths.** |
 | **When** | Before implementing or calling any Markets endpoint or channel. Phase gates (`x-phase`) decide which ops are live. Mutating POSTs always carry idempotency from day one of that op. Breaking shape changes require v2 + parallel run; feature discovery via `GET /markets/capabilities`. |
 | **Where** | Authority: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). Realtime wire: [schemas/asyncapi/markets-realtime-v1.yaml](../../../schemas/asyncapi/markets-realtime-v1.yaml). This file: auth/realtime/timeouts/idempotency semantics. Handlers under `apps/backend/internal/markets/handler*` and `apps/backend/internal/markets/realtime/`. Idempotency persistence: `markets.idempotency_keys` (or Redis with PG backing). WS endpoint: `GET /api/v1/markets/realtime` (WSS); heartbeat ping 30s. Auth/eligibility gates: [AUTH_SESSION_AND_ELIGIBILITY.md](./AUTH_SESSION_AND_ELIGIBILITY.md). |
 | **Why** | Web and Android must share one contract so BFF projections stay consistent. Fixed-point `MoneyAmount` and `DecimalString` prevent float bugs in clients. Idempotency stops double funding/order submits. Phase extensions keep unfinished surfaces dark. Realtime is a projection stream—reconnect/resume must not invent fills the venue never produced. |
@@ -29,7 +29,7 @@ Short orientation for implementers and agents. Read this before the normative se
 
 ### Worked example
 
-**Happy path — preview then submit.** Client reads `GET /markets/capabilities` (check `features.order_submit`) and `GET /markets/eligibility`, loads `GET /markets/markets/{marketId}/orderbook`, then `POST /markets/orders/preview` (auth + `Idempotency-Key`, spec-frozen v1.2.0+) receiving EIP-712 payload with `DecimalString` sizes/prices. After wallet signature, `POST /markets/orders/submit` with `previewId`, `contentHash`, `signature`, and `Idempotency-Key` returns order id; client subscribes to `user.orders` / `user.fills` and reconciles with `GET /markets/me/orders` and `GET /markets/me/fills`. Contract tests load YAML `examples` and assert handler JSON.
+**Happy path — preview then submit.** Client reads `GET /markets/capabilities` (check `features.order_submit`) and `GET /markets/eligibility`, loads `GET /markets/markets/{marketId}/orderbook`, then `POST /markets/orders/preview` (auth + `Idempotency-Key`, spec-frozen v1.2.0+) receiving EIP-712 payload with `DecimalString` sizes/prices. After wallet signature, `POST /markets/orders/submit` with `previewId`, `contentHash`, `signature`, and `Idempotency-Key` returns order id; client subscribes to `user.orders` / `user.fills` and reconciles with `GET /markets/me/orders` and `GET /markets/me/fills`. After fills, poll `GET /markets/me/positions` and `GET /markets/me/portfolio/summary`; reconcile with `user.positions` WS. Contract tests load YAML `examples` and assert handler JSON.
 
 **Happy path — funding track + realtime inbox.** `POST /markets/funding/quote` then `track` (Phase 2, auth). On credit, notification path may push inbox; WS `alerts.inbox` (Phase 2+) delivers alert envelopes with 30s heartbeats.
 
@@ -116,7 +116,6 @@ Do **not** implement handlers or clients until the path exists in YAML.
 | `POST` | `/markets/approvals/relay` | `relayApproval` | 2 | yes |
 | `POST` | `/markets/funding/quote` | `quoteFunding` | 2 | yes |
 | `POST` | `/markets/funding/track` | `trackFunding` | 2 | yes |
-| `GET` | `/markets/me/activity` | `listMyActivity` | 3 | yes |
 | `GET` | `/markets/intelligence/whales` | `listWhaleActivity` | 3 | yes |
 | `GET` | `/markets/intelligence/wallets/{address}` | `getWalletIntelligence` | 3 | yes |
 | `GET` | `/markets/markets/{marketId}/flow` | `getMarketFlow` | 3 | no |
@@ -126,7 +125,6 @@ Do **not** implement handlers or clients until the path exists in YAML.
 | `GET` | `/markets/me/execution-quality` | `getMyExecutionQuality` | 3 | yes |
 | `GET` | `/markets/me/journal` | `listTradeJournal` | 3 | yes |
 | `POST` | `/markets/me/journal` | `createTradeJournalEntry` | 3 | yes |
-| `GET` | `/markets/me/positions` | `listMyPositions` | 4 | yes |
 | `POST` | `/markets/withdrawals/preview` | `previewWithdrawal` | 4 | yes |
 | `POST` | `/markets/withdrawals/submit` | `submitWithdrawal` | 4 | yes |
 | `POST` | `/markets/positions/operation-preview` | `previewPositionOperation` | 4 | yes |
@@ -218,6 +216,56 @@ Order write and list operations are **spec-frozen** in [schemas/openapi/markets-
 | 422 | `idempotency_conflict` | Idempotency key replay with different body |
 | 502 | `upstream_unavailable` | CLOB unavailable |
 | 503 | `capability_disabled` | `order_submit` false |
+
+### 3.5 PHASE-4 — portfolio read (positions, activity, summary) (MKT-P4 OpenAPI freeze)
+
+Portfolio read operations are **spec-frozen** in [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml) v1.4.0. Handlers live in `apps/backend/internal/markets/portfolio/` and `positions/` (MKT-P4-001 / MKT-P4-002 scope). Runtime remains gated by `GET /markets/capabilities` → `features.portfolio_read` (default `false`). CTF preview/relay and withdrawal paths remain planned-not-in-YAML until a separate freeze task.
+
+**Auth:** All operations require `MarketsSession` (HttpOnly cookie). `accountWallet` in summary responses comes from the session primary linked wallet only — never from the request body or query (ADR-003). Responses use `Cache-Control: private, no-store`.
+
+| Method | Path | operationId | Idempotency-Key |
+|--------|------|-------------|-----------------|
+| `GET` | `/markets/me/positions` | `listMyPositions` | — |
+| `GET` | `/markets/me/activity` | `listMyActivity` | — |
+| `GET` | `/markets/me/portfolio/summary` | `getMyPortfolioSummary` | — |
+
+**Projection semantics:** BFF positions are projections, not ownership authority. On upstream drift or reorg, surface `freshness.state` as `stale` or `resyncing` — never invent balances the venue did not produce. UI shows "Updating" during reconcile rather than zeroed positions.
+
+**Money:** Position sizes and prices use `DecimalString`. Cost basis, mark value, PnL, and aggregate totals use `MoneyAmount` (pUSD, `decimals: 6`). Never binary floating point. `unrealizedPnl` on summary is JSON `null` when mark prices are unavailable — UI shows "—", not zero.
+
+**Activity immutability (MKT-DATA-001):** Activity events are append-only projections. Clients paginate with `cursor`; no DELETE or PATCH endpoints. Each event carries required `provenance` as the immutability anchor.
+
+**List filters:**
+
+- `GET /markets/me/positions` — optional `marketId`, `tokenId`, `resolutionState` (`active` | `resolved` | `redeemable` | `redeemed`); paginated with `cursor` + `limit`.
+- `GET /markets/me/activity` — optional `since` (date-time), `eventType`; paginated with `cursor` + `limit`.
+- `GET /markets/me/portfolio/summary` — aggregate for primary linked account wallet; no query filters.
+
+**WS counterpart:** `user.positions` (Phase 4, auth required). REST resync via `GET /markets/me/positions` after WS gap or reconnect — parallel to orders/fills in §3.4.
+
+**Capability gate:** When `features.portfolio_read` is `false`, portfolio GET handlers MUST NOT be mounted; HTTP 503 `capability_disabled` if invoked before wiring check.
+
+**Timeout class:** Catalog GET — 5s server budget (§10). Clients retry with backoff.
+
+**PnL disclaimer:** `PortfolioSummaryResponse.pnlDisclaimer` is required — descriptive projection only, not custodial P&L authority.
+
+**Error codes** (portfolio read):
+
+| HTTP | `error.code` | When |
+|------|--------------|------|
+| 401 | `unauthorized` | Missing or invalid session |
+| 404 | `no_linked_wallet` | No linked primary account wallet |
+| 503 | `capability_disabled` | `portfolio_read` false |
+
+**Handoff:**
+
+| Consumer | Next work |
+|----------|-----------|
+| **MKT-P4-001** | `listMyPositions` + `getMyPortfolioSummary` handlers; venue reconcile; mount when `portfolio_read` true |
+| **MKT-P4-002** | `listMyActivity`; immutable `markets_activity_events` projection |
+| **MKT-P4-004+** | Separate OpenAPI freeze for CTF preview/relay + redemption status |
+
+See also §3.4 order/fill list projections — after fills, clients poll positions and summary here.
 
 ## 4. Shared components
 

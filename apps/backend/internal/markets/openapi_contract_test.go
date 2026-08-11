@@ -30,7 +30,7 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 	if document.OpenAPI != "3.1.0" {
 		t.Fatalf("openapi = %q", document.OpenAPI)
 	}
-	if document.Info.Version != "1.3.0" {
+	if document.Info.Version != "1.4.0" {
 		t.Fatalf("info.version = %q", document.Info.Version)
 	}
 
@@ -44,6 +44,7 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 		"/markets/markets/{marketId}/history",
 		"/markets/markets/{marketId}/health",
 		"/markets/intelligence/signals",
+		"/markets/intelligence/whales",
 		"/markets/orders/preview",
 		"/markets/orders/submit",
 		"/markets/orders/{orderId}/cancel-preview",
@@ -77,6 +78,10 @@ func TestMarketsOpenAPIContainsPhaseOneReadContract(t *testing.T) {
 		"PageInfo",
 		"SignalEnvelope",
 		"SignalEvidence",
+		"WhaleFeedListResponse",
+		"WhaleFeedItem",
+		"WhaleReasonCode",
+		"IntelligenceEvidenceEnvelope",
 		"MarketHealthSnapshot",
 		"RealtimeEnvelope",
 		"EligibilityResponse",

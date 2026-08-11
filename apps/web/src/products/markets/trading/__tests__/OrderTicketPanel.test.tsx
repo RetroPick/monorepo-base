@@ -106,7 +106,7 @@ describe("OrderTicketPanel", () => {
         action: "BUY",
         market: "Will A happen?",
         outcome: "Yes",
-        size: "100 USDC",
+        size: "100 shares",
         price: "0.42",
         estimatedFee: "0.10 USDC",
         chainId: 137,
@@ -116,8 +116,8 @@ describe("OrderTicketPanel", () => {
         maker: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         signer: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
         tokenId: "token-yes",
-        makerAmount: "100000000",
-        takerAmount: "42000000",
+        makerAmount: "42000000",
+        takerAmount: "100000000",
         side: 0,
         signatureType: 0,
         timestamp: "1710000000000",
@@ -141,7 +141,7 @@ describe("OrderTicketPanel", () => {
     };
     renderTicket({ orderBook: staleBook });
     fireEvent.change(screen.getByPlaceholderText("0.42"), { target: { value: "0.43" } });
-    fireEvent.change(screen.getByPlaceholderText("USDC amount"), { target: { value: "100" } });
+    fireEvent.change(screen.getByPlaceholderText("Shares"), { target: { value: "100" } });
     expect(screen.getByRole("button", { name: /preview order/i })).toBeDisabled();
     expect(screen.getByText(/stale book/i)).toBeInTheDocument();
   });
@@ -149,13 +149,14 @@ describe("OrderTicketPanel", () => {
   it("opens preview modal with fee disclosure after successful preview", async () => {
     renderTicket();
     fireEvent.change(screen.getByPlaceholderText("0.42"), { target: { value: "0.42" } });
-    fireEvent.change(screen.getByPlaceholderText("USDC amount"), { target: { value: "100" } });
+    fireEvent.change(screen.getByPlaceholderText("Shares"), { target: { value: "100" } });
     fireEvent.click(screen.getByRole("button", { name: /preview order/i }));
 
     await waitFor(() => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
     expect(screen.getByText(/maximum loss/i)).toBeInTheDocument();
+    expect(screen.getByText(/42 USDC collateral for 100 shares/)).toBeInTheDocument();
     expect(screen.getByText(/0\.10 USDC/)).toBeInTheDocument();
     expect(previewOrderMock).toHaveBeenCalledTimes(1);
     expect(submitOrderMock).not.toHaveBeenCalled();

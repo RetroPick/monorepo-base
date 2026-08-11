@@ -19,6 +19,8 @@ Legacy epoch v1 (MarketEngine) is **archived** under [`archive/`](archive/) — 
 | [pnpm](https://pnpm.io/) | 10 | Monorepo installs |
 | [Go](https://go.dev/) | 1.24+ (1.26 recommended) | Host-run BFF, backend tests |
 | [Foundry](https://book.getfoundry.sh/) | latest | Legacy contract tests only |
+| [JDK](https://adoptium.net/) | 17+ | Native Android builds (Capacitor / Gradle) |
+| [Android Studio](https://developer.android.com/studio) | latest | Android SDK, emulator, `adb` (native app only) |
 
 On **WSL2**, install Docker Desktop on Windows and enable **WSL integration** for your distro. Verify with `docker info` before starting any compose stack.
 
@@ -188,6 +190,81 @@ More detail: [`apps/web/README.md`](apps/web/README.md), [`docs/architecture/fe-
 
 ---
 
+## Run Android locally (`apps/android`)
+
+[`apps/android`](apps/android) is a **Capacitor + Next.js** mobile prototype (git submodule → [RetroPick-Android](https://github.com/RetroPick/RetroPick-Android)). It ships mock catalog data from `lib/retropick-data.ts` and does **not** call the Markets BFF yet. The production target is a greenfield **Kotlin + Jetpack Compose** app (`apps/android-markets/`, PHASE-5) — see [`.dev/ANDROID_MARKETS.md`](.dev/ANDROID_MARKETS.md).
+
+### Submodule checkout
+
+If `apps/android` is empty:
+
+```bash
+git submodule update --init apps/android
+cd apps/android && pnpm install
+```
+
+### Browser preview (fastest)
+
+Good for UI iteration without Android Studio:
+
+```bash
+cd apps/android
+pnpm install          # first run
+pnpm dev              # http://localhost:3000
+```
+
+### Native Android (emulator or device)
+
+**Prerequisites:** Node/pnpm, JDK 17+, Android Studio with SDK (compile SDK 36), platform tools (`adb`), and an emulator or USB-debugged device.
+
+Set SDK env vars (adjust path to your install):
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"
+export PATH="$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator"
+```
+
+On **WSL2**, install Android Studio on **Windows** and either open the project from `\\wsl$\...` or point `ANDROID_HOME` at the Windows SDK. Running the emulator purely inside WSL is often unreliable; Windows-side Android Studio is the smoother path.
+
+**Build, sync, and run** from `apps/android`:
+
+```bash
+pnpm install
+pnpm build              # static export → out/
+npx cap sync android    # copy web assets into android/
+npx cap run android     # deploy to emulator/device
+# or: npx cap open android   → Run (▶) in Android Studio
+```
+
+**Gradle directly** (after `cap sync`):
+
+```bash
+cd android
+./gradlew installDebug
+adb shell am start -n com.retropick.app/.MainActivity
+```
+
+### Dev loop after UI changes
+
+Capacitor serves the static `out/` bundle — rebuild and re-sync after edits:
+
+```bash
+pnpm build && npx cap sync android
+```
+
+Use `pnpm dev` in the browser for faster UI work; use the native build when you need device behavior.
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `ERR_SDK_NOT_FOUND` | Install Android Studio; set `ANDROID_HOME`; ensure `adb` is on `PATH` |
+| Empty or stale UI on device | Run `pnpm build && npx cap sync android` before re-launching |
+| Gradle / JDK errors | Use JDK 17+; open `android/` in Android Studio and sync Gradle |
+| No devices listed | Start an emulator in Android Studio, or enable USB debugging on a physical device |
+
+---
+
 ## Legacy full stack (`docker-compose.yml`)
 
 Root [`docker-compose.yml`](docker-compose.yml) runs the **archived epoch** backend (`cmd/api`), indexer, price-worker, fe-v1, and ops-web — not Markets V1 `markets-api`.
@@ -210,6 +287,7 @@ Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at th
 | Product suite | [`.dev/README.md`](.dev/README.md) |
 | Markets V1 harness | [`.dev/markets-v1/`](.dev/markets-v1/) |
 | Markets web app | [`apps/web/README.md`](apps/web/README.md) |
+| Android product spec | [`.dev/ANDROID_MARKETS.md`](.dev/ANDROID_MARKETS.md) |
 | BFF architecture | [`docs/architecture/fe-v1-markets-bff-dev.md`](docs/architecture/fe-v1-markets-bff-dev.md) |
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
@@ -221,7 +299,7 @@ Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at th
 ```text
 apps/web              Markets Next.js shell (Discover on :3001)
 apps/fe-v1            Legacy Markets UI (Vite; until PHASE-6 cutover)
-apps/android          Markets Android (scaffold)
+apps/android          Markets Android prototype (Capacitor + Next.js submodule)
 apps/backend          Go API — Markets BFF (internal/markets)
 packages/polymarket   Shared TS client + types
 schemas/openapi       Web + Android API contract

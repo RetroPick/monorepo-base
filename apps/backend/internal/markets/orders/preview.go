@@ -44,36 +44,36 @@ func (NopRecorder) RecordOrderPreview(bool) {}
 
 // ServiceConfig wires order preview dependencies.
 type ServiceConfig struct {
-	Discoverer   *wallet.Discoverer
-	Tokens       TokenCatalog
-	Markets      MarketCatalog
-	Books        BookConstraints
-	BuilderCode  string
-	Store        *PreviewStore
-	CancelStore  *CancelPreviewStore
-	Projections  *ProjectionStore
-	Metrics      Recorder
-	Now          func() time.Time
-	SaltFn       func() (string, error)
-	Submit       SubmitConfig
-	Cancel       CancelConfig
+	Discoverer  *wallet.Discoverer
+	Tokens      TokenCatalog
+	Markets     MarketCatalog
+	Books       BookConstraints
+	BuilderCode string
+	Store       *PreviewStore
+	CancelStore *CancelPreviewStore
+	Projections *ProjectionStore
+	Metrics     Recorder
+	Now         func() time.Time
+	SaltFn      func() (string, error)
+	Submit      SubmitConfig
+	Cancel      CancelConfig
 }
 
 // Service assembles order previews fail-closed.
 type Service struct {
-	discoverer   *wallet.Discoverer
-	tokens       TokenCatalog
-	markets      MarketCatalog
-	books        BookConstraints
-	builderCode  string
-	store        *PreviewStore
-	cancelStore  *CancelPreviewStore
-	projections  *ProjectionStore
-	metrics      Recorder
-	now          func() time.Time
-	saltFn       func() (string, error)
-	submit       Submit
-	cancel       cancelService
+	discoverer  *wallet.Discoverer
+	tokens      TokenCatalog
+	markets     MarketCatalog
+	books       BookConstraints
+	builderCode string
+	store       *PreviewStore
+	cancelStore *CancelPreviewStore
+	projections *ProjectionStore
+	metrics     Recorder
+	now         func() time.Time
+	saltFn      func() (string, error)
+	submit      Submit
+	cancel      cancelService
 }
 
 // NewService builds a preview service.
@@ -250,10 +250,7 @@ func (s *Service) Preview(ctx context.Context, session wallet.SessionContext, re
 		ExchangeDomain:  exchangeDomain,
 	})
 
-	sizeLabel := req.Size + " USDC"
-	if strings.EqualFold(req.Side, SideSell) {
-		sizeLabel = req.Size + " shares"
-	}
+	sizeLabel := req.Size + " shares"
 
 	resp := PreviewResponse{
 		SchemaVersion: SchemaVersion,

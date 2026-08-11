@@ -17,6 +17,15 @@ function truncateHash(hash: string): string {
   return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
 }
 
+function formatCollateralBaseUnits(raw: string): string {
+  if (!/^\d+$/.test(raw)) return "—";
+  const decimals = 6;
+  const padded = raw.padStart(decimals + 1, "0");
+  const whole = padded.slice(0, padded.length - decimals) || "0";
+  const frac = padded.slice(padded.length - decimals).replace(/0+$/, "");
+  return `${frac ? `${whole}.${frac}` : whole} USDC`;
+}
+
 export function FeeDisclosure({ preview }: FeeDisclosureProps) {
   const { humanSummary, contentHash, exchangeDomain, warnings } = preview;
   const fee =
@@ -25,7 +34,7 @@ export function FeeDisclosure({ preview }: FeeDisclosureProps) {
       : null;
   const maxLoss =
     humanSummary.action === "BUY"
-      ? `${humanSummary.size} (collateral at risk)`
+      ? `${formatCollateralBaseUnits(preview.unsignedPayload.makerAmount)} collateral for ${humanSummary.size}`
       : `${humanSummary.size} (shares at risk)`;
 
   return (

@@ -3,6 +3,7 @@
 **Blocker:** BLK-001  
 **Related task:** MKT-P2-002 (remains `blocked` until this checklist passes)  
 **Date:** 2026-08-09  
+**Last ops1 update:** 2026-08-10 — proof template filed; staging VPS pending  
 **Status:** **open — ops action required**
 
 ## Description
@@ -113,7 +114,7 @@ All must be true before clearing BLK-001:
 | 2   | `GET /api/v1/markets/eligibility` → `eligible: true` from allowed region/IP | Saved curl output + timestamp                     |
 | 3   | Deny path still works for blocked fixture (if testable)                     | Optional curl from blocked IP                     |
 | 4   | No allow-all stub deployed                                                  | Code review / env audit                           |
-| 5   | Evidence filed under `verification/PHASE-2/`                                | New file e.g. `MKT-P2-BLK001-staging-proof.md`    |
+| 5   | Evidence filed under `verification/PHASE-2/`                                | [x] [MKT-P2-BLK001-staging-proof.md](./MKT-P2-BLK001-staging-proof.md) (template; staging curls pending) |
 
 
 ---
@@ -162,4 +163,5 @@ Unset `MARKETS_GEOIP_*` and `MARKETS_GEOBLOCK_*`, redeploy → eligibility retur
 - [MKT-P2-002-evidence.md](./MKT-P2-002-evidence.md)
 - [MKT-P2-002-test-output.txt](./MKT-P2-002-test-output.txt)
 - [MKT-P2-007-phase-gate.md](./MKT-P2-007-phase-gate.md) — phase advance blocked pending this checklist
+- [MKT-P2-BLK001-staging-proof.md](./MKT-P2-BLK001-staging-proof.md) — staging proof template (local rehearsal filed; live staging pending)
 

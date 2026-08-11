@@ -14,13 +14,13 @@ type EligibilityChecker interface {
 
 // Module wires Markets session auth, SIWE, and middleware dependencies.
 type Module struct {
-	cfg        Config
-	nonces     *NonceStore
-	users      UserStore
-	limiter    *RateLimiter
-	evaluator  EligibilityChecker
-	ipTrust    eligibility.IPTrustOptions
-	now        func() time.Time
+	cfg       Config
+	nonces    *NonceStore
+	users     UserStore
+	limiter   *RateLimiter
+	evaluator EligibilityChecker
+	ipTrust   eligibility.IPTrustOptions
+	now       func() time.Time
 }
 
 // ModuleConfig configures a new auth Module.

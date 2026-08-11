@@ -6,15 +6,9 @@ import { describe, expect, it, vi } from "vitest";
 import { MarketDetailPage } from "../pages/MarketDetailPage";
 import { sampleMarketDetail } from "../fixtures/openapi-examples";
 
-vi.mock("../hooks/useMarketsQueries", () => ({
-  useMarketsCapabilities: () => ({ data: { features: { realtime: false }, catalog: true } }),
-  useMarketsMarket: () => ({
-    data: sampleMarketDetail,
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-  }),
-  useMarketsOrderBook: () => ({
+const hooks = vi.hoisted(() => ({
+  capabilities: { data: { features: { realtime: false }, catalog: true } },
+  useMarketsOrderBook: vi.fn(() => ({
     data: {
       schemaVersion: "1",
       marketId: sampleMarketDetail.id,
@@ -28,7 +22,18 @@ vi.mock("../hooks/useMarketsQueries", () => ({
     isLoading: false,
     error: null,
     refetch: vi.fn(),
+  })),
+}));
+
+vi.mock("../hooks/useMarketsQueries", () => ({
+  useMarketsCapabilities: () => hooks.capabilities,
+  useMarketsMarket: () => ({
+    data: sampleMarketDetail,
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
   }),
+  useMarketsOrderBook: hooks.useMarketsOrderBook,
 }));
 
 vi.mock("../trading/components/OrderTicketPanel", () => ({
@@ -57,6 +62,18 @@ function renderMarketPage(marketId: string) {
 }
 
 describe("MarketDetailPage", () => {
+  it("keeps REST polling active until a browser realtime subscriber exists", () => {
+    hooks.capabilities = { data: { features: { realtime: true }, catalog: true } };
+    renderMarketPage("polymarket:market:456");
+
+    expect(hooks.useMarketsOrderBook).toHaveBeenLastCalledWith(
+      "polymarket:market:456",
+      "token-yes",
+      true,
+      true,
+    );
+  });
+
   it("renders resolution rules and source links for canonical ids", () => {
     renderMarketPage("polymarket:market:456");
 

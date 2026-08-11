@@ -100,7 +100,7 @@ func TestResilientClientCircuitBreaker(t *testing.T) {
 	}
 }
 
-func TestResilientClientStaleWhileError(t *testing.T) {
+func TestResilientClientDoesNotReturnExpiredCacheAfterUpstreamFailure(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
@@ -133,12 +133,8 @@ func TestResilientClientStaleWhileError(t *testing.T) {
 	}
 
 	now = start.Add(2 * time.Second)
-	second, err := client.GetMarket(ctx, "456")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if second.Question != "Will A happen?" {
-		t.Fatalf("stale fallback %+v", second)
+	if _, err := client.GetMarket(ctx, "456"); err == nil {
+		t.Fatal("expected expired cache to be rejected after upstream failure")
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("calls %d", calls.Load())

@@ -101,8 +101,9 @@ type ServiceConfig struct {
 	MarketProcessor   MarketDataProcessor
 	MarketDataEnabled bool
 	Signals              SignalReader
-	SignalsOperational   bool
-	RealtimeOperational  bool
+	SignalsOperational           bool
+	IntelligenceWhaleFeedEnabled bool
+	RealtimeOperational          bool
 	RealtimeState        RealtimeStateProvider
 	Metrics              *Metrics
 	Eligibility          *eligibility.Evaluator
@@ -188,25 +189,28 @@ func (s *Service) Capabilities(_ context.Context) CapabilitiesResponse {
 		realtimeEnabled = true
 	}
 	catalogSignalsEnabled := s.cfg.SignalsOperational && s.cfg.Signals != nil
-	intelligenceEnabled := catalogSignalsEnabled || liveSignalsEnabled
+	intelligenceEnabled := catalogSignalsEnabled || liveSignalsEnabled || s.cfg.IntelligenceWhaleFeedEnabled
+	features := map[string]bool{
+		"catalog_read":             s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
+		"market_detail":            s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
+		"orderbook_read":           marketDataEnabled,
+		"price_history":            marketDataEnabled,
+		"market_health":            marketDataEnabled,
+		"realtime":                 realtimeEnabled,
+		"signals":                  intelligenceEnabled,
+		"catalog_signals":          catalogSignalsEnabled,
+		"live_signals":             liveSignalsEnabled,
+		"order_submit":             false,
+		"portfolio_read":           false,
+		"intelligence_whale_feed":  s.cfg.IntelligenceWhaleFeedEnabled,
+	}
 	return CapabilitiesResponse{
 		Version: APIVersion,
 		Catalog: s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
 		Trading: false,
 		Combos:  false,
 		Intel:   intelligenceEnabled,
-		Features: map[string]bool{
-			"catalog_read":    s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
-			"market_detail":   s.cfg.CatalogEnabled && s.cfg.CatalogProjection != nil,
-			"orderbook_read":  marketDataEnabled,
-			"price_history":   marketDataEnabled,
-			"market_health":   marketDataEnabled,
-			"realtime":        realtimeEnabled,
-			"signals":         intelligenceEnabled,
-			"catalog_signals": catalogSignalsEnabled,
-			"live_signals":    liveSignalsEnabled,
-			"order_submit":    false,
-		},
+		Features: features,
 		CheckedAt: s.nowUTC(),
 		Source:    source,
 	}

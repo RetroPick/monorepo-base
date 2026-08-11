@@ -225,6 +225,126 @@ func TestMarketsV1OrdersFillsPreviewsMigration(t *testing.T) {
 	}
 }
 
+func TestMarketsV1PositionsActivityMigration(t *testing.T) {
+	t.Parallel()
+
+	up, err := Files.ReadFile("000022_markets_v1_positions_activity.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	down, err := Files.ReadFile("000022_markets_v1_positions_activity.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upSQL := string(up)
+	downSQL := string(down)
+
+	tables := []string{
+		"markets_position_projections",
+		"markets_activity_events",
+	}
+	for _, table := range tables {
+		if !strings.Contains(upSQL, "CREATE TABLE IF NOT EXISTS "+table) {
+			t.Errorf("up migration does not create %s", table)
+		}
+		if !strings.Contains(downSQL, "DROP TABLE IF EXISTS "+table) {
+			t.Errorf("down migration does not drop %s", table)
+		}
+	}
+
+	for _, fragment := range []string{
+		"UNIQUE (user_id, account_wallet, token_id)",
+		"UNIQUE (upstream_source, upstream_id)",
+		"REFERENCES markets_wallet_accounts",
+		"REFERENCES markets_user_orders",
+		"REFERENCES markets_fills",
+		"resolution_status TEXT NOT NULL CHECK",
+		"'active', 'resolved', 'redeemable', 'redeemed', 'unknown'",
+		"freshness_state TEXT NOT NULL CHECK",
+		"'fresh', 'stale', 'reconciling', 'drift_detected'",
+		"event_kind TEXT NOT NULL CHECK",
+		"fee_amount BIGINT",
+		"cost_basis_amount BIGINT",
+	} {
+		if !strings.Contains(upSQL, fragment) {
+			t.Errorf("up migration missing %q", fragment)
+		}
+	}
+
+	for _, forbidden := range []string{
+		"DOUBLE PRECISION",
+		"double precision",
+		" REAL ",
+		" FLOAT ",
+	} {
+		if strings.Contains(upSQL, forbidden) {
+			t.Errorf("up migration must not use %q", forbidden)
+		}
+	}
+}
+
+func TestMarketsV1OrderMutationJournalExpandsExistingOrderTables(t *testing.T) {
+	t.Parallel()
+
+	up, err := Files.ReadFile("000023_markets_v1_order_mutation_journal.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	down, err := Files.ReadFile("000023_markets_v1_order_mutation_journal.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	upSQL := string(up)
+	downSQL := string(down)
+
+	for _, forbidden := range []string{
+		"CREATE TABLE IF NOT EXISTS markets_order_mutation_journal",
+		"CREATE TABLE IF NOT EXISTS markets_order_mutation_attempts",
+		"DOUBLE PRECISION",
+		"double precision",
+		" REAL ",
+		" FLOAT ",
+	} {
+		if strings.Contains(upSQL, forbidden) {
+			t.Errorf("up migration must not contain %q", forbidden)
+		}
+	}
+
+	for _, fragment := range []string{
+		"ALTER TABLE markets_user_orders",
+		"ALTER TABLE markets_order_attempts",
+		"ADD COLUMN IF NOT EXISTS request_fingerprint TEXT",
+		"ADD COLUMN IF NOT EXISTS maker_amount TEXT",
+		"ADD COLUMN IF NOT EXISTS taker_amount TEXT",
+		"ADD COLUMN IF NOT EXISTS salt TEXT",
+		"request_fingerprint ~ '^[0-9a-f]{64}$'",
+		"markets_user_orders_journal_amounts_check",
+		"DROP CONSTRAINT IF EXISTS markets_user_orders_idempotency_key_key",
+		"idx_markets_user_orders_user_idempotency",
+		"ON markets_user_orders (user_id, idempotency_key)",
+		"'submit_pending'",
+		"'submitting'",
+		"'unknown_reconciling'",
+		"idx_markets_user_orders_recovery",
+		"idx_markets_order_attempts_recovery",
+	} {
+		if !strings.Contains(upSQL, fragment) {
+			t.Errorf("up migration missing %q", fragment)
+		}
+	}
+
+	for _, fragment := range []string{
+		"DROP INDEX IF EXISTS idx_markets_order_attempts_recovery",
+		"DROP INDEX IF EXISTS idx_markets_user_orders_recovery",
+		"DROP COLUMN IF EXISTS request_fingerprint",
+		"ADD CONSTRAINT markets_user_orders_idempotency_key_key UNIQUE (idempotency_key)",
+	} {
+		if !strings.Contains(downSQL, fragment) {
+			t.Errorf("down migration missing %q", fragment)
+		}
+	}
+}
+
 func TestMarketsV1MigrationBoundsRawPayloadRetention(t *testing.T) {
 	t.Parallel()
 

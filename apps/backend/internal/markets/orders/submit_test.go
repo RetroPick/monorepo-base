@@ -3,6 +3,8 @@ package orders_test
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,7 +40,7 @@ func (stubMarkets) GetMarket(context.Context, string) (markets.MarketDetail, err
 const testMaker = "0x1111111111111111111111111111111111111111"
 const testSigner = "0x2222222222222222222222222222222222222222"
 
-func testSubmitService(t *testing.T, submitter *stubSubmitter, enabled bool, store *orders.PreviewStore) *orders.Service {
+func testSubmitService(t *testing.T, submitter orders.VenueSubmitter, enabled bool, store *orders.PreviewStore) *orders.Service {
 	t.Helper()
 	fixed := time.Date(2026, 8, 9, 10, 0, 0, 0, time.UTC)
 	disc := wallet.NewDiscoverer(wallet.MemoryStore{Rows: map[string][]wallet.LinkedAccount{
@@ -200,6 +202,62 @@ func TestSubmitOrderIdempotencyReplay(t *testing.T) {
 	}
 }
 
+func TestSubmitOrderSameIdempotencyKeyConcurrentSingleVenueCall(t *testing.T) {
+	t.Parallel()
+
+	submitter := &countingSubmitter{result: clob.SubmitResult{OrderID: "venue-99", Status: "live", Success: true}}
+	svc := testSubmitService(t, submitter, true, nil)
+	req := seedPreview(t, svc)
+	session := wallet.SessionContext{UserID: "user-1", SignerAddress: testSigner}
+
+	const n = 100
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	responses := make(chan orders.SubmitResponse, n)
+	errs := make(chan error, n)
+	statuses := make(chan int, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			resp, status, err := svc.SubmitOrder(context.Background(), session, "key-concurrent", req)
+			responses <- resp
+			statuses <- status
+			errs <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(responses)
+	close(statuses)
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("submit error: %v", err)
+		}
+	}
+	for status := range statuses {
+		if status != 201 {
+			t.Fatalf("status = %d", status)
+		}
+	}
+	var first orders.SubmitResponse
+	for resp := range responses {
+		if first.OrderID == "" {
+			first = resp
+			continue
+		}
+		if resp.OrderID != first.OrderID || resp.VenueOrderID != first.VenueOrderID || resp.Status != first.Status {
+			t.Fatalf("non-idempotent replay: first=%+v next=%+v", first, resp)
+		}
+	}
+	if calls := submitter.calls.Load(); calls != 1 {
+		t.Fatalf("venue calls = %d, want 1", calls)
+	}
+}
+
 func TestSubmitOrderIdempotencyConflict422(t *testing.T) {
 	t.Parallel()
 
@@ -217,6 +275,18 @@ func TestSubmitOrderIdempotencyConflict422(t *testing.T) {
 	if !errors.Is(err, orders.ErrIdempotencyConflict) || status != 422 {
 		t.Fatalf("status=%d err=%v", status, err)
 	}
+}
+
+type countingSubmitter struct {
+	result clob.SubmitResult
+	err    error
+	calls  atomic.Int32
+}
+
+func (s *countingSubmitter) SubmitOrder(context.Context, clob.SubmitRequest) (clob.SubmitResult, error) {
+	s.calls.Add(1)
+	time.Sleep(10 * time.Millisecond)
+	return s.result, s.err
 }
 
 func TestSubmitOrderUnknownReconciling(t *testing.T) {

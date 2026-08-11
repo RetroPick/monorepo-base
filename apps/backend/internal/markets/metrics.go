@@ -25,10 +25,10 @@ type Metrics struct {
 	catalogFreshnessCount     atomic.Uint64
 	catalogFreshnessWithinSLO atomic.Uint64
 
-	gammaErrorRateLimited     atomic.Uint64
-	gammaErrorNotFound        atomic.Uint64
-	gammaErrorUpstream        atomic.Uint64
-	gammaErrorInvalidPayload  atomic.Uint64
+	gammaErrorRateLimited    atomic.Uint64
+	gammaErrorNotFound       atomic.Uint64
+	gammaErrorUpstream       atomic.Uint64
+	gammaErrorInvalidPayload atomic.Uint64
 
 	bookFresh       atomic.Uint64
 	bookStale       atomic.Uint64
@@ -50,16 +50,20 @@ type Metrics struct {
 	previewSignMatchOK     atomic.Uint64
 	previewSignMatchFailed atomic.Uint64
 
-	reconcileRuns          atomic.Uint64
-	reconcileRepaired      atomic.Uint64
-	reconcileLagNS         atomic.Uint64
-	reconcileScanned       atomic.Uint64
-	reconcileRepairOpen    atomic.Uint64
+	reconcileRuns           atomic.Uint64
+	reconcileRepaired       atomic.Uint64
+	reconcileLagNS          atomic.Uint64
+	reconcileScanned        atomic.Uint64
+	reconcilePending        atomic.Uint64
+	reconcileAgeNS          atomic.Uint64
+	reconcileRepairOpen     atomic.Uint64
 	reconcileRepairRejected atomic.Uint64
 	reconcileRepairCanceled atomic.Uint64
-	reconcileRepairFill    atomic.Uint64
+	reconcileRepairFill     atomic.Uint64
+	reconcileRepairUnknown  atomic.Uint64
 	reconcileErrorsUpstream atomic.Uint64
-	reconcileErrorsCreds   atomic.Uint64
+	reconcileErrorsCreds    atomic.Uint64
+	reconcileErrorsJournal  atomic.Uint64
 }
 
 func NewMetrics() *Metrics {
@@ -209,6 +213,9 @@ func (m *Metrics) RecordReconcileRun(repaired int, duration time.Duration) {
 	}
 	if duration > 0 {
 		m.reconcileLagNS.Add(uint64(duration))
+		m.reconcileAgeNS.Store(uint64(duration))
+	} else {
+		m.reconcileAgeNS.Store(0)
 	}
 }
 
@@ -225,14 +232,21 @@ func (m *Metrics) RecordReconcileRepair(outcome string) {
 		m.reconcileRepairCanceled.Add(1)
 	case "fill":
 		m.reconcileRepairFill.Add(1)
+	case "unknown":
+		m.reconcileRepairUnknown.Add(1)
 	}
 }
 
 func (m *Metrics) RecordReconcileScanned(count int) {
-	if m == nil || count <= 0 {
+	if m == nil {
+		return
+	}
+	if count <= 0 {
+		m.reconcilePending.Store(0)
 		return
 	}
 	m.reconcileScanned.Add(uint64(count))
+	m.reconcilePending.Store(uint64(count))
 }
 
 func (m *Metrics) RecordReconcileError(kind string) {
@@ -244,6 +258,8 @@ func (m *Metrics) RecordReconcileError(kind string) {
 		m.reconcileErrorsCreds.Add(1)
 	case "upstream":
 		m.reconcileErrorsUpstream.Add(1)
+	case "journal":
+		m.reconcileErrorsJournal.Add(1)
 	}
 }
 
@@ -283,12 +299,19 @@ func (m *Metrics) Prometheus() string {
 	_, _ = fmt.Fprintf(&out, "retropick_markets_reconcile_runs_total %d\n", m.reconcileRuns.Load())
 	_, _ = fmt.Fprintf(&out, "retropick_markets_reconcile_repairs_total %d\n", m.reconcileRepaired.Load())
 	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconcile_scanned_total %d\n", m.reconcileScanned.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconciliation_pending %d\n", m.reconcilePending.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconciliation_attempts %d\n", m.reconcileRuns.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconciliation_recovered %d\n", m.reconcileRepairOpen.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconciliation_unknown %d\n", m.reconcileRepairUnknown.Load())
+	_, _ = fmt.Fprintf(&out, "retropick_markets_order_reconciliation_errors %d\n", m.reconcileErrorsUpstream.Load()+m.reconcileErrorsCreds.Load()+m.reconcileErrorsJournal.Load())
 	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "open", m.reconcileRepairOpen.Load())
 	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "rejected", m.reconcileRepairRejected.Load())
 	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "canceled", m.reconcileRepairCanceled.Load())
 	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "fill", m.reconcileRepairFill.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_repairs_total", "outcome", "unknown", m.reconcileRepairUnknown.Load())
 	writeLabeledCounter(&out, "retropick_markets_order_reconcile_errors_total", "kind", "upstream", m.reconcileErrorsUpstream.Load())
 	writeLabeledCounter(&out, "retropick_markets_order_reconcile_errors_total", "kind", "credentials_unwired", m.reconcileErrorsCreds.Load())
+	writeLabeledCounter(&out, "retropick_markets_order_reconcile_errors_total", "kind", "journal", m.reconcileErrorsJournal.Load())
 	if runs := m.reconcileRuns.Load(); runs > 0 {
 		_, _ = fmt.Fprintf(
 			&out,
@@ -302,6 +325,11 @@ func (m *Metrics) Prometheus() string {
 			float64(m.reconcileLagNS.Load())/float64(time.Second),
 		)
 		_, _ = fmt.Fprintf(&out, "retropick_markets_reconciliation_lag_seconds_count %d\n", runs)
+		_, _ = fmt.Fprintf(
+			&out,
+			"retropick_markets_order_reconciliation_age %.6f\n",
+			float64(m.reconcileAgeNS.Load())/float64(time.Second),
+		)
 	}
 	return out.String()
 }

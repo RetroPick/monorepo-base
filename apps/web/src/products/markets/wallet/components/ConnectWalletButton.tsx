@@ -1,12 +1,14 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { Button } from "@/shared/components/ui/button";
 
 import { useMarketsWalletConnect } from "../hooks/useMarketsWalletConnect";
 
 interface ConnectWalletButtonProps {
   className?: string;
-  label?: string;
+  label?: ReactNode;
 }
 
 export function ConnectWalletButton({ className, label = "Connect wallet" }: ConnectWalletButtonProps) {

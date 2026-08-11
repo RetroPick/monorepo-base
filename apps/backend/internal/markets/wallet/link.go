@@ -9,8 +9,8 @@ import (
 type AccountWalletAction string
 
 const (
-	ActionLinkExisting         AccountWalletAction = "link_existing"
-	ActionDeployDepositWallet  AccountWalletAction = "deploy_deposit_wallet"
+	ActionLinkExisting        AccountWalletAction = "link_existing"
+	ActionDeployDepositWallet AccountWalletAction = "deploy_deposit_wallet"
 )
 
 // LinkExistingRequest is the body for POST /me/wallets/link.
@@ -77,6 +77,15 @@ func (l *Linker) LinkExisting(ctx context.Context, session SessionContext, req L
 	if strings.TrimSpace(string(req.WalletType)) == "" {
 		return LinkedWallet{}, ErrInvalidRequest
 	}
+	account, err := normalizeAddress(req.AccountWallet)
+	if err != nil {
+		return LinkedWallet{}, err
+	}
+	// Only an EOA equal to the SIWE signer has canonical ownership evidence.
+	// Proxy, Safe, and deposit wallets require a verifier-backed proof flow.
+	if req.WalletType != WalletTypeEOA || !strings.EqualFold(account, signer) {
+		return LinkedWallet{}, ErrOwnershipUnverified
+	}
 	isPrimary := true
 	if req.IsPrimary != nil {
 		isPrimary = *req.IsPrimary
@@ -84,7 +93,7 @@ func (l *Linker) LinkExisting(ctx context.Context, session SessionContext, req L
 	row, err := l.Writer.UpsertLink(ctx, LinkRecord{
 		UserID:           session.UserID,
 		SignerAddress:    signer,
-		AccountWallet:    req.AccountWallet,
+		AccountWallet:    account,
 		WalletType:       req.WalletType,
 		LinkStatus:       req.LinkStatus,
 		IsPrimary:        isPrimary,
@@ -128,40 +137,10 @@ func (l *Linker) PreviewAccountWallet(session SessionContext, req AccountWalletP
 	}, nil
 }
 
-// RelayAccountWallet persists a deployed Deposit Wallet address from the client relay step.
+// RelayAccountWallet rejects client-supplied deployment addresses until an
+// authenticated upstream relay can provide cryptographic ownership evidence.
 func (l *Linker) RelayAccountWallet(ctx context.Context, session SessionContext, req AccountWalletRelayRequest) (AccountWalletRelayResponse, error) {
-	if l == nil || l.Writer == nil {
-		return AccountWalletRelayResponse{}, ErrLinkerUnwired
-	}
-	if strings.TrimSpace(session.UserID) == "" {
-		return AccountWalletRelayResponse{}, ErrUnauthorized
-	}
-	signer, err := normalizeAddress(session.SignerAddress)
-	if err != nil {
-		return AccountWalletRelayResponse{}, err
-	}
-	isPrimary := true
-	if req.IsPrimary != nil {
-		isPrimary = *req.IsPrimary
-	}
-	row, err := l.Writer.UpsertLink(ctx, LinkRecord{
-		UserID:           session.UserID,
-		SignerAddress:    signer,
-		AccountWallet:    req.AccountWallet,
-		WalletType:       WalletTypeDepositWallet,
-		LinkStatus:       LinkStatusLinked,
-		IsPrimary:        isPrimary,
-		ChainID:          req.ChainID,
-		LinkageProofHash: req.LinkageProofHash,
-	})
-	if err != nil {
-		return AccountWalletRelayResponse{}, err
-	}
-	return AccountWalletRelayResponse{
-		SchemaVersion: SchemaVersion,
-		SignerAddress: signer,
-		Wallet:        linkedAccountToWallet(row),
-	}, nil
+	return AccountWalletRelayResponse{}, ErrRelayDisabled
 }
 
 func linkedAccountToWallet(row LinkedAccount) LinkedWallet {
