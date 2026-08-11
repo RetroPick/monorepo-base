@@ -165,7 +165,7 @@ GeoIP and Polymarket geoblock adapters are env-gated in the BFF. Default deploy 
 | `MARKETS_GEOBLOCK_BASE_URL` | Polymarket geoblock base (example: `https://polymarket.com`) |
 | `MARKETS_GEOBLOCK_PATH` | Optional; default `/api/geoblock` |
 
-**Staging verification:** Ops checklist: [MKT-P2-BLK001-ops-staging-checklist.md](../agent-harness/verification/PHASE-2/MKT-P2-BLK001-ops-staging-checklist.md).
+**Staging verification:** Ops checklist: [MKT-P2-BLK001-ops-staging-checklist.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-BLK001-ops-staging-checklist.md).
 
 ```bash
 curl -sS "https://api-staging.example/api/v1/markets/eligibility" | jq .
@@ -488,7 +488,7 @@ systemctl restart markets-ingest
 ## Acceptance criteria
 
 - Status `reviewed`; links valid per [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md).
-- Tasks trace to [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- Tasks trace to [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 
 ## Revision history
 

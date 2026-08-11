@@ -469,7 +469,7 @@ Tracked in [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPE
 - [ ] Trust boundary table referenced in web, Android, and backend threat models
 - [ ] No client path to raw Polymarket credentials in production build configs
 - [ ] Signing flows documented in OpenAPI with separate preview/submit operations
-- [ ] Traceability row in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md)
+- [ ] Traceability row in [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md)
 
 ## 19. Related Documents
 

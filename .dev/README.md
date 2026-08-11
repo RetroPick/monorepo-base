@@ -203,8 +203,8 @@ Full implementation-grade documentation and machine-readable harness for **Retro
 |----------|------|
 | Entry | [.dev/markets-v1/README.md](./markets-v1/README.md) |
 | Document map | [.dev/markets-v1/00_DOCUMENT_MAP.md](./markets-v1/00_DOCUMENT_MAP.md) |
-| Agent contract | [.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md](./markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md) |
-| Phase manifest | [.dev/markets-v1/agent-harness/implementation-manifest.yaml](./markets-v1/agent-harness/implementation-manifest.yaml) |
+| Agent contract | [../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) |
+| Phase manifest | [../.harness/products/markets-v1/planning/implementation-manifest.yaml](../.harness/products/markets-v1/planning/implementation-manifest.yaml) |
 | Public pointer | [docs/markets-v1/README.md](../docs/markets-v1/README.md) |
 
 **Current phase:** PHASE-0 (Discovery and Spec Freeze). Documentation baseline complete; product implementation not started.

@@ -11,7 +11,7 @@
 
 This is the canonical Markets V1 requirement catalog and traceability chain: requirement → evidence/decision → component → phase → task → test → metric → runbook. Namespaces include MKT-FR, MKT-NFR, MKT-SEC, MKT-DATA, MKT-OPS, MKT-AND, MKT-WEB, and MKT-POLY.
 
-Use it before claiming feature completeness, at phase gates, and when a new capability needs an ID. Companion execution mapping lives in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md) and `task-graph.yaml`. Do not invent parallel `REQ-` schemes without the MKT- prefix.
+Use it before claiming feature completeness, at phase gates, and when a new capability needs an ID. Companion execution mapping lives in [../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md) and `task-graph.yaml`. Do not invent parallel `REQ-` schemes without the MKT- prefix.
 
 Launch-critical and policy IDs (for example MKT-FR-091 no autonomous copy trading, MKT-SEC-008 fail-closed geoblock, preview=sign) must stay in the chain with tests and metrics — not “done” via docs or stub routes alone.
 
@@ -24,7 +24,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace requirem
 | Lens | Answer |
 |------|--------|
 | **Who** | Implementers claiming a task “covers” a requirement; QA writing tests against IDs; orchestrators blocking launch when a launch-critical ID lacks phase/task/test/metric mapping; security tracing MKT-SEC-*. |
-| **What** | Canonical Markets V1 requirement namespaces (MKT-FR, MKT-NFR, MKT-SEC, MKT-DATA, MKT-OPS, MKT-AND, MKT-WEB, MKT-POLY) and the chain: requirement → evidence/decision → component → phase → task → test → metric → runbook. Companion deep maps live in harness [REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md). |
+| **What** | Canonical Markets V1 requirement namespaces (MKT-FR, MKT-NFR, MKT-SEC, MKT-DATA, MKT-OPS, MKT-AND, MKT-WEB, MKT-POLY) and the chain: requirement → evidence/decision → component → phase → task → test → metric → runbook. Companion deep maps live in harness [REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md). |
 | **When** | Before opening a PR that asserts feature completeness; at phase gates; when adding a new capability that needs a new ID. Re-read when task-graph task IDs change. |
 | **Where** | This file for ID catalog + sample mappings. Execution mapping: harness traceability + `task-graph.yaml`. Do not invent parallel ID schemes (`REQ-` without MKT- prefix) for Markets V1. |
 | **Why** | Unmapped requirements become silent launch debt. Agents otherwise mark work done via wiring/docs without tests or metrics. This doc forces every launch-critical ID to stay in the chain — including hard policy IDs like MKT-FR-091 (no autonomous copy trading). |
@@ -238,7 +238,7 @@ Canonical feature specs: [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/I
 
 ## 6. Test mapping
 
-See [testing/MASTER_TEST_PLAN.md](testing/MASTER_TEST_PLAN.md) and [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+See [testing/MASTER_TEST_PLAN.md](testing/MASTER_TEST_PLAN.md) and [../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 
 ## 7. Metric and runbook mapping
 

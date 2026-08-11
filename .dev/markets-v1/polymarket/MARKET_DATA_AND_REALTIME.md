@@ -234,7 +234,7 @@ Rollback: flip capability flag in BFF config → clients poll `/markets/capabili
 Full log: [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
 ## 16. Acceptance criteria
 
-- [ ] All MUST requirements traced in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- [ ] All MUST requirements traced in [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 - [ ] Time-sensitive claims cite evidence ID (EV-xxx) with retrieval date 2026-07-25.
 - [ ] No production contract address in app config without EV-008 verification pipeline.
 - [ ] Mermaid diagrams render for specified flows.

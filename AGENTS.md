@@ -4,59 +4,49 @@
 
 Build and maintain **RetroPick Markets V1** (Polymarket-native web + Go BFF + Android) and **PRISM** (future). Legacy epoch MarketEngine is archived under `archive/` — do not extend it for new work.
 
-**Primary docs:** [`.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md`](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md)
+**Primary docs:** [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
-## Architecture summary
+## Architecture summary (Markets V1 invariant)
 
 ```mermaid
 flowchart LR
-  FE[web / ops-web] --> API[Go API]
-  API --> IDX[Indexer projections]
-  IDX --> DB[(Postgres)]
-  API --> WS[WebSocket hub]
-  FE --> CHAIN[RPC + contracts]
-  IDX --> CHAIN
-  KEEP[Keeper] --> CHAIN
-  CHAIN --> ME[MarketEngine UUPS]
+  PM[Polymarket Gamma / CLOB / Data / WS] --> BFF[Go Markets BFF apps/backend]
+  BFF --> C[schemas/openapi/markets-v1.yaml]
+  C --> WEB[apps/web]
+  C --> AND[RetroPick-Android]
 ```
+
+Web and Android are clients of the **same** BFF. No separate Android backend; no bypassing the canonical contract for core Markets semantics.
+
+> Legacy epoch architecture (MarketEngine dispatcher, indexer, keeper, Chainlink oracles) is archived under `archive/` — reference only, not active release organization.
 
 
 ## Markets V1 (Polymarket product)
 
 When working on **RetroPick Markets** (not legacy epoch):
 
-1. Read [.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md) first.
-2. Check `current_phase` in [.dev/markets-v1/agent-harness/implementation-manifest.yaml](.dev/markets-v1/agent-harness/implementation-manifest.yaml).
+1. Read [.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) first.
+2. Check `current_phase` in [.harness/products/markets-v1/planning/implementation-manifest.yaml](.harness/products/markets-v1/planning/implementation-manifest.yaml).
 3. Use shared OpenAPI: [schemas/openapi/markets-v1.yaml](schemas/openapi/markets-v1.yaml).
 4. Greenfield backend: `apps/backend/internal/markets/` — do not extend legacy epoch routes.
 5. PRISM and legacy epoch v1 are out of scope unless explicitly tasked.
+6. Web release surface is `apps/web` (package `@retropick/markets-web`). `apps/fe-v1` does not exist (renamed per DECISIONS D15).
 
-## Twenty harness agents (orchestrator-managed)
+## Active release agent roster (rp-*)
 
 | Agent slug | Focus |
 |------------|--------|
-| `orchestrator` | Sequencing, scope, Kanban, `DECISIONS.md` |
-| `sc-market-engine` | Dispatcher, modules, `MarketEngineState`, epoch math |
-| `sc-oracles` | Chainlink adapters, trusted reporter, feed IDs, staleness |
-| `sc-deploy-upgrades` | Foundry deploy/upgrade scripts, proxy wiring |
-| `sc-testing` | Solidity tests, gas snapshots, invariant fuzz where used |
-| `be-api` | HTTP routers, auth, CORS, rate limits, public API shapes |
-| `be-indexer` | Log sync, reorg, `chain_events`, projections |
-| `be-keeper` | Job model, executor, incidents, preflight |
-| `be-funding` | Funding abstraction, workers, provider adapters |
-| `be-realtime` | Durable envelopes, `pg_notify`, websocket hub |
-| `be-data` | Migrations, sqlc, pool tuning |
-| `fe-markets (web Markets routes)` | Markets UI, charts, epoch UX, trading flows |
-| `fe-wallet` | wagmi/viem/AppKit, chain config, errors |
-| `fe-ops` | Operator dashboard surfaces |
-| `pkg-abi-registry` | Workspace packages, ABI generation, contract registry scripts |
-| `security` | Trust boundaries, keys, admin surfaces |
-| `qa-integration` | Cross-stack verification, CI alignment |
-| `docs-curator` | README, technical docs consistency |
-| `devops-sre` | Docker Compose, desktop hairpin env, release paths |
-| `harness-librarian` | Manifest, tasks, RAG, MCP, skills sync |
+| `rp-release-orchestrator` | Release DAG, Kanban, decomposition, routing, gates, human approvals — NEVER implements |
+| `rp-recovery-architect` | Read-only reconciliation: Git, docs, submodules, baselines, release-state |
+| `rp-api-contract` | Canonical API contract integrity (`schemas/openapi/markets-v1.yaml`) |
+| `rp-backend-markets` | Shared Go Markets BFF (`apps/backend/internal/markets`, `cmd/markets-api`) |
+| `rp-web` | Web release surface (`apps/web`) |
+| `rp-android` | Android release surface (`RetroPick/RetroPick-Android`) |
+| `rp-qa-e2e` | Cross-platform quality gate + Web/Android parity |
+| `rp-sre-release` | VPS / staging / CI / release infra |
+| `rp-review-security` | Security/staff review — READ-ONLY, APPROVE/REJECT |
 
-Full personas: `.harness/agents/<slug>.agent.md`.
+Full personas: `.harness/agents/<slug>.agent.md`. Legacy agents (MarketEngine/epoch era) are preserved under `.harness/agents/` as **REFERENCE / DISABLED FOR MARKETS-V1 RELEASE** — see [`.harness/agents/README.md`](.harness/agents/README.md).
 
 ## Coding rules
 
@@ -68,12 +58,13 @@ Full personas: `.harness/agents/<slug>.agent.md`.
 
 1. `.harness/project.manifest.json`
 2. `.harness/project-context.md`
-3. `contracts/legacy-pool-v1/currentSmartContract.md`
-4. `README.md` → `docs/README.md` (doc map)
-5. `ORCHESTRATOR.md` and `DECISIONS.md`
-6. `.dev/backend/architecture.md` (backend map)
+3. `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`
+4. `.harness/products/markets-v1/planning/implementation-manifest.yaml` (current_phase)
+5. `.harness/products/markets-v1/planning/task-graph.yaml`
+6. `README.md` → `docs/README.md` (doc map)
+7. `ORCHESTRATOR.md` and `DECISIONS.md`
 
-Harness playbooks: `$AGENT_HARNESS_HOME/docs/kit/`
+Harness scripts: `.harness/scripts/` (reconcile-release-state, prepare-task-worktree, sync-android-gitlink, validate-harness).
 
 ## opensrc / Graphify references
 
@@ -106,7 +97,7 @@ frontends, or pool-based `MarketEngine` architecture.
 - Markets V1 Android product target is Kotlin + Jetpack Compose (ADR-006); canonical prototype is `apps/android` (git submodule RetroPick-Android, Capacitor+Next static export)—root `android/` mirrors it. Prototype UI still uses mock data in `lib/retropick-data.ts`, not the Go BFF; future `apps/android-markets/` (PHASE-5) must be BFF-only (no direct Polymarket/Gamma client).
 - Backend Markets data is projection/read models, not ownership authority, unless a doc explicitly says otherwise.
 - Canonical Markets catalog IDs use `polymarket:{kind}:{upstreamId}` (events, markets, tokens).
-- Greenfield Markets read UI lives in `apps/web/src/products/markets/` with a minimal Next.js dev shell (`pnpm dev`, port 3001) and fe-v1 visual chrome; production deploy still uses `apps/fe-v1` until PHASE-6 integration. Local dev must call the Go BFF (`NEXT_PUBLIC_API_BASE_URL` or dev fallback `http://127.0.0.1:8080`); misconfigured base URL hits Next.js HTML and surfaces catalog `malformed` errors. fe-v1 global Header `WalletButton` on markets routes is accepted PHASE-1 debt; MKT-P2-001 must quarantine it before trading UX.
+- Greenfield Markets read UI lives in `apps/web/src/products/markets/` with a minimal Next.js dev shell (`pnpm dev`, port 3001); the web release surface is `apps/web` (package `@retropick/markets-web`). Local dev must call the Go BFF (`NEXT_PUBLIC_API_BASE_URL` or dev fallback `http://127.0.0.1:8080`); misconfigured base URL hits Next.js HTML and surfaces catalog `malformed` errors. Global Header `WalletButton` on markets routes is accepted PHASE-1 debt; MKT-P2-001 must quarantine it before trading UX.
 - RetroPick Go module root is `apps/backend/` (no repo-root `go.mod`); run Markets BFF with `go -C apps/backend run ./cmd/markets-api` (or `cd apps/backend` first). Local Postgres via compose uses port `:5433` (`DATABASE_URL=postgres://retropick:retropick@127.0.0.1:5433/retropick?sslmode=disable`).
 - `implementation-manifest.yaml` `current_phase` is **PHASE-2**; MKT-P2-007 exit **CONDITIONAL** (BLK-001 ops staging open). PHASE-3 trading stack in code: `orders/` preview/submit/cancel/list + `clob/` (V2, sandbox/httptest default, BLK-004 open), `reconcile/` worker repairs `unknown`/`cancel_pending` via venue lookup and **never auto-resubmits**, Neg Risk routing golden vectors (ADR-002); web Playwright E2E at `apps/web/e2e/markets/` (J03/J07). MKT-P3-006 exit **CONDITIONAL** (staging proof pending). OpenAPI `markets-v1.yaml` **v1.3.0**; in-memory order `ProjectionStore` until Postgres handoff; public `order_submit` kill switch default **false** (`MARKETS_ORDER_SUBMIT_ENABLED`); manifest advance requires explicit user authorization + BLK-001 staging proof.
 - Markets `/me` auth gating: wallet discovery (`/me/wallets`) is auth-only; balances and transactional routes require `RequireEligible` (see AUTH §5).

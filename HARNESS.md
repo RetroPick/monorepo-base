@@ -1,68 +1,42 @@
-# HARNESS.md — RetroPick
+# HARNESS.md — RetroPick Release Factory
 
-Embedded harness project under `agent-harness/projects/retropick/`.
+The repository harness is the **agent execution / release factory** for RetroPick Markets V1. It runs on this VPS via **Hermes Agent** (Telegram gateway + Kanban dispatcher), with implementation isolated in Git worktrees.
 
-Short pointer from [`docs/AGENT-HARNESS.md`](docs/AGENT-HARNESS.md) — this file is the full harness onboarding (CLI, Kanban, verify, contracts, MCP).
+## Canonical locations
 
-## Switch and verify
+| Concern | Location |
+|---|---|
+| Execution policy & evidence | `.harness/products/markets-v1/**` (governance, planning, templates, evidence, release) |
+| Active agent roster | `.harness/agents/*.agent.md` (rp-*) |
+| Project context / manifest / RAG | `.harness/project-context.md`, `.harness/project.manifest.json`, `.harness/rag.config.json` |
+| Harness scripts | `.harness/scripts/` |
+| Product/spec docs | `.dev/markets-v1/**` (specification — not execution state) |
+| Live task state | `~/.hermes/kanban.db` (board `retropick-markets-release`) |
+| Runtime release state | `~/.local/state/retropick-harness/release-state.yaml` |
 
-From harness root (`AGENT_HARNESS_HOME`):
+## Kanban
 
-```bash
-cli/harness switch-project retropick
-cli/harness doctor projects/retropick
-pnpm install
-cd contracts/legacy-pool-v1 && git submodule update --init --recursive
-pnpm lint && pnpm test && pnpm smoke
-```
+- **Board:** `retropick-markets-release` (Hermes Kanban, in-gateway dispatcher)
+- Concurrency: max 2 in progress, max 1 per profile; one heavy worker at a time
+- Orchestrator profile: `rp-release-orchestrator`
+- No automatic merge to main during bootstrap; no autonomous product implementation before the R0 canonical baseline is approved
 
-## CLI
+## Worktree policy
 
-```bash
-cli/harness switch-project retropick
-cli/harness doctor projects/retropick
-cli/harness index-project projects/retropick
-cli/harness obsidian init projects/retropick
-```
+Canonical checkouts (`/opt/retropick`, `/opt/retropick-android`) are NOT worker scratchpads. Each implementation task gets one isolated worktree under `/opt/worktrees/retropick/<task-id>/` (branch `agent/<task-id>-<slug>`). See `.harness/products/markets-v1/release/WORKTREE_POLICY.md` and `scripts/prepare-task-worktree.sh`.
 
-## Kanban dashboard
+## RAG
 
-- **Board:** `retropick-v1`
-- **Workspace:** `dir:$AGENT_HARNESS_HOME/projects/retropick`
-- **Web UI:** Hermes dashboard (not the Telegram gateway). Example URL: `http://127.0.0.1:9119/kanban?board=retropick-v1`
-- If the page does not load, start **`hermes dashboard`** (see harness `docs/08-hermes-integration.md`) and, on WSL↔Windows, refresh port proxy scripts as needed.
-- **Seed cards:** `./scripts/seed-kanban-retropick-v1.sh` or paste from [`.harness/docs/kanban-seed-retropick-v1.md`](.harness/docs/kanban-seed-retropick-v1.md)
+RAG sources are configured in `.harness/rag.config.json` (Markets-first). Generated RAG databases are runtime state — never committed (see `.harness/state/README.md`).
 
-## Agent roster
+## Scripts
 
-Twenty specialized agents live under `.harness/agents/*.agent.md`. The orchestrator assigns work by domain (contracts, Go services, FE apps, QA, docs, DevOps, harness). See also [`AGENTS.md`](AGENTS.md).
+- `reconcile-release-state.sh [--check|--dry-run]` — read-only release-state reconciliation (safe for cron)
+- `prepare-task-worktree.sh <task-id> <monorepo|android> [slug]` — isolated worktree creation
+- `sync-android-gitlink.sh <sha>` — explicit-SHA Android gitlink update (never auto-follows upstream)
+- `validate-harness.sh` — harness integrity gate
+- `verify-task.sh` / `verify-release.sh` — task / release verification helpers
 
-## RAG / MCP
+## Legacy note
 
-```bash
-cli/harness index-project projects/retropick
-cli/harness start-mcp projects/retropick   # requires AEGIS_WORKSPACE
-```
-
-Contract subfolder may ship its own `.cursor/mcp.json`; project-root harness MCP remains canonical for multi-repo orchestration.
-
-## Contracts (Foundry)
-
-Contract sources live in **`contracts/legacy-pool-v1`**. Initialize Foundry libs when needed:
-
-```bash
-cd contracts/legacy-pool-v1 && git submodule update --init --recursive
-pnpm contracts:test
-```
-
-## Migration note
-
-Copied from `~/dev/Project/RetroPick/monorepo-base` into `projects/retropick/`. Original tree kept until validation complete.
-
-## MCP conflict
-
-Contract subfolder may have its own `.cursor/mcp.json`. Harness merge at project root wins for orchestration.
-
-## Doc index
-
-Product and deploy docs: [`docs/README.md`](docs/README.md).
+The pre-v2 embedded harness (`cli/harness`, `AGENT_HARNESS_HOME`, board `retropick-v1`, `scripts/seed-kanban-retropick-v1.sh`, legacy `sc-*`/`be-*`/`fe-*` agents) is superseded by this release factory. Legacy material is preserved (agents as REFERENCE/DISABLED; seed script remains for historical reference) but is not the active release organization.

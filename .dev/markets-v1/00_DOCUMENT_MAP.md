@@ -7,7 +7,7 @@
 
 This document map is the **canonical inventory** of Markets V1 documentation paths with category and status (`draft` | `reviewed` | `stale`). Start here after the README when you need the right authority for a claim — PRDs, research evidence, architecture/ADRs, polymarket, intelligence, backend/web/android design, security/platform/testing, phases, or agent-harness.
 
-It complements [README.md](README.md) (consume order) without duplicating phase math or task status. Machine harness paths are under `agent-harness/*.yaml`; product code is never listed as “spec complete.” When adding a new `.md`, append it here and give it `## Description` then `## 0. Developer intent (5W+1H)`.
+It complements [README.md](README.md) (consume order) without duplicating phase math or task status. Machine harness paths are under `../../.harness/products/markets-v1/planning/*.yaml`; product code is never listed as “spec complete.” When adding a new `.md`, append it here and give it `## Description` then `## 0. Developer intent (5W+1H)`.
 
 **How to navigate:** find the category → open the reviewed path → read that doc’s Description and §0 intent → follow Purpose/Scope. Prefer ADRs for decisions, research for time-sensitive EV claims, phases for sequencing, and harness files for tasks.
 
@@ -24,7 +24,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Status v
 | **Who** | Agents locating the right reviewed doc before coding; orchestrators checking corpus coverage; reviewers verifying a change has a home category (PRD, architecture, polymarket, intelligence, backend, web, android, research, phases, harness). |
 | **What** | Canonical inventory of Markets V1 documentation paths with category and status. Starts with root PRDs (01–05), research evidence pack, architecture/ADRs, polymarket integration, intelligence, backend/web/android design, security/platform/testing, phases, and agent-harness. Complements [README.md](README.md) (consume order) without duplicating phase math. |
 | **When** | After README orientation, before deep-reading a phase or ADR. Re-check when adding a new `.md` (must appear here and carry §0 intent), when marking `stale`, or when an agent cannot find an authority for a claim. |
-| **Where** | This file: `.dev/markets-v1/00_DOCUMENT_MAP.md`. Linked relatives are under `.dev/markets-v1/**`. Machine harness paths: `agent-harness/*.yaml`. Product code is never listed as authority for “spec complete.” |
+| **Where** | This file: `.dev/markets-v1/00_DOCUMENT_MAP.md`. Linked relatives are under `.dev/markets-v1/**`. Machine harness paths: `../../.harness/products/markets-v1/planning/*.yaml`. Product code is never listed as authority for “spec complete.” |
 | **Why** | A 100+ doc corpus without an index causes agents to invent APIs, miss research evidence (EV-IDs), or edit the wrong product tree. The map makes category and review status explicit so scope debates resolve to a path. |
 | **How** | Find the category → open the reviewed path → read that doc’s §0 intent → follow its Purpose/Scope. Prefer ADRs for decisions, research for time-sensitive claims, phases for sequencing, harness for tasks. Do not remove or reorder existing table rows casually; append new numbered entries when docs are added. |
 
@@ -182,15 +182,15 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Status v
 | 107 | [phases/PHASE-6-HARDENING-CI-CD-AND-SRE.md](phases/PHASE-6-HARDENING-CI-CD-AND-SRE.md) | production/phases | reviewed |
 | 108 | [phases/PHASE-7-PRODUCTION-LAUNCH.md](phases/PHASE-7-PRODUCTION-LAUNCH.md) | production/phases | reviewed |
 | 109 | [phases/PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md](phases/PHASE-8-POST-V1-ADVANCED-CAPABILITIES.md) | production/phases | reviewed |
-| 110 | [agent-harness/AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md) | harness | reviewed |
-| 111 | [agent-harness/implementation-manifest.yaml](agent-harness/implementation-manifest.yaml) | harness | reviewed |
-| 112 | [agent-harness/task-graph.yaml](agent-harness/task-graph.yaml) | harness | reviewed |
-| 113 | [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md) | harness | reviewed |
-| 114 | [agent-harness/PHASE_GATE_TEMPLATE.md](agent-harness/PHASE_GATE_TEMPLATE.md) | harness | reviewed |
-| 115 | [agent-harness/TASK_SPEC_TEMPLATE.md](agent-harness/TASK_SPEC_TEMPLATE.md) | harness | reviewed |
-| 116 | [agent-harness/AGENT_HANDOFF_TEMPLATE.md](agent-harness/AGENT_HANDOFF_TEMPLATE.md) | harness | reviewed |
-| 117 | [agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md](agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md) | harness | reviewed |
-| 118 | [agent-harness/DECISION_AND_ASSUMPTION_LOG.md](agent-harness/DECISION_AND_ASSUMPTION_LOG.md) | harness | reviewed |
-| 119 | [agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md](agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) | harness | reviewed |
+| 110 | [../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) | harness | reviewed |
+| 111 | [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml) | harness | reviewed |
+| 112 | [../../.harness/products/markets-v1/planning/task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml) | harness | reviewed |
+| 113 | [../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md) | harness | reviewed |
+| 114 | [../../.harness/products/markets-v1/templates/PHASE_GATE_TEMPLATE.md](../../.harness/products/markets-v1/templates/PHASE_GATE_TEMPLATE.md) | harness | reviewed |
+| 115 | [../../.harness/products/markets-v1/templates/TASK_SPEC_TEMPLATE.md](../../.harness/products/markets-v1/templates/TASK_SPEC_TEMPLATE.md) | harness | reviewed |
+| 116 | [../../.harness/products/markets-v1/templates/AGENT_HANDOFF_TEMPLATE.md](../../.harness/products/markets-v1/templates/AGENT_HANDOFF_TEMPLATE.md) | harness | reviewed |
+| 117 | [../../.harness/products/markets-v1/templates/VERIFICATION_EVIDENCE_TEMPLATE.md](../../.harness/products/markets-v1/templates/VERIFICATION_EVIDENCE_TEMPLATE.md) | harness | reviewed |
+| 118 | [../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md](../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md) | harness | reviewed |
+| 119 | [../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md](../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md) | harness | reviewed |
 | 120 | [EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) | root | reviewed |
-| 121 | [agent-harness/INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) | harness | reviewed |
+| 121 | [../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) | harness | reviewed |

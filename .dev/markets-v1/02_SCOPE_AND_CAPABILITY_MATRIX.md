@@ -373,4 +373,4 @@ Adjacent Markets capabilities (watchlists, own-order alerts, resolution panel, p
 requirement (MKT-FR-###) → capability row → phase → task (task-graph.yaml) → test fixture
 ```
 
-See [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+See [../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
