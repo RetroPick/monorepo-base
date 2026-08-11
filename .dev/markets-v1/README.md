@@ -1,7 +1,7 @@
 # RetroPick Markets V1 — Documentation and Agent Harness
 
-**Status:** reviewed (Wave 9 harness complete)
-**Last updated:** 2026-07-25
+**Status:** reviewed (Wave 9 harness complete; reconciled 2026-08-11)
+**Last updated:** 2026-08-11
 **Canonical location:** `.dev/markets-v1/`
 **Pointer:** [docs/markets-v1/README.md](../../docs/markets-v1/README.md)
 
@@ -32,10 +32,10 @@ The 5W+1H table below is a **navigation aid** only. It does not replace the agen
 
 ### Worked example
 
-**Happy path — start PHASE-1 catalog work**
+**Happy path — start catalog work**
 
 1. Read this README + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md).
-2. Read [AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md); confirm `current_phase` is `PHASE-1` in the manifest.
+2. Read [AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md); confirm `current_phase` in the manifest (currently `PHASE-2`, frozen by the recovery program).
 3. Pick one ready task (e.g. catalog/OpenAPI growth) from [task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml).
 4. Trace IDs in [REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md); read [phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md](phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md) and linked ADRs.
 5. Implement only under Markets paths; run task `commands`; fill verification + handoff templates.
@@ -43,7 +43,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace the agen
 **Failure / Never skip**
 
 - Jumping to wallet/trading/Android without PHASE-1 readiness and an authorized task.
-- Treating Wave 9 harness completion as product-code completion ([EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) says implementation not started).
+- Treating Wave 9 harness completion as product-code completion ([EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) carries the honest status: P1–P4 implemented but gated, mutation paths off).
 - Ignoring [INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) §23 when docs or code contradict ADR-001/002/009.
 
 **Agent checklist**
@@ -76,7 +76,7 @@ Agents MUST follow this order before writing product code:
 
 1. **Orient** — Read this README and [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md).
 2. **Contract** — Read [../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md).
-3. **Phase** — Check `current_phase` in [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml) (currently `PHASE-1`).
+3. **Phase** — Check `current_phase` in [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml) (currently `PHASE-2`).
 4. **Task** — Select exactly one `planned` or `ready` task from [../../.harness/products/markets-v1/planning/task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml).
 5. **Trace** — Confirm requirement mapping in [../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 6. **Spec** — Read the phase spec under [phases/](phases/) and linked ADRs.
@@ -125,7 +125,7 @@ Phases are sequential unless `may_run_in_parallel_with` allows overlap in [task-
 | 7 | PHASE-7 | Production Launch | PHASE-6 |
 | 8 | PHASE-8 | Post-V1 Advanced Capabilities | PHASE-7 |
 
-**Current:** PHASE-0 documentation complete; **first executable implementation phase is PHASE-1**.
+**Current:** `current_phase` = PHASE-2 (frozen by the recovery program; P1–P4 implemented but gated — see `gate` notes in [task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml)).
 
 ## Cross-document invariants (§23)
 

@@ -1,7 +1,7 @@
 product: retropick-markets
 version: v1
 mode: spec_freeze_ready
-last_updated: 2026-07-25
+last_updated: 2026-08-11
 current_phase: PHASE-2
 wave: 9
 wave_status: complete
@@ -117,7 +117,7 @@ phase_order:
       - MKT-P3-006
     exit_gate:
       - preview_sign_match metric green
-      - e2e journey J-03 pass
+      - e2e journeys J-03 and J-07 pass
   - id: PHASE-4
     name: Portfolio Redemption and Withdrawal
     status: planned
@@ -247,14 +247,30 @@ unresolved_blockers:
     phase: PHASE-7
     doc: .dev/markets-v1/polymarket/BUILDER_RELAYER_AND_FEES.md
   - id: BLK-004
-    title: CLOB integration not implemented
+    title: CLOB V2 submit implemented (orders/clob + BFF glue); gated — live venue credentials + staging proof pending
     phase: PHASE-3
     doc: .dev/markets-v1/polymarket/ORDER_LIFECYCLE.md
   - id: BLK-005
-    title: Wallet connect and funding flows not implemented
+    title: Wallet connect + funding flows implemented (partial); deterministic funding lifecycle + relayer sandbox pending (REC-6)
     phase: PHASE-2
     doc: .dev/markets-v1/web/WALLET_AND_TRANSACTION_UX.md
   - id: BLK-006
-    title: OpenAPI covers stub endpoints only
+    title: OpenAPI covers full V1 surface (v1.4.0, 26 paths) — capability-gated at runtime
     phase: PHASE-1
     doc: schemas/openapi/markets-v1.yaml
+  - id: BLK-010
+    title: Contract addresses require revalidation
+    phase: PHASE-3
+    doc: .dev/markets-v1/research/evidence-register.yaml
+  - id: BLK-011
+    title: CLOB V2 details may change upstream
+    phase: PHASE-3
+    doc: .dev/markets-v1/polymarket/UPSTREAM_CHANGE_MANAGEMENT.md
+  - id: BLK-020
+    title: Per-region legal review pending
+    phase: PHASE-7
+    doc: .dev/markets-v1/phases/PHASE-7-PRODUCTION-LAUNCH.md
+  - id: BLK-021
+    title: Google Play financial-features declaration
+    phase: PHASE-7
+    doc: .dev/markets-v1/android/PLAY_STORE_COMPLIANCE_AND_RELEASE.md
