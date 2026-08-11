@@ -149,13 +149,13 @@ go test ./internal/markets/... -count=1
 
 **Out of scope for this suite**
 
-- Wallet, order submit, funding POST paths (PHASE-2+) — **exception:** MKT-P2-004 account-wallet link POST paths (`linkExistingWallet`, `previewAccountWallet`, `relayAccountWallet`) are **spec-frozen in YAML**; runtime kin-openapi conformance for wallet writes remains deferred until Chat G2 router wiring and optional contract tests. Validation for the OpenAPI freeze: structural load/validate only (see [MKT-P2-004-openapi-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-004-openapi-evidence.md)).
+- Wallet, order submit, funding POST paths (PHASE-2+) — **exception:** MKT-P2-004 account-wallet link POST paths (`linkExistingWallet`, `previewAccountWallet`, `relayAccountWallet`) are **spec-frozen in YAML**; runtime kin-openapi conformance for wallet writes remains deferred until Chat G2 router wiring and optional contract tests. Validation for the OpenAPI freeze: structural load/validate only (see [MKT-P2-004-openapi-evidence.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-004-openapi-evidence.md)).
 - Realtime WebSocket wire conformance (see `realtime/` tests and API doc §13)
 - Observability metric wiring (`MKT-P1-009` / Chat J)
 
 **Exit evidence (MKT-P1-008)**
 
-Fill [`VERIFICATION_EVIDENCE_TEMPLATE.md`](../agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md) with command output and traceability:
+Fill [`VERIFICATION_EVIDENCE_TEMPLATE.md`](../../../.harness/products/markets-v1/templates/VERIFICATION_EVIDENCE_TEMPLATE.md) with command output and traceability:
 
 | Requirement | Test | Expected |
 |-------------|------|----------|
@@ -174,7 +174,7 @@ Prepare (orchestrator executes gate; do not advance `current_phase` from this ta
 - [ ] Invariant grep: `rg "float64|binary float" .dev/markets-v1/backend/ schemas/openapi/` (paste results; test helpers may mention `float64` when decoding JSON integers)
 - [ ] Confirm no PHASE-2+ paths tested (wallet, order submit, funding)
 - [ ] Chat J (`MKT-P1-009`) observability metrics — separate owned_paths; not blocking contract task
-- [ ] Phase gate template ([`PHASE_GATE_TEMPLATE.md`](../agent-harness/PHASE_GATE_TEMPLATE.md)) ready for orchestrator review
+- [ ] Phase gate template ([`PHASE_GATE_TEMPLATE.md`](../../../.harness/products/markets-v1/templates/PHASE_GATE_TEMPLATE.md)) ready for orchestrator review
 - [ ] Realtime WS conformance (`sequence:null`, gap recovery) tracked separately for exit gate or PHASE-6 hardening
 
 ## 7. OpenAPI CI gates
@@ -518,7 +518,7 @@ WebSocket messages documented in [backend/API_AND_REALTIME_CONTRACTS.md](../back
 ## Acceptance criteria
 
 - Status `reviewed`; links valid per [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md).
-- Tasks trace to [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- Tasks trace to [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 
 ## Revision history
 

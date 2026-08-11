@@ -65,15 +65,15 @@ func computeAmounts(side, price, size string) (makerAmount, takerAmount *big.Int
 
 	switch strings.ToUpper(strings.TrimSpace(side)) {
 	case SideBuy:
-		makerAmount = sizeUnits
-		takerAmount = new(big.Int).Mul(sizeUnits, priceUnits)
-		scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(collateralDecimals), nil)
-		takerAmount.Div(takerAmount, scale)
+		// A buyer gives collateral and receives outcome tokens. Round collateral
+		// up so the signed order never underfunds the advertised share amount.
+		makerAmount = roundedProductDiv(sizeUnits, priceUnits, true)
+		takerAmount = sizeUnits
 	case SideSell:
+		// A seller gives outcome tokens and receives collateral. Round the
+		// collateral down, matching the venue's counterparty-favoring rule.
 		makerAmount = sizeUnits
-		takerAmount = new(big.Int).Mul(sizeUnits, priceUnits)
-		scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(collateralDecimals), nil)
-		takerAmount.Div(takerAmount, scale)
+		takerAmount = roundedProductDiv(sizeUnits, priceUnits, false)
 	default:
 		return nil, nil, fmt.Errorf("invalid side")
 	}
@@ -81,6 +81,15 @@ func computeAmounts(side, price, size string) (makerAmount, takerAmount *big.Int
 		return nil, nil, fmt.Errorf("amount zero")
 	}
 	return makerAmount, takerAmount, nil
+}
+
+func roundedProductDiv(left, right *big.Int, roundUp bool) *big.Int {
+	scale := new(big.Int).Exp(big.NewInt(10), big.NewInt(collateralDecimals), nil)
+	product := new(big.Int).Mul(left, right)
+	if roundUp {
+		product.Add(product, new(big.Int).Sub(scale, big.NewInt(1)))
+	}
+	return product.Div(product, scale)
 }
 
 func validateTickSize(price, tickSize string) error {

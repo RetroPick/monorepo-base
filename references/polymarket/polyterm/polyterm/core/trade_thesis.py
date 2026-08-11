@@ -1,0 +1,520 @@
+"""Explainable market-level trade thesis generation."""
+
+from collections import Counter
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from ..api.clob import CLOBClient
+from ..api.gamma import GammaClient
+from ..api.market_utils import get_clob_token_ids, get_market_condition_id, market_probability_price
+from ..db.database import Database
+from .risk_score import MarketRiskScorer
+
+
+class TradeThesisEngine:
+    """Compose PolyTerm signals into one explainable market thesis."""
+
+    def __init__(
+        self,
+        gamma_client: Optional[GammaClient] = None,
+        clob_client: Optional[CLOBClient] = None,
+        database: Optional[Database] = None,
+    ):
+        self.gamma = gamma_client or GammaClient()
+        self.clob = clob_client or CLOBClient()
+        self.db = database or Database()
+
+    def build(self, market: str) -> Dict[str, Any]:
+        """Build a read-only trade thesis for a market identifier."""
+        market_data = self._resolve_market(market)
+        title = market_data.get("question") or market_data.get("title") or market
+        condition_id = get_market_condition_id(market_data)
+        token_ids = get_clob_token_ids(market_data)
+        probability = market_probability_price(market_data)
+        orderbook = self._orderbook(token_ids[0] if token_ids else "")
+        risk = self._risk(market_data)
+        local_history = self._local_history(market_data.get("id") or condition_id or market)
+        whale_flow = self._whale_flow(market_data, hours=72, min_notional=10000)
+
+        signal_direction = "neutral"
+        evidence = []
+        risks = []
+
+        if probability >= 0.65:
+            signal_direction = "yes"
+            evidence.append(f"YES probability is elevated at {probability:.2%}.")
+        elif probability <= 0.35 and probability > 0:
+            signal_direction = "no"
+            evidence.append(f"YES probability is low at {probability:.2%}.")
+        else:
+            evidence.append(f"Market is near balanced at {probability:.2%}.")
+
+        if orderbook.get("spread") is not None:
+            spread = float(orderbook.get("spread") or 0)
+            if spread <= 0.03:
+                evidence.append(f"CLOB spread is tight at {spread:.2%}.")
+            else:
+                risks.append(f"CLOB spread is wide at {spread:.2%}.")
+
+        if risk.get("overall_grade") in {"D", "F"}:
+            risks.append(f"Risk grade is {risk.get('overall_grade')}.")
+        elif risk.get("overall_grade"):
+            evidence.append(f"Risk grade is {risk.get('overall_grade')}.")
+
+        if local_history.get("data_points", 0) >= 3:
+            evidence.append(f"Local archive has {local_history['data_points']} recent data points.")
+        else:
+            risks.append("Limited local history; thesis relies mostly on live API snapshots.")
+
+        if whale_flow.get("trade_count", 0):
+            evidence.append(
+                "Cached whale flow shows "
+                f"{whale_flow['trade_count']} large trade(s) from {whale_flow['wallet_count']} wallet(s) "
+                f"totaling ${whale_flow['total_notional']:,.0f}; top outcome: {whale_flow.get('top_outcome') or 'unknown'}."
+            )
+        else:
+            risks.append("No cached whale flow for this market; run wallet.whales to enrich local evidence.")
+
+        confidence_model = self._confidence_model(market_data, probability, orderbook, risk, local_history, whale_flow)
+        confidence = confidence_model["confidence"]
+        evidence_sources = self._evidence_sources(market_data, orderbook, risk, local_history, whale_flow)
+
+        return {
+            "market": {
+                "input": market,
+                "gamma_market_id": market_data.get("id"),
+                "slug": market_data.get("slug"),
+                "condition_id": condition_id,
+                "clob_token_ids": token_ids,
+                "title": title,
+                "probability": probability,
+                "volume_24h": market_data.get("volume24hr") or market_data.get("volume24Hr") or market_data.get("volume"),
+                "liquidity": market_data.get("liquidity"),
+                "end_date": market_data.get("endDate"),
+            },
+            "thesis": {
+                "direction": signal_direction,
+                "confidence": confidence,
+                "confidence_inputs": confidence_model["inputs"],
+                "confidence_reasoning": confidence_model["reasoning"],
+                "summary": self._summary(signal_direction, confidence, risks),
+                "evidence": evidence,
+                "risks": risks,
+                "next_actions": [
+                    "Check order book depth before sizing.",
+                    "Compare thesis with recent wallet activity.",
+                    "Use quicktrade link for execution; PolyTerm remains no-custody.",
+                ],
+            },
+            "orderbook": orderbook,
+            "risk": risk,
+            "local_history": local_history,
+            "whale_flow": whale_flow,
+            "evidence_sources": evidence_sources,
+            "quality_flags": self._quality_flags(market_data, token_ids, orderbook, whale_flow),
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+        }
+
+    def _resolve_market(self, identifier: str) -> Dict[str, Any]:
+        try:
+            data = self.gamma.get_market(identifier)
+            if data:
+                return data
+        except Exception:
+            pass
+        results = self.gamma.search_markets(identifier, limit=5)
+        return _prefer_active_market(results)
+
+    def _orderbook(self, token_id: str) -> Dict[str, Any]:
+        if not token_id:
+            return {"available": False, "spread": None, "quality": "missing_token_id"}
+        try:
+            book = self.clob.get_order_book(token_id, depth=20)
+            bids = book.get("bids") or []
+            asks = book.get("asks") or []
+            best_bid = float(bids[0].get("price", 0)) if bids else 0.0
+            best_ask = float(asks[0].get("price", 0)) if asks else 0.0
+            spread = best_ask - best_bid if best_ask and best_bid else None
+            bid_depth = sum(float(level.get("size", 0) or 0) for level in bids)
+            ask_depth = sum(float(level.get("size", 0) or 0) for level in asks)
+            return {
+                "available": True,
+                "token_id": token_id,
+                "best_bid": best_bid,
+                "best_ask": best_ask,
+                "spread": spread,
+                "bid_levels": len(bids),
+                "ask_levels": len(asks),
+                "bid_depth": bid_depth,
+                "ask_depth": ask_depth,
+            }
+        except Exception as exc:
+            return {"available": False, "token_id": token_id, "spread": None, "quality": str(exc)}
+
+    def _risk(self, market_data: Dict[str, Any]) -> Dict[str, Any]:
+        scorer = MarketRiskScorer()
+        assessment = scorer.score_market(
+            market_id=str(market_data.get("id") or get_market_condition_id(market_data) or ""),
+            title=market_data.get("question") or market_data.get("title") or "",
+            description=market_data.get("description") or "",
+            end_date=None,
+            volume_24h=float(market_data.get("volume24hr") or market_data.get("volume") or 0),
+            liquidity=float(market_data.get("liquidity") or 0),
+            spread=float(market_data.get("spread") or 0),
+            category=market_data.get("category") or "",
+            resolution_source=market_data.get("resolutionSource") or "",
+        )
+        return assessment.to_dict()
+
+    def _local_history(self, market_id: str) -> Dict[str, Any]:
+        history = self.db.get_market_history(market_id, hours=72, limit=500) if market_id else []
+        return {
+            "data_points": len(history),
+            "latest_probability": history[0].probability if history else None,
+            "oldest_probability": history[-1].probability if history else None,
+        }
+
+    def _whale_flow(self, market_data: Dict[str, Any], hours: int = 72, min_notional: float = 10000) -> Dict[str, Any]:
+        """Summarize cached large trades for the resolved market."""
+        identifiers = _market_identifiers(market_data)
+        if not identifiers:
+            return {
+                "source": "local_cache",
+                "hours": hours,
+                "min_notional": min_notional,
+                "trade_count": 0,
+                "wallet_count": 0,
+                "total_notional": 0.0,
+                "top_outcome": None,
+                "trades": [],
+            }
+
+        try:
+            large_trades = self.db.get_large_trades(min_notional=min_notional, hours=hours)
+        except Exception:
+            large_trades = []
+
+        matched = [trade for trade in large_trades if _trade_matches_market(trade, identifiers)]
+        matched.sort(key=lambda trade: (trade.notional, trade.timestamp), reverse=True)
+        outcomes = Counter(trade.outcome for trade in matched if trade.outcome)
+        wallets = {trade.wallet_address for trade in matched if trade.wallet_address}
+
+        return {
+            "source": "local_cache",
+            "hours": hours,
+            "min_notional": min_notional,
+            "trade_count": len(matched),
+            "wallet_count": len(wallets),
+            "total_notional": sum(trade.notional for trade in matched),
+            "top_outcome": outcomes.most_common(1)[0][0] if outcomes else None,
+            "trades": [trade.to_dict() for trade in matched[:5]],
+        }
+
+    def _evidence_sources(
+        self,
+        market_data: Dict[str, Any],
+        orderbook: Dict[str, Any],
+        risk: Dict[str, Any],
+        local_history: Dict[str, Any],
+        whale_flow: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        """Return structured source records so agents can cite thesis inputs."""
+        return [
+            {
+                "id": "gamma_market",
+                "label": "Gamma market metadata",
+                "source": "gamma_api",
+                "status": "available" if market_data else "unavailable",
+                "metrics": {
+                    "probability": market_probability_price(market_data),
+                    "volume_24h": market_data.get("volume24hr") or market_data.get("volume24Hr") or market_data.get("volume"),
+                    "liquidity": market_data.get("liquidity"),
+                },
+                "records": [
+                    {
+                        "id": market_data.get("id"),
+                        "slug": market_data.get("slug"),
+                        "condition_id": get_market_condition_id(market_data),
+                    }
+                ] if market_data else [],
+            },
+            {
+                "id": "clob_orderbook",
+                "label": "CLOB order book",
+                "source": "clob_api",
+                "status": "available" if orderbook.get("available") else "unavailable",
+                "metrics": {
+                    "spread": orderbook.get("spread"),
+                    "best_bid": orderbook.get("best_bid"),
+                    "best_ask": orderbook.get("best_ask"),
+                    "bid_levels": orderbook.get("bid_levels"),
+                    "ask_levels": orderbook.get("ask_levels"),
+                },
+                "records": [{"token_id": orderbook.get("token_id"), "quality": orderbook.get("quality")}],
+            },
+            {
+                "id": "risk_score",
+                "label": "PolyTerm risk score",
+                "source": "risk_score",
+                "status": "available" if risk else "unavailable",
+                "metrics": {
+                    "overall_grade": risk.get("overall_grade"),
+                    "overall_score": risk.get("overall_score"),
+                },
+                "records": risk.get("factors", [])[:5] if isinstance(risk.get("factors"), list) else [],
+            },
+            {
+                "id": "local_history",
+                "label": "Local market snapshot archive",
+                "source": "local_sqlite_market_snapshots",
+                "status": "available" if local_history.get("data_points", 0) else "unavailable",
+                "metrics": local_history,
+                "records": [],
+            },
+            {
+                "id": "cached_whale_flow",
+                "label": "Cached whale flow",
+                "source": "local_sqlite_trades",
+                "status": "available" if whale_flow.get("trade_count", 0) else "unavailable",
+                "metrics": {
+                    "trade_count": whale_flow.get("trade_count", 0),
+                    "wallet_count": whale_flow.get("wallet_count", 0),
+                    "total_notional": whale_flow.get("total_notional", 0.0),
+                    "top_outcome": whale_flow.get("top_outcome"),
+                },
+                "records": whale_flow.get("trades", []),
+            },
+        ]
+
+    def _confidence_model(
+        self,
+        market_data: Dict[str, Any],
+        probability: float,
+        orderbook: Dict[str, Any],
+        risk: Dict[str, Any],
+        local_history: Dict[str, Any],
+        whale_flow: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Return confidence score, inputs, and agent-readable reasoning."""
+        liquidity = _as_float(market_data.get("liquidity"))
+        volume_24h = _as_float(
+            market_data.get("volume24hr")
+            or market_data.get("volume24Hr")
+            or market_data.get("volume")
+        )
+        spread = orderbook.get("spread")
+        bid_levels = int(orderbook.get("bid_levels") or 0)
+        ask_levels = int(orderbook.get("ask_levels") or 0)
+        depth_levels = bid_levels + ask_levels
+        history_points = int(local_history.get("data_points") or 0)
+        latest_probability = local_history.get("latest_probability")
+        oldest_probability = local_history.get("oldest_probability")
+        history_move = (
+            float(latest_probability) - float(oldest_probability)
+            if latest_probability is not None and oldest_probability is not None
+            else None
+        )
+        risk_score = risk.get("overall_score")
+        resolution_score = _risk_factor_score(risk, "resolution_clarity")
+        whale_count = int(whale_flow.get("trade_count") or 0)
+        whale_notional = _as_float(whale_flow.get("total_notional"))
+
+        inputs = {
+            "probability": probability,
+            "directional_probability": bool(probability and (probability >= 0.65 or probability <= 0.35)),
+            "liquidity": liquidity,
+            "volume_24h": volume_24h,
+            "volume_quality": _volume_quality(volume_24h, liquidity),
+            "orderbook_available": bool(orderbook.get("available")),
+            "spread": spread,
+            "orderbook_depth_levels": depth_levels,
+            "bid_depth": _as_float(orderbook.get("bid_depth")),
+            "ask_depth": _as_float(orderbook.get("ask_depth")),
+            "history_data_points": history_points,
+            "history_move": history_move,
+            "archive_freshness": "fresh" if history_points >= 3 else "thin",
+            "whale_trade_count": whale_count,
+            "whale_total_notional": whale_notional,
+            "risk_grade": risk.get("overall_grade"),
+            "risk_score": risk_score,
+            "resolution_clarity_score": resolution_score,
+        }
+
+        score = 0.25
+        reasoning: List[str] = []
+
+        if inputs["directional_probability"]:
+            score += 0.10
+            reasoning.append("Probability is directional enough to support a non-neutral thesis.")
+        else:
+            reasoning.append("Probability is near balanced, so directional confidence starts lower.")
+
+        if liquidity >= 100000:
+            score += 0.10
+            reasoning.append("Liquidity is strong for analysis and execution context.")
+        elif liquidity >= 10000:
+            score += 0.05
+            reasoning.append("Liquidity is usable but not deep.")
+        else:
+            reasoning.append("Liquidity is thin or unavailable.")
+
+        if orderbook.get("available") and spread is not None and spread <= 0.03:
+            score += 0.10
+            reasoning.append("Order book is available with a tight spread.")
+        elif orderbook.get("available"):
+            score += 0.05
+            reasoning.append("Order book is available, but spread quality is weaker.")
+        else:
+            reasoning.append("Order book is unavailable.")
+
+        if depth_levels >= 10:
+            score += 0.05
+            reasoning.append("Order book has multiple visible depth levels.")
+        elif depth_levels >= 2:
+            score += 0.03
+            reasoning.append("Order book has limited but usable visible depth.")
+
+        if history_points >= 3:
+            score += 0.08
+            reasoning.append("Local archive has enough recent history to support freshness checks.")
+        else:
+            reasoning.append("Local archive history is thin.")
+
+        if whale_count:
+            score += 0.08
+            reasoning.append("Cached whale flow is available for this market.")
+        else:
+            reasoning.append("Cached whale flow is unavailable.")
+
+        if isinstance(risk_score, int) and risk_score <= 30:
+            score += 0.10
+            reasoning.append("Risk score is low.")
+        elif isinstance(risk_score, int) and risk_score <= 50:
+            score += 0.06
+            reasoning.append("Risk score is moderate.")
+        elif isinstance(risk_score, int) and risk_score >= 70:
+            score -= 0.05
+            reasoning.append("Risk score is high.")
+
+        if volume_24h >= 10000:
+            score += 0.08
+            reasoning.append("24h volume is strong.")
+        elif volume_24h >= 1000:
+            score += 0.04
+            reasoning.append("24h volume is present but modest.")
+        else:
+            reasoning.append("24h volume is low or unavailable.")
+
+        if resolution_score is not None and resolution_score <= 30:
+            score += 0.05
+            reasoning.append("Resolution clarity supports confidence.")
+        elif resolution_score is not None and resolution_score >= 60:
+            score -= 0.05
+            reasoning.append("Resolution clarity is a confidence drag.")
+
+        return {
+            "confidence": round(max(0.05, min(score, 0.95)), 2),
+            "inputs": inputs,
+            "reasoning": reasoning,
+        }
+
+    def _summary(self, direction: str, confidence: float, risks: list) -> str:
+        risk_note = " with notable caveats" if risks else ""
+        return f"{direction.upper()} lean at {confidence:.0%} confidence{risk_note}."
+
+    def _quality_flags(
+        self,
+        market_data: Dict[str, Any],
+        token_ids: list,
+        orderbook: Dict[str, Any],
+        whale_flow: Dict[str, Any],
+    ) -> list:
+        flags = []
+        if not market_data:
+            flags.append("market_not_found")
+        if not token_ids:
+            flags.append("missing_clob_token_ids")
+        if not orderbook.get("available"):
+            flags.append("orderbook_unavailable")
+        if whale_flow.get("trade_count", 0):
+            flags.append("cached_whale_flow")
+        else:
+            flags.append("whale_flow_unavailable")
+        flags.append("no_trade_execution")
+        return flags
+
+
+def _market_identifiers(market_data: Dict[str, Any]) -> set[str]:
+    """Return every local-cache identifier that can refer to a resolved market."""
+    identifiers = {
+        str(market_data.get("id") or ""),
+        str(market_data.get("slug") or ""),
+        str(get_market_condition_id(market_data) or ""),
+    }
+    for token_id in get_clob_token_ids(market_data):
+        identifiers.add(str(token_id))
+    return {identifier for identifier in identifiers if identifier}
+
+
+def _trade_matches_market(trade: Any, identifiers: set[str]) -> bool:
+    """Return whether a cached trade belongs to the resolved market."""
+    return any(
+        str(value or "") in identifiers
+        for value in (
+            getattr(trade, "market_id", ""),
+            getattr(trade, "market_slug", ""),
+        )
+    )
+
+
+def _as_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value if value is not None else default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _volume_quality(volume_24h: float, liquidity: float) -> str:
+    if volume_24h <= 0:
+        return "missing"
+    if liquidity > 0 and volume_24h / liquidity > 5:
+        return "high_turnover"
+    if volume_24h >= 10000:
+        return "strong"
+    if volume_24h >= 1000:
+        return "modest"
+    return "thin"
+
+
+def _risk_factor_score(risk: Dict[str, Any], factor: str) -> Optional[int]:
+    factors = risk.get("factors") or {}
+    if isinstance(factors, dict):
+        value = factors.get(factor, {}).get("score")
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _prefer_active_market(markets: list) -> Dict[str, Any]:
+    """Prefer active, non-closed search results."""
+    for market in markets:
+        if _is_current_market(market):
+            return market
+    return markets[0] if markets else {}
+
+
+def _is_current_market(market: Dict[str, Any]) -> bool:
+    if not market.get("active", True) or market.get("closed", False):
+        return False
+    end_date = market.get("endDate") or market.get("end_date_iso")
+    if not end_date:
+        return True
+    try:
+        parsed = datetime.fromisoformat(str(end_date).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed > datetime.now(timezone.utc)
+    except Exception:
+        return True

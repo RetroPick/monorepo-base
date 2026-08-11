@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"retropick/apps/backend/internal/dbqueries"
 	"retropick/apps/backend/internal/markets"
 	"retropick/apps/backend/internal/markets/clob"
@@ -47,6 +49,15 @@ func NewProductionService(cfg ProductionConfig) *Service {
 
 	var venue VenueSubmitter
 	var cancelVenue VenueCanceller
+	var journal MutationJournal
+	if pool, ok := cfg.Pool.(*pgxpool.Pool); ok {
+		journal = NewPostgresMutationJournal(pool)
+	}
+	// Production mutations require the durable PostgreSQL boundary. The
+	// process-local gate in SubmitOrder is retained only for isolated tests.
+	if journal == nil {
+		submitEnabled = false
+	}
 	if cfg.CLOBURL != "" {
 		creds := cfg.L2Creds
 		if creds == nil {
@@ -61,16 +72,17 @@ func NewProductionService(cfg ProductionConfig) *Service {
 	}
 
 	return NewService(ServiceConfig{
-		Discoverer:   cfg.Discoverer,
-		Tokens:       tokens,
-		Markets:      cfg.Catalog,
-		Books:        books,
-		BuilderCode:  cfg.BuilderCode,
-		Metrics:      cfg.Metrics,
-		Projections:  cfg.Projections,
+		Discoverer:  cfg.Discoverer,
+		Tokens:      tokens,
+		Markets:     cfg.Catalog,
+		Books:       books,
+		BuilderCode: cfg.BuilderCode,
+		Metrics:     cfg.Metrics,
+		Projections: cfg.Projections,
 		Submit: SubmitConfig{
 			OrderSubmitEnabled: submitEnabled,
 			Venue:              venue,
+			Journal:            journal,
 			Metrics:            cfg.SubmitMetrics,
 		},
 		Cancel: CancelConfig{

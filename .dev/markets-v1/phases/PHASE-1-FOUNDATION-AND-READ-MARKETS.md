@@ -93,7 +93,7 @@ Web renders canonical market; stale states explicit; no signing or fund movement
 PHASE-0 exit gate; ADRs accepted.
 
 - [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [AGENT_OPERATING_CONTRACT.md](../agent-harness/AGENT_OPERATING_CONTRACT.md)
+- [AGENT_OPERATING_CONTRACT.md](../../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
 ## Dependencies
 

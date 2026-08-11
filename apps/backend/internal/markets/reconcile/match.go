@@ -45,9 +45,12 @@ func MatchUnknownOrder(local orders.UserOrderRecord, venueRows []clob.VenueOpenO
 		return MatchResult{}, false
 	}
 
-	// Legacy fallback: token/side/price/size for rows without amount fields.
-	if match, ok := matchOpenOrderLegacy(local, venueRows); ok {
-		return MatchResult{Order: match, Reason: "legacy_fields"}, true
+	// Durable journal rows have signed-payload identity and must never fall back
+	// to mutable display fields that can collide with another logical order.
+	if local.RequestFingerprint == "" {
+		if match, ok := matchOpenOrderLegacy(local, venueRows); ok {
+			return MatchResult{Order: match, Reason: "legacy_fields"}, true
+		}
 	}
 	return MatchResult{}, false
 }

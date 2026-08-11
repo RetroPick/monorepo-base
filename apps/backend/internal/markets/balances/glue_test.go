@@ -62,6 +62,7 @@ func glueAuthModule(t *testing.T, users auth.UserStore, eval *eligibility.Evalua
 			ChainID:        137,
 			CookieName:     "mkt_session",
 			CSRFCookieName: "mkt_csrf",
+			AllowedDomains: []string{"localhost"},
 			AuthRateLimit:  100,
 			AuthRateWindow: time.Minute,
 		},

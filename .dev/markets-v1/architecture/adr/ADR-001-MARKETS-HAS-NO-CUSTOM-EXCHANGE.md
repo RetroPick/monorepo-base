@@ -205,7 +205,7 @@ All market identifiers in OpenAPI (`schemas/openapi/markets-v1.yaml`) reference 
 ## Compliance
 
 Any change to this ADR requires:
-1. Entry in [agent-harness/DECISION_AND_ASSUMPTION_LOG.md](../../agent-harness/DECISION_AND_ASSUMPTION_LOG.md)
+1. Entry in [../../../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md](../../../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md)
 2. Legal review if moving toward exchange operation
 3. Update to [04_REQUIREMENTS_AND_TRACEABILITY.md](../../04_REQUIREMENTS_AND_TRACEABILITY.md)
 

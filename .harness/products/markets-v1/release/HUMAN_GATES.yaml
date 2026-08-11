@@ -1,0 +1,39 @@
+# HUMAN_GATES — Boundaries never crossed autonomously
+
+# On encounter: BLOCK the Kanban task. Return:
+#   - what is needed
+#   - why it is needed
+#   - the exact safe human action
+#   - what resumes afterward
+# Never ask the human to paste private keys into Kanban metadata or Git.
+
+human_gates:
+  secrets:
+    - production API secrets
+    - DeepSeek credentials
+    - Telegram bot token
+    - Builder production credentials
+    - relayer credentials
+  funds_and_wallets:
+    - wallet private key
+    - production wallet creation
+    - real Polymarket order
+    - real user funds
+  database:
+    - destructive database migration
+    - production database reset
+  git:
+    - force push
+    - rewriting main history
+  deployment:
+    - production DNS cutover
+    - production TLS secret changes
+    - production deployment
+  release_infrastructure:
+    - Google Play signing key
+    - Google Play production release
+  contracts:
+    - smart-contract deployment
+
+# Staging/CI operations are allowed; production deployment requires the human
+# release gate (rp-sre-release + rp-release-orchestrator + human approval).

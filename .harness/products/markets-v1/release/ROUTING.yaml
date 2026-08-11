@@ -1,0 +1,56 @@
+# ROUTING — Task routing and write ownership
+
+# Worker → writable paths (one writer per path; no two RUNNING tasks overlap)
+routing:
+  rp-api-contract:
+    writable:
+      - schemas/openapi/markets-v1.yaml
+      - schemas/asyncapi/markets-realtime-v1.yaml
+      - contracts-validation-config (**)
+  rp-backend-markets:
+    writable:
+      - apps/backend/cmd/markets-api/**
+      - apps/backend/internal/markets/**
+      - apps/backend/migrations/**        # authorized Markets migrations only
+  rp-web:
+    writable:
+      - apps/web/**
+  rp-android:
+    writable:
+      - repo: RetroPick/RetroPick-Android   # canonical external repo
+  rp-qa-e2e:
+    writable:
+      - tests/**
+      - evidence/**                          # verification evidence only
+  rp-sre-release:
+    writable:
+      - docker/**
+      - compose/**
+      - deploy/**
+      - ops/**
+      - .github/workflows/**                 # CI
+  rp-release-orchestrator:
+    writable:
+      - kanban/tasks/state                   # no product code
+  rp-recovery-architect:
+    writable:
+      - .harness/**                          # harness policy/reconciliation only
+      - ~/.local/state/retropick-harness/**  # runtime state
+  rp-review-security:
+    writable: []                             # READ-ONLY by default
+
+# Collision rule
+# If a task needs multiple areas, split it into dependency-linked tasks.
+# API CONTRACT / BACKEND / WEB / ANDROID / QA / SRE / REVIEW must never
+# write the same path concurrently.
+
+# Escalation graph
+escalation:
+  implementation_agents: [rp-api-contract, rp-backend-markets, rp-web, rp-android]
+  quality: rp-qa-e2e
+  infrastructure: rp-sre-release
+  review: rp-review-security
+  recovery: rp-recovery-architect
+  final: rp-release-orchestrator
+
+# Human gates — see HUMAN_GATES.yaml; orchestrator BLOCKS the task on encounter.

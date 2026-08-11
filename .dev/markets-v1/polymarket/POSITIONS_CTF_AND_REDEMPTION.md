@@ -140,6 +140,37 @@ Gasless via relayer when authorized (EV-009).
 - Unrealized from mid × size − cost basis.
 - Fixed-point decimal strings; USDC 6 decimals.
 
+### 6.6 BFF position projection (MKT-P4-001)
+
+Implementation: [`apps/backend/internal/markets/positions/`](../../../../apps/backend/internal/markets/positions/)
+
+| Setting | Default | Notes |
+|---------|---------|-------|
+| Reconcile interval | 5m | Env `MARKETS_POSITION_RECONCILE_ENABLED` (default on) gates worker at glue wiring |
+| Venue source | Data API `GET /positions?user={accountWallet}` | Read-only; chain leg deferred |
+| Store | in-memory `ProjectionStore` | Postgres `position_projections` is a later swap |
+
+**Projection semantics:** BFF stores venue-aligned snapshots; Polymarket Data API and chain remain authority (ADR-001). Sizes and avg prices are `DecimalString` fixed-point — never binary floats. Optional local seed from fill history is read-only and does not claim ownership.
+
+**syncStatus values:**
+
+| Value | Meaning |
+|-------|---------|
+| `synced` | Local projection matches latest venue poll |
+| `updating` | Reorg or reconcile in flight — UI shows "Updating", not zeroed balances |
+| `reconciling` | Venue poll failed or repair incomplete — serve last projection with stale banner |
+
+**List freshness:** `freshness.state` is `resyncing` when any row is `updating`/`reconciling`; `stale` when venue poll fails but last projection is returned.
+
+**Metrics (Prometheus):**
+
+- `retropick_markets_position_reconcile_lag_seconds_{sum,count}`
+- `retropick_markets_position_drift_count`
+- `retropick_markets_position_drift_repairs_total`
+- `retropick_markets_position_reconcile_errors_total{kind="upstream|credentials_unwired"}`
+
+**Out of scope for P4-001:** CTF split/merge/redeem (MKT-P4-004+), whale feed (SM-I-001), wallet profiles (SM-I-003).
+
 
 ```mermaid
 sequenceDiagram
@@ -254,7 +285,7 @@ Rollback: flip capability flag in BFF config → clients poll `/markets/capabili
 Full log: [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
 ## 16. Acceptance criteria
 
-- [ ] All MUST requirements traced in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- [ ] All MUST requirements traced in [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 - [ ] Time-sensitive claims cite evidence ID (EV-xxx) with retrieval date 2026-07-25.
 - [ ] No production contract address in app config without EV-008 verification pipeline.
 - [ ] Mermaid diagrams render for specified flows.

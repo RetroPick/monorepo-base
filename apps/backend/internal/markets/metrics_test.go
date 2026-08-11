@@ -90,15 +90,25 @@ func TestMetricsRecordReconcile(t *testing.T) {
 	metrics.RecordReconcileScanned(2)
 	metrics.RecordReconcileRun(1, 500*time.Millisecond)
 	metrics.RecordReconcileRepair("open")
+	metrics.RecordReconcileRepair("unknown")
 	metrics.RecordReconcileRepair("rejected")
 	metrics.RecordReconcileError("upstream")
+	metrics.RecordReconcileError("journal")
 
 	output := metrics.Prometheus()
 	required := []string{
 		"retropick_markets_order_reconcile_scanned_total 2",
 		`retropick_markets_order_reconcile_repairs_total{outcome="open"} 1`,
+		`retropick_markets_order_reconcile_repairs_total{outcome="unknown"} 1`,
 		`retropick_markets_order_reconcile_repairs_total{outcome="rejected"} 1`,
 		`retropick_markets_order_reconcile_errors_total{kind="upstream"} 1`,
+		`retropick_markets_order_reconcile_errors_total{kind="journal"} 1`,
+		"retropick_markets_order_reconciliation_pending 2",
+		"retropick_markets_order_reconciliation_attempts 1",
+		"retropick_markets_order_reconciliation_recovered 1",
+		"retropick_markets_order_reconciliation_unknown 1",
+		"retropick_markets_order_reconciliation_errors 2",
+		"retropick_markets_order_reconciliation_age 0.500000",
 		"retropick_markets_order_reconcile_lag_seconds_count 1",
 		"retropick_markets_reconciliation_lag_seconds_count 1",
 	}

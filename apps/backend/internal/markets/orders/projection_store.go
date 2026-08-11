@@ -14,27 +14,29 @@ const (
 
 // UserOrderRecord is the internal projection for a user order.
 type UserOrderRecord struct {
-	OrderID         string
-	UserID          string
-	VenueOrderID    string
-	ClientOrderID   string
-	ContentHash     string
-	MarketID        string
-	TokenID         string
-	Side            string
-	Price           string
-	OriginalSize    string
-	FilledSize      string
-	RemainingSize   string
-	MakerAmount     string
-	TakerAmount     string
-	Salt            string
-	Status          string
-	RejectionReason string
-	ExchangeDomain  string
-	Maker           string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	OrderID            string
+	AttemptID          string
+	UserID             string
+	VenueOrderID       string
+	ClientOrderID      string
+	ContentHash        string
+	RequestFingerprint string
+	MarketID           string
+	TokenID            string
+	Side               string
+	Price              string
+	OriginalSize       string
+	FilledSize         string
+	RemainingSize      string
+	MakerAmount        string
+	TakerAmount        string
+	Salt               string
+	Status             string
+	RejectionReason    string
+	ExchangeDomain     string
+	Maker              string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // ReconcilePatch applies venue truth to an unknown order projection.

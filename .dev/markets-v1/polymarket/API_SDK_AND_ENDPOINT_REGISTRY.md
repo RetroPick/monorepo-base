@@ -214,7 +214,7 @@ Pagination: **keyset** (`after_cursor`) — `offset` rejected per official docs.
 
 **Timeout / retry:** 15s request timeout; **0 retries** on POST /order. Network timeout → `unknown_reconciling` at BFF; **never auto-resubmit** (ORDER_LIFECYCLE D-06).
 
-**Live credentials:** Env `MARKETS_CLOB_L2_*` requires human approval ([BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) §4). Default dev/test uses `clob.SandboxCredentials()` + httptest.
+**Live credentials:** Env `MARKETS_CLOB_L2_*` requires human approval ([BLOCKERS_AND_HUMAN_APPROVALS.md](../../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md) §4). Default dev/test uses `clob.SandboxCredentials()` + httptest.
 
 **Glue handoff (not in MKT-P3-002):** `POST /markets/orders/submit` with `previewId` + `contentHash` + signature; 409 on hash mismatch; 410 on expired preview; `Idempotency-Key` store; kill switch `order_submit: false`.
 
@@ -398,7 +398,7 @@ Rollback: flip capability flag in BFF config → clients poll `/markets/capabili
 Full log: [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
 ## 16. Acceptance criteria
 
-- [ ] All MUST requirements traced in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- [ ] All MUST requirements traced in [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 - [ ] Time-sensitive claims cite evidence ID (EV-xxx) with retrieval date 2026-07-25.
 - [ ] No production contract address in app config without EV-008 verification pipeline.
 - [ ] Mermaid diagrams render for specified flows.

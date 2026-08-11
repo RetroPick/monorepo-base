@@ -1,21 +1,22 @@
 # Golden vectors — Whale Trade Feed (SM-I-001)
-# Money fields are BIGINT minor units (example scale: 1e6 = 1.0 USDC notional unit).
-# Do not invent contract addresses. Wallet attribution must come from Data /trades shaped inputs.
+# Money fields are BIGINT minor units (1e6 = 1.0 USDC notional unit).
+# Wallet attribution must come from Data /trades shaped inputs only.
 
 version: large_trade_v1
 feature: SM-I-001
 updated: "2026-08-09"
 
 params:
-  min_notional: 10000000000   # 10_000 * 1e6
-  min_pct_recent_volume_bps: 500  # 5%
+  min_notional: 5000000000
+  min_pct_recent_volume_bps: 500
+  score_threshold: 70
 
 vectors:
   - id: whale_feed_001
     version: large_trade_v1
     feature: SM-I-001
     edge_case: false
-    reason: "Absolute notional crosses Launch threshold"
+    reason: "Absolute notional crosses Launch τ_market threshold"
     input:
       trade:
         source: data_trades
@@ -30,7 +31,7 @@ vectors:
         recent_volume: 675000000000
     expected:
       is_whale: true
-      reason_codes: ["LARGE_NOTIONAL", "PCT_RECENT_VOLUME"]
+      reason_codes: ["WHALE_NOTIONAL_THRESHOLD", "WHALE_VOLUME_SHARE"]
       pct_recent_volume_bps: 630
       publish: true
 
@@ -79,3 +80,49 @@ vectors:
       duplicate: true
       publish_new: false
       supersede: false
+
+  - id: whale_feed_004
+    version: large_trade_v1
+    feature: SM-I-001
+    edge_case: false
+    reason: "WhaleScore threshold without notional τ when volume context drives score"
+    input:
+      trade:
+        source: data_trades
+        upstream_trade_id: "tr_1004"
+        wallet_address: "0x3333333333333333333333333333333333333333"
+        market_id: "market_demo_2"
+        side: BUY
+        outcome: YES
+        notional: 6000000000
+        traded_at: "2026-08-09T10:02:00Z"
+      market_context:
+        recent_volume: 50000000000
+        impact_bps: 3000
+    expected:
+      is_whale: true
+      reason_codes: ["WHALE_NOTIONAL_THRESHOLD", "WHALE_VOLUME_SHARE", "WHALE_PRICE_IMPACT"]
+      publish: true
+
+  - id: whale_feed_005
+    version: large_trade_v1
+    feature: SM-I-001
+    edge_case: true
+    reason: "Missing price impact still qualifies via notional with impact_unavailable"
+    input:
+      trade:
+        source: data_trades
+        upstream_trade_id: "tr_1005"
+        wallet_address: "0x4444444444444444444444444444444444444444"
+        market_id: "market_demo_1"
+        side: BUY
+        outcome: YES
+        notional: 12000000000
+        traded_at: "2026-08-09T10:03:00Z"
+      market_context:
+        recent_volume: 675000000000
+        impact_unavailable: true
+    expected:
+      is_whale: true
+      reason_codes: ["WHALE_NOTIONAL_THRESHOLD", "WHALE_VOLUME_SHARE"]
+      publish: true

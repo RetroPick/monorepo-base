@@ -27,7 +27,7 @@ This index is the map of PHASE-0…PHASE-8 for RetroPick Markets V1. Use it to n
 | **Who** | Platform orchestrator sequencing work; any Markets V1 agent choosing the next authorized phase/task; reviewers checking dependency order. |
 | **What** | Phase registry table, dependency flowchart, §16 contract checklist, `MKT-P0-001`…`MKT-P8-010` ranges, §17.3 parallelization rules, §18 human gates, links to requirements/tests/rollback, and the V1 boundary note (PHASE-0–7 = V1; PHASE-8 = post-V1). |
 | **When** | Before starting work in a phase; when assigning task IDs; when checking whether Android may proceed (after stable web trading); when confirming launch-after-hardening ordering; at exit when ensuring the next phase’s prerequisites exist. |
-| **Where** | `.dev/markets-v1/phases/` (this index + per-phase specs). Authoritative progress: `../agent-harness/implementation-manifest.yaml` (`current_phase`) and `../agent-harness/task-graph.yaml`. Do not treat this README’s **Status: reviewed** as “all phases complete.” |
+| **Where** | `.dev/markets-v1/phases/` (this index + per-phase specs). Authoritative progress: `../../../.harness/products/markets-v1/planning/implementation-manifest.yaml` (`current_phase`) and `../../../.harness/products/markets-v1/planning/task-graph.yaml`. Do not treat this README’s **Status: reviewed** as “all phases complete.” |
 | **Why** | Wrong phase order, colliding owned paths, or silent PHASE-8 features inside V1 create custody, eligibility, and scope failures that ADRs already forbid. |
 | **How** | Read registry → open one phase spec → confirm manifest authorization → pick one task in range → obey parallelization and human gates → leave exit-gate proof to the phase file + `PHASE_GATE_TEMPLATE`. |
 
@@ -211,7 +211,7 @@ flowchart TB
 - [Phase reassessment / production roadmap](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md)
 - [Smart Money Launch](../intelligence/INTELLIGENCE_LAUNCH_V1.md)
 - [Doc map](../00_DOCUMENT_MAP.md)
-- [Tasks](../agent-harness/task-graph.yaml)
+- [Tasks](../../../.harness/products/markets-v1/planning/task-graph.yaml)
 - [Requirements](../04_REQUIREMENTS_AND_TRACEABILITY.md)
 - [Tests](../testing/MASTER_TEST_PLAN.md)
 - [Rollback](../platform/RELEASE_ROLLBACK_AND_CHANGE_MANAGEMENT.md)

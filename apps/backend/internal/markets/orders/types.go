@@ -36,11 +36,14 @@ const (
 
 // Exported order status values for reconcile and handlers.
 const (
-	OrderStatusOpen          = "open"
-	OrderStatusUnknown       = "unknown"
-	OrderStatusCancelPending = "cancel_pending"
-	OrderStatusCanceled      = "canceled"
-	OrderStatusRejected      = "rejected"
+	OrderStatusOpen            = "open"
+	OrderStatusPartiallyFilled = "partially_filled"
+	OrderStatusFilled          = "filled"
+	OrderStatusUnknown         = "unknown"
+	OrderStatusNotSubmitted    = "not_submitted"
+	OrderStatusCancelPending   = "cancel_pending"
+	OrderStatusCanceled        = "canceled"
+	OrderStatusRejected        = "rejected"
 )
 
 // SubmitRequest is the wire body for POST /markets/orders/submit.
@@ -52,14 +55,14 @@ type SubmitRequest struct {
 
 // SubmitResponse is the wire body for a successful order submit.
 type SubmitResponse struct {
-	SchemaVersion  string                      `json:"schemaVersion"`
-	OrderID        string                      `json:"orderId"`
-	VenueOrderID   string                      `json:"venueOrderId,omitempty"`
-	Status         string                      `json:"status"`
-	ClientOrderID  string                      `json:"clientOrderId,omitempty"`
-	SubmittedAt    time.Time                   `json:"submittedAt"`
-	Provenance     markets.UpstreamProvenance  `json:"provenance"`
-	Warnings       []string                    `json:"warnings,omitempty"`
+	SchemaVersion string                     `json:"schemaVersion"`
+	OrderID       string                     `json:"orderId"`
+	VenueOrderID  string                     `json:"venueOrderId,omitempty"`
+	Status        string                     `json:"status"`
+	ClientOrderID string                     `json:"clientOrderId,omitempty"`
+	SubmittedAt   time.Time                  `json:"submittedAt"`
+	Provenance    markets.UpstreamProvenance `json:"provenance"`
+	Warnings      []string                   `json:"warnings,omitempty"`
 }
 
 // CancelRequest is the wire body for POST /markets/orders/{orderId}/cancel.
@@ -80,14 +83,14 @@ type CancelResponse struct {
 
 // CancelPreviewResponse is the wire body for cancel preview.
 type CancelPreviewResponse struct {
-	SchemaVersion   string                  `json:"schemaVersion"`
-	PreviewID       string                  `json:"previewId"`
-	ContentHash     string                  `json:"contentHash"`
-	ExpiresAt       time.Time               `json:"expiresAt"`
-	HumanSummary    CancelHumanSummary      `json:"humanSummary"`
-	UnsignedPayload UnsignedCancelPayload   `json:"unsignedPayload"`
-	OrderID         string                  `json:"orderId"`
-	Warnings        []string                `json:"warnings,omitempty"`
+	SchemaVersion   string                `json:"schemaVersion"`
+	PreviewID       string                `json:"previewId"`
+	ContentHash     string                `json:"contentHash"`
+	ExpiresAt       time.Time             `json:"expiresAt"`
+	HumanSummary    CancelHumanSummary    `json:"humanSummary"`
+	UnsignedPayload UnsignedCancelPayload `json:"unsignedPayload"`
+	OrderID         string                `json:"orderId"`
+	Warnings        []string              `json:"warnings,omitempty"`
 }
 
 // CancelHumanSummary is client-facing cancel confirmation copy.
@@ -181,13 +184,13 @@ type PreviewRequest struct {
 
 // HumanSummary is client-facing confirmation copy.
 type HumanSummary struct {
-	Action        string `json:"action"`
-	Market        string `json:"market"`
-	Outcome       string `json:"outcome"`
-	Size          string `json:"size"`
-	Price         string `json:"price"`
-	EstimatedFee  string `json:"estimatedFee,omitempty"`
-	ChainID       int    `json:"chainId"`
+	Action       string `json:"action"`
+	Market       string `json:"market"`
+	Outcome      string `json:"outcome"`
+	Size         string `json:"size"`
+	Price        string `json:"price"`
+	EstimatedFee string `json:"estimatedFee,omitempty"`
+	ChainID      int    `json:"chainId"`
 }
 
 // UnsignedOrderPayload mirrors CLOB V2 EIP-712 order fields (EV-001).

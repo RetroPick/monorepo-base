@@ -176,6 +176,14 @@ func writeWalletError(w http.ResponseWriter, r *http.Request, err error) {
 		status = http.StatusServiceUnavailable
 		code = "service_unavailable"
 		message = "wallet linking is not configured"
+	case errors.Is(err, ErrRelayDisabled):
+		status = http.StatusServiceUnavailable
+		code = "service_unavailable"
+		message = "account wallet relay is disabled"
+	case errors.Is(err, ErrOwnershipUnverified):
+		status = http.StatusForbidden
+		code = "ownership_verification_required"
+		message = "wallet ownership verification is required"
 	case errors.Is(err, ErrConflict):
 		status = http.StatusConflict
 		code = "conflict"

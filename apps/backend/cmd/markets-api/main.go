@@ -25,11 +25,12 @@ import (
 	"retropick/apps/backend/internal/markets/devseed"
 	"retropick/apps/backend/internal/markets/eligibility"
 	"retropick/apps/backend/internal/markets/gamma"
+	"retropick/apps/backend/internal/markets/intelligence"
 	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/markets/orders"
 	"retropick/apps/backend/internal/markets/postgres"
-	"retropick/apps/backend/internal/markets/reconcile"
 	"retropick/apps/backend/internal/markets/realtime"
+	"retropick/apps/backend/internal/markets/reconcile"
 	"retropick/apps/backend/internal/markets/signals"
 	"retropick/apps/backend/internal/markets/syncworker"
 	"retropick/apps/backend/internal/markets/wallet"
@@ -197,20 +198,29 @@ func main() {
 		rtRuntime.Signals = pipeline
 	}
 
+	intelMod, err := intelligence.NewModule(intelligence.Config{
+		Enabled: cfg.IntelligenceWhaleFeedEnabled,
+	})
+	if err != nil {
+		log.Error("intelligence module", "err", err)
+		os.Exit(1)
+	}
+
 	marketsSvc := markets.NewService(markets.ServiceConfig{
-		CatalogProjection:  projection,
-		CatalogWorker:      worker,
-		CatalogEnabled:     cfg.CatalogEnabled,
-		CatalogMaxStale:    cfg.CatalogMaxStaleAge,
-		MarketData:         clobClient,
-		MarketProcessor:    marketdata.Processor{},
-		MarketDataEnabled:  cfg.MarketDataEnabled,
-		Signals:            signalStore,
-		SignalsOperational: store.SignalsOperational(),
-		RealtimeState:      rtRuntime,
-		Metrics:            metrics,
-		Eligibility:        eligibilityEval,
-		BookMaxAge:         cfg.BookMaxAge,
+		CatalogProjection:            projection,
+		CatalogWorker:                worker,
+		CatalogEnabled:               cfg.CatalogEnabled,
+		CatalogMaxStale:              cfg.CatalogMaxStaleAge,
+		MarketData:                   clobClient,
+		MarketProcessor:              marketdata.Processor{},
+		MarketDataEnabled:            cfg.MarketDataEnabled,
+		Signals:                      signalStore,
+		SignalsOperational:           store.SignalsOperational(),
+		IntelligenceWhaleFeedEnabled: cfg.IntelligenceWhaleFeedEnabled,
+		RealtimeState:                rtRuntime,
+		Metrics:                      metrics,
+		Eligibility:                  eligibilityEval,
+		BookMaxAge:                   cfg.BookMaxAge,
 		IPTrust: eligibility.IPTrustOptions{
 			TrustForwardedFor: len(cfg.TrustedProxyCIDRs) > 0,
 			TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
@@ -262,11 +272,15 @@ func main() {
 		Metrics:       metrics,
 		SubmitMetrics: metrics,
 	})
+	routeDeps := markets.RouteDeps{Wallet: walletCfg}
+	if intelMod != nil {
+		routeDeps.Intelligence = intelMod.RegisterRoutes
+	}
 	markets.RegisterRoutesWithDepsAndMarketRoutes(
 		r,
 		markets.NewHandler(marketsSvc),
 		authMod,
-		markets.RouteDeps{Wallet: walletCfg},
+		routeDeps,
 		[]markets.EligibleMeRouteRegistrar{
 			func(r chi.Router) {
 				balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
@@ -301,6 +315,7 @@ func main() {
 		})
 		reconcileWorker := reconcile.NewWorker(reconcile.WorkerConfig{
 			Store:        ordersHandlerCfg.Service.Projections(),
+			Journal:      orders.NewPostgresMutationJournal(pool),
 			Venue:        reconcile.NewCLOBVenueReader(tradingClient),
 			Metrics:      metrics,
 			Interval:     10 * time.Second,

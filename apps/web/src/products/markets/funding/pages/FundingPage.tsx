@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
+import { Coins } from "lucide-react";
 
-import { MarketsShellLayout } from "../../components/MarketsShellLayout";
+import { MarketsAppShell } from "../../components/shell/MarketsAppShell";
 import { useMarketsTradingWallets } from "../../wallet/hooks/useMarketsTradingWallets";
 import { useMarketsWalletSession } from "../../wallet/hooks/useMarketsWalletSession";
+import { ConnectWalletButton } from "../../wallet/components/ConnectWalletButton";
+import { walletConnectPath } from "../../routes/paths";
 
 import { DepositWalletSetupPanel } from "../components/DepositWalletSetupPanel";
 import { FundingAccountSummary } from "../components/FundingAccountSummary";
@@ -28,12 +32,27 @@ export function FundingPage() {
   const balance = useMarketsCollateralBalance(isSessionAuthenticated && hasLinkedWallet ? accountWallet : undefined);
 
   return (
-    <MarketsShellLayout>
+    <MarketsAppShell title="Funding" hideBottomNav>
       <div className="mx-auto max-w-2xl space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{FUNDING_PAGE_TITLE}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{FUNDING_PAGE_DESCRIPTION}</p>
-        </div>
+        <header className="rounded-xl border border-border bg-card p-6">
+          <div className="flex items-center gap-3 text-primary">
+            <Coins className="h-6 w-6" aria-hidden />
+            <h1 className="font-display text-2xl font-bold">{FUNDING_PAGE_TITLE}</h1>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">{FUNDING_PAGE_DESCRIPTION}</p>
+        </header>
+
+        {!isSessionAuthenticated ? (
+          <div className="rounded-xl border border-dashed border-border bg-elevated/40 px-6 py-8 text-center">
+            <p className="text-sm text-muted-foreground">Connect and sign in to manage deposit wallet and balances.</p>
+            <ConnectWalletButton className="mt-4 rounded-lg px-6 py-2.5 text-sm font-bold" label="Sign In" />
+            <p className="mt-3 text-xs text-muted-foreground">
+              <Link to={walletConnectPath()} className="text-primary hover:underline">
+                Wallet settings
+              </Link>
+            </p>
+          </div>
+        ) : null}
 
         <SandboxFundingBanner />
         <FundingAccountSummary accountWallet={accountWallet} />
@@ -61,7 +80,7 @@ export function FundingPage() {
           </>
         ) : null}
       </div>
-    </MarketsShellLayout>
+    </MarketsAppShell>
   );
 }
 

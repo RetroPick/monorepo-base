@@ -145,7 +145,7 @@ Persist decisions in `markets.eligibility_decisions` for audit (hashed IP, regio
 | Redis cache `mkt:eligibility:{ip_hash}` | deferred | See cache doc |
 | Postgres `eligibility_decisions` audit | deferred | Future migration |
 
-**BLK-001 honesty:** GeoIP and geoblock adapters are shipped and env-gated. `ProductionEligibilityEvaluator` in `service.go` wires `geo.ResolverFromEnv()` and `eligibility.GeoblockFromEnv()` (both `cmd/api` and `cmd/markets-api` pass the same evaluator to the auth module). **BLK-001 remains open** until ops injects both geo + geoblock env in target deploy and integration proves `eligible: true` for an allowed region — default deploy (no env) still returns `geo_unknown` / `geoblock_upstream_unavailable`. `DefaultEvaluator()` keeps deny-all for tests without injection. Full tracker: [MKT-P2-002-BLK001-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md).
+**BLK-001 honesty:** GeoIP and geoblock adapters are shipped and env-gated. `ProductionEligibilityEvaluator` in `service.go` wires `geo.ResolverFromEnv()` and `eligibility.GeoblockFromEnv()` (both `cmd/api` and `cmd/markets-api` pass the same evaluator to the auth module). **BLK-001 remains open** until ops injects both geo + geoblock env in target deploy and integration proves `eligible: true` for an allowed region — default deploy (no env) still returns `geo_unknown` / `geoblock_upstream_unavailable`. `DefaultEvaluator()` keeps deny-all for tests without injection. Full tracker: [MKT-P2-002-BLK001-evidence.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md).
 
 **GeoIP environment variables (Chat Geo):**
 
@@ -162,7 +162,7 @@ Also accepts `GEO_PROVIDER_API_KEY` when `MARKETS_GEOIP_API_KEY` is unset (platf
 
 **Remaining BLK-001 clearance (orchestrator / ops):**
 
-- Ops checklist: [MKT-P2-BLK001-ops-staging-checklist.md](../agent-harness/verification/PHASE-2/MKT-P2-BLK001-ops-staging-checklist.md)
+- Ops checklist: [MKT-P2-BLK001-ops-staging-checklist.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-BLK001-ops-staging-checklist.md)
 - Ops inject `MARKETS_GEOIP_*` (or `GEO_PROVIDER_API_KEY`) in target deploy
 - Ops inject `MARKETS_GEOBLOCK_BASE_URL` (+ optional `MARKETS_GEOBLOCK_PATH`)
 - Integration proof `eligible: true` for allowed fixture IP
@@ -221,7 +221,7 @@ Request → RequestID → OptionalSession → handler
 | Route | Middleware stack | Rationale |
 |-------|------------------|-----------|
 | `GET /api/v1/markets/eligibility` | `OptionalSession` | Public; injects `AccountContext` when session present |
-| `GET /api/v1/markets/me/wallets` | `OptionalSession` → `RequireAuthenticated` | Account setup after SIWE; must return **200** (empty `wallets[]` OK) while BLK-001 active — see [MKT-P2-GLUE-session-wallet-evidence.md](../agent-harness/verification/PHASE-2/MKT-P2-GLUE-session-wallet-evidence.md) |
+| `GET /api/v1/markets/me/wallets` | `OptionalSession` → `RequireAuthenticated` | Account setup after SIWE; must return **200** (empty `wallets[]` OK) while BLK-001 active — see [MKT-P2-GLUE-session-wallet-evidence.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-GLUE-session-wallet-evidence.md) |
 | `GET /api/v1/markets/me/balances` | `OptionalSession` → `RequireAuthenticated` → `RequireEligible` | Transactional read; fail-closed per BLK-001 |
 | Future trading / funding / withdrawal | Same as balances | Must mount inside eligible subgroup; do not copy wallets auth-only gate |
 

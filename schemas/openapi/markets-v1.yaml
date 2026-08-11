@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: RetroPick Markets API
-  version: 1.3.0
+  version: 1.4.0
   description: |
     Public, Polymarket-native BFF shared by future web and Android clients.
     Polymarket remains the venue and settlement authority.
@@ -12,6 +12,9 @@ info:
 
     PHASE-3 order submit, cancel, and list paths are spec-frozen in this document.
     Runtime handlers remain gated by GET /markets/capabilities features.order_submit until MKT-P3-002 wiring.
+
+    PHASE-4 portfolio read paths (positions, activity, portfolio summary) are spec-frozen in this document.
+    Runtime handlers remain gated by GET /markets/capabilities features.portfolio_read until MKT-P4-001 wiring.
 
     Every upstream-derived response carries provenance and freshness metadata.
 servers:
@@ -45,9 +48,9 @@ paths:
                 $ref: "#/components/schemas/CapabilitiesResponse"
               examples:
                 phase2NoSubmit:
-                  summary: PHASE-2 default — order submit disabled
+                  summary: PHASE-2 default — order submit and portfolio read disabled
                   value:
-                    version: "1.3.0"
+                    version: "1.4.0"
                     catalog: true
                     trading: false
                     combos: false
@@ -55,6 +58,7 @@ paths:
                     features:
                       order_submit: false
                       orderbook_read: true
+                      portfolio_read: false
                     source: retropick
                     checkedAt: "2026-08-09T10:00:00Z"
   /markets/me/wallets:
@@ -324,6 +328,270 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiError"
+  /markets/me/positions:
+    get:
+      tags: [Markets]
+      operationId: listMyPositions
+      summary: List the authenticated user's position projections
+      description: |
+        Returns venue-aligned outcome-token position projections for the session's
+        primary linked account wallet. BFF positions are projections, not ownership
+        authority — reconcile with user.positions WebSocket and venue truth. Sizes and
+        prices use DecimalString; cost basis, mark value, and PnL use MoneyAmount (pUSD).
+        Responses MUST NOT be cached (private, no-store). Gated by features.portfolio_read.
+      x-phase: 4
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: marketId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - name: tokenId
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 256
+        - $ref: "#/components/parameters/PositionResolutionStateFilter"
+      responses:
+        "200":
+          description: Paginated position list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PositionsListResponse"
+              examples:
+                openPosition:
+                  summary: One active outcome position
+                  value:
+                    schemaVersion: "1"
+                    positions:
+                      - positionId: "44444444-4444-4444-8444-444444444444"
+                        marketId: polymarket:market:456
+                        tokenId: token-yes
+                        outcomeName: "Yes"
+                        size: "100"
+                        averageEntryPrice: "0.40"
+                        markPrice: "0.42"
+                        costBasis:
+                          amount: "40000000"
+                          currency: pUSD
+                          decimals: 6
+                        markValue:
+                          amount: "42000000"
+                          currency: pUSD
+                          decimals: 6
+                        unrealizedPnl:
+                          amount: "2000000"
+                          currency: pUSD
+                          decimals: 6
+                        resolutionState: active
+                        claimable: false
+                        exchangeDomain: standard
+                        updatedAt: "2026-08-09T10:08:00Z"
+                        provenance:
+                          source: polymarket_data
+                          upstreamId: pos-123
+                          observedAt: "2026-08-09T10:08:00Z"
+                    page:
+                      nextCursor: null
+                      limit: 50
+                    checkedAt: "2026-08-09T10:08:30Z"
+                    provenance:
+                      source: retropick_projection
+                      observedAt: "2026-08-09T10:08:30Z"
+                    freshness:
+                      state: fresh
+                      observedAt: "2026-08-09T10:08:30Z"
+                      ageMillis: 0
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked primary account wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Portfolio read capability disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                capabilityDisabled:
+                  value:
+                    error:
+                      code: capability_disabled
+                      message: portfolio_read is disabled
+  /markets/me/activity:
+    get:
+      tags: [Markets]
+      operationId: listMyActivity
+      summary: List the authenticated user's immutable activity events
+      description: |
+        Returns an append-only activity feed for the session's primary linked account
+        wallet. Events are immutable projections (MKT-DATA-001) — no DELETE or PATCH.
+        Paginate with cursor. REST counterpart for portfolio activity UX. Gated by
+        features.portfolio_read. Responses MUST NOT be cached (private, no-store).
+      x-phase: 4
+      security:
+        - MarketsSession: []
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/ActivityEventTypeFilter"
+      responses:
+        "200":
+          description: Paginated activity event list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActivityListResponse"
+              examples:
+                recentFill:
+                  summary: Order fill activity event
+                  value:
+                    schemaVersion: "1"
+                    events:
+                      - eventId: "55555555-5555-5555-8555-555555555555"
+                        eventType: order_filled
+                        occurredAt: "2026-08-09T10:07:00Z"
+                        summary: "Bought 25 Yes @ 0.42"
+                        marketId: polymarket:market:456
+                        tokenId: token-yes
+                        price: "0.42"
+                        size: "25"
+                        relatedOrderId: "11111111-1111-4111-8111-111111111111"
+                        relatedFillId: "22222222-2222-4222-8222-222222222222"
+                        provenance:
+                          source: polymarket_clob
+                          upstreamId: trade-789
+                          observedAt: "2026-08-09T10:07:00Z"
+                    page:
+                      nextCursor: null
+                      limit: 50
+                    checkedAt: "2026-08-09T10:08:00Z"
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked primary account wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Portfolio read capability disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                capabilityDisabled:
+                  value:
+                    error:
+                      code: capability_disabled
+                      message: portfolio_read is disabled
+  /markets/me/portfolio/summary:
+    get:
+      tags: [Markets]
+      operationId: getMyPortfolioSummary
+      summary: Aggregate portfolio value and PnL for the authenticated user
+      description: |
+        Returns descriptive aggregate portfolio metrics for the session's primary linked
+        account wallet. PnL is an informative projection — not custodial P&L authority.
+        unrealizedPnl is null when mark prices are unavailable. accountWallet comes from
+        the session resolver only — never from the request. Gated by features.portfolio_read.
+        Responses MUST NOT be cached (private, no-store).
+      x-phase: 4
+      security:
+        - MarketsSession: []
+      responses:
+        "200":
+          description: Portfolio summary aggregate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PortfolioSummaryResponse"
+              examples:
+                activePortfolio:
+                  summary: Portfolio with one open position
+                  value:
+                    schemaVersion: "1"
+                    accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    aggregate:
+                      totalMarkValue:
+                        amount: "42000000"
+                        currency: pUSD
+                        decimals: 6
+                      totalCostBasis:
+                        amount: "40000000"
+                        currency: pUSD
+                        decimals: 6
+                      unrealizedPnl:
+                        amount: "2000000"
+                        currency: pUSD
+                        decimals: 6
+                      realizedPnl:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      claimableValue:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      openPositionCount: 1
+                    pnlDisclaimer: Descriptive projection based on venue fills and mark prices; not custodial P&L authority.
+                    checkedAt: "2026-08-09T10:08:30Z"
+                    provenance:
+                      source: retropick_projection
+                      observedAt: "2026-08-09T10:08:30Z"
+                    freshness:
+                      state: fresh
+                      observedAt: "2026-08-09T10:08:30Z"
+                      ageMillis: 0
+        "401":
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: No linked primary account wallet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "503":
+          description: Portfolio read capability disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+              examples:
+                capabilityDisabled:
+                  value:
+                    error:
+                      code: capability_disabled
+                      message: portfolio_read is disabled
   /markets/orders/preview:
     post:
       tags: [Markets]
@@ -1049,6 +1317,56 @@ paths:
                 $ref: "#/components/schemas/SignalsListResponse"
         "400":
           $ref: "#/components/responses/BadRequest"
+  /markets/intelligence/whales:
+    get:
+      tags: [Intelligence]
+      operationId: listMarketsWhales
+      summary: List wallet-attributed large public trades (SM-I-001)
+      description: |
+        Descriptive whale feed from Polymarket Data API `/trades` attribution only.
+        Gated by capabilities.features.intelligence_whale_feed (default false).
+        Informational only — no auto-copy or order path (ADR-009).
+      x-phase: 1
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: minScore
+          in: query
+          schema:
+            type: number
+            minimum: 0
+            maximum: 100
+            default: 70
+        - name: minNotional
+          in: query
+          schema:
+            type: integer
+            format: int64
+            minimum: 0
+            description: Minimum notional in USD minor units (1e6 scale).
+        - name: marketId
+          in: query
+          schema:
+            type: string
+            maxLength: 256
+        - name: wallet
+          in: query
+          schema:
+            type: string
+            pattern: '^0x[0-9a-fA-F]{40}$'
+        - name: reasonCode
+          in: query
+          schema:
+            $ref: "#/components/schemas/WhaleReasonCode"
+      responses:
+        "200":
+          description: Whale feed page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WhaleFeedListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
   /health/live:
     get:
       tags: [Health]
@@ -1158,6 +1476,18 @@ components:
         (open, partially_filled, cancel_pending, unknown).
       schema:
         $ref: "#/components/schemas/OrderListStatusFilter"
+    PositionResolutionStateFilter:
+      name: resolutionState
+      in: query
+      description: Filter positions by resolution lifecycle state. Omit to return all.
+      schema:
+        $ref: "#/components/schemas/PositionResolutionState"
+    ActivityEventTypeFilter:
+      name: eventType
+      in: query
+      description: Filter activity events by type. Omit to return all event types.
+      schema:
+        $ref: "#/components/schemas/ActivityEventType"
   responses:
     Eligibility:
       description: Eligibility decision
@@ -1235,7 +1565,7 @@ components:
       properties:
         source:
           type: string
-          enum: [polymarket_gamma, polymarket_clob, polymarket_clob_ws, retropick_projection]
+          enum: [polymarket_gamma, polymarket_clob, polymarket_clob_ws, polymarket_data, retropick_projection]
         upstreamId:
           type: string
         observedAt:
@@ -1802,6 +2132,143 @@ components:
             $ref: "#/components/schemas/SignalEnvelope"
         page:
           $ref: "#/components/schemas/PageInfo"
+    WhaleReasonCode:
+      type: string
+      enum:
+        - WHALE_NOTIONAL_THRESHOLD
+        - WHALE_VOLUME_SHARE
+        - WHALE_PRICE_IMPACT
+        - WHALE_WATCHED_WALLET
+        - WHALE_CLUSTER_BURST
+        - WHALE_CONCENTRATION
+    IntelligenceEvidenceEnvelope:
+      type: object
+      additionalProperties: false
+      required: [version, signalType, computedAt, inputs, metrics, paramsRef, reasonCodes, hash, lifecycle]
+      properties:
+        version:
+          type: integer
+          const: 1
+        signalType:
+          type: string
+          enum: [whale_trade, smart_money_score, backtest_result]
+        computedAt:
+          type: string
+          format: date-time
+        inputs:
+          type: object
+          additionalProperties:
+            type: string
+        metrics:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        paramsRef:
+          type: string
+        reasonCodes:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        hash:
+          type: string
+          pattern: '^sha256:[0-9a-f]{64}$'
+        lifecycle:
+          type: string
+          enum: [draft, active, stale, retracted, superseded]
+        provenanceId:
+          type: string
+        retractedAt:
+          type: [string, "null"]
+          format: date-time
+        supersededBy:
+          type: [string, "null"]
+    WhaleFeedItem:
+      type: object
+      additionalProperties: false
+      required:
+        - fingerprint
+        - wallet
+        - marketId
+        - outcome
+        - side
+        - price
+        - size
+        - notionalUsd
+        - tradeTs
+        - whaleScore
+        - reasonCodes
+        - freshness
+        - provenance
+        - evidence
+        - lagSeconds
+        - source
+      properties:
+        fingerprint:
+          type: string
+        wallet:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+        marketId:
+          type: string
+        marketTitle:
+          type: string
+        outcome:
+          type: string
+        side:
+          type: string
+          enum: [BUY, SELL]
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        size:
+          $ref: "#/components/schemas/DecimalString"
+        notionalUsd:
+          $ref: "#/components/schemas/DecimalString"
+        tradeTs:
+          type: string
+          format: date-time
+        whaleScore:
+          type: string
+          description: Unitless Launch WhaleScore rendered as decimal string.
+        reasonCodes:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/WhaleReasonCode"
+        displayName:
+          type: string
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        evidence:
+          $ref: "#/components/schemas/IntelligenceEvidenceEnvelope"
+        lagSeconds:
+          type: integer
+          format: int64
+          minimum: 0
+        source:
+          type: string
+          const: data_trades
+    WhaleFeedListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, items, page, checkedAt, freshness]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WhaleFeedItem"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+        checkedAt:
+          type: string
+          format: date-time
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
     EligibilityResponse:
       type: object
       additionalProperties: false
@@ -1998,7 +2465,7 @@ components:
           $ref: "#/components/schemas/DecimalString"
         size:
           $ref: "#/components/schemas/DecimalString"
-          description: USDC collateral amount for BUY; outcome shares for SELL.
+          description: Outcome share amount for BUY and SELL limit orders. Collateral is derived server-side from price and signed makerAmount.
         orderType:
           $ref: "#/components/schemas/OrderType"
         timeInForce:
@@ -2343,6 +2810,188 @@ components:
         checkedAt:
           type: string
           format: date-time
+    PositionResolutionState:
+      type: string
+      enum: [active, resolved, redeemable, redeemed]
+      description: |
+        Position lifecycle per Polymarket resolution flow. active = trading open;
+        resolved = outcome determined; redeemable = claims available; redeemed = completed.
+    UserPosition:
+      type: object
+      additionalProperties: false
+      required: [positionId, marketId, tokenId, size, averageEntryPrice, costBasis, resolutionState, claimable, exchangeDomain, updatedAt, provenance]
+      properties:
+        positionId:
+          type: string
+          format: uuid
+        marketId:
+          type: string
+          minLength: 1
+        tokenId:
+          type: string
+          minLength: 1
+        outcomeName:
+          type: string
+        size:
+          $ref: "#/components/schemas/DecimalString"
+          description: Outcome token shares held.
+        averageEntryPrice:
+          $ref: "#/components/schemas/DecimalString"
+        markPrice:
+          oneOf:
+            - $ref: "#/components/schemas/DecimalString"
+            - type: "null"
+        costBasis:
+          $ref: "#/components/schemas/MoneyAmount"
+        markValue:
+          oneOf:
+            - $ref: "#/components/schemas/MoneyAmount"
+            - type: "null"
+        unrealizedPnl:
+          oneOf:
+            - $ref: "#/components/schemas/MoneyAmount"
+            - type: "null"
+        realizedPnl:
+          oneOf:
+            - $ref: "#/components/schemas/MoneyAmount"
+            - type: "null"
+        resolutionState:
+          $ref: "#/components/schemas/PositionResolutionState"
+        claimable:
+          type: boolean
+          description: True when redemption is available per venue resolution state.
+        exchangeDomain:
+          type: string
+          enum: [standard, neg_risk]
+        updatedAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+    PositionsListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, positions, page, checkedAt, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserPosition"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+        checkedAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
+    ActivityEventType:
+      type: string
+      enum: [order_submitted, order_filled, order_canceled, funding_credited, withdrawal_confirmed, split, merge, redeem, convert]
+    ActivityEvent:
+      type: object
+      additionalProperties: false
+      required: [eventId, eventType, occurredAt, summary, provenance]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        eventType:
+          $ref: "#/components/schemas/ActivityEventType"
+        occurredAt:
+          type: string
+          format: date-time
+        summary:
+          type: string
+          description: Human-readable activity description for UI display.
+        marketId:
+          type: string
+          minLength: 1
+        tokenId:
+          type: string
+          minLength: 1
+        price:
+          $ref: "#/components/schemas/DecimalString"
+        size:
+          $ref: "#/components/schemas/DecimalString"
+        amount:
+          $ref: "#/components/schemas/MoneyAmount"
+        relatedOrderId:
+          type: string
+          format: uuid
+        relatedFillId:
+          type: string
+          format: uuid
+        relatedOperationId:
+          type: string
+          format: uuid
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+    ActivityListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, events, page, checkedAt]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityEvent"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+        checkedAt:
+          type: string
+          format: date-time
+    PortfolioPnLAggregate:
+      type: object
+      additionalProperties: false
+      required: [totalMarkValue, totalCostBasis, realizedPnl, claimableValue, openPositionCount]
+      properties:
+        totalMarkValue:
+          $ref: "#/components/schemas/MoneyAmount"
+        totalCostBasis:
+          $ref: "#/components/schemas/MoneyAmount"
+        unrealizedPnl:
+          oneOf:
+            - $ref: "#/components/schemas/MoneyAmount"
+            - type: "null"
+          description: Null when mark prices are unavailable for one or more open positions.
+        realizedPnl:
+          $ref: "#/components/schemas/MoneyAmount"
+        claimableValue:
+          $ref: "#/components/schemas/MoneyAmount"
+        openPositionCount:
+          type: integer
+          minimum: 0
+    PortfolioSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [schemaVersion, accountWallet, aggregate, pnlDisclaimer, checkedAt, provenance]
+      properties:
+        schemaVersion:
+          $ref: "#/components/schemas/SchemaVersion"
+        accountWallet:
+          type: string
+          pattern: '^0x[0-9a-fA-F]{40}$'
+          description: Primary linked account wallet from session resolver (ADR-003).
+        aggregate:
+          $ref: "#/components/schemas/PortfolioPnLAggregate"
+        pnlDisclaimer:
+          type: string
+          description: Required descriptive disclaimer — PnL is projection, not custodial authority.
+        checkedAt:
+          type: string
+          format: date-time
+        provenance:
+          $ref: "#/components/schemas/UpstreamProvenance"
+        freshness:
+          $ref: "#/components/schemas/MarketFreshness"
     CapabilitiesResponse:
       type: object
       additionalProperties: false
@@ -2370,7 +3019,18 @@ components:
               description: |
                 When false, submit and cancel POST handlers MUST NOT be mounted;
                 clients hide trade CTAs. Runtime remains false until MKT-P3-002 wiring.
-          required: [order_submit]
+            portfolio_read:
+              type: boolean
+              description: |
+                When false, portfolio GET handlers (positions, activity, summary) MUST NOT
+                be mounted; clients hide portfolio surfaces. Runtime remains false until
+                MKT-P4-001 wiring.
+            intelligence_whale_feed:
+              type: boolean
+              description: |
+                When false, GET /markets/intelligence/whales returns an empty page with
+                freshness.reason feature_disabled. SM-I-001 whale feed (default false).
+          required: [order_submit, portfolio_read]
         source:
           type: string
         checkedAt:

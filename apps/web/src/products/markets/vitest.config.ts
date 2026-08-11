@@ -1,23 +1,20 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import react from "@vitejs/plugin-react-swc";
+import { defineConfig } from "vitest/config";
 
 const moduleRoot = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleRoot, "../../../../../");
 const webNodeModules = path.join(repoRoot, "apps/web/node_modules");
-const feNodeModules = path.join(repoRoot, "apps/fe-v1/node_modules");
-const requireFromFe = createRequire(path.join(feNodeModules, "vitest/package.json"));
 const requireFromWeb = createRequire(path.join(webNodeModules, "vitest/package.json"));
 
-const react = requireFromFe("@vitejs/plugin-react-swc").default;
-const { defineConfig } = requireFromFe("vitest/config");
-
 function resolveModule(name: string): string {
-  try {
-    return path.dirname(requireFromWeb.resolve(`${name}/package.json`));
-  } catch {
-    return path.join(feNodeModules, name);
-  }
+  return path.dirname(requireFromWeb.resolve(`${name}/package.json`));
+}
+
+function resolveSubpath(subpath: string): string {
+  return requireFromWeb.resolve(subpath);
 }
 
 export default defineConfig({
@@ -27,22 +24,22 @@ export default defineConfig({
     alias: {
       "@": path.join(repoRoot, "apps/web/src"),
       "@retropick/polymarket": path.join(repoRoot, "packages/polymarket/src/index.ts"),
-      "@testing-library/jest-dom": path.join(feNodeModules, "@testing-library/jest-dom"),
-      "@testing-library/react": path.join(feNodeModules, "@testing-library/react"),
-      react: path.join(feNodeModules, "react"),
-      "react-dom": path.join(feNodeModules, "react-dom"),
-      "react-router-dom": path.join(feNodeModules, "react-router-dom"),
-      "@tanstack/react-query": path.join(feNodeModules, "@tanstack/react-query"),
-      clsx: path.join(feNodeModules, "clsx"),
+      "@testing-library/jest-dom": resolveModule("@testing-library/jest-dom"),
+      "@testing-library/react": resolveModule("@testing-library/react"),
+      react: resolveModule("react"),
+      "react-dom": resolveModule("react-dom"),
+      "react-router-dom": resolveModule("react-router-dom"),
+      "@tanstack/react-query": resolveModule("@tanstack/react-query"),
+      clsx: resolveSubpath("clsx"),
+      "tailwind-merge": resolveSubpath("tailwind-merge"),
       wagmi: resolveModule("wagmi"),
       viem: resolveModule("viem"),
       siwe: resolveModule("siwe"),
-      "@reown/appkit/react": resolveModule("@reown/appkit"),
-      "@reown/appkit/networks": resolveModule("@reown/appkit"),
+      "@reown/appkit/react": resolveSubpath("@reown/appkit/react"),
+      "@reown/appkit/networks": resolveSubpath("@reown/appkit/networks"),
       "@wagmi/core": resolveModule("@wagmi/core"),
       "@reown/appkit-adapter-wagmi": resolveModule("@reown/appkit-adapter-wagmi"),
     },
-    modules: [webNodeModules, feNodeModules, path.join(repoRoot, "node_modules"), "node_modules"],
   },
   test: {
     environment: "jsdom",

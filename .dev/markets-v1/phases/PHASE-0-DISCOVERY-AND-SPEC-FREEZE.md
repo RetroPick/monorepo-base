@@ -97,7 +97,7 @@ Stakeholders approve V1 scope with evidence-backed ADRs, requirements, threat mo
 Documentation baseline, repository access, master prompt acceptance.
 
 - [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [AGENT_OPERATING_CONTRACT.md](../agent-harness/AGENT_OPERATING_CONTRACT.md)
+- [AGENT_OPERATING_CONTRACT.md](../../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
 ## Dependencies
 
@@ -137,7 +137,7 @@ Documentation baseline, repository access, master prompt acceptance.
 
 - .dev/markets-v1/research/evidence-register.yaml
 - .dev/markets-v1/architecture/adr/
-- .dev/markets-v1/agent-harness/
+- .harness/products/markets-v1/
 
 ## Data migrations
 

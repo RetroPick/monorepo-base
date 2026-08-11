@@ -316,6 +316,91 @@ erDiagram
 
     **Indices:** `UNIQUE (upstream_source, upstream_id)`; `(order_id, observed_at DESC)`; `(user_id, observed_at DESC)`. **Retention:** trading audit lifetime.
 
+    ## 4C. Phase-4 portfolio DDL (MKT-P4 positions/activity migration)
+
+    Phase-4 portfolio tables live in `public` with a `markets_` prefix. Logical names in this doc map to physical tables as follows:
+
+    | Logical | Physical table | Introduced |
+    |---------|----------------|------------|
+    | `markets.position_projections` | `public.markets_position_projections` | `000022` |
+    | `markets.activity_events` | `public.markets_activity_events` | `000022` |
+
+    Expand-only (`000022`): no `ALTER` on Phase-1/2/3 tables. PKs are app-supplied UUID v7. No binary-float money columns; sizes/prices/PnL use `TEXT` (`DecimalString`); cost basis and fees use `BIGINT` base units + currency/decimals metadata. Position projections are reconciled derived state (not user-edited truth). Activity events are append-only with upstream-tuple dedup (MKT-DATA-001).
+
+    **Deferred (not `000022`):** `markets_ctf_operations` (MKT-P4-004), `markets.redemption_projections` (MKT-P4-005).
+
+    **Upstream id fallback:** when Data API omits a stable position id, use composite `{account_wallet}:{token_id}` as `upstream_id` with `upstream_source = data_api`.
+
+    ### `markets.position_projections` (`markets_position_projections`)
+
+    Reconciled per-outcome inventory for `GET /markets/me/positions` and WS `user.positions`. One row per `(user_id, account_wallet, token_id)`.
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | user_id | TEXT | NOT NULL | Session owner |
+    | wallet_account_id | UUID | NULL FK → `markets_wallet_accounts` | Optional PHASE-2 link |
+    | account_wallet | TEXT | NOT NULL | Lowercase `0x` + 40 hex; CHECK; ADR-003 account wallet |
+    | market_id | TEXT | NOT NULL | Canonical `polymarket:market:{upstreamId}` |
+    | token_id | TEXT | NOT NULL | Outcome CLOB token id |
+    | condition_id | TEXT | NOT NULL | From catalog/metadata |
+    | outcome_index | INT | NULL CHECK ≥ 0 when set | |
+    | size | TEXT | NOT NULL | DecimalString; zero = closed in API layer |
+    | avg_entry_price | TEXT | NULL | DecimalString cost basis |
+    | mark_price | TEXT | NULL | DecimalString for unrealized PnL |
+    | cost_basis_amount | BIGINT | NULL | USDC base units (never float) |
+    | cost_basis_currency | TEXT | NULL DEFAULT `USDC` | |
+    | cost_basis_decimals | INT | NULL DEFAULT 6 | |
+    | unrealized_pnl | TEXT | NULL | DecimalString (informative projection) |
+    | realized_pnl | TEXT | NULL | DecimalString |
+    | resolution_status | TEXT | NOT NULL | CHECK ∈ `active`, `resolved`, `redeemable`, `redeemed`, `unknown` |
+    | redeemable | BOOLEAN | NOT NULL DEFAULT false | Gate redeem CTA |
+    | claimable_amount | TEXT | NULL | DecimalString when redeemable |
+    | freshness_state | TEXT | NOT NULL | CHECK ∈ `fresh`, `stale`, `reconciling`, `drift_detected` |
+    | freshness_reason | TEXT | NOT NULL DEFAULT '' | |
+    | upstream_source | TEXT | NOT NULL DEFAULT `data_api` | Also `clob`, `chain` after reconcile |
+    | upstream_id | TEXT | NOT NULL | Data API position id or composite fallback |
+    | chain_id | INT | NOT NULL DEFAULT 137 | Polygon mainnet |
+    | observed_at | TIMESTAMPTZ | NOT NULL | Last venue observation |
+    | version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
+    | payload_json | JSONB | NULL | Normalized upstream slice; size CHECK ≤ 1 MiB |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+    | updated_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | |
+
+    **Status vocabulary:** `resolution_status` (market lifecycle) ≠ `freshness_state` (projection SLA) — do not merge enums.
+
+    **Indices:** `UNIQUE (user_id, account_wallet, token_id)`; `UNIQUE (upstream_source, upstream_id)`; `(user_id, resolution_status, updated_at DESC)`; `(user_id, account_wallet, updated_at DESC)`; `(market_id, token_id)`. **Retention:** account/trading lifetime; repair via reconciliation, not user edit.
+
+    ### `markets.activity_events` (`markets_activity_events`)
+
+    Append-only activity log for `GET /markets/me/activity` (MKT-DATA-001). Ingest from Data API `/activity`, `/trades`, plus local projection of fills/orders/funding (workers). No `updated_at` — rows inserted once; dedup via `UNIQUE (upstream_source, upstream_id)`.
+
+    | Field | Type | Constraints | Notes |
+    |-------|------|-------------|-------|
+    | id | UUID | PK | App-supplied UUID v7 |
+    | user_id | TEXT | NOT NULL | Owner |
+    | account_wallet | TEXT | NULL | Lowercase `0x` + 40 hex; CHECK when set |
+    | event_kind | TEXT | NOT NULL | CHECK ∈ `fill`, `order`, `funding`, `withdrawal`, `split`, `merge`, `redeem`, `convert`, `transfer`, `resolution`, `other` |
+    | event_subtype | TEXT | NULL | e.g. `BUY`, `SELL`, `credited` |
+    | title | TEXT | NULL | Display copy (optional denorm) |
+    | market_id | TEXT | NULL | |
+    | token_id | TEXT | NULL | |
+    | order_id | UUID | NULL FK → `markets_user_orders` | |
+    | fill_id | UUID | NULL FK → `markets_fills` | |
+    | reference_id | TEXT | NULL | Polymorphic link (funding op id, tx, etc.) |
+    | amount | TEXT | NULL | DecimalString |
+    | fee_amount | BIGINT | NULL | Base units (never float) |
+    | fee_currency | TEXT | NULL DEFAULT `USDC` | |
+    | fee_decimals | INT | NULL DEFAULT 6 | |
+    | tx_hash | TEXT | NULL | `0x` + 64 hex; CHECK when set |
+    | upstream_source | TEXT | NOT NULL | e.g. `data_api`, `bff` |
+    | upstream_id | TEXT | NOT NULL | Immutable ingest key |
+    | observed_at | TIMESTAMPTZ | NOT NULL | Event time (sort key) |
+    | payload_json | JSONB | NULL | Size CHECK ≤ 1 MiB |
+    | created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Ingest time only |
+
+    **Indices:** `UNIQUE (upstream_source, upstream_id)`; `(user_id, observed_at DESC)`; `(user_id, event_kind, observed_at DESC)`; partial on `(order_id)`, `(fill_id)` WHERE NOT NULL. **Retention:** account activity lifetime (T2).
+
 ### `markets.catalog_venues`
 | Field | Type | Constraints | Notes |
 |-------|------|-------------|-------|
@@ -491,19 +576,12 @@ API-owned signer → account wallet linkage (MKT-P2-004). Not an upstream projec
 **Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
 
 ### `markets.position_projections`
-| Field | Type | Constraints | Notes |
-|-------|------|-------------|-------|
-| id | UUID | PK | Internal surrogate key |
-| created_at | TIMESTAMPTZ | NOT NULL DEFAULT now() | Insert time |
-| updated_at | TIMESTAMPTZ | NOT NULL | Last mutation |
-| upstream_source | TEXT | NOT NULL | gamma|clob|chain|relayer |
-| upstream_id | TEXT | NOT NULL | Immutable venue identifier |
-| version | INT | NOT NULL DEFAULT 1 | Optimistic locking |
-| chain_id | INT | NOT NULL | Polygon mainnet = 137 |
-| observed_at | TIMESTAMPTZ | NOT NULL | Upstream observation time |
-| status | TEXT | NOT NULL | Domain-specific enum |
-| payload_json | JSONB | NULL | Normalized upstream slice |
-**Indices:** upstream tuple + status/time. **Retention:** domain policy in platform docs.
+
+Phase-4 physical DDL and field specs: see **§4C Phase-4 portfolio DDL** above (`000022`).
+
+### `markets.activity_events`
+
+Phase-4 physical DDL and field specs: see **§4C Phase-4 portfolio DDL** above (`000022`).
 
 ### `markets.redemption_projections`
 | Field | Type | Constraints | Notes |

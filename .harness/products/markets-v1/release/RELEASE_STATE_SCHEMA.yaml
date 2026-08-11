@@ -1,0 +1,46 @@
+# RELEASE_STATE_SCHEMA — runtime release-state.yaml (outside Git)
+
+# Generated live at ~/.local/state/retropick-harness/release-state.yaml
+# by .harness/scripts/reconcile-release-state.sh. Never committed.
+# Only evidence may set a field to green; unknown -> null/"unknown".
+
+release:
+  product: markets-v1
+  target: web-android
+
+baseline:
+  monorepo_sha: ""        # current canonical monorepo HEAD
+  android_sha: ""         # Android upstream main HEAD
+  android_gitlink_sha: "" # SHA pinned in apps/android gitlink
+  clean: false            # working-tree cleanliness (both repos)
+
+capabilities:
+  catalog: null           # discovery / market list
+  realtime: null          # websocket + recovery
+  auth: null              # session / auth
+  eligibility: null       # jurisdiction / eligibility
+  balances: null          # wallet balances
+  order_preview: null
+  order_submit: null
+  order_cancel: null
+  reconciliation: null
+  positions: null
+  portfolio: null
+  redemption: null
+  withdrawal: null
+  web: null               # web client parity
+  android: null           # android client parity
+
+gates:
+  backend_tests: null
+  openapi: null
+  web_typecheck: null
+  web_tests: null
+  android_build: null
+  cross_client_e2e: null
+  staging_smoke: null
+  security_review: null
+
+blockers: []              # list of {id, summary, owner}
+
+human_gates: {}           # task_id -> {gate, needed, why, human_action, resumes}

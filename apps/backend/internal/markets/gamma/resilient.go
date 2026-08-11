@@ -9,11 +9,11 @@ import (
 )
 
 const (
-	defaultCacheTTL            = 45 * time.Second
-	defaultFailureThreshold    = 5
-	defaultCircuitCooldown     = 30 * time.Second
-	defaultMax429Retries       = 2
-	defaultInitial429Backoff   = 200 * time.Millisecond
+	defaultCacheTTL          = 45 * time.Second
+	defaultFailureThreshold  = 5
+	defaultCircuitCooldown   = 30 * time.Second
+	defaultMax429Retries     = 2
+	defaultInitial429Backoff = 200 * time.Millisecond
 )
 
 type ResilientConfig struct {
@@ -29,9 +29,9 @@ type ResilientClient struct {
 	inner *Client
 	cfg   ResilientConfig
 
-	mu              sync.Mutex
-	cache           map[string]cacheEntry
-	consecutiveFail int
+	mu               sync.Mutex
+	cache            map[string]cacheEntry
+	consecutiveFail  int
 	circuitOpenUntil time.Time
 }
 
@@ -69,11 +69,11 @@ func NewResilientClient(baseURL string, cfg ResilientConfig) *ResilientClient {
 func (c *ResilientClient) ListEvents(ctx context.Context, limit, offset int) ([]Event, error) {
 	key := fmt.Sprintf("list:%d:%d", limit, offset)
 	var cached []Event
-	if c.loadCache(key, &cached, false) {
+	if c.loadCache(key, &cached) {
 		return cached, nil
 	}
 	if err := c.circuitBlocked(); err != nil {
-		if c.loadCache(key, &cached, true) {
+		if c.loadCache(key, &cached) {
 			return cached, nil
 		}
 		return nil, err
@@ -81,7 +81,7 @@ func (c *ResilientClient) ListEvents(ctx context.Context, limit, offset int) ([]
 	rows, err := c.listEventsWith429Retry(ctx, limit, offset)
 	if err != nil {
 		c.recordFailure()
-		if c.loadCache(key, &cached, true) {
+		if c.loadCache(key, &cached) {
 			return cached, nil
 		}
 		return nil, err
@@ -94,11 +94,11 @@ func (c *ResilientClient) ListEvents(ctx context.Context, limit, offset int) ([]
 func (c *ResilientClient) GetEvent(ctx context.Context, eventID string) (Event, error) {
 	key := "event:" + eventID
 	var cached Event
-	if c.loadCache(key, &cached, false) {
+	if c.loadCache(key, &cached) {
 		return cached, nil
 	}
 	if err := c.circuitBlocked(); err != nil {
-		if c.loadCache(key, &cached, true) {
+		if c.loadCache(key, &cached) {
 			return cached, nil
 		}
 		return Event{}, err
@@ -106,7 +106,7 @@ func (c *ResilientClient) GetEvent(ctx context.Context, eventID string) (Event, 
 	row, err := c.getEventWith429Retry(ctx, eventID)
 	if err != nil {
 		c.recordFailure()
-		if c.loadCache(key, &cached, true) {
+		if c.loadCache(key, &cached) {
 			return cached, nil
 		}
 		return Event{}, err
@@ -119,11 +119,11 @@ func (c *ResilientClient) GetEvent(ctx context.Context, eventID string) (Event, 
 func (c *ResilientClient) GetMarket(ctx context.Context, marketID string) (Market, error) {
 	key := "market:" + marketID
 	var cached Market
-	if c.loadCache(key, &cached, false) {
+	if c.loadCache(key, &cached) {
 		return cached, nil
 	}
 	if err := c.circuitBlocked(); err != nil {
-		if c.loadCache(key, &cached, true) {
+		if c.loadCache(key, &cached) {
 			return cached, nil
 		}
 		return Market{}, err
@@ -131,7 +131,7 @@ func (c *ResilientClient) GetMarket(ctx context.Context, marketID string) (Marke
 	row, err := c.getMarketWith429Retry(ctx, marketID)
 	if err != nil {
 		c.recordFailure()
-		if c.loadCache(key, &cached, true) {
+		if c.loadCache(key, &cached) {
 			return cached, nil
 		}
 		return Market{}, err
@@ -256,7 +256,7 @@ func (c *ResilientClient) storeCache(key string, value any) {
 	}
 }
 
-func (c *ResilientClient) loadCache(key string, dst any, allowStale bool) bool {
+func (c *ResilientClient) loadCache(key string, dst any) bool {
 	c.mu.Lock()
 	entry, ok := c.cache[key]
 	c.mu.Unlock()
@@ -264,7 +264,7 @@ func (c *ResilientClient) loadCache(key string, dst any, allowStale bool) bool {
 		return false
 	}
 	now := c.cfg.Now()
-	if !allowStale && now.After(entry.expiresAt) {
+	if now.After(entry.expiresAt) {
 		return false
 	}
 	switch target := dst.(type) {

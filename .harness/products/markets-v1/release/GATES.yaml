@@ -1,0 +1,40 @@
+# GATES — Release gates (evidence-only)
+
+# A gate is green ONLY with executable evidence (tests / CI / staging output).
+# README assertions never move a gate green.
+
+gates:
+  backend_tests:      # go test ./... under apps/backend
+    evidence: go test output
+    owner: rp-backend-markets
+  openapi:            # markets-v1.yaml validates; no drift vs implementation
+    evidence: openapi validator / drift check output
+    owner: rp-api-contract
+  web_typecheck:      # tsc --noEmit in apps/web
+    evidence: typecheck output
+    owner: rp-web
+  web_tests:          # vitest (unit) + playwright (e2e) for Markets
+    evidence: test runner output
+    owner: rp-web
+  android_build:      # Gradle assemble/verification in RetroPick-Android
+    evidence: gradle output + APK/AAB artifact
+    owner: rp-android
+  cross_client_e2e:   # Web vs Android parity on shared BFF semantics
+    evidence: parity test output
+    owner: rp-qa-e2e
+  staging_smoke:      # docker compose staging stack health + smoke
+    evidence: smoke script output
+    owner: rp-sre-release
+  security_review:    # rp-review-security APPROVE
+    evidence: review record (APPROVE or REJECT + remediation)
+    owner: rp-review-security
+
+# Pipeline
+# IMPLEMENT -> TARGETED TEST -> QA -> REVIEW/SECURITY -> PASS: PR / FAIL: remediation
+# Reviewer must not repair its own rejected implementation.
+# Remediation is a new task assigned back to the correct implementation agent.
+
+# Merge policy during bootstrap: NO AUTOMATIC MERGE TO MAIN.
+# Future auto-merge eligibility (not enabled during bootstrap):
+#   implementation complete + QA green + reviewer approved + CI green
+#   + no human gate + branch current + no path collision + release policy enables it.

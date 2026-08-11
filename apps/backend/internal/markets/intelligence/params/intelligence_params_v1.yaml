@@ -1,0 +1,18 @@
+version: large_trade_v1
+whale_score_launch:
+  weights:
+    notional_z: 0.40
+    volume_share: 0.35
+    price_impact: 0.25
+  tau_global_usd: 5000
+  tau_liquidity_pct: 0.10
+  tau_volume_pct: 0.02
+  score_threshold: 70
+  volume_share_reason_bps: 500
+  price_impact_reason_bps: 2500
+  price_impact_cap_bps: 50
+  notional_z:
+    mu_usd: 10000
+    sigma_usd: 5000
+  dedup_window_minutes: 15
+  volume_share_epsilon_usd: 1

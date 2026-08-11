@@ -58,6 +58,7 @@ func testModule(t *testing.T, users auth.UserStore) (*auth.Module, *ecdsa.Privat
 		ChainID:        137,
 		CookieName:     "mkt_session",
 		CSRFCookieName: "mkt_csrf",
+		AllowedDomains: []string{"localhost"},
 		AuthRateLimit:  100,
 		AuthRateWindow: time.Minute,
 	}
@@ -68,6 +69,26 @@ func testModule(t *testing.T, users auth.UserStore) (*auth.Module, *ecdsa.Privat
 		Now:       func() time.Time { return fixed },
 	})
 	return mod, key, fixed
+}
+
+func TestSIWEFailsClosedWithoutAllowedDomains(t *testing.T) {
+	t.Parallel()
+	mod, key, fixed := testModule(t, auth.NewMemoryUserStore())
+	message, signature := buildSignedSIWE(t, mod, key, fixed, "localhost")
+
+	_, err := auth.VerifySIWE(auth.Config{ChainID: 137}, message, signature, "")
+	if err == nil || !strings.Contains(err.Error(), "domain not allowed") {
+		t.Fatalf("expected unconfigured allowlist rejection, got %v", err)
+	}
+}
+
+func TestLoadConfigRejectsEmptyAllowedDomains(t *testing.T) {
+	t.Setenv("MARKETS_AUTH_SESSION_SECRET", "test-secret")
+	t.Setenv("AUTH_SESSION_SECRET", "")
+	t.Setenv("MARKETS_AUTH_ALLOWED_DOMAINS", "")
+	if _, err := auth.LoadConfig(); err == nil {
+		t.Fatal("expected missing allowlist to fail configuration")
+	}
 }
 
 func buildSignedSIWE(t *testing.T, mod *auth.Module, key *ecdsa.PrivateKey, fixed time.Time, domain string) (string, string) {
@@ -208,6 +229,7 @@ func TestRequireEligibleFailsClosedWithDefaultEvaluator(t *testing.T) {
 			ChainID:        137,
 			CookieName:     "mkt_session",
 			CSRFCookieName: "mkt_csrf",
+			AllowedDomains: []string{"localhost"},
 			AuthRateLimit:  100,
 		},
 		Evaluator: eligibility.DefaultEvaluator(),
@@ -288,12 +310,13 @@ func TestSuspendedAccountEligibilityInjection(t *testing.T) {
 	}
 	mod := auth.NewModule(auth.ModuleConfig{
 		Config: auth.Config{
-			SessionSecret: "test-markets-auth-secret",
-			AccessTTL:     15 * time.Minute,
-			NonceTTL:      10 * time.Minute,
-			ChainID:       137,
-			CookieName:    "mkt_session",
-			AuthRateLimit: 100,
+			SessionSecret:  "test-markets-auth-secret",
+			AccessTTL:      15 * time.Minute,
+			NonceTTL:       10 * time.Minute,
+			ChainID:        137,
+			CookieName:     "mkt_session",
+			AllowedDomains: []string{"localhost"},
+			AuthRateLimit:  100,
 		},
 		Users:     store,
 		Evaluator: eval,

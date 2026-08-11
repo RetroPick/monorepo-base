@@ -91,7 +91,7 @@ Preview matches signature; Neg Risk routing passes vectors; timeout reconciles n
 PHASE-2 exit; CLOB V2 verified.
 
 - [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [AGENT_OPERATING_CONTRACT.md](../agent-harness/AGENT_OPERATING_CONTRACT.md)
+- [AGENT_OPERATING_CONTRACT.md](../../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
 ## Dependencies
 

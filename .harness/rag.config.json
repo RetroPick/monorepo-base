@@ -1,19 +1,20 @@
 {
   "include": [
-    "apps/**",
-    "packages/**",
-    "contracts/legacy-pool-v1/src/**",
-    "contracts/legacy-pool-v1/script/**",
-    "contracts/legacy-pool-v1/.docs/**",
-    "contracts/legacy-pool-v1/.operator/**",
-    "contracts/legacy-pool-v1/currentSmartContract.md",
-    "contracts/legacy-pool-v1/OPERATIONS_INDEX.md",
-    "contracts/legacy-pool-v1/rollingMarket.md",
-    "docs/**",
-    ".dev/backend/**",
-    ".harness/project-context.md",
+    ".harness/**",
+    ".dev/markets-v1/**",
+    "schemas/openapi/markets-v1.yaml",
+    "schemas/asyncapi/markets-realtime-v1.yaml",
+    "apps/backend/internal/markets/**",
+    "apps/backend/cmd/markets-api/**",
+    "apps/web/src/products/markets/**",
+    "packages/polymarket/**",
+    "deploy/**",
+    "ops/**",
+    "docker/**",
     "AGENTS.md",
-    "ORCHESTRATOR.md"
+    "HARNESS.md",
+    "PRODUCTION.md",
+    "DECISIONS.md"
   ],
   "exclude": [
     "**/node_modules/**",
@@ -26,9 +27,14 @@
     "**/forge-std/**",
     "**/openzeppelin-contracts/**",
     "**/chainlink-brownie-contracts/**",
-    "apps/fe-v1/sources/**",
     "**/.turbo/**",
-    "contracts/legacy-pool-v1/**"
+    "**/*.sqlite",
+    "**/*.db",
+    "**/*.log",
+    "archive/**",
+    "contracts/**",
+    "apps/android/**",
+    ".harness/state/**"
   ],
   "sourcePriority": {
     "manifest": 1,
@@ -36,5 +42,6 @@
     "agents": 3,
     "obsidian": 4,
     "code": 5
-  }
+  },
+  "note": "Markets V1 release tasks prioritize .harness/** and .dev/markets-v1/** sources. Legacy MarketEngine/contracts are excluded from Markets release RAG."
 }

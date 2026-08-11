@@ -122,7 +122,7 @@ Specify FCM, WorkManager jobs, notification categories, and Glance widgets (V1.1
 
 `apps/android/` contains a README-only greenfield pointer. No Gradle project, modules, or
 generated API client exist on disk. Implementation is scheduled for PHASE-5 per
-[implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+[implementation-manifest.yaml](../../../.harness/products/markets-v1/planning/implementation-manifest.yaml).
 
 The target module tree is documented in [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md) §4 and
 expanded in [GRADLE_MODULE_GRAPH.md](./GRADLE_MODULE_GRAPH.md). CI will add an Android job once

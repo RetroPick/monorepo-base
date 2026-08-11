@@ -21,3 +21,27 @@ export function walletConnectPath() {
 export function fundingPath() {
   return "/markets/funding";
 }
+
+export function intelligencePath() {
+  return "/markets/intelligence";
+}
+
+export function intelligenceSmartMoneyPath() {
+  return "/markets/intelligence/smart-money";
+}
+
+export function intelligenceFollowingPath() {
+  return "/markets/intelligence/following";
+}
+
+export function intelligencePaperPath() {
+  return "/markets/intelligence/paper";
+}
+
+export function walletProfilePath(address: string) {
+  return `/markets/wallets/${encodeURIComponent(address)}`;
+}
+
+export function alertsPath() {
+  return "/markets/alerts";
+}

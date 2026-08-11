@@ -103,35 +103,48 @@
   }
 
   .dark {
-    /* Polymarket-adjacent: deep gray ~#0f111a, cards ~#161922, blue CTAs */
-    --background: 228 14% 8%;
-    --foreground: 0 0% 96%;
+    /* Android RetroPick fintech palette (#0e131f / #161c2e / #3b82f6) */
+    --background: 222 35% 9%;
+    --foreground: 0 0% 100%;
 
-    --card: 228 12% 12%;
-    --card-foreground: 0 0% 96%;
-    --card-hover: 228 11% 15%;
+    --card: 222 32% 13%;
+    --card-foreground: 0 0% 100%;
+    --card-hover: 222 28% 17%;
 
-    --popover: 228 12% 12%;
-    --popover-foreground: 0 0% 96%;
+    --elevated: 222 28% 17%;
 
-    --primary: 215 90% 55%;
+    --popover: 222 32% 13%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 228 11% 14%;
-    --secondary-foreground: 0 0% 94%;
+    --secondary: 222 28% 17%;
+    --secondary-foreground: 214 20% 80%;
 
-    --muted: 228 10% 17%;
-    --muted-foreground: 228 8% 58%;
+    --muted: 222 28% 17%;
+    --muted-foreground: 215 16% 58%;
 
-    --accent: 228 10% 18%;
-    --accent-foreground: 0 0% 96%;
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 68% 48%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 228 10% 18%;
-    --input: 228 11% 16%;
-    --ring: 215 90% 55%;
+    --border: 222 24% 20%;
+    --input: 222 24% 20%;
+    --ring: 217 91% 60%;
+
+    --yes: 142 71% 45%;
+    --yes-soft: 142 71% 45% / 0.12;
+    --no: 0 84% 60%;
+    --no-soft: 0 84% 60% / 0.12;
+
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-2xl: 12px;
 
     --glass: 228 12% 12% / 0.95;
     --glass-hover: 228 11% 15% / 0.98;
@@ -150,8 +163,8 @@
     --accent-green: 142 70% 48%;
     --accent-cyan: 199 65% 50%;
 
-    --up: 145 50% 44%;
-    --down: 350 52% 52%;
+    --up: 142 71% 45%;
+    --down: 0 84% 60%;
 
     /* Portfolio dashboard accent (mock CTA orange); use via `hsl(var(--dashboard-accent))`. */
     --dashboard-accent: 16 78% 56%;
@@ -295,6 +308,67 @@ w3m-modal {
       animation: none;
       filter: none;
     }
+
+    .animate-fade-in,
+    .animate-fade-up,
+    .animate-sheet-up {
+      animation: none !important;
+    }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes sheet-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.2s ease-out;
+  }
+
+  .animate-fade-up {
+    animation: fade-up 0.25s ease-out;
+  }
+
+  .animate-sheet-up {
+    animation: sheet-up 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .bg-yes-soft {
+    background-color: hsl(var(--yes-soft));
+  }
+
+  .bg-no-soft {
+    background-color: hsl(var(--no-soft));
+  }
+
+  .text-yes {
+    color: hsl(var(--yes));
+  }
+
+  .text-no {
+    color: hsl(var(--no));
+  }
+
+  .border-yes {
+    border-color: hsl(var(--yes) / 0.3);
+  }
+
+  .border-no {
+    border-color: hsl(var(--no) / 0.3);
+  }
+
+  .bg-elevated {
+    background-color: hsl(var(--elevated));
   }
 
   @keyframes text-shimmer {

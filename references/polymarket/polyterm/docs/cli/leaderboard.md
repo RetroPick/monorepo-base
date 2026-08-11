@@ -1,0 +1,87 @@
+# Leaderboard
+
+> View top traders and your ranking
+
+## Overview
+
+View top traders and your ranking. See the best performers on Polymarket and compare
+your performance to the field.
+
+Types:
+profit  - Top by realized profit
+volume  - Top by trading volume
+winrate - Top by win percentage
+active  - Most active traders
+
+Examples:
+polyterm leaderboard                  # Top by profit
+polyterm leaderboard -t winrate       # Top by win rate
+polyterm leaderboard --me             # Your ranking
+polyterm leaderboard -p 24h -l 50     # Daily, 50 traders.
+
+## Usage
+
+### CLI
+
+```bash
+polyterm leaderboard [options]
+```
+
+### TUI
+
+In the TUI main menu, use any of these shortcuts: `lb`, `leaderboard`
+
+
+## Options
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--type`, `-t` | ['profit', 'volume', 'winrate', 'active'] | `profit` | Leaderboard type |
+| `--period`, `-p` | ['24h', '7d', '30d', 'all'] | `7d` | Time period |
+| `--limit`, `-l` | int | `20` | Number of traders to show |
+| `--me` | flag | `false` | Show your ranking |
+| `--format` | ['table', 'json'] | `table` |  |
+
+## Examples
+
+```bash
+# Basic usage
+polyterm leaderboard
+
+# With type option
+polyterm leaderboard --type profit
+
+# JSON output
+polyterm leaderboard --format json
+```
+
+## Data Sources
+
+- Gamma Markets REST API
+- Local SQLite database (`~/.polyterm/data.db`)
+
+
+## Related Commands
+
+- [Dashboard](dashboard.md)
+- [Calendar](calendar.md)
+- [News](news.md)
+- [Health](health.md)
+- [Glossary](glossary.md)
+
+---
+
+*Source: `polyterm/cli/commands/leaderboard.py`*
+
+## June 2026 Data API Source
+
+`polyterm leaderboard` now defaults to the public Data API source instead of representative pseudo-trader data.
+
+```bash
+polyterm leaderboard --source data-api --format json
+polyterm leaderboard --source local --format json
+```
+
+Data API mode uses the current `/v1/leaderboard` endpoint. PolyTerm maps `24h`, `7d`, `30d`, and `all` to `DAY`, `WEEK`, `MONTH`, and `ALL`, and maps `profit`/`volume` to Polymarket's `PNL`/`VOL` ordering. The public leaderboard endpoint does not natively sort by win rate; agent-native trader ranking uses the `trader.leaderboard` adapter tool, which combines recent public trade activity with closed-position win-rate evidence and labels that provenance in `quality_flags`.
+
+Use `--source local` to rank wallets already tracked in local SQLite. If the Data API leaderboard surface changes, JSON mode reports a normal error instead of silently generating fake trader rows.

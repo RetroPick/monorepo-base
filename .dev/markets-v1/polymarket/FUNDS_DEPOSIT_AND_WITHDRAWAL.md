@@ -103,7 +103,7 @@ Implementation-grade funding flows: bridge, direct transfer, pUSD wrap/onramp, a
 
 - V2 collateral is pUSD (EV-007); legacy USDC.e paths deprecated for new trading.
 - Bridge and onramp not wired in BFF.
-- **MKT-P2-004-web (2026-08-09):** Sandbox funding page at `/markets/funding` (`apps/web/src/products/markets/funding/`). Requires Markets session; shows signer vs linked `accountWallet`; reads `GET /me/balances` with explicit 404/502 UX; deposit-wallet create/link calls `POST /account-wallet/preview` + `/relay` only when `NEXT_PUBLIC_MARKETS_ACCOUNT_WALLET_CREATE=1` and BFF is wired. **Not production-ready** — see [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) Production wallet creation gate.
+- **MKT-P2-004-web (2026-08-09):** Sandbox funding page at `/markets/funding` (`apps/web/src/products/markets/funding/`). Requires Markets session; shows signer vs linked `accountWallet`; reads `GET /me/balances` with explicit 404/502 UX; deposit-wallet create/link calls `POST /account-wallet/preview` + `/relay` only when `NEXT_PUBLIC_MARKETS_ACCOUNT_WALLET_CREATE=1` and BFF is wired. **Not production-ready** — see [BLOCKERS_AND_HUMAN_APPROVALS.md](../../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md) Production wallet creation gate.
 
 ## 6. Target design
 
@@ -348,7 +348,7 @@ Rollback: flip capability flag in BFF config → clients poll `/markets/capabili
 Full log: [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md).
 ## 16. Acceptance criteria
 
-- [ ] All MUST requirements traced in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+- [ ] All MUST requirements traced in [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 - [ ] Time-sensitive claims cite evidence ID (EV-xxx) with retrieval date 2026-07-25.
 - [ ] No production contract address in app config without EV-008 verification pipeline.
 - [ ] Mermaid diagrams render for specified flows.

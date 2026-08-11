@@ -23,7 +23,7 @@ This README is **index + governance**, not a tenth decision. Each ADR’s Contex
 | **Who** | platform-orchestrator; Markets web/Android/backend leads; legal/security on custody and copy-trading; agents that must not silently edit accepted Decision sections. |
 | **What** | Operating manual for Markets V1 Wave 1 ADRs (001–009): index table, dependency graph, cross-ADR invariants, when to write a new ADR, supersession policy, and relationship to repo-wide R0/R1/R4 ADRs. |
 | **When** | Before proposing architecture changes, starting cross-team Wave work, or checking whether an invariant already has an accepted ADR. Re-review at phase freezes and on legal/upstream triggers in Review Cadence. |
-| **Where** | Files in `architecture/adr/ADR-00*.md`. Also log material decisions in `agent-harness/DECISION_AND_ASSUMPTION_LOG.md` and update traceability. Companion architecture docs are linked below in this README. |
+| **Where** | Files in `architecture/adr/ADR-00*.md`. Also log material decisions in `../../../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md` and update traceability. Companion architecture docs are linked below in this README. |
 | **Why** | Durable decisions—no custom exchange, BFF ACL, user signing, shared OpenAPI, no auto copy—must stay discoverable and hard to reverse casually. The index stops contradictory “local” decisions in feature PRs. |
 | **How** | Locate ADR → read Context/Decision/Consequences → implement the Decision (not a rejected Alternative). Draft new ADRs only for significant multi-team or custody/legal changes; never silently rewrite accepted Decision text; use supersession status when replacing. |
 
@@ -131,7 +131,7 @@ Create a new Markets ADR when a decision:
 
 Process:
 1. Draft ADR in this directory
-2. Log in [agent-harness/DECISION_AND_ASSUMPTION_LOG.md](../../agent-harness/DECISION_AND_ASSUMPTION_LOG.md)
+2. Log in [../../../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md](../../../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md)
 3. Update [04_REQUIREMENTS_AND_TRACEABILITY.md](../../04_REQUIREMENTS_AND_TRACEABILITY.md)
 4. Review with platform-orchestrator + affected teams
 

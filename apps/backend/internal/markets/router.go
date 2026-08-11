@@ -13,10 +13,14 @@ type EligibleMeRouteRegistrar func(r chi.Router)
 // EligibleMarketRouteRegistrar mounts routes under /api/v1/markets (outside /me) that require auth + eligibility.
 type EligibleMarketRouteRegistrar func(r chi.Router)
 
+// IntelligenceRouteRegistrar mounts intelligence routes under /api/v1/markets.
+type IntelligenceRouteRegistrar func(r chi.Router)
+
 // RouteDeps supplies optional infrastructure wiring for Markets HTTP routes.
 // Zero value keeps wallet discovery unwired (empty lists, link 503) for tests.
 type RouteDeps struct {
-	Wallet wallet.HandlerConfig
+	Wallet       wallet.HandlerConfig
+	Intelligence IntelligenceRouteRegistrar
 }
 
 // RegisterRoutes mounts Polymarket Markets BFF routes on the parent router.
@@ -64,6 +68,9 @@ func RegisterRoutesWithDepsAndMarketRoutes(
 		r.Get("/eligibility", h.Eligibility)
 		r.Get("/capabilities", h.Capabilities)
 		r.Get("/intelligence/signals", h.ListSignals)
+		if deps.Intelligence != nil {
+			deps.Intelligence(r)
+		}
 		r.Get("/events", h.ListEvents)
 		r.Get("/events/{eventID}", h.GetEvent)
 		r.Get("/markets/{marketID}/orderbook", h.GetOrderBook)

@@ -15,7 +15,6 @@ import (
 const (
 	defaultReconcileInterval = 10 * time.Second
 	defaultUnknownGrace      = 90 * time.Second
-	rejectReasonNotFound     = "reconcile_not_found"
 )
 
 // VenueReader loads authenticated CLOB order/trade snapshots.
@@ -53,17 +52,19 @@ func (nopMetrics) RecordReconcileError(string)           {}
 
 // WorkerConfig wires the order reconciliation loop.
 type WorkerConfig struct {
-	Store         *orders.ProjectionStore
-	Venue         VenueReader
-	Metrics       Metrics
-	Interval      time.Duration
-	UnknownGrace  time.Duration
-	Now           func() time.Time
+	Store        *orders.ProjectionStore
+	Journal      orders.SubmitRecoveryJournal
+	Venue        VenueReader
+	Metrics      Metrics
+	Interval     time.Duration
+	UnknownGrace time.Duration
+	Now          func() time.Time
 }
 
 // Worker repairs unknown and cancel_pending order projections against CLOB truth.
 type Worker struct {
 	store        *orders.ProjectionStore
+	journal      orders.SubmitRecoveryJournal
 	venue        VenueReader
 	metrics      Metrics
 	interval     time.Duration
@@ -95,6 +96,7 @@ func NewWorker(cfg WorkerConfig) *Worker {
 	}
 	return &Worker{
 		store:        store,
+		journal:      cfg.Journal,
 		venue:        cfg.Venue,
 		metrics:      metrics,
 		interval:     interval,
@@ -105,6 +107,10 @@ func NewWorker(cfg WorkerConfig) *Worker {
 
 // Run executes the reconcile loop until ctx is cancelled.
 func (w *Worker) Run(ctx context.Context) error {
+	w.runOnce(ctx)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 
@@ -127,9 +133,40 @@ func (w *Worker) runOnce(ctx context.Context) {
 	if w.venue == nil {
 		return
 	}
-	start := w.now()
+	now := w.now().UTC()
 	candidates := w.store.ListOrdersNeedingReconcile()
+	if w.journal != nil {
+		localCandidates := make([]orders.UserOrderRecord, 0, len(candidates))
+		for _, rec := range candidates {
+			if rec.Status == orders.OrderStatusCancelPending || (rec.AttemptID == "" && rec.RequestFingerprint == "") {
+				localCandidates = append(localCandidates, rec)
+			}
+		}
+		candidates = localCandidates
+		lease := 3 * w.interval
+		if lease < 30*time.Second {
+			lease = 30 * time.Second
+		}
+		journalCandidates, err := w.journal.ClaimSubmitReconciliationCandidates(ctx, 100, lease)
+		if err != nil {
+			w.metrics.RecordReconcileError("journal")
+		} else {
+			for _, rec := range journalCandidates {
+				w.store.PutOrder(rec)
+				candidates = append(candidates, rec)
+			}
+		}
+	}
 	w.metrics.RecordReconcileScanned(len(candidates))
+	oldestAge := time.Duration(0)
+	for _, candidate := range candidates {
+		if candidate.CreatedAt.IsZero() {
+			continue
+		}
+		if age := now.Sub(candidate.CreatedAt); age > oldestAge {
+			oldestAge = age
+		}
+	}
 	repaired := 0
 
 	if len(candidates) > 0 {
@@ -140,7 +177,7 @@ func (w *Worker) runOnce(ctx context.Context) {
 			openByID := indexOpenOrders(openOrders)
 			openByMaker := indexOpenOrdersByMaker(openOrders)
 			for _, local := range candidates {
-				if w.repairOrder(local, openByID, openByMaker) {
+				if w.repairOrder(ctx, local, openByID, openByMaker) {
 					repaired++
 				}
 			}
@@ -148,40 +185,60 @@ func (w *Worker) runOnce(ctx context.Context) {
 	}
 
 	w.ingestFills(ctx)
-	w.metrics.RecordReconcileRun(repaired, w.now().Sub(start))
+	w.metrics.RecordReconcileRun(repaired, oldestAge)
 }
 
 func (w *Worker) repairOrder(
+	ctx context.Context,
 	local orders.UserOrderRecord,
 	openByID map[string]clob.VenueOpenOrder,
 	openByMaker map[string][]clob.VenueOpenOrder,
 ) bool {
 	now := w.now().UTC()
 	switch local.Status {
-	case orders.OrderStatusUnknown:
+	case orders.MutationStateIntentPersisted, orders.OrderStatusUnknown, orders.MutationStateUnknownReconciling, orders.MutationStateSubmitting:
+		if local.Status == orders.MutationStateIntentPersisted && local.AttemptID == "" {
+			if w.journal != nil {
+				if err := w.journal.MarkSubmitNotSubmitted(ctx, local.OrderID, now); err != nil {
+					w.metrics.RecordReconcileError("journal")
+					return false
+				}
+			}
+			if w.store.ApplyReconcile(local.OrderID, orders.ReconcilePatch{Status: orders.OrderStatusNotSubmitted}, now) {
+				w.metrics.RecordReconcileRepair("not_submitted")
+				return true
+			}
+			return false
+		}
 		lag := now.Sub(local.CreatedAt)
 		if venue, ok := openByID[local.VenueOrderID]; ok && local.VenueOrderID != "" {
-			if w.applyVenueOpen(local.OrderID, venue, now) {
+			if w.applyVenueOpen(ctx, local, venue, now) {
 				w.metrics.RecordReconcileRepair("open")
 				return true
 			}
 			return false
 		}
 		if match, ok := MatchUnknownOrder(local, openByMaker[strings.ToLower(local.Maker)]); ok {
-			if w.applyVenueOpen(local.OrderID, match.Order, now) {
+			if w.applyVenueOpen(ctx, local, match.Order, now) {
 				w.metrics.RecordReconcileRepair("open")
 				return true
 			}
 			return false
 		}
 		if lag >= w.unknownGrace {
-			if w.store.ApplyReconcile(local.OrderID, orders.ReconcilePatch{
-				Status:          orders.OrderStatusRejected,
-				RejectionReason: rejectReasonNotFound,
-			}, now) {
-				w.metrics.RecordReconcileRepair("rejected")
-				return true
+			if w.journal != nil && local.AttemptID != "" {
+				if err := w.journal.MarkSubmitStillReconciling(ctx, local.OrderID, local.AttemptID, "venue_evidence_absent", map[string]string{
+					"source":     "polymarket_clob_open_orders",
+					"observedAt": now.Format(time.RFC3339Nano),
+					"result":     "absent_or_ambiguous",
+					"retryable":  "true",
+					"terminal":   "false",
+				}, now); err != nil {
+					w.metrics.RecordReconcileError("journal")
+					return false
+				}
 			}
+			w.metrics.RecordReconcileRepair("unknown")
 		}
 		return false
 	case orders.OrderStatusCancelPending:
@@ -201,10 +258,17 @@ func (w *Worker) repairOrder(
 	}
 }
 
-func (w *Worker) applyVenueOpen(orderID string, venue clob.VenueOpenOrder, now time.Time) bool {
-	return w.store.ApplyReconcile(orderID, orders.ReconcilePatch{
+func (w *Worker) applyVenueOpen(ctx context.Context, local orders.UserOrderRecord, venue clob.VenueOpenOrder, now time.Time) bool {
+	canonicalStatus := mapVenueStatus(venue.Status)
+	if w.journal != nil {
+		if err := w.journal.MarkSubmitReconciled(ctx, local.OrderID, local.AttemptID, venue.OrderID, canonicalStatus, now); err != nil {
+			w.metrics.RecordReconcileError("journal")
+			return false
+		}
+	}
+	return w.store.ApplyReconcile(local.OrderID, orders.ReconcilePatch{
 		VenueOrderID: venue.OrderID,
-		Status:       mapVenueStatus(venue.Status),
+		Status:       canonicalStatus,
 	}, now)
 }
 

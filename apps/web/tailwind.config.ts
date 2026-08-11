@@ -56,13 +56,16 @@ export default {
         },
         up: "hsl(var(--up))",
         down: "hsl(var(--down))",
+        yes: "hsl(var(--yes))",
+        no: "hsl(var(--no))",
+        elevated: "hsl(var(--elevated))",
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-        xl: "0.75rem",
-        "2xl": "1rem",
+        lg: "var(--radius-lg, var(--radius))",
+        md: "var(--radius-md, calc(var(--radius) - 2px))",
+        sm: "var(--radius-sm, calc(var(--radius) - 4px))",
+        xl: "var(--radius-xl, 0.75rem)",
+        "2xl": "var(--radius-2xl, 1rem)",
       },
       keyframes: {
         "accordion-down": {

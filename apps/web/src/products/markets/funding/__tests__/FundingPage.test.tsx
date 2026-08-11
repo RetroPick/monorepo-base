@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 const mockSession = vi.fn();
 const mockTradingWallets = vi.fn();
@@ -22,8 +23,8 @@ vi.mock("../hooks/useMarketsCollateralBalance", () => ({
   useMarketsCollateralBalance: () => mockBalance(),
 }));
 
-vi.mock("../../components/MarketsShellLayout", () => ({
-  MarketsShellLayout: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+vi.mock("../../components/shell/MarketsAppShell", () => ({
+  MarketsAppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock("../components/FundingAccountSummary", () => ({
@@ -31,6 +32,14 @@ vi.mock("../components/FundingAccountSummary", () => ({
 }));
 
 import { FundingPage } from "../pages/FundingPage";
+
+function renderFunding() {
+  return render(
+    <MemoryRouter>
+      <FundingPage />
+    </MemoryRouter>,
+  );
+}
 
 describe("FundingPage", () => {
   beforeEach(() => {
@@ -57,12 +66,12 @@ describe("FundingPage", () => {
   });
 
   it("shows sandbox banner", () => {
-    render(<FundingPage />);
+    renderFunding();
     expect(screen.getByText(/Sandbox funding UX/i)).toBeInTheDocument();
   });
 
   it("does not show setup or balance panels without session", () => {
-    render(<FundingPage />);
+    renderFunding();
     expect(screen.queryByText(/Deposit wallet setup/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Tradable collateral \(pUSD\)/i })).not.toBeInTheDocument();
   });
@@ -82,7 +91,7 @@ describe("FundingPage", () => {
       resetPreview: vi.fn(),
     });
 
-    render(<FundingPage />);
+    renderFunding();
     expect(screen.getByText(/Account setup unavailable/i)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /Tradable collateral \(pUSD\)/i })).toBeInTheDocument();
   });

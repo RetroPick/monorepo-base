@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -31,9 +32,11 @@ func (nopSubmitMetrics) RecordPreviewSignMatch(bool) {}
 
 // Submit wires order submit dependencies into Service.
 type Submit struct {
+	mu                 sync.Mutex
 	orderSubmitEnabled bool
 	venue              VenueSubmitter
 	idempotency        *IdempotencyStore
+	journal            MutationJournal
 	metrics            SubmitMetrics
 }
 
@@ -42,6 +45,7 @@ type SubmitConfig struct {
 	OrderSubmitEnabled bool
 	Venue              VenueSubmitter
 	Idempotency        *IdempotencyStore
+	Journal            MutationJournal
 	Metrics            SubmitMetrics
 }
 
@@ -58,6 +62,7 @@ func newSubmit(cfg SubmitConfig) Submit {
 		orderSubmitEnabled: cfg.OrderSubmitEnabled,
 		venue:              cfg.Venue,
 		idempotency:        idem,
+		journal:            cfg.Journal,
 		metrics:            metrics,
 	}
 }
@@ -80,6 +85,10 @@ func (s *Service) SubmitOrder(
 	idempotencyKey string,
 	req SubmitRequest,
 ) (SubmitResponse, int, error) {
+	if s.submit.journal == nil {
+		s.submit.mu.Lock()
+		defer s.submit.mu.Unlock()
+	}
 	if !s.submit.orderSubmitEnabled {
 		return SubmitResponse{}, httpStatusCapabilityDisabled, ErrCapabilityDisabled
 	}
@@ -95,11 +104,13 @@ func (s *Service) SubmitOrder(
 	}
 
 	bodyHash := hashSubmitBody(req)
-	if cached, ok := s.submit.idempotency.Lookup(idempotencyKey); ok {
-		if cached.BodyHash != bodyHash {
-			return SubmitResponse{}, httpStatusIdempotencyConflict, ErrIdempotencyConflict
+	if s.submit.journal == nil {
+		if cached, ok := s.submit.idempotency.Lookup(idempotencyKey); ok {
+			if cached.BodyHash != bodyHash {
+				return SubmitResponse{}, httpStatusIdempotencyConflict, ErrIdempotencyConflict
+			}
+			return cached.Response, cached.StatusCode, nil
 		}
-		return cached.Response, cached.StatusCode, nil
 	}
 
 	rec, ok := s.store.Get(req.PreviewID)
@@ -128,12 +139,36 @@ func (s *Service) SubmitOrder(
 		OrderType: clob.OrderTypeGTC,
 	}
 
+	var durableClaim MutationClaim
+	if s.submit.journal != nil {
+		var err error
+		durableClaim, err = s.submit.journal.ClaimSubmit(ctx, SubmitMutationClaim{
+			UserID:             session.UserID,
+			IdempotencyKey:     idempotencyKey,
+			RequestFingerprint: bodyHash,
+			Intent:             mutationIntentFromPreview(req, rec, bodyHash),
+		})
+		if err != nil {
+			if errors.Is(err, ErrJournalIdempotencyConflict) {
+				return SubmitResponse{}, httpStatusIdempotencyConflict, ErrIdempotencyConflict
+			}
+			return SubmitResponse{}, httpStatusUpstreamUnavailable, ErrUpstreamUnavailable
+		}
+		if !durableClaim.ShouldSubmit {
+			resp := replayResponseFromClaim(durableClaim)
+			if s.submit.journal == nil {
+				s.submit.idempotency.Put(idempotencyKey, bodyHash, httpStatusSubmitCreated, resp)
+			}
+			return resp, httpStatusSubmitCreated, nil
+		}
+	}
+
 	result, err := s.submit.venue.SubmitOrder(ctx, clobReq)
 	if err != nil {
 		s.submit.metrics.RecordOrderSubmit(false)
 		if errors.Is(err, clob.ErrSubmitUnknown) {
 			now := s.now().UTC()
-			orderID := uuid.NewString()
+			orderID := submitOrderID(durableClaim)
 			resp := SubmitResponse{
 				SchemaVersion: SchemaVersion,
 				OrderID:       orderID,
@@ -145,16 +180,41 @@ func (s *Service) SubmitOrder(
 				},
 				Warnings: []string{"unknown_reconciling"},
 			}
+			if s.submit.journal != nil {
+				if err := s.submit.journal.MarkSubmitUnknown(ctx, SubmitMutationResult{
+					OrderID:    durableClaim.OrderID,
+					AttemptID:  durableClaim.AttemptID,
+					HTTPStatus: httpStatusSubmitCreated,
+					ErrorCode:  "submit_unknown",
+					Response:   resp,
+					ObservedAt: now,
+				}); err != nil {
+					return SubmitResponse{}, httpStatusUpstreamUnavailable, ErrUpstreamUnavailable
+				}
+			}
 			persistUnknownOrder(s, session, orderID, rec)
-			s.submit.idempotency.Put(idempotencyKey, bodyHash, httpStatusSubmitCreated, resp)
+			if s.submit.journal == nil {
+				s.submit.idempotency.Put(idempotencyKey, bodyHash, httpStatusSubmitCreated, resp)
+			}
 			return resp, httpStatusSubmitCreated, nil
 		}
 		status, mapped := mapSubmitUpstreamError(err)
+		if s.submit.journal != nil {
+			if err := s.submit.journal.MarkSubmitRejected(ctx, SubmitMutationResult{
+				OrderID:    durableClaim.OrderID,
+				AttemptID:  durableClaim.AttemptID,
+				HTTPStatus: status,
+				ErrorCode:  mapped.Error(),
+				ObservedAt: s.now().UTC(),
+			}); err != nil {
+				return SubmitResponse{}, httpStatusUpstreamUnavailable, ErrUpstreamUnavailable
+			}
+		}
 		return SubmitResponse{}, status, mapped
 	}
 
 	now := s.now().UTC()
-	orderID := uuid.NewString()
+	orderID := submitOrderID(durableClaim)
 	resp := SubmitResponse{
 		SchemaVersion: SchemaVersion,
 		OrderID:       orderID,
@@ -168,11 +228,93 @@ func (s *Service) SubmitOrder(
 		},
 	}
 
+	if s.submit.journal != nil {
+		if err := s.submit.journal.MarkSubmitAccepted(ctx, SubmitMutationResult{
+			OrderID:      durableClaim.OrderID,
+			AttemptID:    durableClaim.AttemptID,
+			VenueOrderID: result.OrderID,
+			HTTPStatus:   httpStatusSubmitCreated,
+			Response:     resp,
+			ObservedAt:   now,
+		}); err != nil {
+			return SubmitResponse{}, httpStatusUpstreamUnavailable, ErrUpstreamUnavailable
+		}
+	}
 	s.store.Delete(req.PreviewID)
 	persistSubmittedOrder(s, session, orderID, rec, result.OrderID, mapVenueStatus(result.Status))
 	s.submit.metrics.RecordOrderSubmit(true)
-	s.submit.idempotency.Put(idempotencyKey, bodyHash, httpStatusSubmitCreated, resp)
+	if s.submit.journal == nil {
+		s.submit.idempotency.Put(idempotencyKey, bodyHash, httpStatusSubmitCreated, resp)
+	}
 	return resp, httpStatusSubmitCreated, nil
+}
+
+func mutationIntentFromPreview(req SubmitRequest, rec previewRecord, bodyHash string) OrderMutationIntent {
+	previewID, _ := uuid.Parse(req.PreviewID)
+	side := rec.Side
+	if side == "" {
+		if rec.UnsignedPayload.Side == 1 {
+			side = SideSell
+		} else {
+			side = SideBuy
+		}
+	}
+	return OrderMutationIntent{
+		PreviewID:         previewID,
+		ContentHash:       req.ContentHash,
+		SignedPayloadHash: "0x" + bodyHash,
+		MarketID:          rec.Metadata.MarketID,
+		TokenID:           rec.Metadata.TokenID,
+		Side:              side,
+		Price:             rec.Price,
+		Size:              rec.Size,
+		MakerAmount:       rec.UnsignedPayload.MakerAmount,
+		TakerAmount:       rec.UnsignedPayload.TakerAmount,
+		ExchangeDomain:    rec.ExchangeDomain,
+		MakerAddress:      rec.UnsignedPayload.Maker,
+		SignerAddress:     rec.UnsignedPayload.Signer,
+		UnsignedPayload:   rec.UnsignedPayload,
+		Metadata:          rec.Metadata,
+		ExpiresAt:         rec.ExpiresAt,
+	}
+}
+
+func submitOrderID(claim MutationClaim) string {
+	if claim.OrderID == uuid.Nil {
+		return uuid.NewString()
+	}
+	return claim.OrderID.String()
+}
+
+func replayResponseFromClaim(claim MutationClaim) SubmitResponse {
+	status := claim.State
+	warnings := []string(nil)
+	switch claim.State {
+	case MutationStateNotSubmitted:
+		status = OrderStatusNotSubmitted
+	case MutationStateIntentPersisted, MutationStateSubmitting, MutationStateUnknownReconciling, orderStatusUnknown:
+		status = orderStatusUnknown
+		warnings = []string{"unknown_reconciling"}
+	case MutationStateAccepted:
+		status = orderStatusOpen
+	}
+	observedAt := claim.UpdatedAt
+	if observedAt.IsZero() {
+		observedAt = claim.CreatedAt
+	}
+	return SubmitResponse{
+		SchemaVersion: SchemaVersion,
+		OrderID:       submitOrderID(claim),
+		VenueOrderID:  claim.VenueOrderID,
+		Status:        status,
+		SubmittedAt:   observedAt.UTC(),
+		Provenance: markets.UpstreamProvenance{
+			Source:     "polymarket_clob",
+			UpstreamID: claim.VenueOrderID,
+			ObservedAt: observedAt.UTC(),
+		},
+		Warnings: warnings,
+	}
 }
 
 func hasLinkedWallet(wallets []wallet.LinkedWallet) bool {

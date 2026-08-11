@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -57,10 +56,9 @@ func TestLinkExistingWallet_LinkerUnwired(t *testing.T) {
 	}
 }
 
-func TestLinkExistingWallet_PersistsAndLists(t *testing.T) {
+func TestLinkExistingWallet_RejectsUnverifiedProxyWallet(t *testing.T) {
 	t.Parallel()
 
-	fixed := time.Date(2026, 8, 9, 10, 0, 0, 0, time.UTC)
 	mem := &wallet.MemoryStore{}
 	r := chi.NewRouter()
 	r.Route("/api/v1/markets/me", func(r chi.Router) {
@@ -69,8 +67,7 @@ func TestLinkExistingWallet_PersistsAndLists(t *testing.T) {
 				UserID:        testUserID,
 				SignerAddress: testSigner,
 			}},
-			Discoverer: wallet.NewDiscoverer(mem, wallet.NopRecorder{}),
-			Linker:     mem,
+			Linker: mem,
 		})
 	})
 
@@ -80,41 +77,9 @@ func TestLinkExistingWallet_PersistsAndLists(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	r.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
+	if rec.Code != http.StatusForbidden {
 		t.Fatalf("link status %d body %s", rec.Code, rec.Body.String())
 	}
-	var linked wallet.LinkedWallet
-	if err := json.Unmarshal(rec.Body.Bytes(), &linked); err != nil {
-		t.Fatal(err)
-	}
-	if linked.AccountWallet != testAccount {
-		t.Fatalf("account %q", linked.AccountWallet)
-	}
-	if linked.WalletType != wallet.WalletTypeGnosisSafe {
-		t.Fatalf("type %q", linked.WalletType)
-	}
-
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/markets/me/wallets", nil)
-	r.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("list status %d body %s", rec.Code, rec.Body.String())
-	}
-	var list wallet.WalletsListResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
-		t.Fatal(err)
-	}
-	if list.SignerAddress != testSigner {
-		t.Fatalf("signer %q", list.SignerAddress)
-	}
-	if len(list.Wallets) != 1 || list.Wallets[0].AccountWallet != testAccount {
-		t.Fatalf("wallets %+v", list.Wallets)
-	}
-	if list.SignerAddress == list.Wallets[0].AccountWallet {
-		t.Fatal("proxy link must keep signer and account distinct")
-	}
-	_ = fixed
 }
 
 func TestLinkExistingWallet_Adr003DistinctFieldsEOA(t *testing.T) {

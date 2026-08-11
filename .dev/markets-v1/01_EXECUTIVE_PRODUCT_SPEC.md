@@ -308,7 +308,7 @@ See [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](research/OPEN_QUESTION
 
 Requirements: [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md)
 NFRs: [05_NON_FUNCTIONAL_REQUIREMENTS.md](05_NON_FUNCTIONAL_REQUIREMENTS.md)
-Tasks: [agent-harness/task-graph.yaml](agent-harness/task-graph.yaml)
+Tasks: [../../.harness/products/markets-v1/planning/task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml)
 
 ## 18. Authoritative sources
 
