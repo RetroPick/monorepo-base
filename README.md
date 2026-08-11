@@ -291,7 +291,7 @@ Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at th
 | BFF architecture | [`docs/architecture/fe-v1-markets-bff-dev.md`](docs/architecture/fe-v1-markets-bff-dev.md) |
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
-| Agent contract | [`.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md`](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md) |
+| Agent contract | [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) |
 | Archive (epoch v1) | [`archive/README.md`](archive/README.md) |
 
 ## Monorepo layout

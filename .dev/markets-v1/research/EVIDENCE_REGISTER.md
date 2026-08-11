@@ -26,7 +26,7 @@ The 5W+1H table below is a **navigation aid** only. Machine-readable source of t
 | **When** | Before phase gates and before any trading/funding/contract integration. Revalidate when `revalidation_trigger` fires or confidence would drop below `partially_verified` for launch-critical claims. |
 | **Where** | This markdown index + `research/evidence-register.yaml`. Upstream: docs.polymarket.com and contract registry URLs cited in records. Repo citations must be file paths for `verified` repository claims. |
 | **Why** | Ad-hoc Slack/blog addresses violate ADR-002 and master prompt §2.5. Unverified collateral/contracts (e.g. EV-008, EV-017–EV-020) must block production assumptions until pulled. |
-| **How** | Look up EV-ID → read confidence → if unverified/partial, spike or escalate via [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md). Update YAML and this index together. Never paste secrets, Builder credentials, or keys into evidence. |
+| **How** | Look up EV-ID → read confidence → if unverified/partial, spike or escalate via [BLOCKERS_AND_HUMAN_APPROVALS.md](../../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md). Update YAML and this index together. Never paste secrets, Builder credentials, or keys into evidence. |
 
 ### Worked example
 
@@ -95,7 +95,7 @@ Human-readable index of time-sensitive upstream and repository claims that gate 
 
 ## 6. Target design
 
-Before each phase gate, agents revalidate all records tagged in that phase's `revalidation_trigger`. Blocked work uses [BLOCKERS_AND_HUMAN_APPROVALS.md](../agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md) when confidence drops below `partially_verified` for launch-critical claims.
+Before each phase gate, agents revalidate all records tagged in that phase's `revalidation_trigger`. Blocked work uses [BLOCKERS_AND_HUMAN_APPROVALS.md](../../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md) when confidence drops below `partially_verified` for launch-critical claims.
 
 ## 7. Alternatives considered
 

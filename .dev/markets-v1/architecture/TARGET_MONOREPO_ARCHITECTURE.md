@@ -541,7 +541,7 @@ See [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUEST
 - [ ] CI enforces Markets ↔ Legacy/PRISM import boundaries
 - [ ] OpenAPI codegen wired for web and Android
 - [ ] `deploy/web-markets/.env.example` documents `NEXT_PUBLIC_PRODUCT=markets`
-- [ ] Traceability in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md)
+- [ ] Traceability in [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md)
 
 ## 23. Related Documents
 

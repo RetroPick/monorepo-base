@@ -1,5 +1,7 @@
 # ORCHESTRATOR.md — RetroPick engineering plan
 
+> **LEGACY / SUPERSEDED** — this document is the pre-release-factory engineering plan (legacy fe-v1 / MarketEngine era). It is preserved for history. The active engineering organization is the **release factory**: see [`HARNESS.md`](HARNESS.md) and [`.harness/products/markets-v1/`](.harness/products/markets-v1/README.md) (governance, planning, templates, evidence, release). The active Kanban board is `retropick-markets-release`; orchestrator is `rp-release-orchestrator`; web release surface is `apps/web` (fe-v1 no longer exists).
+
 ## Objective
 
 Ship and harden **RetroPick v1**: working **fe-v1** + **Go backend** + **MarketEngine** contracts, with indexer/keeper/realtime paths trustworthy for demos and ops.

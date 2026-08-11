@@ -2,33 +2,41 @@
   "schema": "agent-harness.project.v1",
   "project": {
     "name": "retropick",
-    "type": "web3-prediction",
+    "type": "markets-prediction-bff",
     "root": ".",
-    "description": "RetroPick Markets + PRISM \u2014 Polymarket-native web, Go BFF, Android (epoch v1 archived under archive/)."
+    "description": "RetroPick Markets V1 \u2014 Polymarket-native; Web (apps/web) + Android (RetroPick-Android) on a shared Go Markets BFF (apps/backend). Legacy epoch MarketEngine archived under archive/."
   },
   "harness": {
-    "mode": "embedded",
-    "harnessRootEnv": "AGENT_HARNESS_HOME",
-    "defaultHarnessRoot": "../.."
+    "mode": "release-factory",
+    "canonicalRoots": {
+      "monorepo": "/opt/retropick",
+      "android": "/opt/retropick-android"
+    },
+    "worktrees": {
+      "monorepo": "/opt/worktrees/retropick/<task-id>/",
+      "android": "/opt/worktrees/retropick-android/<task-id>/"
+    }
   },
   "kanban": {
-    "board": "retropick-v1",
+    "board": "retropick-markets-release",
     "workspace": "dir:${projectRoot}"
   },
   "paths": {
     "product": [
-      "apps",
-      "packages",
-      "contracts",
+      "apps/backend",
+      "apps/web",
+      "packages/polymarket",
       "schemas",
-      "deploy"
+      "deploy",
+      "docker"
     ],
     "docs": [
       "docs",
-      ".dev"
+      ".dev/markets-v1"
     ],
     "scripts": [
-      "scripts"
+      "scripts",
+      ".harness/scripts"
     ],
     "tasks": ".harness/tasks",
     "state": ".harness/state",
@@ -37,7 +45,7 @@
     ]
   },
   "commands": {
-    "dev": "NEXT_PUBLIC_PRODUCT=markets pnpm dev:fe-v1",
+    "dev": "NEXT_PUBLIC_PRODUCT=markets pnpm --filter @retropick/markets-web dev",
     "typecheck": "pnpm -r exec tsc --noEmit 2>/dev/null || pnpm build",
     "lint": "pnpm lint",
     "test": "pnpm test",
@@ -46,47 +54,45 @@
   },
   "agents": {
     "enabled": [
-      "orchestrator",
-      "sc-testing",
-      "be-api",
-      "be-funding",
-      "be-realtime",
-      "be-data",
-      "fe-markets",
-      "fe-wallet",
-      "pkg-abi-registry",
-      "security",
-      "qa-integration",
-      "docs-curator",
-      "devops-sre",
-      "harness-librarian"
+      "rp-release-orchestrator",
+      "rp-recovery-architect",
+      "rp-api-contract",
+      "rp-backend-markets",
+      "rp-web",
+      "rp-android",
+      "rp-qa-e2e",
+      "rp-sre-release",
+      "rp-review-security"
     ]
   },
   "skills": {
     "enabled": [
-      "retropick-market-engine",
+      "hermes-agent",
       "systematic-debugging",
-      "tdd",
-      "web3-infra",
-      "solidity-security",
-      "hermes-kiro-runtime",
-      "agent-harness-os",
-      "harness-mcp",
-      "opensrc-research"
+      "tdd"
     ]
   },
   "rules": {
     "noSecrets": true,
     "requireTaskFile": true,
     "requireVerification": true,
-    "archiveBeforeDelete": true
+    "archiveBeforeDelete": true,
+    "noAutomaticMergeToMain": true,
+    "maxRetries": 1
   },
   "products": {
     "marketsV1": {
       "docsRoot": ".dev/markets-v1",
-      "manifest": ".dev/markets-v1/agent-harness/implementation-manifest.yaml",
-      "taskGraph": ".dev/markets-v1/agent-harness/task-graph.yaml",
-      "openApi": "schemas/openapi/markets-v1.yaml"
+      "manifest": ".harness/products/markets-v1/planning/implementation-manifest.yaml",
+      "taskGraph": ".harness/products/markets-v1/planning/task-graph.yaml",
+      "openApi": "schemas/openapi/markets-v1.yaml",
+      "releasePolicy": ".harness/products/markets-v1/release",
+      "evidenceRoot": ".harness/products/markets-v1/evidence"
     }
+  },
+  "android": {
+    "monorepoGitlink": "apps/android",
+    "externalCanonicalRepo": "git@github.com:RetroPick/RetroPick-Android.git",
+    "gitlinkPolicy": "explicit SHA + validated evidence only (scripts/sync-android-gitlink.sh); never auto-follow upstream main"
   }
 }

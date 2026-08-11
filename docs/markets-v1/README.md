@@ -6,6 +6,6 @@ All Markets V1 implementation-grade documentation and the agent harness live und
 
 - [README](../../.dev/markets-v1/README.md)
 - [Document map](../../.dev/markets-v1/00_DOCUMENT_MAP.md)
-- [Agent operating contract](../../.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md)
+- [Agent operating contract](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
 OpenAPI contract (implementation): [schemas/openapi/markets-v1.yaml](../schemas/openapi/markets-v1.yaml)

@@ -1,69 +1,74 @@
-# RetroPick — Project Context
+# RetroPick — Project Context (Release Factory)
 
 ## Product
 
-RetroPick is a prediction-market platform on **Base Sepolia** (dev focus): one upgradeable **`MarketEngine`** hosts many templates, each running **epochs** (open → lock → resolve → claim) with **Chainlink-family** and optional **trusted reporter** oracles. Settlement and fees are on-chain; treasury withdrawal is admin-gated per protocol design.
+**RetroPick Markets V1** — Polymarket-native prediction markets. Web and Android are two clients of the **same shared Go Markets BFF**. No separate Android backend. No custom RetroPick exchange.
+
+## Architecture invariant
+
+```mermaid
+flowchart LR
+  PM[Polymarket Gamma / CLOB / Data / WS] --> BFF[RetroPick Go Markets BFF apps/backend]
+  BFF --> CONTRACT[schemas/openapi/markets-v1.yaml]
+  CONTRACT --> WEB[RetroPick Web apps/web]
+  CONTRACT --> AND[RetroPick Android RetroPick-Android]
+```
+
+Web and Android consume the canonical contract. Never bypass the BFF for core Markets semantics; never introduce a direct canonical Polymarket dependency from clients as a shortcut.
 
 ## Monorepo layout
 
 | Path | Role |
 |------|------|
-| `apps/web` | Next.js user app (wagmi / viem / AppKit) |
-| `apps/ops-web` | Operator dashboard |
-| `apps/docs` | Docs app |
-| `apps/backend` | **Canonical** Go API + indexer + keeper + realtime (`cmd/*`, `internal/*`) |
-| `packages/` | Shared TS packages (ABIs, types) |
-| `contracts/legacy-pool-v1` | Foundry contracts — read `currentSmartContract.md` |
-| `.dev/backend/` | Deep markdown walkthrough of `apps/backend` (architecture, indexer, keeper, funding, security) |
-| `docs/` | Product docs index ([`docs/README.md`](../docs/README.md)); harness: [`HARNESS.md`](../HARNESS.md) |
+| `apps/backend` | **Shared Go Markets BFF** — `cmd/markets-api`, `internal/markets`, authorized migrations |
+| `apps/web` | Web client (Next.js; package `@retropick/markets-web`; product root `src/products/markets`) |
+| `apps/android` | Monorepo **gitlink**; canonical Android development repo is `RetroPick/RetroPick-Android` |
+| `packages/polymarket` | Shared TS/Polymarket client code |
+| `schemas/openapi/markets-v1.yaml` | **Canonical shared API contract** |
+| `schemas/asyncapi/markets-realtime-v1.yaml` | Realtime contract |
+| `deploy/`, `docker/`, `ops/` | Deployment / compose / ops |
 
-## Architecture split
+> Note: `apps/fe-v1` and `apps/ops-web` do **not** exist in the current tree — `fe-v1` was renamed to `apps/web` (DECISIONS D15). All references must use `apps/web`.
 
-- **Solidity:** `MarketEngineDispatcher` + modules + oracle adapters — see `contracts/legacy-pool-v1/currentSmartContract.md`.
-- **Go:** `apps/backend` — REST + WS; indexer from chain logs; optional keeper loop; funding abstraction workers.
-- **Frontend:** `apps/web` consumes API + on-chain reads; wallet connect via modern stack above.
+## Current release approach
 
-## Agentic workflow (harness)
+- **Web:** existing `apps/web` Next.js app, `NEXT_PUBLIC_PRODUCT=markets`.
+- **Android:** existing Android application architecture (Capacitor wrapper) for this release. **No Compose rewrite** as part of release-factory bootstrap unless explicitly authorized later.
+- **Backend:** Go BFF with PostgreSQL projections + reconciliation. Polymarket remains venue authority.
 
-- **20 domain agents** under `.harness/agents/*.agent.md` — each has a **job**, **soul** (working style), outputs, and escalation path.
-- **Orchestrator** sequences Kanban tasks in `.harness/tasks/` and enforces `DECISIONS.md` gates.
-- **Skills:** `retropick-market-engine`, `systematic-debugging`, `tdd`, `web3-infra`, `solidity-security`, `hermes-kiro-runtime`, `agent-harness-os`, `harness-mcp`, `opensrc-research`.
+## Upstream & state
 
-## MCP note
+- **Upstream:** Polymarket Gamma / CLOB / Data / WebSocket.
+- **State:** PostgreSQL projections and reconciliation are RetroPick state; Polymarket remains venue truth for market semantics.
 
-RetroPick may have contract-subfolder MCP under `contracts/legacy-pool-v1/.cursor/mcp.json`. Harness MCP at **project root** wins when using `cli/harness switch-project retropick`.
+## Out of release scope
 
-## Invariants
+- PRISM integration
+- Legacy epoch MarketEngine (archived under `archive/`)
+- Old pool-v1 feature expansion
+- Custom prediction-market contracts
+- Unrelated operator surfaces
+- Speculative new features
+- Geoblock circumvention / fabricated upstream state / user private-key custody / auto copy-trading / direct signal→auto-execution
 
-1. **Epoch lifecycle** is defined by the engine — UI and API must not show impossible states.
-2. Contract changes require **Foundry** tests in `contracts/legacy-pool-v1`.
-3. Contract tree at `contracts/legacy-pool-v1/` must resolve for builds and docs.
-4. **Indexer truth:** `chain_events` is canonical; projections and realtime are derived.
-5. RAG excludes vendored forge libs and huge generated trees where configured in `.harness/rag.config.json`.
+## Source-of-truth hierarchy
 
+1. **Runtime truth** — Git tree + executable tests + CI + staging behavior.
+2. **Live execution state** — `~/.hermes/kanban.db` + `~/.local/state/retropick-harness/release-state.yaml`.
+3. **Execution policy** — `.harness/products/markets-v1/**`.
+4. **Product/architecture specification** — `.dev/markets-v1/**`.
+5. **Historical/legacy** — `archive/**`, legacy material.
 
+Documentation contradicting executable code → **reconciliation finding**, never a silent choice.
 
-## Markets V1 (Polymarket product)
+## Harness
 
-- **Docs root:** `.dev/markets-v1/` (canonical); pointer at `docs/markets-v1/README.md`
-- **Agent contract:** `.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md`
-- **Current phase:** PHASE-0 per `implementation-manifest.yaml`
-- **BFF code:** `apps/backend/internal/markets/` — not legacy epoch (`/api/v1/legacy/markets/*`)
-- **Web product:** `apps/web/src/products/markets/` with `NEXT_PUBLIC_PRODUCT=markets`
-- **Android:** `apps/android/` — spec only until PHASE-5 scaffold
-
-## Verification
-
-```bash
-pnpm install
-cd contracts/legacy-pool-v1 && git submodule update --init --recursive
-pnpm lint
-pnpm test
-pnpm smoke
-```
+- Execution policy/evidence: `.harness/products/markets-v1/**` (governance, planning, templates, evidence, release)
+- Active agent roster: `rp-*` (see `.harness/agents/README.md`); legacy agents preserved as REFERENCE/DISABLED
+- Worktrees: `/opt/worktrees/retropick/<task-id>/`; canonical checkouts `/opt/retropick` and `/opt/retropick-android` are not worker scratchpads
 
 ## Kanban
 
-- Board: `retropick-v1`
-- Workspace: absolute path to this project root
-- Dashboard URL pattern: `http://127.0.0.1:9119/kanban?board=retropick-v1` (requires `hermes dashboard` — see [`HARNESS.md`](../HARNESS.md))
+- Board: `retropick-markets-release`
+- Dispatcher: in-gateway Hermes Kanban (single Telegram gateway)
+- Concurrency: max 2 in progress; max 1 per profile; one heavy worker at a time

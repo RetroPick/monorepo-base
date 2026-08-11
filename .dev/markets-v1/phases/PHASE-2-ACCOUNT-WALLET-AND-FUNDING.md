@@ -92,7 +92,7 @@ Signer/account-wallet separation tested; deposit/withdrawal reconcile; regions f
 PHASE-1 exit; auth schemas drafted.
 
 - [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md)
-- [AGENT_OPERATING_CONTRACT.md](../agent-harness/AGENT_OPERATING_CONTRACT.md)
+- [AGENT_OPERATING_CONTRACT.md](../../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
 ## Dependencies
 

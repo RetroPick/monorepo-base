@@ -139,7 +139,7 @@ Screen inventory, OpenAPI v1.1.1 gap table, and architecture conflicts:
 `/api/v1/markets/*` only (D-AND-004, ADR-004). No OpenAPI-generated Kotlin client exists yet.
 
 Implementation of the Compose product is scheduled for PHASE-5 per
-[implementation-manifest.yaml](../agent-harness/implementation-manifest.yaml).
+[implementation-manifest.yaml](../../../.harness/products/markets-v1/planning/implementation-manifest.yaml).
 CI will add an Android job once `apps/android-markets/settings.gradle.kts` lands.
 
 ### Prototype vs product boundary

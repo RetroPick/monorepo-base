@@ -24,7 +24,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 |------|--------|
 | **Who** | Executives and orchestrators needing an honest baseline; agents about to start PHASE-1 who must not assume trading/Android already exist; humans deciding formal scope sign-off after Wave 9 harness completion. |
 | **What** | Executive outcome snapshot (2026-07-25): 121 reviewed docs + agent harness complete; **product code not started** as executable Markets work (PHASE-1 first); recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later); custody/signing posture; Polymarket constraints; intelligence tiers; critical blockers (BLK-*). |
-| **When** | At program kickoff, phase-gate reviews, and whenever someone claims “Markets is live.” Re-read after evidence revalidation or when blocker IDs change in [BLOCKERS_AND_HUMAN_APPROVALS.md](agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md). |
+| **When** | At program kickoff, phase-gate reviews, and whenever someone claims “Markets is live.” Re-read after evidence revalidation or when blocker IDs change in [BLOCKERS_AND_HUMAN_APPROVALS.md](../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md). |
 | **Where** | This file + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) + harness manifest/`task-graph.yaml`. Code truth for stubs: `apps/backend/internal/markets/` (partial), `apps/android/` (README-only), OpenAPI stub surface — not this narrative alone. |
 | **Why** | Wave completion language is easy to misread as shipped product. This outcome doc separates spec freeze readiness from implementation reality and lists BLK-001–021 so agents escalate instead of inventing geoblock, CLOB, or Gradle projects ad hoc. |
 | **How** | Treat PHASE-0 docs as complete; start only PHASE-1 ready tasks; revalidate CLOB V2 / contract addresses before trading phases; keep ADR-001 (no custom exchange) and non-custody rules. Do not clear BLK rows without evidence. |
@@ -178,7 +178,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 | BLK-032 | Google Play production release | PHASE-7 |
 | BLK-033 | New jurisdiction enablement | any |
 
-See [agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md](agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md).
+See [../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md](../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md).
 
 ## First executable phase
 
@@ -199,5 +199,5 @@ Rationale: specification and harness are complete; PHASE-0 deliverables exist an
 | Files in document map | 121/121 present, all `reviewed` |
 | Harness manifest | PHASE-0–8 populated, `current_phase: PHASE-1` |
 | Task graph | Wave 9 doc-verification + PHASE-0–8 implementation tasks |
-| Cross-document invariants (§23) | 28/28 checked — [INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) |
+| Cross-document invariants (§23) | 28/28 checked — [INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) |
 | Product code implemented | **No** — documentation and harness only |

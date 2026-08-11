@@ -52,3 +52,11 @@ package/prediction-v2/logs/
 
 # Local SSH keys / private credentials
 .pub/
+
+# Release factory generated runtime state — never commit
+.harness/state/*.sqlite
+.harness/state/*.db
+.harness/state/*.log
+.harness/state/logs/
+.harness/state/snapshots/
+.harness/state/locks/

@@ -1,0 +1,51 @@
+# REPO_MAP — Release repository topology
+
+# Canonical checkouts (NOT worker scratchpads)
+canonical:
+  monorepo: /opt/retropick
+  android: /opt/retropick-android   # cloned from RetroPick/RetroPick-Android
+
+# Worker worktrees
+worktrees:
+  monorepo: /opt/worktrees/retropick/<task-id>/
+  android: /opt/worktrees/retropick-android/<task-id>/
+
+# Path ownership (one writer per path — see WRITE OWNERSHIP in ROUTING.yaml)
+paths:
+  api_contract:
+    - schemas/openapi/markets-v1.yaml
+    - schemas/asyncapi/markets-realtime-v1.yaml
+  backend:
+    - apps/backend/cmd/markets-api/**
+    - apps/backend/internal/markets/**
+    - apps/backend/migrations/**
+  web:
+    - apps/web/**
+  android:
+    - repo: RetroPick/RetroPick-Android
+      monorepo_gitlink: apps/android
+  qa:
+    - tests/**            # tests & evidence only unless explicitly authorized
+  sre:
+    - docker/**
+    - compose/**
+    - deploy/**
+    - ops/**
+    - scripts/            # harness scripts live in .harness/scripts; ops scripts here
+  review:
+    - (read-only)
+
+# Product paths prioritized for release execution
+release_product_paths:
+  - apps/backend
+  - apps/web
+  - packages/polymarket
+  - schemas/openapi/markets-v1.yaml
+  - deploy
+  - docker
+
+# Android representation
+android:
+  monorepo_gitlink: apps/android
+  external_canonical_repo: git@github.com:RetroPick/RetroPick-Android.git
+  gitlink_policy: explicit SHA + validated evidence only (sync-android-gitlink.sh)

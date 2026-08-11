@@ -11,7 +11,7 @@ This README is the **entry index** for the Markets V1 documentation-only tree un
 
 It freezes the agent consume sequence (Orient → Contract → Phase → Task → Trace → Spec → Verify → Escalate) so work stays Polymarket-native and harness-gated. Product code lives under `apps/`, `packages/`, and `schemas/` — not in this tree. Wave 9 harness completion is not product-code completion.
 
-**Next hops:** [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) for path inventory; [agent-harness/AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md) before any task; [agent-harness/implementation-manifest.yaml](agent-harness/implementation-manifest.yaml) for live `current_phase`; [phases/](phases/) for phase contracts. Human pointer: [docs/markets-v1/README.md](../../docs/markets-v1/README.md).
+**Next hops:** [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) for path inventory; [../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) before any task; [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml) for live `current_phase`; [phases/](phases/) for phase contracts. Human pointer: [docs/markets-v1/README.md](../../docs/markets-v1/README.md).
 
 ## 0. Developer intent (5W+1H)
 
@@ -26,7 +26,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace the agen
 | **Who** | Harness agents, orchestrators, and engineers entering Markets V1 work; reviewers confirming agents did not skip the contract/phase/task sequence. Not a substitute for product PMs writing code. |
 | **What** | Entry index for the Markets V1 **documentation-only** tree: executive outcome, document map (121 reviewed docs), agent harness artifacts (`implementation-manifest.yaml`, `task-graph.yaml`, invariant check), wave delivery status, and phase order through PHASE-8. Product code lives under `apps/`, `packages/`, `schemas/` — not here. |
 | **When** | First file to open before any Markets implementation task. Re-read when `current_phase` changes in the manifest, when Wave status or phase tables are updated, or after a harness invariant failure. |
-| **Where** | This README at `.dev/markets-v1/README.md`. Pointer for humans: [docs/markets-v1/README.md](../../docs/markets-v1/README.md). Next hops: [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md), [agent-harness/AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md), [agent-harness/implementation-manifest.yaml](agent-harness/implementation-manifest.yaml), [phases/](phases/). |
+| **Where** | This README at `.dev/markets-v1/README.md`. Pointer for humans: [docs/markets-v1/README.md](../../docs/markets-v1/README.md). Next hops: [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md), [../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md), [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml), [phases/](phases/). |
 | **Why** | Without a single entry point, agents invent scope, skip PHASE-1 readiness checks, or treat docs as product code. This README freezes the consume order (Orient → Contract → Phase → Task → Trace → Spec → Verify → Escalate) so Markets stays Polymarket-native and harness-gated. |
 | **How** | Follow the numbered agent order below. Select exactly one `planned`/`ready` task from `task-graph.yaml`. Confirm requirement mapping before coding. Capture verification via templates. Escalate blockers; do not mark tasks complete because a README row exists. Never extend `archive/` epoch paths for Markets. |
 
@@ -35,16 +35,16 @@ The 5W+1H table below is a **navigation aid** only. It does not replace the agen
 **Happy path — start PHASE-1 catalog work**
 
 1. Read this README + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md).
-2. Read [AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md); confirm `current_phase` is `PHASE-1` in the manifest.
-3. Pick one ready task (e.g. catalog/OpenAPI growth) from [task-graph.yaml](agent-harness/task-graph.yaml).
-4. Trace IDs in [REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md); read [phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md](phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md) and linked ADRs.
+2. Read [AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md); confirm `current_phase` is `PHASE-1` in the manifest.
+3. Pick one ready task (e.g. catalog/OpenAPI growth) from [task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml).
+4. Trace IDs in [REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md); read [phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md](phases/PHASE-1-FOUNDATION-AND-READ-MARKETS.md) and linked ADRs.
 5. Implement only under Markets paths; run task `commands`; fill verification + handoff templates.
 
 **Failure / Never skip**
 
 - Jumping to wallet/trading/Android without PHASE-1 readiness and an authorized task.
 - Treating Wave 9 harness completion as product-code completion ([EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) says implementation not started).
-- Ignoring [INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) §23 when docs or code contradict ADR-001/002/009.
+- Ignoring [INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) §23 when docs or code contradict ADR-001/002/009.
 
 **Agent checklist**
 
@@ -66,7 +66,7 @@ This tree is **documentation only**. Product code lives under `apps/`, `packages
 ## Executive summary
 
 - [EXECUTIVE_OUTCOME.md](EXECUTIVE_OUTCOME.md) — honest status, blockers, first executable phase
-- [agent-harness/INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) — master prompt §23 cross-doc verification (28 invariants)
+- [../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) — master prompt §23 cross-doc verification (28 invariants)
 - [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) — document inventory indexed by category
 - [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md) — Smart Money Launch ten-feature scope (docs program; does not advance `current_phase`)
 
@@ -75,23 +75,23 @@ This tree is **documentation only**. Product code lives under `apps/`, `packages
 Agents MUST follow this order before writing product code:
 
 1. **Orient** — Read this README and [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md).
-2. **Contract** — Read [agent-harness/AGENT_OPERATING_CONTRACT.md](agent-harness/AGENT_OPERATING_CONTRACT.md).
-3. **Phase** — Check `current_phase` in [agent-harness/implementation-manifest.yaml](agent-harness/implementation-manifest.yaml) (currently `PHASE-1`).
-4. **Task** — Select exactly one `planned` or `ready` task from [agent-harness/task-graph.yaml](agent-harness/task-graph.yaml).
-5. **Trace** — Confirm requirement mapping in [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
+2. **Contract** — Read [../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md).
+3. **Phase** — Check `current_phase` in [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml) (currently `PHASE-1`).
+4. **Task** — Select exactly one `planned` or `ready` task from [../../.harness/products/markets-v1/planning/task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml).
+5. **Trace** — Confirm requirement mapping in [../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 6. **Spec** — Read the phase spec under [phases/](phases/) and linked ADRs.
-7. **Verify** — Run task `commands`, capture evidence via [agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md](agent-harness/VERIFICATION_EVIDENCE_TEMPLATE.md), complete [agent-harness/AGENT_HANDOFF_TEMPLATE.md](agent-harness/AGENT_HANDOFF_TEMPLATE.md).
-8. **Escalate** — Log blockers in [agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md](agent-harness/BLOCKERS_AND_HUMAN_APPROVALS.md); decisions in [agent-harness/DECISION_AND_ASSUMPTION_LOG.md](agent-harness/DECISION_AND_ASSUMPTION_LOG.md).
+7. **Verify** — Run task `commands`, capture evidence via [../../.harness/products/markets-v1/templates/VERIFICATION_EVIDENCE_TEMPLATE.md](../../.harness/products/markets-v1/templates/VERIFICATION_EVIDENCE_TEMPLATE.md), complete [../../.harness/products/markets-v1/templates/AGENT_HANDOFF_TEMPLATE.md](../../.harness/products/markets-v1/templates/AGENT_HANDOFF_TEMPLATE.md).
+8. **Escalate** — Log blockers in [../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md](../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md); decisions in [../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md](../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md).
 
 ### Harness artifacts
 
 | Artifact | Purpose |
 |----------|---------|
-| [implementation-manifest.yaml](agent-harness/implementation-manifest.yaml) | Phase order, parallelization, doc paths, approval gates |
-| [task-graph.yaml](agent-harness/task-graph.yaml) | Machine-readable tasks with `owned_paths`, deps, acceptance criteria |
-| [REQUIREMENTS_TO_TASK_TRACEABILITY.md](agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md) | REQ-ID → docs → tasks → tests → metrics |
-| [INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md) | §23 invariant checklist before merge |
-| [PHASE_GATE_TEMPLATE.md](agent-harness/PHASE_GATE_TEMPLATE.md) | Exit-gate evidence format |
+| [implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml) | Phase order, parallelization, doc paths, approval gates |
+| [task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml) | Machine-readable tasks with `owned_paths`, deps, acceptance criteria |
+| [REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md) | REQ-ID → docs → tasks → tests → metrics |
+| [INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) | §23 invariant checklist before merge |
+| [PHASE_GATE_TEMPLATE.md](../../.harness/products/markets-v1/templates/PHASE_GATE_TEMPLATE.md) | Exit-gate evidence format |
 
 ## Wave structure (documentation delivery)
 
@@ -111,7 +111,7 @@ Waves 1–8 produced the specification corpus. **Wave 9** completes the agent ha
 
 ## Phase order (implementation)
 
-Phases are sequential unless `may_run_in_parallel_with` allows overlap in [task-graph.yaml](agent-harness/task-graph.yaml).
+Phases are sequential unless `may_run_in_parallel_with` allows overlap in [task-graph.yaml](../../.harness/products/markets-v1/planning/task-graph.yaml).
 
 | Order | Phase | Name | Depends on |
 |-------|-------|------|------------|
@@ -129,7 +129,7 @@ Phases are sequential unless `may_run_in_parallel_with` allows overlap in [task-
 
 ## Cross-document invariants (§23)
 
-All 28 master-prompt invariants are enumerated in [agent-harness/INVARIANT_CHECK.md](agent-harness/INVARIANT_CHECK.md). Agents MUST NOT introduce contradictions. Key anchors:
+All 28 master-prompt invariants are enumerated in [../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md). Agents MUST NOT introduce contradictions. Key anchors:
 
 - Polymarket is venue authority — [ADR-001](architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)
 - BFF anti-corruption layer — [ADR-002](architecture/adr/ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)
@@ -144,7 +144,7 @@ All 28 master-prompt invariants are enumerated in [agent-harness/INVARIANT_CHECK
 | PRD | `01_`–`05_` top-level, `intelligence/` |
 | Architecture | `architecture/`, `polymarket/`, `backend/` |
 | Design | `web/`, `android/` |
-| Rules | `agent-harness/`, `security/` |
+| Rules | `.harness/products/markets-v1/`, `security/` |
 | Schemas | `research/*.yaml`, `schemas/openapi/markets-v1.yaml` (repo root) |
 | Production flow | `platform/`, `phases/`, `testing/` |
 

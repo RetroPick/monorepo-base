@@ -292,7 +292,7 @@ flowchart TB
 
 ## 16. Acceptance criteria
 
-- [agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../agent-harness/REQUIREMENTS_TO_TASK_TRACEABILITY.md)
+- [../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md](../../../.harness/products/markets-v1/planning/REQUIREMENTS_TO_TASK_TRACEABILITY.md)
 - 18 master-prompt §10 journeys in ERROR doc with screen-state tables.
 
 
