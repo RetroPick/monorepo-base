@@ -13,10 +13,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI
-    ? [
-        ["list"],
-        ["junit", { outputFile: "e2e/markets/junit.xml" }],
-      ]
+    ? [["list"], ["junit", { outputFile: "e2e/markets/junit.xml" }]]
     : [["list"]],
   use: {
     baseURL,
