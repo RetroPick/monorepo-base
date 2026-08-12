@@ -9,6 +9,7 @@ import { Button } from "@/shared/components/ui/button";
 import { DataStateBanner, DataStateEmpty } from "../../components/DataState";
 import { formatMoneyAmountDisplay } from "../../funding/lib/formatCollateral";
 import { useMarketsCapabilities } from "../../hooks/useMarketsQueries";
+import { readMarketsE2EHarness } from "../../e2e/e2eHarness";
 import { useMarketsWalletSession } from "../../wallet/hooks/useMarketsWalletSession";
 import {
   cancelOrder,
@@ -20,6 +21,7 @@ import {
   previewCancelOrder,
   type CancelPreviewResponse,
 } from "../lib/tradingApiClient";
+import { resolveMarketsTypedDataSigner } from "../lib/marketsSigning";
 
 const POLL_MS = 10_000;
 
@@ -69,7 +71,10 @@ export function TradingLifecyclePanel() {
     if (!cancelPreview || !cancelEnabled) return;
     setActionError(undefined);
     try {
-      const signature = await signTypedDataAsync(cancelTypedData(cancelPreview));
+      const signature = await resolveMarketsTypedDataSigner(
+        async (typedData) => signTypedDataAsync(typedData as never),
+        readMarketsE2EHarness()?.signSignature,
+      )(cancelTypedData(cancelPreview));
       await cancelOrder(cancelPreview.orderId, { previewId: cancelPreview.previewId, contentHash: cancelPreview.contentHash, signature });
       setCancelPreview(null);
       await refresh();

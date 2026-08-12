@@ -27,6 +27,10 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm exec next dev -p 3011",
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_MARKETS_E2E_TEST_MODE: "1",
+    },
     url: baseURL,
     reuseExistingServer: false,
     timeout: 300_000,
