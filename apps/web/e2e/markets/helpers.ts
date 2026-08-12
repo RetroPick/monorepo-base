@@ -14,6 +14,7 @@ import {
 
 export type BffMockOptions = {
   orderSubmit?: boolean;
+  portfolioRead?: boolean;
   eligible?: boolean;
   eligibilityReason?: string;
   marketFreshness?: "fresh" | "stale";
@@ -35,6 +36,7 @@ export async function injectMarketsE2EHarness(page: Page) {
 
 export async function mockMarketsBff(page: Page, options: BffMockOptions = {}) {
   const orderSubmit = options.orderSubmit ?? false;
+  const portfolioRead = options.portfolioRead ?? false;
   const eligible = options.eligible ?? true;
   const captureSubmit = options.captureSubmit;
 
@@ -55,11 +57,33 @@ export async function mockMarketsBff(page: Page, options: BffMockOptions = {}) {
     const method = route.request().method();
 
     if (url.includes("/capabilities") && method === "GET") {
+      const capabilities = capabilitiesFixture(orderSubmit);
+      capabilities.features.portfolio_read = portfolioRead;
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(capabilitiesFixture(orderSubmit)),
+        body: JSON.stringify(capabilities),
       });
+    }
+
+    if (url.includes("/me/orders") && method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", orders: [{ orderId: "order-e2e-1", marketId: "polymarket:market:456", tokenId: "token-yes", side: "BUY", price: "0.42", originalSize: "100", filledSize: "0", remainingSize: "100", status: "open", exchangeDomain: "standard", createdAt: "2026-08-09T10:05:00Z", updatedAt: "2026-08-09T10:05:00Z" }], page: { limit: 50 }, checkedAt: "2026-08-09T10:06:00Z", provenance: { source: "polymarket_clob", observedAt: "2026-08-09T10:06:00Z" } }) });
+    }
+
+    if (url.includes("/me/fills") && method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", fills: [{ fillId: "fill-e2e-1", orderId: "order-e2e-1", venueTradeId: "trade-1", marketId: "polymarket:market:456", tokenId: "token-yes", side: "BUY", price: "0.42", size: "25", fee: { amount: "10000", currency: "pUSD", decimals: 6 }, filledAt: "2026-08-09T10:07:00Z" }], page: { limit: 50 }, checkedAt: "2026-08-09T10:07:30Z" }) });
+    }
+
+    if (url.includes("/me/positions") && method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", positions: [{ positionId: "position-e2e-1", marketId: "polymarket:market:456", tokenId: "token-yes", outcomeName: "Yes", size: "100", averageEntryPrice: "0.40", costBasis: { amount: "40000000", currency: "pUSD", decimals: 6 }, unrealizedPnl: { amount: "2000000", currency: "pUSD", decimals: 6 }, resolutionState: "active", claimable: false, exchangeDomain: "standard", updatedAt: "2026-08-09T10:08:00Z" }], page: { limit: 50 }, checkedAt: "2026-08-09T10:08:30Z", provenance: { source: "retropick_projection", observedAt: "2026-08-09T10:08:30Z" } }) });
+    }
+
+    if (url.includes("/me/portfolio/summary") && method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", accountWallet: E2E_WALLET, aggregate: { totalMarkValue: { amount: "42000000", currency: "pUSD", decimals: 6 }, totalCostBasis: { amount: "40000000", currency: "pUSD", decimals: 6 }, unrealizedPnl: { amount: "2000000", currency: "pUSD", decimals: 6 }, realizedPnl: { amount: "0", currency: "pUSD", decimals: 6 }, claimableValue: { amount: "0", currency: "pUSD", decimals: 6 }, openPositionCount: 1 }, pnlDisclaimer: "Descriptive projection.", checkedAt: "2026-08-09T10:08:30Z", provenance: { source: "retropick_projection", observedAt: "2026-08-09T10:08:30Z" } }) });
+    }
+
+    if (url.includes("/me/activity") && method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", events: [{ eventId: "activity-e2e-1", eventType: "order_filled", occurredAt: "2026-08-09T10:07:00Z", summary: "Bought 25 Yes @ 0.42" }], page: { limit: 50 }, checkedAt: "2026-08-09T10:08:00Z" }) });
     }
 
     if (url.includes("/eligibility") && method === "GET") {
