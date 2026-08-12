@@ -3,6 +3,7 @@ package positions_test
 import (
 	"context"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,8 +45,8 @@ func TestPostgresStorePersistsVenueRebuildAcrossRestart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("idempotent ApplyVenueRebuild: %v", err)
 	}
-	if written != 1 {
-		t.Fatalf("idempotent written = %d, want 1", written)
+	if written != 0 {
+		t.Fatalf("idempotent written = %d, want 0", written)
 	}
 
 	var count int
@@ -186,6 +187,103 @@ func TestPostgresStoreReplayIsNoOpAndStaleSnapshotCannotRegressState(t *testing.
 	}
 	if size != position.Size || freshness != "fresh" || !observedAt.Equal(newer) {
 		t.Fatalf("stale snapshot regressed state: size=%q freshness=%q observed=%s", size, freshness, observedAt)
+	}
+}
+
+func TestPostgresStoreNewerMissingSnapshotPreventsStaleResurrection(t *testing.T) {
+	pool := positionProjectionPool(t)
+	ctx := context.Background()
+	store := positions.NewPostgresStore(pool)
+	userID := "projection-user-missing-watermark"
+	wallet := "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	t1 := time.Date(2026, 8, 12, 14, 0, 0, 0, time.UTC)
+	present := positions.VenuePosition{TokenID: "missing-watermark-token", MarketID: "polymarket:market:missing-watermark", ConditionID: "condition-missing-watermark", Size: "10", AvgPrice: "0.4", UpstreamID: "missing-watermark-upstream"}
+	if _, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{present}, t1); err != nil {
+		t.Fatal(err)
+	}
+	if written, err := store.ApplyVenueRebuild(ctx, userID, wallet, nil, t1.Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	} else if written != 1 {
+		t.Fatalf("missing rebuild wrote %d rows, want 1", written)
+	}
+
+	stale := present
+	stale.Size = "1"
+	if written, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{stale}, t1.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	} else if written != 0 {
+		t.Fatalf("stale rebuild wrote %d rows, want 0", written)
+	}
+
+	var size, freshness string
+	var observedAt time.Time
+	var version int
+	if err := pool.QueryRow(ctx, `SELECT size, freshness_state, observed_at, version FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, present.TokenID).Scan(&size, &freshness, &observedAt, &version); err != nil {
+		t.Fatal(err)
+	}
+	if size != present.Size || freshness != "reconciling" || !observedAt.Equal(t1.Add(2*time.Hour)) || version != 2 {
+		t.Fatalf("stale resurrection: size=%q freshness=%q observed=%s version=%d", size, freshness, observedAt, version)
+	}
+
+	if written, err := store.ApplyVenueRebuild(ctx, userID, wallet, nil, t1.Add(2*time.Hour)); err != nil {
+		t.Fatal(err)
+	} else if written != 0 {
+		t.Fatalf("missing replay wrote %d rows, want 0", written)
+	}
+	if err := pool.QueryRow(ctx, `SELECT version FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, present.TokenID).Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != 2 {
+		t.Fatalf("missing replay version = %d, want 2", version)
+	}
+}
+
+func TestPostgresStoreConcurrentMissingAndStaleSnapshotsRetainNewestBoundary(t *testing.T) {
+	pool := positionProjectionPool(t)
+	ctx := context.Background()
+	store := positions.NewPostgresStore(pool)
+	userID := "projection-user-missing-concurrent"
+	wallet := "0xffffffffffffffffffffffffffffffffffffffff"
+	t1 := time.Date(2026, 8, 12, 15, 0, 0, 0, time.UTC)
+	present := positions.VenuePosition{TokenID: "missing-concurrent-token", MarketID: "polymarket:market:missing-concurrent", ConditionID: "condition-missing-concurrent", Size: "10", AvgPrice: "0.4", UpstreamID: "missing-concurrent-upstream"}
+	if _, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{present}, t1); err != nil {
+		t.Fatal(err)
+	}
+
+	stale := present
+	stale.Size = "1"
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		_, err := store.ApplyVenueRebuild(ctx, userID, wallet, nil, t1.Add(2*time.Hour))
+		errs <- err
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		_, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{stale}, t1.Add(time.Hour))
+		errs <- err
+	}()
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var freshness string
+	var observedAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT freshness_state, observed_at FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, present.TokenID).Scan(&freshness, &observedAt); err != nil {
+		t.Fatal(err)
+	}
+	if freshness != "reconciling" || !observedAt.Equal(t1.Add(2*time.Hour)) {
+		t.Fatalf("concurrent state = freshness=%q observed=%s", freshness, observedAt)
 	}
 }
 

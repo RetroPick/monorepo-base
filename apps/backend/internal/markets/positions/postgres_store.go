@@ -61,7 +61,7 @@ func (s *PostgresStore) ApplyVenueRebuild(ctx context.Context, userID, accountWa
 			upstreamID = userID + ":" + wallet + ":" + tokenID
 		}
 		id := uuid.New()
-		_, err := tx.Exec(ctx, `
+		result, err := tx.Exec(ctx, `
 INSERT INTO markets_position_projections (
     id, user_id, account_wallet, market_id, token_id, condition_id, size,
     avg_entry_price, resolution_status, redeemable, freshness_state,
@@ -87,19 +87,27 @@ WHERE markets_position_projections.observed_at < EXCLUDED.observed_at
 			return 0, fmt.Errorf("upsert position projection: %w", err)
 		}
 		seen = append(seen, tokenID)
-		written++
+		written += int(result.RowsAffected())
 	}
 	// Never delete a missing snapshot row: incomplete venue data is explicitly
-	// represented as reconciling instead of inventing a zero balance.
-	if _, err := tx.Exec(ctx, `
+	// represented as reconciling instead of inventing a zero balance. observed_at
+	// is also the durable tombstone boundary: advancing it here prevents an older
+	// present snapshot from resurrecting a position after a newer missing one.
+	missingResult, err := tx.Exec(ctx, `
 UPDATE markets_position_projections
-SET freshness_state = 'reconciling', freshness_reason = 'missing_from_venue_snapshot', updated_at = $4
+SET freshness_state = 'reconciling',
+    freshness_reason = 'missing_from_venue_snapshot',
+    observed_at = $4,
+    version = markets_position_projections.version + 1,
+    updated_at = $4
 WHERE user_id = $1 AND account_wallet = $2
   AND NOT (token_id = ANY($3::text[]))
   AND observed_at < $4
-`, userID, wallet, seen, observedAt); err != nil {
+`, userID, wallet, seen, observedAt)
+	if err != nil {
 		return 0, fmt.Errorf("mark missing position projections: %w", err)
 	}
+	written += int(missingResult.RowsAffected())
 	if err := tx.Commit(ctx); err != nil {
 		return 0, fmt.Errorf("commit position rebuild: %w", err)
 	}
