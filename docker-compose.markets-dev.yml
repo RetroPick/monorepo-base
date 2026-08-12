@@ -14,6 +14,8 @@ x-markets-backend-env: &markets-backend-env
   MARKETS_GAMMA_API_URL: "http://127.0.0.1:9"
   MARKETS_CLOB_API_URL: "http://127.0.0.1:9"
   MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
+  # Auth must fail closed without an explicit SIWE-domain allowlist.
+  MARKETS_AUTH_ALLOWED_DOMAINS: "${MARKETS_AUTH_ALLOWED_DOMAINS:?MARKETS_AUTH_ALLOWED_DOMAINS is required}"
   MARKETS_BOOTSTRAP: "migrate-and-seed"
   MARKETS_DEV_SEED_SCENARIO: "populated"
   # BLK-001 eligibility upstreams — set values in gitignored .env (see .env.markets-dev.example)
