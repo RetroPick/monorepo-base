@@ -186,8 +186,13 @@ export interface paths {
          * Aggregate portfolio value and PnL for the authenticated user
          * @description Returns descriptive aggregate portfolio metrics for the session's primary linked
          *     account wallet. PnL is an informative projection — not custodial P&L authority.
-         *     unrealizedPnl is null when mark prices are unavailable. accountWallet comes from
-         *     the session resolver only — never from the request. Gated by features.portfolio_read.
+         *     Mark-derived metrics (totalMarkValue and unrealizedPnl) are null when currentValue
+         *     or a mark price is unavailable for any open position. realizedPnl is null when its
+         *     authoritative aggregate source is unavailable. These nulls mean unavailable, not zero;
+         *     aggregate.availability is metric source coverage, not position freshness; use freshness
+         *     for the observation state. It identifies mark coverage and realized-PnL source availability.
+         *     accountWallet comes from the session resolver only — never from the request. Gated by
+         *     features.portfolio_read.
          *     Responses MUST NOT be cached (private, no-store).
          */
         get: operations["getMyPortfolioSummary"];
@@ -1325,13 +1330,39 @@ export interface components {
             checkedAt: string;
         };
         PortfolioPnLAggregate: {
-            totalMarkValue: components["schemas"]["MoneyAmount"];
+            /** @description Null when currentValue or a mark price is unavailable for any open position; never substitute zero. */
+            totalMarkValue: components["schemas"]["MoneyAmount"] | null;
             totalCostBasis: components["schemas"]["MoneyAmount"];
-            /** @description Null when mark prices are unavailable for one or more open positions. */
-            unrealizedPnl?: components["schemas"]["MoneyAmount"] | null;
-            realizedPnl: components["schemas"]["MoneyAmount"];
+            /** @description Null when currentValue or a mark price is unavailable for any open position; never substitute zero. */
+            unrealizedPnl: components["schemas"]["MoneyAmount"] | null;
+            /** @description Null when the authoritative realized-PnL source is unavailable; never substitute zero. */
+            realizedPnl: components["schemas"]["MoneyAmount"] | null;
             claimableValue: components["schemas"]["MoneyAmount"];
             openPositionCount: number;
+            availability: components["schemas"]["PortfolioPnLAvailability"];
+        };
+        /** @description Coverage of mark-derived metrics across open positions at checkedAt. */
+        PortfolioMarkValueAvailability: {
+            /**
+             * @description available only when unavailableOpenPositionCount is zero; unavailable metrics are represented as null, never zero.
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+            availableOpenPositionCount: number;
+            unavailableOpenPositionCount: number;
+        };
+        /** @description Availability of the aggregate realized PnL source across portfolio history; it is not derived from open-position coverage. */
+        PortfolioRealizedPnlAvailability: {
+            /**
+             * @description unavailable means aggregate.realizedPnl is null, never zero.
+             * @enum {string}
+             */
+            state: "available" | "unavailable";
+        };
+        /** @description Metric source coverage for nullable portfolio aggregate metrics. This is independent of position freshness. */
+        PortfolioPnLAvailability: {
+            markValue: components["schemas"]["PortfolioMarkValueAvailability"];
+            realizedPnl: components["schemas"]["PortfolioRealizedPnlAvailability"];
         };
         PortfolioSummaryResponse: {
             schemaVersion: components["schemas"]["SchemaVersion"];
