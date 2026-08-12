@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"retropick/apps/backend/internal/markets"
 )
 
 // PostgresStore persists venue-derived position projections. It is safe to
@@ -28,6 +30,19 @@ func (s *PostgresStore) ApplyVenueRebuild(ctx context.Context, userID, accountWa
 		observedAt = observedAt.UTC()
 	}
 	wallet := strings.ToLower(strings.TrimSpace(accountWallet))
+	for _, row := range rows {
+		if strings.TrimSpace(row.TokenID) == "" {
+			continue
+		}
+		if _, err := markets.ParseDecimalString(row.Size); err != nil {
+			return 0, fmt.Errorf("position projection size: %w", err)
+		}
+		if row.AvgPrice != "" {
+			if _, err := markets.ParseDecimalString(row.AvgPrice); err != nil {
+				return 0, fmt.Errorf("position projection average price: %w", err)
+			}
+		}
+	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return 0, fmt.Errorf("begin position rebuild: %w", err)
@@ -66,6 +81,7 @@ ON CONFLICT (user_id, account_wallet, token_id) DO UPDATE SET
     observed_at = EXCLUDED.observed_at,
     version = markets_position_projections.version + 1,
     updated_at = EXCLUDED.updated_at
+WHERE markets_position_projections.observed_at < EXCLUDED.observed_at
 `, id, userID, wallet, row.MarketID, tokenID, row.ConditionID, row.Size, row.AvgPrice, upstreamID, observedAt)
 		if err != nil {
 			return 0, fmt.Errorf("upsert position projection: %w", err)
@@ -80,6 +96,7 @@ UPDATE markets_position_projections
 SET freshness_state = 'reconciling', freshness_reason = 'missing_from_venue_snapshot', updated_at = $4
 WHERE user_id = $1 AND account_wallet = $2
   AND NOT (token_id = ANY($3::text[]))
+  AND observed_at < $4
 `, userID, wallet, seen, observedAt); err != nil {
 		return 0, fmt.Errorf("mark missing position projections: %w", err)
 	}

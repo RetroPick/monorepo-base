@@ -59,6 +59,37 @@ func TestPostgresStoreRejectsInvalidFixedPointEvent(t *testing.T) {
 	}
 }
 
+func TestPostgresStoreDatabaseEnforcesAppendOnlyActivity(t *testing.T) {
+	pool := activityPool(t)
+	ctx := context.Background()
+	store := activity.NewPostgresStore(pool)
+	event := activity.Event{
+		UserID: "activity-user-immutable", Kind: activity.KindFill, Amount: "12.500000",
+		UpstreamSource: "polymarket_clob", UpstreamID: "immutable-event", ObservedAt: time.Date(2026, 8, 12, 14, 0, 0, 0, time.UTC),
+	}
+	if err := store.Append(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(ctx, event); err != nil {
+		t.Fatalf("idempotent Append: %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM markets_activity_events WHERE upstream_source = $1 AND upstream_id = $2`, event.UpstreamSource, event.UpstreamID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("idempotent event count = %d, want 1", count)
+	}
+	for _, query := range []string{
+		`UPDATE markets_activity_events SET amount = '99' WHERE upstream_source = 'polymarket_clob' AND upstream_id = 'immutable-event'`,
+		`DELETE FROM markets_activity_events WHERE upstream_source = 'polymarket_clob' AND upstream_id = 'immutable-event'`,
+	} {
+		if _, err := pool.Exec(ctx, query); err == nil {
+			t.Fatalf("append-only database accepted %q", query)
+		}
+	}
+}
+
 func activityPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	databaseURL := os.Getenv("DATABASE_URL")
