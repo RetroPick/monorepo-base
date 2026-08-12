@@ -38,6 +38,326 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/markets/me/wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List linked Polymarket account wallets for the authenticated session
+         * @description Returns the session signer EOA and any linked Polymarket trading wallets
+         *     (proxy, Safe, or Deposit Wallet). signerAddress and accountWallet MUST remain
+         *     distinct fields per ADR-003. Empty wallets means not yet linked — not an error.
+         */
+        get: operations["listMyWallets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/balances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read tradable pUSD collateral for the primary account wallet
+         * @description Returns the session signer's primary linked accountWallet and its tradable pUSD
+         *     collateral balance from the Polymarket CLOB (venue authority). Fixed-point
+         *     MoneyAmount only — never binary floating point. Requires a linked account wallet;
+         *     returns 404 when none is linked yet.
+         */
+        get: operations["listMyBalances"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's order projections
+         * @description Returns venue-aligned order projections for the session's linked account wallet.
+         *     Use status=open to list resting and in-flight orders (open, partially_filled,
+         *     cancel_pending, unknown). Reconcile with user.orders WebSocket and venue truth.
+         *     Responses MUST NOT be cached (private, no-store).
+         */
+        get: operations["listMyOrders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/fills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's fill projections
+         * @description Returns venue-aligned fill projections for the session's linked account wallet.
+         *     REST counterpart to the user.fills WebSocket channel. Fees use fixed-point
+         *     MoneyAmount (pUSD). Never invent fills the venue did not produce.
+         */
+        get: operations["listMyFills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's position projections
+         * @description Returns venue-aligned outcome-token position projections for the session's
+         *     primary linked account wallet. BFF positions are projections, not ownership
+         *     authority — reconcile with user.positions WebSocket and venue truth. Sizes and
+         *     prices use DecimalString; cost basis, mark value, and PnL use MoneyAmount (pUSD).
+         *     Responses MUST NOT be cached (private, no-store). Gated by features.portfolio_read.
+         */
+        get: operations["listMyPositions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's immutable activity events
+         * @description Returns an append-only activity feed for the session's primary linked account
+         *     wallet. Events are immutable projections (MKT-DATA-001) — no DELETE or PATCH.
+         *     Paginate with cursor. REST counterpart for portfolio activity UX. Gated by
+         *     features.portfolio_read. Responses MUST NOT be cached (private, no-store).
+         */
+        get: operations["listMyActivity"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/portfolio/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate portfolio value and PnL for the authenticated user
+         * @description Returns descriptive aggregate portfolio metrics for the session's primary linked
+         *     account wallet. PnL is an informative projection — not custodial P&L authority.
+         *     unrealizedPnl is null when mark prices are unavailable. accountWallet comes from
+         *     the session resolver only — never from the request. Gated by features.portfolio_read.
+         *     Responses MUST NOT be cached (private, no-store).
+         */
+        get: operations["getMyPortfolioSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/orders/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview a limit order before wallet signing
+         * @description Assembles an unsigned CLOB V2 order payload, binds it to a contentHash, and
+         *     returns human-readable summary metadata for client confirmation. Requires an
+         *     authenticated, eligible session and a makerAddress linked to the session.
+         *     Does not submit to CLOB. Builder attribution is attached server-side only.
+         */
+        post: operations["previewOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/orders/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a signed limit order to CLOB V2
+         * @description Accepts a wallet signature bound to a prior previewId and contentHash. The BFF
+         *     reloads the preview record, recomputes the binding hash, and relays the signed
+         *     order upstream when integrity checks pass. Requires RequireEligible and a linked
+         *     maker. On upstream timeout the response status is unknown — clients MUST poll
+         *     GET /markets/me/orders and MUST NOT auto-resubmit. Gated by features.order_submit.
+         */
+        post: operations["submitOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/orders/{orderId}/cancel-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview canceling an open order before wallet signing
+         * @description Assembles an unsigned CLOB V2 cancel payload for the given orderId, binds it
+         *     to a contentHash, and returns human-readable summary metadata. Does not cancel
+         *     on venue. Same hash envelope rules as order preview (unsignedPayload + metadata).
+         */
+        post: operations["previewCancelOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/orders/{orderId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit a signed cancel to CLOB V2
+         * @description Accepts a wallet signature bound to a prior cancel previewId and contentHash.
+         *     Same integrity and idempotency rules as submitOrder. Gated by features.order_submit.
+         */
+        post: operations["cancelOrder"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/me/wallets/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect an existing Polymarket account wallet to the session signer
+         * @description Persists a connect-existing linkage between the session signer EOA and a
+         *     client-supplied Polymarket trading wallet. The BFF never generates or invents
+         *     accountWallet addresses. Response is a bare LinkedWallet object. Responses
+         *     MUST NOT be cached (private, no-store).
+         */
+        post: operations["linkExistingWallet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/account-wallet/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview metadata for deposit-wallet deploy or link-existing
+         * @description Returns preview metadata for the requested account-wallet action. Does not
+         *     call upstream relayer HTTP, does not persist linkage, and exposes no relayer
+         *     secrets. When action is omitted, defaults to deploy_deposit_wallet. Responses
+         *     MUST NOT be cached (private, no-store).
+         */
+        post: operations["previewAccountWallet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/markets/account-wallet/relay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Persist client-supplied deployed Deposit Wallet address
+         * @description Persists a deployed Deposit Wallet address supplied by the client after
+         *     upstream relayer deploy. The BFF never generates or invents accountWallet
+         *     addresses. Idempotent upsert at the store layer. Responses MUST NOT be cached
+         *     (private, no-store).
+         */
+        post: operations["relayAccountWallet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/markets/events": {
         parameters: {
             query?: never;
@@ -157,6 +477,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/markets/intelligence/whales": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List wallet-attributed large public trades (SM-I-001)
+         * @description Descriptive whale feed from Polymarket Data API `/trades` attribution only.
+         *     Gated by capabilities.features.intelligence_whale_feed (default false).
+         *     Informational only — no auto-copy or order path (ADR-009).
+         */
+        get: operations["listMarketsWhales"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -197,15 +539,34 @@ export interface components {
     schemas: {
         /** @constant */
         SchemaVersion: "1";
-        /** @example 0.42 */
+        /**
+         * @description Unsigned decimal string for prices, probabilities, and book sizes. Never use binary floating point.
+         * @example 0.42
+         */
         DecimalString: string;
+        /**
+         * @description Fixed-point money as integer base units. Used for balances, funding, fees, and notional (PHASE-2+). Never use binary floating point.
+         * @example {
+         *       "amount": "10500000",
+         *       "currency": "USDC",
+         *       "decimals": 6
+         *     }
+         */
+        MoneyAmount: {
+            /** @description Integer base units as string (avoids JS int53 loss; never a decimal fraction). */
+            amount: string;
+            /** @example USDC */
+            currency: string;
+            /** @example 6 */
+            decimals: number;
+        };
         /** @enum {string} */
         MarketStatus: "unknown" | "open" | "closed" | "resolved" | "archived";
         /** @enum {string} */
         FreshnessState: "fresh" | "stale" | "resyncing" | "unavailable" | "invalid";
         UpstreamProvenance: {
             /** @enum {string} */
-            source: "polymarket_gamma" | "polymarket_clob" | "polymarket_clob_ws" | "retropick_projection";
+            source: "polymarket_gamma" | "polymarket_clob" | "polymarket_clob_ws" | "polymarket_data" | "retropick_projection";
             upstreamId?: string;
             /** Format: date-time */
             observedAt: string;
@@ -250,6 +611,26 @@ export interface components {
             /** @constant */
             trading: false;
         };
+        /**
+         * @example {
+         *       "schemaVersion": "1",
+         *       "id": "polymarket:event:1",
+         *       "upstreamId": "1",
+         *       "slug": "conformance-event",
+         *       "title": "Conformance Event",
+         *       "status": "open",
+         *       "marketCount": 1,
+         *       "freshness": {
+         *         "state": "fresh",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       },
+         *       "provenance": {
+         *         "source": "polymarket_gamma",
+         *         "observedAt": "2026-07-30T12:00:00Z",
+         *         "contentHash": "event-hash"
+         *       }
+         *     }
+         */
         EventSummary: {
             schemaVersion: components["schemas"]["SchemaVersion"];
             id: string;
@@ -265,10 +646,46 @@ export interface components {
             freshness: components["schemas"]["MarketFreshness"];
             provenance: components["schemas"]["UpstreamProvenance"];
         };
+        /**
+         * @example {
+         *       "schemaVersion": "1",
+         *       "id": "polymarket:market:1",
+         *       "upstreamId": "1",
+         *       "eventId": "polymarket:event:1",
+         *       "conditionId": "0xconformance",
+         *       "question": "Conformance?",
+         *       "status": "open",
+         *       "outcomes": [
+         *         {
+         *           "id": "polymarket:token:1",
+         *           "upstreamId": "token-1",
+         *           "name": "Yes",
+         *           "price": "0.42"
+         *         }
+         *       ],
+         *       "capabilities": {
+         *         "orderBook": true,
+         *         "history": true,
+         *         "realtime": false,
+         *         "negRisk": false,
+         *         "trading": false
+         *       },
+         *       "freshness": {
+         *         "state": "fresh",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       },
+         *       "provenance": {
+         *         "source": "retropick_projection",
+         *         "observedAt": "2026-07-30T12:00:00Z",
+         *         "contentHash": "market-hash"
+         *       }
+         *     }
+         */
         MarketSummary: {
             schemaVersion: components["schemas"]["SchemaVersion"];
             id: string;
             upstreamId: string;
+            /** @description Canonical parent event link when nested under EventDetail.markets */
             eventId?: string;
             conditionId: string;
             slug?: string;
@@ -294,6 +711,43 @@ export interface components {
             price: components["schemas"]["DecimalString"];
             size: components["schemas"]["DecimalString"];
         };
+        /**
+         * @example {
+         *       "schemaVersion": "1",
+         *       "marketId": "polymarket:market:1",
+         *       "conditionId": "0xconformance",
+         *       "tokenId": "token-1",
+         *       "hash": "hash-1",
+         *       "timestamp": "2026-07-30T12:00:00Z",
+         *       "bids": [
+         *         {
+         *           "price": "0.4",
+         *           "size": "2"
+         *         }
+         *       ],
+         *       "asks": [
+         *         {
+         *           "price": "0.6",
+         *           "size": "3"
+         *         }
+         *       ],
+         *       "bestBid": "0.4",
+         *       "bestAsk": "0.6",
+         *       "midpoint": "0.5",
+         *       "spread": "0.2",
+         *       "minOrderSize": "1",
+         *       "tickSize": "0.01",
+         *       "negRisk": false,
+         *       "freshness": {
+         *         "state": "fresh",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       },
+         *       "provenance": {
+         *         "source": "polymarket_clob",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       }
+         *     }
+         */
         OrderBookSnapshot: {
             schemaVersion: components["schemas"]["SchemaVersion"];
             marketId: string;
@@ -322,14 +776,69 @@ export interface components {
             derived: boolean;
             source: string;
         };
+        /**
+         * @example {
+         *       "schemaVersion": "1",
+         *       "marketId": "polymarket:market:1",
+         *       "tokenId": "token-1",
+         *       "interval": "1d",
+         *       "fidelity": 60,
+         *       "points": [
+         *         {
+         *           "timestamp": "2026-07-30T12:00:00Z",
+         *           "price": "0.5",
+         *           "derived": false,
+         *           "source": "polymarket_clob"
+         *         }
+         *       ],
+         *       "freshness": {
+         *         "state": "fresh",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       },
+         *       "provenance": {
+         *         "source": "polymarket_clob",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       }
+         *     }
+         */
         PriceHistoryResponse: {
             schemaVersion: components["schemas"]["SchemaVersion"];
             marketId: string;
             tokenId: string;
+            /**
+             * @description Echo of the interval query parameter used for this response.
+             * @enum {string}
+             */
+            interval?: "1h" | "6h" | "1d" | "1w" | "max";
+            /** @description Echo of the fidelity query parameter used for this response. */
+            fidelity?: number;
             points: components["schemas"]["PricePoint"][];
             freshness: components["schemas"]["MarketFreshness"];
             provenance: components["schemas"]["UpstreamProvenance"];
         };
+        /**
+         * @example {
+         *       "schemaVersion": "1",
+         *       "marketId": "polymarket:market:1",
+         *       "algorithm": "depth_v1",
+         *       "observedAt": "2026-07-30T12:00:00Z",
+         *       "spread": "0.2",
+         *       "bestBid": "0.4",
+         *       "bestAsk": "0.6",
+         *       "bidDepth": "2",
+         *       "askDepth": "3",
+         *       "snapshotAgeMs": 100,
+         *       "crossed": false,
+         *       "freshness": {
+         *         "state": "fresh",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       },
+         *       "provenance": {
+         *         "source": "polymarket_clob",
+         *         "observedAt": "2026-07-30T12:00:00Z"
+         *       }
+         *     }
+         */
         MarketHealthSnapshot: {
             schemaVersion: components["schemas"]["SchemaVersion"];
             marketId: string;
@@ -415,12 +924,426 @@ export interface components {
             signals: components["schemas"]["SignalEnvelope"][];
             page: components["schemas"]["PageInfo"];
         };
+        /** @enum {string} */
+        WhaleReasonCode: "WHALE_NOTIONAL_THRESHOLD" | "WHALE_VOLUME_SHARE" | "WHALE_PRICE_IMPACT" | "WHALE_WATCHED_WALLET" | "WHALE_CLUSTER_BURST" | "WHALE_CONCENTRATION";
+        IntelligenceEvidenceEnvelope: {
+            /** @constant */
+            version: 1;
+            /** @enum {string} */
+            signalType: "whale_trade" | "smart_money_score" | "backtest_result";
+            /** Format: date-time */
+            computedAt: string;
+            inputs: {
+                [key: string]: string;
+            };
+            metrics: {
+                [key: string]: number;
+            };
+            paramsRef: string;
+            reasonCodes: string[];
+            hash: string;
+            /** @enum {string} */
+            lifecycle: "draft" | "active" | "stale" | "retracted" | "superseded";
+            provenanceId?: string;
+            /** Format: date-time */
+            retractedAt?: string | null;
+            supersededBy?: string | null;
+        };
+        WhaleFeedItem: {
+            fingerprint: string;
+            wallet: string;
+            marketId: string;
+            marketTitle?: string;
+            outcome: string;
+            /** @enum {string} */
+            side: "BUY" | "SELL";
+            price: components["schemas"]["DecimalString"];
+            size: components["schemas"]["DecimalString"];
+            notionalUsd: components["schemas"]["DecimalString"];
+            /** Format: date-time */
+            tradeTs: string;
+            /** @description Unitless Launch WhaleScore rendered as decimal string. */
+            whaleScore: string;
+            reasonCodes: components["schemas"]["WhaleReasonCode"][];
+            displayName?: string;
+            freshness: components["schemas"]["MarketFreshness"];
+            provenance: components["schemas"]["UpstreamProvenance"];
+            evidence: components["schemas"]["IntelligenceEvidenceEnvelope"];
+            /** Format: int64 */
+            lagSeconds: number;
+            /** @constant */
+            source: "data_trades";
+        };
+        WhaleFeedListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            items: components["schemas"]["WhaleFeedItem"][];
+            page: components["schemas"]["PageInfo"];
+            /** Format: date-time */
+            checkedAt: string;
+            freshness: components["schemas"]["MarketFreshness"];
+        };
         EligibilityResponse: {
             eligible: boolean;
             reason?: string;
             /** Format: date-time */
             checkedAt: string;
             region?: string;
+        };
+        /**
+         * @description Polymarket wallet type per EV-009.
+         * @enum {string}
+         */
+        WalletType: "EOA" | "POLY_PROXY" | "GNOSIS_SAFE" | "DEPOSIT_WALLET";
+        /** @enum {string} */
+        LinkStatus: "linked" | "pending_verification";
+        LinkedWallet: {
+            /** @description Polymarket trading wallet holding collateral and positions. */
+            accountWallet: string;
+            walletType: components["schemas"]["WalletType"];
+            linkStatus: components["schemas"]["LinkStatus"];
+            isPrimary: boolean;
+            /** @example 137 */
+            chainId: number;
+        };
+        /**
+         * @description Intended account-wallet operation for preview.
+         * @enum {string}
+         */
+        AccountWalletAction: "link_existing" | "deploy_deposit_wallet";
+        LinkExistingWalletRequest: {
+            /** @description Existing Polymarket trading wallet to link. */
+            accountWallet: string;
+            walletType: components["schemas"]["WalletType"];
+            linkStatus?: components["schemas"]["LinkStatus"];
+            /** @default true */
+            isPrimary: boolean;
+            /** @example 137 */
+            chainId?: number;
+            /** @description Optional signature-challenge hash; no relayer API keys. */
+            linkageProofHash?: string;
+        };
+        AccountWalletPreviewRequest: {
+            /** @default deploy_deposit_wallet */
+            action: components["schemas"]["AccountWalletAction"];
+        };
+        AccountWalletPreviewResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** @description Session signer EOA (ADR-003); never from request body. */
+            signerAddress: string;
+            action: components["schemas"]["AccountWalletAction"];
+            /** @example 137 */
+            chainId: number;
+            /** @description Human-readable preview summary for client confirmation modal. */
+            message: string;
+        };
+        AccountWalletRelayRequest: {
+            /** @description Deployed Deposit Wallet address supplied by the client. */
+            accountWallet: string;
+            /** @example 137 */
+            chainId?: number;
+            /** @default true */
+            isPrimary: boolean;
+            /** @description Optional signature-challenge hash; no relayer API keys. */
+            linkageProofHash?: string;
+        };
+        AccountWalletRelayResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** @description Session signer EOA (ADR-003); never from request body. */
+            signerAddress: string;
+            wallet: components["schemas"]["LinkedWallet"];
+        };
+        WalletsListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** @description EOA that signs L1 auth and EIP-712 payloads (ADR-003). */
+            signerAddress: string;
+            wallets: components["schemas"]["LinkedWallet"][];
+            /** Format: date-time */
+            checkedAt: string;
+        };
+        BalancesListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** @description EOA that signs L1 auth and EIP-712 payloads (ADR-003). */
+            signerAddress: string;
+            /** @description Primary linked Polymarket trading wallet whose collateral was queried. */
+            accountWallet: string;
+            collateral: components["schemas"]["MoneyAmount"];
+            /** Format: date-time */
+            checkedAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+            freshness?: components["schemas"]["MarketFreshness"];
+        };
+        /** @enum {string} */
+        OrderSide: "BUY" | "SELL";
+        /** @enum {string} */
+        OrderType: "LIMIT";
+        /** @enum {string} */
+        OrderTimeInForce: "GTC" | "GTD";
+        OrderPreviewRequest: {
+            /** @description Canonical market id (polymarket:market:{upstreamId}). */
+            marketId: string;
+            /** @description Outcome token id (upstream CLOB token id). */
+            tokenId: string;
+            side: components["schemas"]["OrderSide"];
+            price: components["schemas"]["DecimalString"];
+            /** @description Outcome share amount for BUY and SELL limit orders. Collateral is derived server-side from price and signed makerAmount. */
+            size: components["schemas"]["DecimalString"];
+            orderType: components["schemas"]["OrderType"];
+            timeInForce?: components["schemas"]["OrderTimeInForce"];
+            makerAddress: string;
+            idempotencyKey?: string;
+        };
+        OrderPreviewHumanSummary: {
+            action: components["schemas"]["OrderSide"];
+            market: string;
+            outcome: string;
+            size: string;
+            price: components["schemas"]["DecimalString"];
+            estimatedFee?: string;
+            chainId: number;
+        };
+        UnsignedOrderPayload: {
+            salt: string;
+            maker: string;
+            signer: string;
+            tokenId: string;
+            makerAmount: string;
+            takerAmount: string;
+            side: number;
+            signatureType: number;
+            timestamp: string;
+            metadata: string;
+            builder: string;
+        };
+        OrderPreviewResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** Format: uuid */
+            previewId: string;
+            contentHash: string;
+            /** Format: date-time */
+            expiresAt: string;
+            humanSummary: components["schemas"]["OrderPreviewHumanSummary"];
+            unsignedPayload: components["schemas"]["UnsignedOrderPayload"];
+            /** @enum {string} */
+            exchangeDomain: "standard" | "neg_risk";
+            warnings?: string[];
+        };
+        /** @enum {string} */
+        OrderStatus: "submitted" | "open" | "partially_filled" | "filled" | "cancel_pending" | "canceled" | "rejected" | "expired" | "unknown";
+        /** @enum {string} */
+        OrderListStatusFilter: "open" | "submitted" | "partially_filled" | "filled" | "cancel_pending" | "canceled" | "rejected" | "expired" | "unknown";
+        OrderSubmitRequest: {
+            /** Format: uuid */
+            previewId: string;
+            contentHash: string;
+            /** @description EIP-712 order signature from the user's wallet. */
+            signature: string;
+        };
+        OrderSubmitResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /**
+             * Format: uuid
+             * @description Internal RetroPick order id.
+             */
+            orderId: string;
+            /** @description Polymarket CLOB order id when known. */
+            venueOrderId?: string;
+            status: components["schemas"]["OrderStatus"];
+            clientOrderId?: string;
+            /** Format: date-time */
+            submittedAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+            warnings?: string[];
+        };
+        OrderCancelHumanSummary: {
+            /** @constant */
+            action: "CANCEL";
+            market: string;
+            outcome: string;
+            size: string;
+            price: components["schemas"]["DecimalString"];
+            chainId: number;
+        };
+        UnsignedCancelPayload: {
+            /** @description Venue order id to cancel. */
+            orderId: string;
+            maker: string;
+            tokenId: string;
+            salt: string;
+            timestamp: string;
+        };
+        OrderCancelPreviewResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** Format: uuid */
+            previewId: string;
+            contentHash: string;
+            /** Format: date-time */
+            expiresAt: string;
+            humanSummary: components["schemas"]["OrderCancelHumanSummary"];
+            unsignedPayload: components["schemas"]["UnsignedCancelPayload"];
+            /**
+             * Format: uuid
+             * @description Internal RetroPick order id being canceled.
+             */
+            orderId: string;
+            warnings?: string[];
+        };
+        OrderCancelRequest: {
+            /** Format: uuid */
+            previewId: string;
+            contentHash: string;
+            /** @description EIP-712 cancel signature from the user's wallet. */
+            signature: string;
+        };
+        OrderCancelResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** Format: uuid */
+            orderId: string;
+            /** @enum {string} */
+            status: "cancel_pending" | "canceled";
+            /** Format: date-time */
+            canceledAt?: string;
+            provenance?: components["schemas"]["UpstreamProvenance"];
+        };
+        UserOrder: {
+            /** Format: uuid */
+            orderId: string;
+            venueOrderId?: string;
+            marketId: string;
+            tokenId: string;
+            side: components["schemas"]["OrderSide"];
+            price: components["schemas"]["DecimalString"];
+            originalSize: components["schemas"]["DecimalString"];
+            filledSize: components["schemas"]["DecimalString"];
+            remainingSize: components["schemas"]["DecimalString"];
+            status: components["schemas"]["OrderStatus"];
+            /** @enum {string} */
+            exchangeDomain: "standard" | "neg_risk";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        OrdersListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            orders: components["schemas"]["UserOrder"][];
+            page: components["schemas"]["PageInfo"];
+            /** Format: date-time */
+            checkedAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+            freshness?: components["schemas"]["MarketFreshness"];
+        };
+        UserFill: {
+            /** Format: uuid */
+            fillId: string;
+            /** Format: uuid */
+            orderId: string;
+            venueTradeId: string;
+            marketId: string;
+            tokenId: string;
+            side: components["schemas"]["OrderSide"];
+            price: components["schemas"]["DecimalString"];
+            size: components["schemas"]["DecimalString"];
+            fee: components["schemas"]["MoneyAmount"];
+            /** Format: date-time */
+            filledAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+        };
+        FillsListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            fills: components["schemas"]["UserFill"][];
+            page: components["schemas"]["PageInfo"];
+            /** Format: date-time */
+            checkedAt: string;
+        };
+        /**
+         * @description Position lifecycle per Polymarket resolution flow. active = trading open;
+         *     resolved = outcome determined; redeemable = claims available; redeemed = completed.
+         * @enum {string}
+         */
+        PositionResolutionState: "active" | "resolved" | "redeemable" | "redeemed";
+        UserPosition: {
+            /** Format: uuid */
+            positionId: string;
+            marketId: string;
+            tokenId: string;
+            outcomeName?: string;
+            /** @description Outcome token shares held. */
+            size: components["schemas"]["DecimalString"];
+            averageEntryPrice: components["schemas"]["DecimalString"];
+            markPrice?: components["schemas"]["DecimalString"] | null;
+            costBasis: components["schemas"]["MoneyAmount"];
+            markValue?: components["schemas"]["MoneyAmount"] | null;
+            unrealizedPnl?: components["schemas"]["MoneyAmount"] | null;
+            realizedPnl?: components["schemas"]["MoneyAmount"] | null;
+            resolutionState: components["schemas"]["PositionResolutionState"];
+            /** @description True when redemption is available per venue resolution state. */
+            claimable: boolean;
+            /** @enum {string} */
+            exchangeDomain: "standard" | "neg_risk";
+            /** Format: date-time */
+            updatedAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+            freshness?: components["schemas"]["MarketFreshness"];
+        };
+        PositionsListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            positions: components["schemas"]["UserPosition"][];
+            page: components["schemas"]["PageInfo"];
+            /** Format: date-time */
+            checkedAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+            freshness?: components["schemas"]["MarketFreshness"];
+        };
+        /** @enum {string} */
+        ActivityEventType: "order_submitted" | "order_filled" | "order_canceled" | "funding_credited" | "withdrawal_confirmed" | "split" | "merge" | "redeem" | "convert";
+        ActivityEvent: {
+            /** Format: uuid */
+            eventId: string;
+            eventType: components["schemas"]["ActivityEventType"];
+            /** Format: date-time */
+            occurredAt: string;
+            /** @description Human-readable activity description for UI display. */
+            summary: string;
+            marketId?: string;
+            tokenId?: string;
+            price?: components["schemas"]["DecimalString"];
+            size?: components["schemas"]["DecimalString"];
+            amount?: components["schemas"]["MoneyAmount"];
+            /** Format: uuid */
+            relatedOrderId?: string;
+            /** Format: uuid */
+            relatedFillId?: string;
+            /** Format: uuid */
+            relatedOperationId?: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+        };
+        ActivityListResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            events: components["schemas"]["ActivityEvent"][];
+            page: components["schemas"]["PageInfo"];
+            /** Format: date-time */
+            checkedAt: string;
+        };
+        PortfolioPnLAggregate: {
+            totalMarkValue: components["schemas"]["MoneyAmount"];
+            totalCostBasis: components["schemas"]["MoneyAmount"];
+            /** @description Null when mark prices are unavailable for one or more open positions. */
+            unrealizedPnl?: components["schemas"]["MoneyAmount"] | null;
+            realizedPnl: components["schemas"]["MoneyAmount"];
+            claimableValue: components["schemas"]["MoneyAmount"];
+            openPositionCount: number;
+        };
+        PortfolioSummaryResponse: {
+            schemaVersion: components["schemas"]["SchemaVersion"];
+            /** @description Primary linked account wallet from session resolver (ADR-003). */
+            accountWallet: string;
+            aggregate: components["schemas"]["PortfolioPnLAggregate"];
+            /** @description Required descriptive disclaimer — PnL is projection, not custodial authority. */
+            pnlDisclaimer: string;
+            /** Format: date-time */
+            checkedAt: string;
+            provenance: components["schemas"]["UpstreamProvenance"];
+            freshness?: components["schemas"]["MarketFreshness"];
         };
         CapabilitiesResponse: {
             version: string;
@@ -431,12 +1354,38 @@ export interface components {
             combos: false;
             intelligence: boolean;
             features?: {
+                /**
+                 * @description When false, submit and cancel POST handlers MUST NOT be mounted;
+                 *     clients hide trade CTAs. Runtime remains false until MKT-P3-002 wiring.
+                 */
+                order_submit: boolean;
+                /**
+                 * @description When false, portfolio GET handlers (positions, activity, summary) MUST NOT
+                 *     be mounted; clients hide portfolio surfaces. Runtime remains false until
+                 *     MKT-P4-001 wiring.
+                 */
+                portfolio_read: boolean;
+                /**
+                 * @description When false, GET /markets/intelligence/whales returns an empty page with
+                 *     freshness.reason feature_disabled. SM-I-001 whale feed (default false).
+                 */
+                intelligence_whale_feed?: boolean;
+            } & {
                 [key: string]: boolean;
             };
             source: string;
             /** Format: date-time */
             checkedAt: string;
         };
+        /**
+         * @example {
+         *       "error": {
+         *         "code": "not_found",
+         *         "message": "Resource not found",
+         *         "requestId": "req-conformance-1"
+         *       }
+         *     }
+         */
         ApiError: {
             error: {
                 code: string;
@@ -450,8 +1399,11 @@ export interface components {
         HealthResponse: {
             ok: boolean;
             degraded?: boolean;
+            service: string;
+            /** Format: date-time */
+            checkedAt: string;
             checks?: {
-                [key: string]: unknown;
+                [key: string]: string;
             };
         };
     };
@@ -508,6 +1460,21 @@ export interface components {
         EventID: string;
         MarketID: string;
         TokenID: string;
+        /** @description UUID for mutating POST idempotency (24h replay window). */
+        IdempotencyKey: string;
+        /** @description Internal RetroPick order UUID. */
+        OrderID: string;
+        /** @description Filter fills by internal RetroPick order UUID. */
+        OrderIDQuery: string;
+        /**
+         * @description Filter orders by status. Use open for resting and in-flight orders
+         *     (open, partially_filled, cancel_pending, unknown).
+         */
+        OrderListStatus: components["schemas"]["OrderListStatusFilter"];
+        /** @description Filter positions by resolution lifecycle state. Omit to return all. */
+        PositionResolutionStateFilter: components["schemas"]["PositionResolutionState"];
+        /** @description Filter activity events by type. Omit to return all event types. */
+        ActivityEventTypeFilter: components["schemas"]["ActivityEventType"];
     };
     requestBodies: never;
     headers: never;
@@ -543,6 +1510,888 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CapabilitiesResponse"];
+                };
+            };
+        };
+    };
+    listMyWallets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signer and linked account wallets */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletsListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listMyBalances: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Primary account wallet collateral balance */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BalancesListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No linked primary account wallet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Venue balance upstream unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listMyOrders: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                /**
+                 * @description Filter orders by status. Use open for resting and in-flight orders
+                 *     (open, partially_filled, cancel_pending, unknown).
+                 */
+                status?: components["parameters"]["OrderListStatus"];
+                marketId?: string;
+                tokenId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated order list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrdersListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No linked primary account wallet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listMyFills: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                /** @description Filter fills by internal RetroPick order UUID. */
+                orderId?: components["parameters"]["OrderIDQuery"];
+                marketId?: string;
+                tokenId?: string;
+                since?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated fill list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FillsListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No linked primary account wallet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listMyPositions: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                marketId?: string;
+                tokenId?: string;
+                /** @description Filter positions by resolution lifecycle state. Omit to return all. */
+                resolutionState?: components["parameters"]["PositionResolutionStateFilter"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated position list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PositionsListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No linked primary account wallet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Portfolio read capability disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    listMyActivity: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                since?: string;
+                /** @description Filter activity events by type. Omit to return all event types. */
+                eventType?: components["parameters"]["ActivityEventTypeFilter"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated activity event list */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActivityListResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No linked primary account wallet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Portfolio read capability disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    getMyPortfolioSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Portfolio summary aggregate */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioSummaryResponse"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description No linked primary account wallet */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Portfolio read capability disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    previewOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID for mutating POST idempotency (24h replay window). */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Order preview ready for signing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderPreviewResponse"];
+                };
+            };
+            /** @description Invalid order parameters */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Eligibility denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Market or token not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Maker wallet not linked to session */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Upstream validation unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    submitOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID for mutating POST idempotency (24h replay window). */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Order accepted or submitted (venue-dependent status) */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderSubmitResponse"];
+                };
+            };
+            /** @description Invalid request body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Eligibility denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Preview not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Content hash mismatch — no upstream submit */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Preview expired — re-preview required */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Idempotency key replay with different body */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description CLOB upstream unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Order submit capability disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    previewCancelOrder: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Internal RetroPick order UUID. */
+                orderId: components["parameters"]["OrderID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Cancel preview ready for signing */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCancelPreviewResponse"];
+                };
+            };
+            /** @description Invalid request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Eligibility denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Order not found or not cancelable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Order not owned by session maker */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Upstream validation unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    cancelOrder: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID for mutating POST idempotency (24h replay window). */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description Internal RetroPick order UUID. */
+                orderId: components["parameters"]["OrderID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrderCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Cancel accepted or pending venue confirmation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrderCancelResponse"];
+                };
+            };
+            /** @description Invalid request body */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Eligibility denied */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Preview or order not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Content hash mismatch */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Preview expired */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Idempotency key replay with different body */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description CLOB upstream unavailable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Order submit capability disabled */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    linkExistingWallet: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID for mutating POST idempotency (24h replay window). */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LinkExistingWalletRequest"];
+            };
+        };
+        responses: {
+            /** @description Linked account wallet persisted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkedWallet"];
+                };
+            };
+            /** @description Invalid wallet address or malformed request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Wallet linkage conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Wallet linking is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    previewAccountWallet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountWalletPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Preview metadata for client confirmation */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountWalletPreviewResponse"];
+                };
+            };
+            /** @description Invalid action */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Wallet linking is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    relayAccountWallet: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description UUID for mutating POST idempotency (24h replay window). */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountWalletRelayRequest"];
+            };
+        };
+        responses: {
+            /** @description Deposit Wallet linkage persisted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountWalletRelayResponse"];
+                };
+            };
+            /** @description Missing or invalid account wallet address */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Authentication required */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Wallet linkage conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Wallet linking is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
                 };
             };
         };
@@ -721,6 +2570,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SignalsListResponse"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+        };
+    };
+    listMarketsWhales: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+                minScore?: number;
+                minNotional?: number;
+                marketId?: string;
+                wallet?: string;
+                reasonCode?: components["schemas"]["WhaleReasonCode"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whale feed page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhaleFeedListResponse"];
                 };
             };
             400: components["responses"]["BadRequest"];
