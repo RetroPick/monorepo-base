@@ -25,6 +25,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - name: Install Playwright browsers (markets web e2e)
+        run: pnpm --filter @retropick/markets-web exec playwright install --with-deps chromium
       - run: pnpm test
       - run: bash scripts/check-markets-openapi-drift.sh
       - run: bash scripts/check-markets-realtime-asyncapi-drift.sh

@@ -12,7 +12,9 @@ export default defineConfig({
   },
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: [["list"], ["junit", { outputFile: "e2e/markets/junit.xml" }]],
+  reporter: process.env.CI
+    ? [["list"], ["junit", { outputFile: "e2e/markets/junit.xml" }]]
+    : [["list"]],
   use: {
     baseURL,
     trace: "on-first-retry",
@@ -27,6 +29,6 @@ export default defineConfig({
     command: "pnpm exec next dev -p 3011",
     url: baseURL,
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 300_000,
   },
 });
