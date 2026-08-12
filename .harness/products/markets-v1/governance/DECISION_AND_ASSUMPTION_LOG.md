@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-07-25
+**Last updated:** 2026-08-11
 **Product:** RetroPick Markets V1
 
 ## Description
@@ -27,6 +27,17 @@ Append Decision rows with ADR/doc + task ID; Assumptions with Expiry + Revalidat
 | Decision | Release-state and evidence live outside Git at `~/.local/state/retropick-harness/`. Only evidence moves gates green. | Runtime truth ≠ doc fiction. |
 
 Use before marking a task `done` if you made an architecture/product choice or relied on time-sensitive upstream claims. Companion open questions live in `../research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md`. This log is not a substitute for `BLOCKERS_AND_HUMAN_APPROVALS.md`.
+
+## 2026-08-11 — W1-004 planning-artifact reconciliation (agent/w1-004-recovery)
+
+| Type | Decision / finding | Rationale |
+|------|--------------------|-----------|
+| Finding (D5) | RECOVERY-PASS residual risk "REC-4 durable Postgres order journal remains unimplemented" is **superseded**: commit `3575e3985` ships `apps/backend/internal/markets/orders/postgres_journal.go` (710 lines), migration `000023_markets_v1_order_mutation_journal`, and the durable submit path (`ClaimSubmit` before venue POST; `MarkSubmitAccepted/Unknown/Rejected` after). Evidence file left untouched (history preserved); this row is the correction record. | The note predates the journal landing in the same commit; code + tests are truth (R0-004 D5). |
+| Closure (D1 / QA-016 status dimension) | Harness-drift QA-016 **status dimension closed**: task-graph P3-002..006, P4-001, P4-003 marked `done` with `gate:` notes ("gated (phase not advanced)") + `verification_evidence` links matching the committed evidence corpus (P3: 6/6 linked, P4: 2/6). Blocker registers unified (manifest `unresolved_blockers` 6 → 10 rows matching the governance register). **ID-scheme dimension remains open**: graph 7/6/6 task sets vs the 2026-08-09 spec's 10-task IDs (P2-004/005/006, P3-003/004/006, P4-003 semantics differ) — orchestrator decision required (ratify the graph split or rebuild P2–P4 to spec IDs). | One catalogue must match specs (QA-016 acceptance); status/evidence honesty fixed now, ID alignment is a catalogue-schema decision outside W1-004 scope. |
+| Decision | Graph status vocabulary extended with an optional `gate:` field carrying "gated (phase not advanced)" notes; `current_phase` stays **PHASE-2** (REC-0/REC-14 freeze). | Status honesty without phase advance (R0-004 D2 recommendation #2). |
+| Finding (D6, not fixed) | MKT-P2-007 phase-gate exit criterion "no mounted submit routes" is stale at HEAD — `orders.RegisterRoutes` is mounted via `EligibleMarketRouteRegistrar`; safety is enforced by capability gate (`order_submit:false`) + kill switch (`MARKETS_ORDER_SUBMIT_ENABLED`) + durable journal, not route absence. Evidence file untouched; left as residual contradiction. | Safety property holds; gate wording is historical evidence, not editable per W1-004 FORBIDDEN. |
+| Finding (D7/D8/D9, not fixed) | PHASE-1 tasks P1-001/002/003/006/007 still lack per-task evidence files (D7); `apps/fe-v1` references persist in `scripts/` + root `package.json` (D8 / REL-06); `git submodule status` still fatal on `archive/contracts/legacy-pool-v1/treasury-vault-eth` (D9 / REL-05). All out of W1-004 owned paths. | Scoped reconciliation; separate follow-up tasks required. |
+| Decision | Hermes kanban worktree convention (`<repo>/.worktrees/<task-id>/`) adopted as the dispatcher default; `.worktrees/` added to `.gitignore`; WORKTREE_POLICY.md now documents both conventions (`prepare-task-worktree.sh` uses `/opt/worktrees/retropick/<task-id>/`). | Kanban-spawned tasks create repo-local worktrees; keeps `main` release-state clean. |
 
 ## 0. Developer intent (5W+1H)
 
