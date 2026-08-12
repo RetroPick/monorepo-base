@@ -25,31 +25,28 @@ case "$MODE" in
   core)
     TARGETS=(
       "apps/backend"
-      "apps/fe-v1/src"
-      "apps/fe-v1/app"
-      "apps/ops-web/src"
+      "apps/backend/internal/markets"
+      "apps/web"
       "apps/docs/app"
       "apps/docs/components"
       "apps/docs/contents"
+      ".harness/products/markets-v1"
+      "schemas"
       "archive/contracts/legacy-pool-v1/src"
       "archive/contracts/legacy-pool-v1/script"
       "archive/contracts/legacy-pool-v1/test"
     )
     ;;
   backend)
-    TARGETS=("apps/backend" ".dev/backend")
+    TARGETS=("apps/backend" "apps/backend/internal/markets")
     ;;
   frontend)
     TARGETS=(
-      "apps/fe-v1/src"
-      "apps/fe-v1/app"
-      "apps/ops-web/src"
+      "apps/web"
       "apps/docs/app"
       "apps/docs/components"
       "apps/docs/contents"
-      "apps/landing-web-standalone/app"
-      "apps/landing-web-standalone/components"
-      "apps/landing-web-standalone/src"
+      "apps/landing-web/src"
     )
     ;;
   contracts)
@@ -89,15 +86,12 @@ case "$MODE" in
       "ORCHESTRATOR.md"
       "HARNESS.md"
       "apps/backend"
-      "apps/fe-v1/src"
-      "apps/fe-v1/app"
-      "apps/ops-web/src"
+      "apps/backend/internal/markets"
+      "apps/web"
       "apps/docs/app"
       "apps/docs/components"
       "apps/docs/contents"
-      "apps/landing-web-standalone/app"
-      "apps/landing-web-standalone/components"
-      "apps/landing-web-standalone/src"
+      "apps/landing-web/src"
       "packages"
       "archive/contracts/legacy-pool-v1/src"
       "archive/contracts/legacy-pool-v1/script"
@@ -108,10 +102,12 @@ case "$MODE" in
       "docs"
       ".dev"
       ".harness"
+      ".harness/products/markets-v1"
       ".ai"
       "scripts"
       "docker"
       ".github"
+      "schemas"
     )
     INCLUDE_DOCS="${GRAPHIFY_INCLUDE_DOCS:-0}"
     ;;

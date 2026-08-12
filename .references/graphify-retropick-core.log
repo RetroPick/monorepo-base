@@ -1,0 +1,89 @@
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/apps__backend
+[graphify extract] found 432 code, 0 docs, 0 papers, 0 images
+[graphify extract] AST extraction on 432 code files...
+  AST extraction: 100/432 uncached files (23%) [2 workers]
+  AST extraction: 200/432 uncached files (46%) [2 workers]
+  AST extraction: 300/432 uncached files (69%) [2 workers]
+  AST extraction: 400/432 uncached files (92%) [2 workers]
+  AST extraction: 432/432 uncached files (100%) [2 workers]
+  warning: 50 .sql file(s) contributed nothing to the graph because a dependency is missing: tree_sitter_sql not installed. Install it with: pip install "graphifyy[sql]" (#1745)
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__backend/graphify-out/graph.json: 3729 nodes, 9389 edges, 232 communities
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__backend/graphify-out/.graphify_analysis.json
+[graphify extract] next: run `graphify cluster-only /tmp/retropick-graphify/retropick-core-corpus/apps__backend` to generate GRAPH_REPORT.md and name communities
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/apps__backend__internal__markets
+[graphify extract] found 245 code, 0 docs, 0 papers, 0 images
+[graphify extract] AST extraction on 245 code files...
+  AST extraction: 100/245 uncached files (40%) [2 workers]
+  AST extraction: 200/245 uncached files (81%) [2 workers]
+  AST extraction: 245/245 uncached files (100%) [2 workers]
+[graphify] note: node 'auth_config' was extracted twice from 'auth/config.go' under different labels — keeping 'Config', dropping 'config.go'.
+[graphify] note: node 'auth_module_go_auth_module' was extracted twice from 'auth/module.go' under different labels — keeping 'Module', dropping 'module.go'.
+[graphify] note: node 'auth_session' was extracted twice from 'auth/session.go' under different labels — keeping 'Session', dropping 'session.go'.
+[graphify] note: node 'balances_handler' was extracted twice from 'balances/handler.go' under different labels — keeping 'Handler', dropping 'handler.go'.
+[graphify] note: node 'balances_reader' was extracted twice from 'balances/reader.go' under different labels — keeping 'Reader', dropping 'reader.go'.
+[graphify] note: node 'catalog_syncer_go_catalog_syncer' was extracted twice from 'catalog/syncer.go' under different labels — keeping 'Syncer', dropping 'syncer.go'.
+[graphify] note: node 'clob_client' was extracted twice from 'clob/client.go' under different labels — keeping 'Client', dropping 'client.go'.
+[graphify] note: node 'config_config' was extracted twice from 'config/config.go' under different labels — keeping 'Config', dropping 'config.go'.
+[graphify] note: node 'eligibility_evaluator_go_eligibility_evaluator' was extracted twice from 'eligibility/evaluator.go' under different labels — keeping 'Evaluator', dropping 'evaluator.go'.
+[graphify] note: node 'gamma_client' was extracted twice from 'gamma/client.go' under different labels — keeping 'Client', dropping 'client.go'.
+[graphify] note: node 'intelligence_module' was extracted twice from 'intelligence/module.go' under different labels — keeping 'Module', dropping 'module.go'.
+[graphify] note: node 'marketdata_processor' was extracted twice from 'marketdata/processor.go' under different labels — keeping 'Processor', dropping 'processor.go'.
+[graphify] note: node 'marketdata_reconciler_go_marketdata_reconciler' was extracted twice from 'marketdata/reconciler.go' under different labels — keeping 'Reconciler', dropping 'reconciler.go'.
+[graphify] note: node 'orders_handler' was extracted twice from 'orders/handler.go' under different labels — keeping 'Handler', dropping 'handler.go'.
+[graphify] note: node 'orders_submit' was extracted twice from 'orders/submit.go' under different labels — keeping 'Submit', dropping 'submit.go'.
+[graphify] note: node 'positions_handler' was extracted twice from 'positions/handler.go' under different labels — keeping 'Handler', dropping 'handler.go'.
+[graphify] note: node 'positions_metrics' was extracted twice from 'positions/metrics.go' under different labels — keeping 'Metrics', dropping 'metrics.go'.
+[graphify] note: node 'positions_reader' was extracted twice from 'positions/reader.go' under different labels — keeping 'Reader', dropping 'reader.go'.
+[graphify] note: node 'positions_worker' was extracted twice from 'positions/worker.go' under different labels — keeping 'Worker', dropping 'worker.go'.
+[graphify] note: node 'realtime_handler' was extracted twice from 'realtime/handler.go' under different labels — keeping 'Handler', dropping 'handler.go'.
+[graphify] note: node 'realtime_hub' was extracted twice from 'realtime/hub.go' under different labels — keeping 'Hub', dropping 'hub.go'.
+[graphify] note: node 'realtime_producer' was extracted twice from 'realtime/producer.go' under different labels — keeping 'Producer', dropping 'producer.go'.
+[graphify] note: node 'realtime_runtime_go_realtime_runtime' was extracted twice from 'realtime/runtime.go' under different labels — keeping 'Runtime', dropping 'runtime.go'.
+[graphify] note: node 'realtime_session' was extracted twice from 'realtime/session.go' under different labels — keeping 'Session', dropping 'session.go'.
+[graphify] note: node 'reconcile_worker' was extracted twice from 'reconcile/worker.go' under different labels — keeping 'Worker', dropping 'worker.go'.
+[graphify] note: node 'signals_engine_go_signals_engine' was extracted twice from 'signals/engine.go' under different labels — keeping 'Engine', dropping 'engine.go'.
+[graphify] note: node 'wallet_handler' was extracted twice from 'wallet/handler.go' under different labels — keeping 'Handler', dropping 'handler.go'.
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__backend__internal__markets/graphify-out/graph.json: 2498 nodes, 6157 edges, 147 communities
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__backend__internal__markets/graphify-out/.graphify_analysis.json
+[graphify extract] next: run `graphify cluster-only /tmp/retropick-graphify/retropick-core-corpus/apps__backend__internal__markets` to generate GRAPH_REPORT.md and name communities
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/apps__web
+[graphify extract] found 159 code, 0 docs, 0 papers, 0 images
+[graphify extract] AST extraction on 159 code files...
+  AST extraction: 100/159 uncached files (62%) [2 workers]
+  AST extraction: 159/159 uncached files (100%) [2 workers]
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__web/graphify-out/graph.json: 650 nodes, 1459 edges, 45 communities
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__web/graphify-out/.graphify_analysis.json
+[graphify extract] next: run `graphify cluster-only /tmp/retropick-graphify/retropick-core-corpus/apps__web` to generate GRAPH_REPORT.md and name communities
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/apps__docs__app
+[graphify extract] found 4 code, 0 docs, 0 papers, 0 images
+[graphify extract] AST extraction on 4 code files...
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__docs__app/graphify-out/graph.json: 11 nodes, 7 edges, 4 communities
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__docs__app/graphify-out/.graphify_analysis.json
+[graphify extract] next: run `graphify cluster-only /tmp/retropick-graphify/retropick-core-corpus/apps__docs__app` to generate GRAPH_REPORT.md and name communities
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/apps__docs__components
+[graphify extract] found 1 code, 0 docs, 0 papers, 0 images
+[graphify extract] AST extraction on 1 code files...
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__docs__components/graphify-out/graph.json: 4 nodes, 4 edges, 2 communities
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/apps__docs__components/graphify-out/.graphify_analysis.json
+[graphify extract] next: run `graphify cluster-only /tmp/retropick-graphify/retropick-core-corpus/apps__docs__components` to generate GRAPH_REPORT.md and name communities
+[graphify extract] graph is empty — extraction produced no nodes. Possible causes: all files skipped, binary-only corpus, or LLM returned no edges.
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/archive__contracts__legacy-pool-v1__src
+[graphify extract] found 0 code, 0 docs, 0 papers, 0 images
+[graphify extract] 50 file(s) not classified (no supported extension or shebang), skipped: ChainlinkAdapter.sol, CommunityPool.sol, EquityAdapter.sol, FeeRouter.sol, IEventOracle.sol, IMarketEngine.sol (+44 more)
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/archive__contracts__legacy-pool-v1__script
+[graphify extract] found 2 code, 0 docs, 0 papers, 0 images
+[graphify extract] 17 file(s) not classified (no supported extension or shebang), skipped: 00_Preflight.s.sol, 10_DeployCore.s.sol, 20_DeployModules.s.sol, 30_WireModules.s.sol, 40_Validate.s.sol, 90_Rollback.s.sol (+11 more)
+[graphify extract] AST extraction on 2 code files...
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/archive__contracts__legacy-pool-v1__script/graphify-out/graph.json: 10 nodes, 9 edges, 2 communities
+[graphify extract] wrote /tmp/retropick-graphify/retropick-core-corpus/archive__contracts__legacy-pool-v1__script/graphify-out/.graphify_analysis.json
+[graphify extract] next: run `graphify cluster-only /tmp/retropick-graphify/retropick-core-corpus/archive__contracts__legacy-pool-v1__script` to generate GRAPH_REPORT.md and name communities
+[graphify extract] graph is empty — extraction produced no nodes. Possible causes: all files skipped, binary-only corpus, or LLM returned no edges.
+[graphify extract] scanning /tmp/retropick-graphify/retropick-core-corpus/archive__contracts__legacy-pool-v1__test
+[graphify extract] found 0 code, 0 docs, 0 papers, 0 images
+[graphify extract] 67 file(s) not classified (no supported extension or shebang), skipped: ChainlinkAdapter.t.sol, DeploymentScriptExecution.t.sol, DeploymentScriptGuards.t.sol, EpochGas.t.sol, FeeRouter.invariant.t.sol, FeeRouter.t.sol (+61 more)
+[graphify] community set changed since labeling (320 saved labels, 369 communities now; renamed 300 community(ies) by their hub). Run `graphify label` to refresh names with the LLM.
+Loading existing graph...
+Graph: 6902 nodes, 17025 edges
+Re-clustering...
+[graphify] backed up curated graph (4 files) -> 2026-08-11/
+Done - 369 communities. GRAPH_REPORT.md and graph.json updated (--no-viz; graph.html removed).
