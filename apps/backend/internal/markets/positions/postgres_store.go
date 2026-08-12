@@ -42,6 +42,9 @@ func (s *PostgresStore) ApplyVenueRebuild(ctx context.Context, userID, accountWa
 				return 0, fmt.Errorf("position projection average price: %w", err)
 			}
 		}
+		if err := validateEconomics(row); err != nil {
+			return 0, err
+		}
 	}
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -63,17 +66,24 @@ func (s *PostgresStore) ApplyVenueRebuild(ctx context.Context, userID, accountWa
 		id := uuid.New()
 		result, err := tx.Exec(ctx, `
 INSERT INTO markets_position_projections (
-    id, user_id, account_wallet, market_id, token_id, condition_id, size,
-    avg_entry_price, resolution_status, redeemable, freshness_state,
-    freshness_reason, upstream_source, upstream_id, observed_at, version, created_at, updated_at
-) VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), 'active', FALSE, 'fresh', '', 'polymarket_data_api', $9, $10, 1, $10, $10)
+	    id, user_id, account_wallet, market_id, token_id, condition_id, size,
+	    avg_entry_price, mark_price, cost_basis_amount, unrealized_pnl, realized_pnl,
+	    resolution_status, redeemable, redeemable_observed, claimable_amount, freshness_state,
+	    freshness_reason, upstream_source, upstream_id, observed_at, version, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, NULLIF($8, ''), NULLIF($9, ''), NULLIF($10, '')::bigint, NULLIF($11, ''), NULLIF($12, ''), 'active', $13, $21, NULLIF($14, ''), 'fresh', '', 'polymarket_data_api', $15, $16, 1, $16, $16)
 ON CONFLICT (user_id, account_wallet, token_id) DO UPDATE SET
     market_id = EXCLUDED.market_id,
     condition_id = EXCLUDED.condition_id,
     size = EXCLUDED.size,
     avg_entry_price = EXCLUDED.avg_entry_price,
+    mark_price = CASE WHEN $17 THEN EXCLUDED.mark_price ELSE markets_position_projections.mark_price END,
+    cost_basis_amount = CASE WHEN $18 THEN EXCLUDED.cost_basis_amount ELSE markets_position_projections.cost_basis_amount END,
+    unrealized_pnl = CASE WHEN $19 THEN EXCLUDED.unrealized_pnl ELSE markets_position_projections.unrealized_pnl END,
+    realized_pnl = CASE WHEN $20 THEN EXCLUDED.realized_pnl ELSE markets_position_projections.realized_pnl END,
     resolution_status = 'active',
-    redeemable = FALSE,
+    redeemable = CASE WHEN $21 THEN EXCLUDED.redeemable ELSE markets_position_projections.redeemable END,
+    redeemable_observed = markets_position_projections.redeemable_observed OR $21,
+    claimable_amount = CASE WHEN $22 THEN EXCLUDED.claimable_amount ELSE markets_position_projections.claimable_amount END,
     freshness_state = 'fresh',
     freshness_reason = '',
     upstream_source = EXCLUDED.upstream_source,
@@ -82,7 +92,7 @@ ON CONFLICT (user_id, account_wallet, token_id) DO UPDATE SET
     version = markets_position_projections.version + 1,
     updated_at = EXCLUDED.updated_at
 WHERE markets_position_projections.observed_at < EXCLUDED.observed_at
-`, id, userID, wallet, row.MarketID, tokenID, row.ConditionID, row.Size, row.AvgPrice, upstreamID, observedAt)
+`, id, userID, wallet, row.MarketID, tokenID, row.ConditionID, row.Size, row.AvgPrice, row.MarkPrice, row.CostBasisAmount, row.UnrealizedPnL, row.RealizedPnL, row.Redeemable, row.ClaimableAmount, upstreamID, observedAt, row.MarkPriceAvailable, row.CostBasisAvailable, row.UnrealizedPnLAvailable, row.RealizedPnLAvailable, row.RedeemableAvailable, row.ClaimableAmountAvailable)
 		if err != nil {
 			return 0, fmt.Errorf("upsert position projection: %w", err)
 		}

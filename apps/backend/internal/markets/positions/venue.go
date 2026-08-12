@@ -7,13 +7,27 @@ import (
 
 // VenuePosition is normalized venue truth for one open outcome token holding.
 type VenuePosition struct {
-	TokenID      string
-	MarketID     string
-	ConditionID  string
-	OutcomeLabel string
-	Size         string
-	AvgPrice     string
-	UpstreamID   string
+	TokenID            string
+	MarketID           string
+	ConditionID        string
+	OutcomeLabel       string
+	Size               string
+	AvgPrice           string
+	MarkPrice          string
+	MarkPriceAvailable bool
+	// CostBasisAmount is a non-negative USDC six-decimal base-unit integer.
+	CostBasisAmount    string
+	CostBasisAvailable bool
+	// UnrealizedPnL and RealizedPnL are signed USDC DecimalStrings.
+	UnrealizedPnL            string
+	UnrealizedPnLAvailable   bool
+	RealizedPnL              string
+	RealizedPnLAvailable     bool
+	Redeemable               bool
+	RedeemableAvailable      bool
+	ClaimableAmount          string
+	ClaimableAmountAvailable bool
+	UpstreamID               string
 }
 
 // VenuePositionRequest scopes a venue positions fetch.
