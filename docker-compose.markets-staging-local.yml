@@ -1,0 +1,26 @@
+# Compose override for local staging proof only.
+# It exposes a Caddy TLS endpoint at https://localhost:8443 using Caddy's
+# internal CA. It does not request public certificates or alter production DNS.
+services:
+  caddy:
+    image: caddy:2
+    container_name: retropick-markets-caddy-staging-local
+    restart: unless-stopped
+    depends_on:
+      markets-api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8443:443"
+    volumes:
+      - ./docker/Caddyfile.markets-staging-local:/etc/caddy/Caddyfile:ro
+      - markets_staging_caddy_data:/data
+      - markets_staging_caddy_config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  markets_staging_caddy_data:
+  markets_staging_caddy_config:

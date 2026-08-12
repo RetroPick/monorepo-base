@@ -14,8 +14,13 @@ x-markets-backend-env: &markets-backend-env
   MARKETS_GAMMA_API_URL: "http://127.0.0.1:9"
   MARKETS_CLOB_API_URL: "http://127.0.0.1:9"
   MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
+  # Auth must fail closed without an explicit SIWE-domain allowlist.
+  MARKETS_AUTH_ALLOWED_DOMAINS: "${MARKETS_AUTH_ALLOWED_DOMAINS:?MARKETS_AUTH_ALLOWED_DOMAINS is required}"
   MARKETS_BOOTSTRAP: "migrate-and-seed"
   MARKETS_DEV_SEED_SCENARIO: "populated"
+  # Keep the deterministic local projection fresh while the intentionally
+  # unreachable upstream demonstrates outage handling.
+  MARKETS_DEV_SEED_REFRESH_INTERVAL: "1m"
   # BLK-001 eligibility upstreams — set values in gitignored .env (see .env.markets-dev.example)
   MARKETS_GEOIP_BASE_URL: ${MARKETS_GEOIP_BASE_URL:-}
   MARKETS_GEOIP_PATH: ${MARKETS_GEOIP_PATH:-/{ip}/json}
@@ -34,7 +39,7 @@ services:
       POSTGRES_PASSWORD: retropick
       POSTGRES_DB: retropick
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - markets_dev_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -58,7 +63,7 @@ services:
     environment:
       <<: *markets-backend-env
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD", "/healthcheck", "/api/v1/health/live"]
       interval: 10s
@@ -79,7 +84,7 @@ services:
       markets-api:
         condition: service_healthy
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       PORT: "3001"
       HOSTNAME: "0.0.0.0"

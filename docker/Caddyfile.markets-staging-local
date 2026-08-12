@@ -1,0 +1,6 @@
+# Local-only Markets staging proof proxy. Caddy issues from its internal CA;
+# do not use this file for public DNS or production.
+https://localhost {
+	tls internal
+	reverse_proxy markets-api:8080
+}
