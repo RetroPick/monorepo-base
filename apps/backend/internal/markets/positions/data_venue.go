@@ -46,13 +46,19 @@ func NewDataAPIClient(baseURL string, timeout time.Duration) *DataAPIClient {
 }
 
 type wirePosition struct {
-	Asset       string      `json:"asset"`
-	ConditionID string      `json:"conditionId"`
-	Size        json.Number `json:"size"`
-	AvgPrice    json.Number `json:"avgPrice"`
-	Title       string      `json:"title"`
-	Outcome     string      `json:"outcome"`
-	Slug        string      `json:"slug"`
+	Asset        string       `json:"asset"`
+	ConditionID  string       `json:"conditionId"`
+	Size         json.Number  `json:"size"`
+	AvgPrice     json.Number  `json:"avgPrice"`
+	CurPrice     *json.Number `json:"curPrice"`
+	CurrentValue *json.Number `json:"currentValue"`
+	InitialValue *json.Number `json:"initialValue"`
+	CashPnL      *json.Number `json:"cashPnl"`
+	RealizedPnL  *json.Number `json:"realizedPnl"`
+	Redeemable   *bool        `json:"redeemable"`
+	Title        string       `json:"title"`
+	Outcome      string       `json:"outcome"`
+	Slug         string       `json:"slug"`
 }
 
 // ListPositions fetches open positions for an account wallet.
@@ -123,14 +129,34 @@ func (c *DataAPIClient) ListPositions(ctx context.Context, req VenuePositionRequ
 		if label == "" {
 			label = strings.TrimSpace(row.Title)
 		}
+		markPrice, markPriceAvailable := optionalWireDecimal(row.CurPrice)
+		costBasisAmount, costBasisAvailable := optionalUSDCBaseUnits(row.InitialValue)
+		// Data API defines total PnL as cashPnl + realizedPnl. They are distinct
+		// components, not fallbacks: cashPnl populates unrealized PnL and
+		// realizedPnl populates realized PnL even when their values differ.
+		unrealizedPnL, unrealizedPnLAvailable := optionalSignedWireDecimal(row.CashPnL)
+		realizedPnL, realizedPnLAvailable := optionalSignedWireDecimal(row.RealizedPnL)
+		claimable, claimableAvailable := claimableAmount(row.Redeemable, row.CurrentValue, size, markPrice, markPriceAvailable)
 		out = append(out, VenuePosition{
-			TokenID:      tokenID,
-			MarketID:     slugToMarketID(row.Slug),
-			ConditionID:  strings.TrimSpace(row.ConditionID),
-			OutcomeLabel: label,
-			Size:         size,
-			AvgPrice:     avgPrice,
-			UpstreamID:   tokenID,
+			TokenID:                  tokenID,
+			MarketID:                 slugToMarketID(row.Slug),
+			ConditionID:              strings.TrimSpace(row.ConditionID),
+			OutcomeLabel:             label,
+			Size:                     size,
+			AvgPrice:                 avgPrice,
+			MarkPrice:                markPrice,
+			MarkPriceAvailable:       markPriceAvailable,
+			CostBasisAmount:          costBasisAmount,
+			CostBasisAvailable:       costBasisAvailable,
+			UnrealizedPnL:            unrealizedPnL,
+			UnrealizedPnLAvailable:   unrealizedPnLAvailable,
+			RealizedPnL:              realizedPnL,
+			RealizedPnLAvailable:     realizedPnLAvailable,
+			Redeemable:               row.Redeemable != nil && *row.Redeemable,
+			RedeemableAvailable:      row.Redeemable != nil,
+			ClaimableAmount:          claimable,
+			ClaimableAmountAvailable: claimableAvailable,
+			UpstreamID:               tokenID,
 		})
 	}
 	return out, observedAt, nil

@@ -306,3 +306,59 @@ func positionProjectionPool(t *testing.T) *pgxpool.Pool {
 	})
 	return pool
 }
+
+func TestPostgresStorePersistsCompleteAndPartialVenueEconomicsMonotonically(t *testing.T) {
+	pool := positionProjectionPool(t)
+	ctx := context.Background()
+	store := positions.NewPostgresStore(pool)
+	userID := "projection-user-economics"
+	wallet := "0x1212121212121212121212121212121212121212"
+	t1 := time.Date(2026, 8, 12, 16, 0, 0, 0, time.UTC)
+	complete := positions.VenuePosition{
+		TokenID: "economics-token", MarketID: "polymarket:market:economics", ConditionID: "condition-economics", Size: "12.5", AvgPrice: "0.55", UpstreamID: "economics-upstream",
+		MarkPrice: "0.64", MarkPriceAvailable: true, CostBasisAmount: "6875000", CostBasisAvailable: true,
+		UnrealizedPnL: "1.125", UnrealizedPnLAvailable: true, RealizedPnL: "-0.25", RealizedPnLAvailable: true,
+		Redeemable: true, RedeemableAvailable: true, ClaimableAmount: "8", ClaimableAmountAvailable: true,
+	}
+	if written, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{complete}, t1); err != nil || written != 1 {
+		t.Fatalf("complete rebuild = %d, %v", written, err)
+	}
+
+	var mark, basis, unrealized, realized, claimable *string
+	var redeemable bool
+	if err := pool.QueryRow(ctx, `SELECT mark_price, cost_basis_amount::text, unrealized_pnl, realized_pnl, redeemable, claimable_amount
+FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, complete.TokenID).Scan(&mark, &basis, &unrealized, &realized, &redeemable, &claimable); err != nil {
+		t.Fatal(err)
+	}
+	if mark == nil || *mark != complete.MarkPrice || basis == nil || *basis != complete.CostBasisAmount || unrealized == nil || *unrealized != complete.UnrealizedPnL || realized == nil || *realized != complete.RealizedPnL || !redeemable || claimable == nil || *claimable != complete.ClaimableAmount {
+		t.Fatalf("stored economics = mark=%v basis=%v unrealized=%v realized=%v redeemable=%t claimable=%v", mark, basis, unrealized, realized, redeemable, claimable)
+	}
+
+	partial := complete
+	partial.MarkPrice, partial.CostBasisAmount, partial.UnrealizedPnL, partial.RealizedPnL, partial.ClaimableAmount = "", "", "", "", ""
+	partial.MarkPriceAvailable, partial.CostBasisAvailable, partial.UnrealizedPnLAvailable, partial.RealizedPnLAvailable, partial.ClaimableAmountAvailable = false, false, false, false, false
+	partial.Redeemable = false
+	partial.RedeemableAvailable = false
+	if written, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{partial}, t1.Add(time.Minute)); err != nil || written != 1 {
+		t.Fatalf("partial rebuild = %d, %v", written, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT mark_price, cost_basis_amount::text, unrealized_pnl, realized_pnl, redeemable, claimable_amount
+FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, complete.TokenID).Scan(&mark, &basis, &unrealized, &realized, &redeemable, &claimable); err != nil {
+		t.Fatal(err)
+	}
+	if mark == nil || *mark != complete.MarkPrice || basis == nil || *basis != complete.CostBasisAmount || unrealized == nil || *unrealized != complete.UnrealizedPnL || realized == nil || *realized != complete.RealizedPnL || !redeemable || claimable == nil || *claimable != complete.ClaimableAmount {
+		t.Fatalf("partial snapshot erased last known economics = mark=%v basis=%v unrealized=%v realized=%v redeemable=%t claimable=%v", mark, basis, unrealized, realized, redeemable, claimable)
+	}
+
+	stale := complete
+	stale.MarkPrice = "0.99"
+	if written, err := store.ApplyVenueRebuild(ctx, userID, wallet, []positions.VenuePosition{stale}, t1); err != nil || written != 0 {
+		t.Fatalf("stale rebuild = %d, %v", written, err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT mark_price FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, complete.TokenID).Scan(&mark); err != nil {
+		t.Fatal(err)
+	}
+	if mark == nil || *mark != complete.MarkPrice {
+		t.Fatalf("stale snapshot regressed partial economics: mark=%v", mark)
+	}
+}

@@ -44,17 +44,17 @@ func TestProjectionIntegrityMigrationRollbackAndReapply(t *testing.T) {
 	defer sqlDB.Close()
 
 	if err := m.Steps(-1); err != nil {
-		t.Fatalf("rollback 000024: %v", err)
+		t.Fatalf("rollback latest projection migration: %v", err)
 	}
 	version, dirty, err := m.Version()
-	if err != nil || dirty || version != 23 {
-		t.Fatalf("version after rollback = %d dirty=%v err=%v, want 23 clean", version, dirty, err)
+	if err != nil || dirty || version != 24 {
+		t.Fatalf("version after rollback = %d dirty=%v err=%v, want 24 clean", version, dirty, err)
 	}
 	if err := db.RunMigrations(databaseURL); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		t.Fatalf("reapply 000024: %v", err)
+		t.Fatalf("reapply latest projection migration: %v", err)
 	}
 	version, dirty, err = m.Version()
-	if err != nil || dirty || version != 24 {
-		t.Fatalf("version after reapply = %d dirty=%v err=%v, want 24 clean", version, dirty, err)
+	if err != nil || dirty || version != 25 {
+		t.Fatalf("version after reapply = %d dirty=%v err=%v, want 25 clean", version, dirty, err)
 	}
 }
