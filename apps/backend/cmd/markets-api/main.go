@@ -17,6 +17,7 @@ import (
 
 	"retropick/apps/backend/internal/db"
 	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/activity"
 	"retropick/apps/backend/internal/markets/auth"
 	"retropick/apps/backend/internal/markets/balances"
 	"retropick/apps/backend/internal/markets/catalog"
@@ -229,6 +230,8 @@ func main() {
 	})
 
 	posMetrics := positions.NewRecorder()
+	durablePositionStore := positions.NewPostgresStore(pool)
+	activityStore := activity.NewPostgresStore(pool)
 
 	authCfg, err := auth.LoadConfig()
 	if err != nil {
@@ -260,7 +263,10 @@ func main() {
 		SignalsOperational:    store.SignalsOperational(),
 		MarketDataOperational: marketsSvc.MarketDataOperational(),
 		RealtimeState:         rtRuntime,
-		ServiceName:           "retropick-markets-api",
+		PositionActivityHealthy: func() bool {
+			return durablePositionStore.Healthy(context.Background()) && activityStore.Healthy(context.Background())
+		},
+		ServiceName: "retropick-markets-api",
 	})
 	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
@@ -337,6 +343,7 @@ func main() {
 		reconcileWorker := reconcile.NewWorker(reconcile.WorkerConfig{
 			Store:        ordersHandlerCfg.Service.Projections(),
 			Journal:      orders.NewPostgresMutationJournal(pool),
+			Activity:     activityStore,
 			Venue:        reconcile.NewCLOBVenueReader(tradingClient),
 			Metrics:      metrics,
 			Interval:     10 * time.Second,
@@ -352,6 +359,15 @@ func main() {
 		go func() {
 			if err := positions.NewProductionWorker(posCfg).Run(workerCtx); err != nil && err != context.Canceled {
 				log.Error("position reconcile worker stopped", "err", err)
+			}
+		}()
+		go func() {
+			durableWorker := positions.NewPostgresWorker(positions.PostgresWorkerConfig{
+				Store: durablePositionStore,
+				Venue: positions.NewDataAPIClient(cfg.DataAPIURL, 0),
+			})
+			if err := durableWorker.Run(workerCtx); err != nil && err != context.Canceled {
+				log.Error("durable position reconcile worker stopped", "err", err)
 			}
 		}()
 	}
