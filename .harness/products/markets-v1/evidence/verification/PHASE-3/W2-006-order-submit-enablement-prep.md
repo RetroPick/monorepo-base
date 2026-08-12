@@ -1,7 +1,7 @@
 # W2-006 — Order-submit enablement preparation
 
-**Date:** 2026-08-12  
-**Scope:** Evidence and governance only. No environment setting, secret, credential, deployment, capability, or order was changed.  
+**Date:** 2026-08-12
+**Scope:** Evidence and governance only. No environment setting, secret, credential, deployment, capability, or order was changed.
 **Verdict:** **NOT ENABLED — BLK-004 remains open.** The local staging-like runtime remains fail-closed; a controlled staging rehearsal requires human approval and live CLOB L2 credential wiring.
 
 ## 1. What was verified
