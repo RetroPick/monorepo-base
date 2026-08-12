@@ -12,14 +12,17 @@ import (
 
 // HealthChecker aggregates Markets runtime dependencies for probes.
 type HealthChecker struct {
-	Pool          *pgxpool.Pool
-	Service       *Service
+	Pool                  *pgxpool.Pool
+	Service               *Service
 	Worker                CatalogWorkerState
 	SignalsOperational    bool
 	MarketDataOperational bool
 	RealtimeState         RealtimeStateProvider
-	ServiceName   string
-	Now           func() time.Time
+	// PositionActivityHealthy reports whether durable portfolio projections are
+	// available when that production boundary is wired.
+	PositionActivityHealthy func() bool
+	ServiceName             string
+	Now                     func() time.Time
 }
 
 type HealthResponse struct {
@@ -112,6 +115,16 @@ func (h HealthChecker) Ready(w http.ResponseWriter, r *http.Request) {
 		checks["marketData"] = "ok"
 	} else {
 		checks["marketData"] = "disabled"
+	}
+	if h.PositionActivityHealthy != nil {
+		if h.PositionActivityHealthy() {
+			checks["positionActivityProjections"] = "ok"
+		} else {
+			checks["positionActivityProjections"] = "unavailable"
+			ok = false
+		}
+	} else {
+		checks["positionActivityProjections"] = "disabled"
 	}
 
 	statusCode := http.StatusOK

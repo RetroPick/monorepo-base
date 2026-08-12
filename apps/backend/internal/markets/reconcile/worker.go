@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/activity"
 	"retropick/apps/backend/internal/markets/clob"
 	"retropick/apps/backend/internal/markets/orders"
 )
@@ -54,6 +55,7 @@ func (nopMetrics) RecordReconcileError(string)           {}
 type WorkerConfig struct {
 	Store        *orders.ProjectionStore
 	Journal      orders.SubmitRecoveryJournal
+	Activity     ActivityAppender
 	Venue        VenueReader
 	Metrics      Metrics
 	Interval     time.Duration
@@ -65,6 +67,7 @@ type WorkerConfig struct {
 type Worker struct {
 	store        *orders.ProjectionStore
 	journal      orders.SubmitRecoveryJournal
+	activity     ActivityAppender
 	venue        VenueReader
 	metrics      Metrics
 	interval     time.Duration
@@ -97,6 +100,7 @@ func NewWorker(cfg WorkerConfig) *Worker {
 	return &Worker{
 		store:        store,
 		journal:      cfg.Journal,
+		activity:     cfg.Activity,
 		venue:        cfg.Venue,
 		metrics:      metrics,
 		interval:     interval,
@@ -294,8 +298,9 @@ func (w *Worker) ingestFills(ctx context.Context) {
 		if w.store.HasFillByVenueTradeID(order.UserID, trade.TradeID) {
 			continue
 		}
-		w.store.AddFill(orders.UserFillRecord{
-			FillID:       uuid.NewString(),
+		fillID := uuid.NewString()
+		fill := orders.UserFillRecord{
+			FillID:       fillID,
 			OrderID:      orderID,
 			UserID:       order.UserID,
 			VenueTradeID: trade.TradeID,
@@ -313,7 +318,28 @@ func (w *Worker) ingestFills(ctx context.Context) {
 				UpstreamID: trade.TradeID,
 				ObservedAt: now,
 			},
-		})
+		}
+		if w.activity != nil {
+			if err := w.activity.Append(ctx, activity.Event{
+				ID:             fillID,
+				UserID:         order.UserID,
+				Kind:           activity.KindFill,
+				MarketID:       order.MarketID,
+				TokenID:        order.TokenID,
+				ReferenceID:    trade.OrderID,
+				Amount:         trade.Size,
+				UpstreamSource: "polymarket_clob",
+				UpstreamID:     trade.TradeID,
+				ObservedAt:     now,
+			}); err != nil {
+				w.metrics.RecordReconcileError("activity_projection")
+				// Do not acknowledge the in-memory fill before its durable activity
+				// projection commits; the next reconcile pass can safely retry the
+				// immutable upstream trade identity.
+				continue
+			}
+		}
+		w.store.AddFill(fill)
 		w.metrics.RecordReconcileRepair("fill")
 	}
 }
