@@ -86,6 +86,14 @@ export async function mockMarketsBff(page: Page, options: BffMockOptions = {}) {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", events: [{ eventId: "activity-e2e-1", eventType: "order_filled", occurredAt: "2026-08-09T10:07:00Z", summary: "Bought 25 Yes @ 0.42" }], page: { limit: 50 }, checkedAt: "2026-08-09T10:08:00Z" }) });
     }
 
+    if (url.includes("/orders/order-e2e-1/cancel-preview") && method === "POST") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", previewId: "cancel-preview-e2e-1", contentHash: "0xb98cef5da46413cb869a4af702bb47622b8c0ad0f1b2fdc22739b993dd509536", expiresAt: "2099-01-01T00:05:00Z", orderId: "order-e2e-1", humanSummary: { action: "CANCEL", market: "Will A happen?", outcome: "Yes", size: "100 USDC", price: "0.42", chainId: 137 }, unsignedPayload: { orderId: "venue-order-e2e-1", maker: E2E_WALLET, tokenId: "999001", salt: "4242424242424242", timestamp: "1710000000000" } }) });
+    }
+
+    if (url.includes("/orders/order-e2e-1/cancel") && method === "POST") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", orderId: "order-e2e-1", status: "canceled" }) });
+    }
+
     if (url.includes("/eligibility") && method === "GET") {
       return route.fulfill({
         status: 200,

@@ -14,7 +14,7 @@ export type MarketsE2ESession = {
 export type MarketsE2EHarness = {
   wallet?: MarketsE2EWallet;
   session?: MarketsE2ESession;
-  signSignature?: string;
+  signSignature?: `0x${string}`;
 };
 
 declare global {
@@ -24,7 +24,7 @@ declare global {
 }
 
 export function readMarketsE2EHarness(): MarketsE2EHarness | undefined {
-  if (typeof window === "undefined") {
+  if (typeof window === "undefined" || process.env.NEXT_PUBLIC_MARKETS_E2E_TEST_MODE !== "1") {
     return undefined;
   }
   return window.__MARKETS_E2E__;
