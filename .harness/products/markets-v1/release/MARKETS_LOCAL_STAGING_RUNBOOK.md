@@ -36,7 +36,9 @@ curl -fsS --cacert /tmp/retropick-caddy-root-readable.crt \
 
 Expected: Docker health checks are `healthy`; readiness responds HTTP 200 with database `ok`; smoke prints `Markets stack smoke passed.`; Caddy forwards `/api/v1/health/live` over verified local TLS.
 
-Readiness can truthfully be `degraded: true` while catalog worker reports `degraded` and realtime/market data are deliberately disabled in this seed profile. This is not an unhealthy state: `ok` remains true and the smoke contract permits HTTP 200 (or 503 when unhealthy).
+Readiness can truthfully be `degraded: true` while catalog worker reports `degraded` and realtime/market data are deliberately disabled in this seed profile. This is not an unhealthy state: `ok` remains true because the deterministic local seed is reapplied every minute and `catalogProjection` remains `ok`; it must never be changed to make a missing projection ready. A missing/stale projection remains a 503 condition.
+
+Confirm the local-only exposure boundary after startup. Each loopback connection must succeed; each connection to the VPS non-loopback address must fail for ports `8080`, `3001`, `5433`, and `8443`.
 
 ## Teardown
 

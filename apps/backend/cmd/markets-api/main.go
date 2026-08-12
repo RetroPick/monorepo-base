@@ -324,6 +324,27 @@ func main() {
 
 	workerCtx, workerCancel := context.WithCancel(ctx)
 	defer workerCancel()
+	if bootstrapDev {
+		refreshInterval, refreshErr := devSeedRefreshInterval()
+		if refreshErr != nil {
+			log.Error("dev seed refresh config", "err", refreshErr)
+			os.Exit(1)
+		}
+		if refreshInterval > 0 {
+			scenario := os.Getenv("MARKETS_DEV_SEED_SCENARIO")
+			if scenario == "" {
+				scenario = "populated"
+			}
+			go func() {
+				err := devseed.Refresh(workerCtx, refreshInterval, func(refreshCtx context.Context) error {
+					return devseed.Apply(refreshCtx, pool, scenario)
+				})
+				if err != nil && err != context.Canceled {
+					log.Error("dev seed refresh stopped", "err", err)
+				}
+			}()
+		}
+	}
 	go func() {
 		if err := worker.Run(workerCtx); err != nil && err != context.Canceled {
 			log.Error("catalog worker stopped", "err", err)
@@ -383,4 +404,16 @@ func marketsReconcileEnabled() bool {
 	default:
 		return true
 	}
+}
+
+func devSeedRefreshInterval() (time.Duration, error) {
+	raw := strings.TrimSpace(os.Getenv("MARKETS_DEV_SEED_REFRESH_INTERVAL"))
+	if raw == "" {
+		return 0, nil
+	}
+	interval, err := time.ParseDuration(raw)
+	if err != nil || interval <= 0 {
+		return 0, fmt.Errorf("MARKETS_DEV_SEED_REFRESH_INTERVAL must be a positive duration")
+	}
+	return interval, nil
 }
