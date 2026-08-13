@@ -152,6 +152,73 @@ func TestSummaryPartialCoverageNullsMarkMetricsAndSeparatesFreshness(t *testing.
 	}
 }
 
+func TestSummaryClosedHistoryContributesRealizedWithoutChangingOpenMetrics(t *testing.T) {
+	open := row(testUser, testWallet, "10", "0.4", "4000000", "1", "0.5", "0", true)
+	closed := row(testUser, testWallet, "0", "", "9000000", "", "2", "7000000", false)
+	closed.CostBasisObserved = false
+	closed.ClaimableAmountObserved = false
+	closed.SyncStatus = positions.SyncStatusReconciling
+	closed.ObservedAt = checkedAt.Add(-2 * time.Hour)
+
+	rec := request(t, router(nil, []positions.PositionRecord{open, closed}, sessionResolver{session: wallet.SessionContext{UserID: testUser, SignerAddress: testSigner}}), "/api/v1/markets/me/portfolio/summary")
+	body := decode(t, rec)
+	agg := body["aggregate"].(map[string]any)
+	if agg["openPositionCount"] != float64(1) {
+		t.Fatalf("count=%v", agg["openPositionCount"])
+	}
+	assertMoney(t, agg["totalMarkValue"], "4000000")
+	assertMoney(t, agg["totalCostBasis"], "4000000")
+	assertMoney(t, agg["unrealizedPnl"], "1000000")
+	assertMoney(t, agg["claimableValue"], "0")
+	assertMoney(t, agg["realizedPnl"], "2500000")
+	if body["provenance"].(map[string]any)["observedAt"] != closed.ObservedAt.Format(time.RFC3339) {
+		t.Fatalf("provenance=%v", body["provenance"])
+	}
+	if body["freshness"].(map[string]any)["state"] != "resyncing" {
+		t.Fatalf("freshness=%v", body["freshness"])
+	}
+}
+
+func TestSummaryRealizedHistoryIsIndependentOfOpenMarkCoverage(t *testing.T) {
+	open := row(testUser, testWallet, "5", "", "1000000", "", "1.25", "0", false)
+	open.CostBasisObserved = true
+	open.ClaimableAmountObserved = true
+	closed := row(testUser, testWallet, "0", "", "0", "", "-0.25", "0", false)
+
+	agg := decode(t, request(t, router(nil, []positions.PositionRecord{open, closed}, sessionResolver{session: wallet.SessionContext{UserID: testUser, SignerAddress: testSigner}}), "/api/v1/markets/me/portfolio/summary"))["aggregate"].(map[string]any)
+	if agg["totalMarkValue"] != nil || agg["unrealizedPnl"] != nil {
+		t.Fatalf("mark metrics=%v/%v", agg["totalMarkValue"], agg["unrealizedPnl"])
+	}
+	assertMoney(t, agg["realizedPnl"], "1000000")
+	if agg["availability"].(map[string]any)["realizedPnl"].(map[string]any)["state"] != "available" {
+		t.Fatalf("availability=%v", agg["availability"])
+	}
+}
+
+func TestSummaryUnavailableHistoricalRealizedCoverageNullsAggregate(t *testing.T) {
+	open := row(testUser, testWallet, "1", "1", "1000000", "0", "1", "0", true)
+	observed := row(testUser, testWallet, "0", "", "0", "", "2", "0", false)
+	unavailable := row(testUser, testWallet, "0", "", "0", "", "", "0", false)
+	unavailable.RealizedPnLObserved = false
+
+	agg := decode(t, request(t, router(nil, []positions.PositionRecord{open, observed, unavailable}, sessionResolver{session: wallet.SessionContext{UserID: testUser, SignerAddress: testSigner}}), "/api/v1/markets/me/portfolio/summary"))["aggregate"].(map[string]any)
+	if agg["realizedPnl"] != nil {
+		t.Fatalf("realized=%v", agg["realizedPnl"])
+	}
+	if agg["availability"].(map[string]any)["realizedPnl"].(map[string]any)["state"] != "unavailable" {
+		t.Fatalf("availability=%v", agg["availability"])
+	}
+}
+
+func TestSummaryClosedHistoricalZeroIsAvailableZero(t *testing.T) {
+	closed := row(testUser, testWallet, "0", "", "0", "", "0", "0", false)
+	agg := decode(t, request(t, router(nil, []positions.PositionRecord{closed}, sessionResolver{session: wallet.SessionContext{UserID: testUser, SignerAddress: testSigner}}), "/api/v1/markets/me/portfolio/summary"))["aggregate"].(map[string]any)
+	assertMoney(t, agg["realizedPnl"], "0")
+	if agg["availability"].(map[string]any)["realizedPnl"].(map[string]any)["state"] != "available" {
+		t.Fatalf("availability=%v", agg["availability"])
+	}
+}
+
 func TestSummaryZeroOpenIsKnownZeroButRealizedUnavailable(t *testing.T) {
 	rec := request(t, router(nil, nil, sessionResolver{session: wallet.SessionContext{UserID: testUser, SignerAddress: testSigner}}), "/api/v1/markets/me/portfolio/summary")
 	agg := decode(t, rec)["aggregate"].(map[string]any)

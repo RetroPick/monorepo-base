@@ -256,13 +256,8 @@ func summarize(rows []positions.PositionRecord, checked time.Time) (aggregate, t
 	markTotal, costTotal, unrealizedTotal, realizedTotal, claimableTotal := new(big.Int), new(big.Int), new(big.Int), new(big.Int), new(big.Int)
 	observed := checked
 	freshness := markets.MarketFreshness{State: markets.FreshnessFresh, ObservedAt: checked}
-	if len(openRows) == 0 {
-		result.TotalMarkValue = ptrMoney(markTotal)
-		result.UnrealizedPnL = ptrMoney(unrealizedTotal)
-		return result, observed, freshness, nil
-	}
-	realizedAvailable := true
-	for i, row := range openRows {
+	realizedAvailable := len(rows) > 0
+	for i, row := range rows {
 		if i == 0 || row.ObservedAt.Before(observed) {
 			observed = row.ObservedAt.UTC()
 		}
@@ -270,6 +265,14 @@ func summarize(rows []positions.PositionRecord, checked time.Time) (aggregate, t
 			freshness.State = markets.FreshnessResyncing
 			freshness.Reason = "position_sync_pending"
 		}
+		realized, ok := decimalBaseUnits(row.RealizedPnL, row.RealizedPnLObserved)
+		if !ok {
+			realizedAvailable = false
+		} else {
+			realizedTotal.Add(realizedTotal, realized)
+		}
+	}
+	for _, row := range openRows {
 		cost, ok := integer(row.CostBasisAmount, row.CostBasisObserved)
 		if !ok {
 			return aggregate{}, time.Time{}, markets.MarketFreshness{}, errors.New("cost basis unavailable")
@@ -288,12 +291,6 @@ func summarize(rows []positions.PositionRecord, checked time.Time) (aggregate, t
 			unrealizedTotal.Add(unrealizedTotal, unrealized)
 		} else {
 			result.Availability.MarkValue.UnavailableOpenPositionCount++
-		}
-		realized, ok := decimalBaseUnits(row.RealizedPnL, row.RealizedPnLObserved)
-		if !ok {
-			realizedAvailable = false
-		} else {
-			realizedTotal.Add(realizedTotal, realized)
 		}
 	}
 	result.TotalCostBasis = money(costTotal)
