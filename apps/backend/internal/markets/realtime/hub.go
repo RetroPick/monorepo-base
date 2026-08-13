@@ -16,12 +16,14 @@ const (
 
 // Client represents a connected public WebSocket client.
 type Client struct {
-	ID        string
-	Send      chan []byte
-	hub       *Hub
-	mu        sync.RWMutex
-	subs      map[string]subscription
-	closeOnce sync.Once
+	ID         string
+	Send       chan []byte
+	hub        *Hub
+	mu         sync.RWMutex
+	subs       map[string]subscription
+	sendMu     sync.RWMutex
+	sendClosed bool
+	closeOnce  sync.Once
 }
 
 // NewClient creates a hub client with the send buffer wired.
@@ -46,20 +48,20 @@ type subscription struct {
 
 // Hub fans out realtime envelopes to subscribed clients.
 type Hub struct {
-	mu               sync.RWMutex
-	clients          map[*Client]struct{}
-	tokenClients     map[string]map[*Client]struct{}
-	ipClients        map[string]int
-	register         chan *Client
-	unregister       chan *Client
-	maxQueue         int
-	maxConnections   int
-	maxPerIP         int
-	overflowCount    atomic.Uint64
-	slowCount        atomic.Uint64
-	running          atomic.Bool
-	stopCh           chan struct{}
-	onClientRemoved  func(*Client)
+	mu              sync.RWMutex
+	clients         map[*Client]struct{}
+	tokenClients    map[string]map[*Client]struct{}
+	ipClients       map[string]int
+	register        chan *Client
+	unregister      chan *Client
+	maxQueue        int
+	maxConnections  int
+	maxPerIP        int
+	overflowCount   atomic.Uint64
+	slowCount       atomic.Uint64
+	running         atomic.Bool
+	stopCh          chan struct{}
+	onClientRemoved func(*Client)
 }
 
 // HubConfig configures hub limits.
@@ -255,13 +257,29 @@ func (h *Hub) enqueue(client *Client, payload []byte) {
 		h.overflowCount.Add(1)
 		return
 	}
+	client.sendMu.RLock()
+	if client.sendClosed {
+		client.sendMu.RUnlock()
+		return
+	}
 	select {
 	case client.Send <- payload:
+		client.sendMu.RUnlock()
 	default:
+		client.sendMu.RUnlock()
 		h.overflowCount.Add(1)
 		h.slowCount.Add(1)
 		h.dropSlowClient(client)
 	}
+}
+
+func (c *Client) closeSend() {
+	c.closeOnce.Do(func() {
+		c.sendMu.Lock()
+		defer c.sendMu.Unlock()
+		c.sendClosed = true
+		close(c.Send)
+	})
 }
 
 func (h *Hub) dropSlowClient(client *Client) {
@@ -282,9 +300,7 @@ func (h *Hub) dropSlowClient(client *Client) {
 	}
 	client.mu.RUnlock()
 	h.mu.Unlock()
-	client.closeOnce.Do(func() {
-		close(client.Send)
-	})
+	client.closeSend()
 	if h.onClientRemoved != nil {
 		h.onClientRemoved(client)
 	}
@@ -308,9 +324,7 @@ func (h *Hub) removeClient(client *Client) {
 	}
 	client.mu.RUnlock()
 	h.mu.Unlock()
-	client.closeOnce.Do(func() {
-		close(client.Send)
-	})
+	client.closeSend()
 	if h.onClientRemoved != nil {
 		h.onClientRemoved(client)
 	}
