@@ -38,8 +38,11 @@ type Event struct {
 }
 
 type PageRequest struct {
-	Limit  int
-	Cursor string
+	Limit         int
+	Cursor        string
+	AccountWallet string
+	Since         *time.Time
+	Kind          string
 }
 type Page struct {
 	Events     []Event
@@ -120,10 +123,13 @@ SELECT id::text, user_id, COALESCE(account_wallet, ''), event_kind, COALESCE(mar
        COALESCE(reference_id, ''), COALESCE(amount, ''), upstream_source, upstream_id, observed_at
 FROM markets_activity_events
 WHERE user_id = $1
-  AND ($2::timestamptz IS NULL OR (observed_at, id) < ($2, $3::uuid))
+  AND ($2 = '' OR account_wallet = $2)
+  AND ($3::timestamptz IS NULL OR observed_at >= $3)
+  AND ($4 = '' OR event_kind = $4)
+  AND ($5::timestamptz IS NULL OR (observed_at, id) < ($5, $6::uuid))
 ORDER BY observed_at DESC, id DESC
-LIMIT $4
-`, userID, cursorAt, cursorID, limit+1)
+LIMIT $7
+`, userID, strings.ToLower(strings.TrimSpace(req.AccountWallet)), req.Since, strings.TrimSpace(req.Kind), cursorAt, cursorID, limit+1)
 	if err != nil {
 		return Page{}, fmt.Errorf("list activity events: %w", err)
 	}

@@ -138,6 +138,13 @@ WHERE user_id = $1 AND account_wallet = $2
 }
 
 func (s *PostgresStore) List(ctx context.Context, userID string) ([]PositionRecord, error) {
+	return s.ListForAccount(ctx, userID, "")
+}
+
+// ListForAccount reads only the session-resolved user/account projection tuple.
+// An empty account is retained for internal reconciliation callers that already
+// enumerate subjects from the durable account table.
+func (s *PostgresStore) ListForAccount(ctx context.Context, userID, accountWallet string) ([]PositionRecord, error) {
 	if s == nil || s.pool == nil || strings.TrimSpace(userID) == "" {
 		return nil, fmt.Errorf("position projection store: invalid list input")
 	}
@@ -154,8 +161,9 @@ SELECT id::text, user_id, account_wallet, token_id, market_id, condition_id,
 	   upstream_source, upstream_id, observed_at, updated_at
 FROM markets_position_projections
 WHERE user_id = $1
+  AND ($2 = '' OR account_wallet = $2)
 ORDER BY updated_at DESC, id DESC
-`, userID)
+`, userID, strings.ToLower(strings.TrimSpace(accountWallet)))
 	if err != nil {
 		return nil, fmt.Errorf("list position projections: %w", err)
 	}

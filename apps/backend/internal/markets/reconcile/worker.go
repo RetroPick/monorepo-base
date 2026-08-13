@@ -320,9 +320,14 @@ func (w *Worker) ingestFills(ctx context.Context) {
 			},
 		}
 		if w.activity != nil {
+			accountWallet := ""
+			if projected, ok := w.store.FindOrderByVenueOrderID(trade.OrderID); ok {
+				accountWallet = projected.Maker
+			}
 			if err := w.activity.Append(ctx, activity.Event{
 				ID:             fillID,
 				UserID:         order.UserID,
+				AccountWallet:  accountWallet,
 				Kind:           activity.KindFill,
 				MarketID:       order.MarketID,
 				TokenID:        order.TokenID,

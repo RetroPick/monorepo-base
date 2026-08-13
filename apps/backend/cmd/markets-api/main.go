@@ -29,6 +29,7 @@ import (
 	"retropick/apps/backend/internal/markets/intelligence"
 	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/markets/orders"
+	"retropick/apps/backend/internal/markets/portfolio"
 	"retropick/apps/backend/internal/markets/positions"
 	"retropick/apps/backend/internal/markets/postgres"
 	"retropick/apps/backend/internal/markets/realtime"
@@ -37,6 +38,12 @@ import (
 	"retropick/apps/backend/internal/markets/syncworker"
 	"retropick/apps/backend/internal/markets/wallet"
 )
+
+type postgresPositionReader struct{ store *positions.PostgresStore }
+
+func (r postgresPositionReader) List(ctx context.Context, userID, accountWallet string) ([]positions.PositionRecord, error) {
+	return r.store.ListForAccount(ctx, userID, accountWallet)
+}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -274,6 +281,12 @@ func main() {
 		_, _ = fmt.Fprint(w, posMetrics.Prometheus())
 	})
 	walletCfg := wallet.HandlerConfigFromPool(pool)
+	portfolioHandler := portfolio.NewHandler(portfolio.HandlerConfig{
+		Sessions:   wallet.ContextSessionResolver{},
+		Discoverer: walletCfg.Discoverer,
+		Activity:   activityStore,
+		Positions:  postgresPositionReader{store: durablePositionStore},
+	})
 	posCfg := positions.ProductionConfig{
 		Discoverer: walletCfg.Discoverer,
 		DataAPIURL: cfg.DataAPIURL,
@@ -305,10 +318,7 @@ func main() {
 				r.Group(func(r chi.Router) {
 					r.Use(markets.PortfolioReadGate(marketsSvc))
 					positions.RegisterMeRoutes(r, positions.NewProductionHandlerConfig(posCfg))
-					r.Get("/activity", markets.PortfolioNotImplementedHandler())
-					r.Route("/portfolio", func(r chi.Router) {
-						r.Get("/summary", markets.PortfolioNotImplementedHandler())
-					})
+					portfolio.RegisterMeRoutes(r, portfolioHandler)
 				})
 				balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
 					Discoverer: walletCfg.Discoverer,
