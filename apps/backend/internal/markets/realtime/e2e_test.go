@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -44,11 +45,12 @@ func (failingREST) GetOrderBook(_ context.Context, _ string) (clob.OrderBook, er
 func startRuntime(t *testing.T, upstream *upstreamws.FakeServer, registry *memRegistry, useREST bool) *realtime.Runtime {
 	t.Helper()
 	cfg := marketsconfig.Config{
-		RealtimeEnabled:    true,
-		RealtimeWSURL:      upstream.URL(),
-		RealtimeMaxAssets:  10,
-		RealtimeMaxPerConn: 10,
-		BookMaxAge:         30 * time.Second,
+		RealtimeEnabled:        true,
+		RealtimeWSURL:          upstream.URL(),
+		RealtimeMaxAssets:      10,
+		RealtimeMaxPerConn:     10,
+		RealtimeAllowedOrigins: []string{"http://localhost:3001"},
+		BookMaxAge:             30 * time.Second,
 	}
 	var rest realtime.RESTSnapshotter = failingREST{}
 	if useREST {
@@ -79,7 +81,9 @@ func dialPublicWS(t *testing.T, rt *realtime.Runtime) *websocket.Conn {
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/markets/realtime"
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	headers := http.Header{}
+	headers.Set("Origin", "http://localhost:3001")
+	conn, _, err := websocket.DefaultDialer.Dial(wsURL, headers)
 	if err != nil {
 		t.Fatal(err)
 	}

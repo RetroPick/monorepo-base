@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -23,36 +24,42 @@ const (
 
 // Config holds Markets-only runtime settings without legacy epoch dependencies.
 type Config struct {
-	HTTPPort              int
-	DatabaseURL           string
-	BuildVersion          string
-	BuildCommit           string
-	BuildTime             string
-	GammaAPIURL           string
-	CLOBAPIURL            string
-	DataAPIURL            string
-	CatalogEnabled        bool
-	MarketDataEnabled     bool
-	BookMaxAge            time.Duration
-	CatalogSyncInterval   time.Duration
-	CatalogPageSize       int
-	CatalogMaxPagesPerRun int
-	CatalogMaxStaleAge    time.Duration
-	CatalogBackoff        time.Duration
-	ShutdownTimeout       time.Duration
-	SignalsEnabled              bool
+	HTTPPort                     int
+	DatabaseURL                  string
+	BuildVersion                 string
+	BuildCommit                  string
+	BuildTime                    string
+	GammaAPIURL                  string
+	CLOBAPIURL                   string
+	DataAPIURL                   string
+	CatalogEnabled               bool
+	MarketDataEnabled            bool
+	BookMaxAge                   time.Duration
+	CatalogSyncInterval          time.Duration
+	CatalogPageSize              int
+	CatalogMaxPagesPerRun        int
+	CatalogMaxStaleAge           time.Duration
+	CatalogBackoff               time.Duration
+	ShutdownTimeout              time.Duration
+	SignalsEnabled               bool
 	IntelligenceWhaleFeedEnabled bool
-	RealtimeEnabled             bool
-	RealtimeWSURL         string
-	RealtimeMaxAssets     int
-	RealtimeMaxPerConn    int
-	RealtimeAllowedOrigins []string
-	DBMaxConns            int32
-	DBMinConns            int32
-	TrustedProxyCIDRs     []string
+	RealtimeEnabled              bool
+	RealtimeWSURL                string
+	RealtimeMaxAssets            int
+	RealtimeMaxPerConn           int
+	RealtimeAllowedOrigins       []string
+	DBMaxConns                   int32
+	DBMinConns                   int32
+	TrustedProxyCIDRs            []string
 }
 
 func Load() (Config, error) {
+	environment := strings.ToLower(strings.TrimSpace(envDefault("ENVIRONMENT", "development")))
+	switch environment {
+	case "development", "dev", "test", "staging", "production":
+	default:
+		return Config{}, fmt.Errorf("ENVIRONMENT: unsupported value %q", environment)
+	}
 	// MKT-NFR-002 / P1-006: production/staging should set MARKETS_BOOK_MAX_AGE=5s
 	// for order-book staleness SLO; unset env keeps 10s dev default.
 	bookMaxAge := 10 * time.Second
@@ -96,36 +103,44 @@ func Load() (Config, error) {
 		shutdown = parsed
 	}
 
-	cfg := Config{
-		HTTPPort:              defaultHTTPPort,
-		DatabaseURL:           strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		BuildVersion:          strings.TrimSpace(os.Getenv("BUILD_VERSION")),
-		BuildCommit:           strings.TrimSpace(os.Getenv("BUILD_COMMIT")),
-		BuildTime:             strings.TrimSpace(os.Getenv("BUILD_TIME")),
-		GammaAPIURL:           envDefault("MARKETS_GAMMA_API_URL", defaultGammaURL),
-		CLOBAPIURL:            envDefault("MARKETS_CLOB_API_URL", defaultCLOBURL),
-		DataAPIURL:            envDefault("MARKETS_DATA_API_URL", defaultDataAPIURL),
-		CatalogEnabled:        envDefault("MARKETS_CATALOG_ENABLED", "1") != "0",
-		MarketDataEnabled:     envDefault("MARKETS_MARKET_DATA_ENABLED", "1") != "0",
-		BookMaxAge:            bookMaxAge,
-		CatalogSyncInterval:   syncInterval,
-		CatalogPageSize:       defaultCatalogPageSize,
-		CatalogMaxPagesPerRun: defaultCatalogMaxPages,
-		CatalogMaxStaleAge:    maxStale,
-		CatalogBackoff:        backoff,
-		ShutdownTimeout:       shutdown,
-		SignalsEnabled:              envDefault("MARKETS_SIGNALS_ENABLED", "1") != "0",
-		IntelligenceWhaleFeedEnabled: envDefault("MARKETS_INTELLIGENCE_WHALE_FEED_ENABLED", "0") == "1",
-		RealtimeEnabled:             envDefault("MARKETS_REALTIME_ENABLED", "0") == "1",
-		RealtimeWSURL:         envDefault("MARKETS_REALTIME_WS_URL", "wss://ws-subscriptions-clob.polymarket.com/ws/market"),
-		RealtimeMaxAssets:     200,
-		RealtimeMaxPerConn:    50,
-		RealtimeAllowedOrigins: parseCSV(envDefault("MARKETS_REALTIME_ALLOWED_ORIGINS", "")),
-		DBMaxConns:            8,
-		DBMinConns:            1,
-		TrustedProxyCIDRs:     parseCSV(envDefault("TRUSTED_PROXY_CIDRS", "")),
+	realtimeOriginsRaw := strings.TrimSpace(os.Getenv("MARKETS_REALTIME_ALLOWED_ORIGINS"))
+	if realtimeOriginsRaw == "" && (environment == "development" || environment == "dev" || environment == "test") {
+		realtimeOriginsRaw = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 	}
-	var err error
+	realtimeOrigins, err := parseOrigins(realtimeOriginsRaw)
+	if err != nil {
+		return Config{}, fmt.Errorf("MARKETS_REALTIME_ALLOWED_ORIGINS: %w", err)
+	}
+
+	cfg := Config{
+		HTTPPort:                     defaultHTTPPort,
+		DatabaseURL:                  strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		BuildVersion:                 strings.TrimSpace(os.Getenv("BUILD_VERSION")),
+		BuildCommit:                  strings.TrimSpace(os.Getenv("BUILD_COMMIT")),
+		BuildTime:                    strings.TrimSpace(os.Getenv("BUILD_TIME")),
+		GammaAPIURL:                  envDefault("MARKETS_GAMMA_API_URL", defaultGammaURL),
+		CLOBAPIURL:                   envDefault("MARKETS_CLOB_API_URL", defaultCLOBURL),
+		DataAPIURL:                   envDefault("MARKETS_DATA_API_URL", defaultDataAPIURL),
+		CatalogEnabled:               envDefault("MARKETS_CATALOG_ENABLED", "1") != "0",
+		MarketDataEnabled:            envDefault("MARKETS_MARKET_DATA_ENABLED", "1") != "0",
+		BookMaxAge:                   bookMaxAge,
+		CatalogSyncInterval:          syncInterval,
+		CatalogPageSize:              defaultCatalogPageSize,
+		CatalogMaxPagesPerRun:        defaultCatalogMaxPages,
+		CatalogMaxStaleAge:           maxStale,
+		CatalogBackoff:               backoff,
+		ShutdownTimeout:              shutdown,
+		SignalsEnabled:               envDefault("MARKETS_SIGNALS_ENABLED", "1") != "0",
+		IntelligenceWhaleFeedEnabled: envDefault("MARKETS_INTELLIGENCE_WHALE_FEED_ENABLED", "0") == "1",
+		RealtimeEnabled:              envDefault("MARKETS_REALTIME_ENABLED", "0") == "1",
+		RealtimeWSURL:                envDefault("MARKETS_REALTIME_WS_URL", "wss://ws-subscriptions-clob.polymarket.com/ws/market"),
+		RealtimeMaxAssets:            200,
+		RealtimeMaxPerConn:           50,
+		RealtimeAllowedOrigins:       realtimeOrigins,
+		DBMaxConns:                   8,
+		DBMinConns:                   1,
+		TrustedProxyCIDRs:            parseCSV(envDefault("TRUSTED_PROXY_CIDRS", "")),
+	}
 	if cfg.HTTPPort, err = parseEnvInt("MARKETS_HTTP_PORT", defaultHTTPPort); err != nil {
 		return Config{}, err
 	}
@@ -166,6 +181,9 @@ func Load() (Config, error) {
 	if cfg.RealtimeEnabled && cfg.RealtimeWSURL == "" {
 		return Config{}, fmt.Errorf("MARKETS_REALTIME_WS_URL is required when realtime enabled")
 	}
+	if cfg.RealtimeEnabled && (environment == "production" || environment == "staging") && len(cfg.RealtimeAllowedOrigins) == 0 {
+		return Config{}, fmt.Errorf("MARKETS_REALTIME_ALLOWED_ORIGINS is required when realtime is enabled in %s", environment)
+	}
 	if maxAssets, err := parseEnvInt("MARKETS_REALTIME_MAX_ASSETS", 200); err != nil {
 		return Config{}, err
 	} else {
@@ -177,6 +195,18 @@ func Load() (Config, error) {
 		cfg.RealtimeMaxPerConn = maxPerConn
 	}
 	return cfg, nil
+}
+
+func parseOrigins(raw string) ([]string, error) {
+	origins := parseCSV(raw)
+	for i, origin := range origins {
+		parsed, err := url.Parse(origin)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || strings.Contains(parsed.Host, "*") || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return nil, fmt.Errorf("%q must be an exact http(s) origin (scheme and host with optional port)", origin)
+		}
+		origins[i] = strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host)
+	}
+	return origins, nil
 }
 
 func parseCSV(raw string) []string {

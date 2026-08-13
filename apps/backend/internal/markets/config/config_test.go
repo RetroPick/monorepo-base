@@ -17,15 +17,81 @@ func TestLoad_RejectsInvalidIntegerEnv(t *testing.T) {
 	}
 }
 
-func TestLoad_AllowsRealtimeEnabled(t *testing.T) {
+func TestLoad_AllowsRealtimeEnabledInExplicitLocalEnvironments(t *testing.T) {
+	for _, environment := range []string{"development", "dev", "test"} {
+		t.Run(environment, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://example")
+			t.Setenv("ENVIRONMENT", environment)
+			t.Setenv("MARKETS_REALTIME_ENABLED", "1")
+			t.Setenv("MARKETS_REALTIME_ALLOWED_ORIGINS", "")
+			cfg, err := marketsconfig.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !cfg.RealtimeEnabled {
+				t.Fatal("expected realtime enabled")
+			}
+			if len(cfg.RealtimeAllowedOrigins) == 0 {
+				t.Fatal("expected explicit loopback origins for local environment")
+			}
+		})
+	}
+}
+
+func TestLoad_ProductionLikeRealtimeRequiresAllowedOrigins(t *testing.T) {
+	for _, environment := range []string{"production", "staging"} {
+		t.Run(environment, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://example")
+			t.Setenv("ENVIRONMENT", environment)
+			t.Setenv("MARKETS_REALTIME_ENABLED", "1")
+			t.Setenv("MARKETS_REALTIME_ALLOWED_ORIGINS", "")
+			_, err := marketsconfig.Load()
+			if err == nil {
+				t.Fatal("expected empty realtime origin allowlist to be rejected")
+			}
+		})
+	}
+}
+
+func TestLoad_ProductionLikeRealtimeAcceptsExactOrigins(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("ENVIRONMENT", "production")
 	t.Setenv("MARKETS_REALTIME_ENABLED", "1")
+	t.Setenv("MARKETS_REALTIME_ALLOWED_ORIGINS", "HTTPS://App.Example:8443")
 	cfg, err := marketsconfig.Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.RealtimeEnabled {
-		t.Fatal("expected realtime enabled")
+	if got := cfg.RealtimeAllowedOrigins; len(got) != 1 || got[0] != "https://app.example:8443" {
+		t.Fatalf("origins = %#v", got)
+	}
+}
+
+func TestLoad_RejectsMalformedRealtimeAllowedOrigin(t *testing.T) {
+	for _, origin := range []string{"https://app.example/path", "https://*.example", "app.example"} {
+		t.Run(origin, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://example")
+			t.Setenv("ENVIRONMENT", "development")
+			t.Setenv("MARKETS_REALTIME_ALLOWED_ORIGINS", origin)
+			_, err := marketsconfig.Load()
+			if err == nil {
+				t.Fatal("expected malformed realtime origin to be rejected")
+			}
+		})
+	}
+}
+
+func TestLoad_DisabledRealtimeDoesNotRequireAllowedOrigins(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("ENVIRONMENT", "production")
+	t.Setenv("MARKETS_REALTIME_ENABLED", "0")
+	t.Setenv("MARKETS_REALTIME_ALLOWED_ORIGINS", "")
+	cfg, err := marketsconfig.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.RealtimeEnabled {
+		t.Fatal("expected realtime disabled")
 	}
 }
 

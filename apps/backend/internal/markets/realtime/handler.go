@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -23,20 +24,20 @@ type TokenValidator interface {
 
 // HandlerConfig configures the public realtime WebSocket handler.
 type HandlerConfig struct {
-	Hub              *Hub
-	Planner          SubscriptionPlanner
-	AllowedOrigins   []string
-	MaxSubscriptions int
-	MaxCommandRate   int
-	MaxFrameSize     int64
-	IdleTimeout      time.Duration
-	WriteTimeout     time.Duration
+	Hub               *Hub
+	Planner           SubscriptionPlanner
+	AllowedOrigins    []string
+	MaxSubscriptions  int
+	MaxCommandRate    int
+	MaxFrameSize      int64
+	IdleTimeout       time.Duration
+	WriteTimeout      time.Duration
 	HeartbeatInterval time.Duration
-	Logger           *slog.Logger
-	Validator        TokenValidator
-	OnSubscribe      func(marketID, tokenID string)
-	OnUnsubscribe    func(marketID, tokenID string)
-	Now              func() time.Time
+	Logger            *slog.Logger
+	Validator         TokenValidator
+	OnSubscribe       func(marketID, tokenID string)
+	OnUnsubscribe     func(marketID, tokenID string)
+	Now               func() time.Time
 }
 
 // SubscriptionPlanner updates upstream subscription planner.
@@ -88,7 +89,10 @@ func NewHandler(cfg HandlerConfig) *Handler {
 	}
 	allowed := make(map[string]struct{})
 	for _, origin := range cfg.AllowedOrigins {
-		allowed[origin] = struct{}{}
+		normalized, ok := normalizeOrigin(origin)
+		if ok {
+			allowed[normalized] = struct{}{}
+		}
 	}
 	return &Handler{
 		cfg:    cfg,
@@ -98,15 +102,23 @@ func NewHandler(cfg HandlerConfig) *Handler {
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
 			CheckOrigin: func(r *http.Request) bool {
-				if len(allowed) == 0 {
-					return true
+				origin, ok := normalizeOrigin(r.Header.Get("Origin"))
+				if !ok {
+					return false
 				}
-				origin := r.Header.Get("Origin")
-				_, ok := allowed[origin]
+				_, ok = allowed[origin]
 				return ok
 			},
 		},
 	}
+}
+
+func normalizeOrigin(raw string) (string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || strings.Contains(parsed.Host, "*") || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", false
+	}
+	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), true
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
