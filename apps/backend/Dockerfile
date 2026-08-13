@@ -15,6 +15,7 @@ COPY archive/packages/legacy/abi/IMarketEngine.json archive/packages/legacy/abi/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/markets-api ./cmd/markets-api && \
+    GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/migrator ./cmd/migrator && \
     GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/markets-seed ./cmd/markets-seed && \
     GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/healthcheck ./cmd/healthcheck
 
@@ -22,6 +23,7 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /out/markets-api /markets-api
+COPY --from=build /out/migrator /migrator
 COPY --from=build /out/markets-seed /markets-seed
 COPY --from=build /out/healthcheck /healthcheck
 USER nonroot:nonroot
