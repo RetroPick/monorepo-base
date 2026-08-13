@@ -94,13 +94,14 @@ func TestPostgresStoreIsolatesSameVenueTokenAndUpstreamIDPerUser(t *testing.T) {
 	for _, user := range []struct{ id, wallet string }{
 		{"projection-user-shared-a", "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 		{"projection-user-shared-b", "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+		{"projection-user-shared-a", "0xcccccccccccccccccccccccccccccccccccccccc"},
 	} {
 		if _, err := store.ApplyVenueRebuild(ctx, user.id, user.wallet, []positions.VenuePosition{position}, observedAt); err != nil {
 			t.Fatalf("ApplyVenueRebuild(%s): %v", user.id, err)
 		}
-		rows, err := store.List(ctx, user.id)
-		if err != nil || len(rows) != 1 || rows[0].Size != position.Size {
-			t.Fatalf("List(%s) = %+v, %v", user.id, rows, err)
+		var count int
+		if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, user.id, user.wallet, position.TokenID).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("isolated row (%s, %s) count = %d, %v", user.id, user.wallet, count, err)
 		}
 	}
 }
@@ -279,11 +280,12 @@ func TestPostgresStoreConcurrentMissingAndStaleSnapshotsRetainNewestBoundary(t *
 
 	var freshness string
 	var observedAt time.Time
-	if err := pool.QueryRow(ctx, `SELECT freshness_state, observed_at FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, present.TokenID).Scan(&freshness, &observedAt); err != nil {
+	var markObserved, realizedObserved bool
+	if err := pool.QueryRow(ctx, `SELECT freshness_state, observed_at, mark_price_observed, realized_pnl_observed FROM markets_position_projections WHERE user_id = $1 AND account_wallet = $2 AND token_id = $3`, userID, wallet, present.TokenID).Scan(&freshness, &observedAt, &markObserved, &realizedObserved); err != nil {
 		t.Fatal(err)
 	}
-	if freshness != "reconciling" || !observedAt.Equal(t1.Add(2*time.Hour)) {
-		t.Fatalf("concurrent state = freshness=%q observed=%s", freshness, observedAt)
+	if freshness != "reconciling" || !observedAt.Equal(t1.Add(2*time.Hour)) || markObserved || realizedObserved {
+		t.Fatalf("concurrent state = freshness=%q observed=%s markObserved=%t realizedObserved=%t", freshness, observedAt, markObserved, realizedObserved)
 	}
 }
 

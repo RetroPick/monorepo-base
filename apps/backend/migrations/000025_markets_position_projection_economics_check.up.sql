@@ -1,6 +1,14 @@
--- Enforce fixed-point economics introduced after 000022 without changing existing data.
+-- Coverage columns describe whether the latest accepted venue snapshot carried
+-- a valid value. Values themselves remain last-known when coverage is false.
+-- Existing rows are backfilled false because their historical source coverage
+-- cannot be proven. Defaults keep the migration expand-compatible.
 ALTER TABLE markets_position_projections
-    ADD COLUMN IF NOT EXISTS redeemable_observed BOOLEAN NOT NULL DEFAULT FALSE;
+    ADD COLUMN IF NOT EXISTS mark_price_observed BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS cost_basis_observed BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS unrealized_pnl_observed BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS realized_pnl_observed BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS redeemable_observed BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS claimable_amount_observed BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE markets_position_projections
     ADD CONSTRAINT markets_position_projections_economics_fixed_point_check

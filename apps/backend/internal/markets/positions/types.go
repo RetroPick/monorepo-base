@@ -39,11 +39,25 @@ type PositionRecord struct {
 	OutcomeLabel  string
 	Size          string
 	AvgPrice      string
-	SyncStatus    SyncStatus
-	UpstreamSource string
-	UpstreamID    string
-	ObservedAt    time.Time
-	UpdatedAt     time.Time
+	// Economics values are last-known fixed-point values. The corresponding
+	// Observed flags report coverage in the latest accepted source snapshot.
+	MarkPrice               string
+	MarkPriceObserved       bool
+	CostBasisAmount         string
+	CostBasisObserved       bool
+	UnrealizedPnL           string
+	UnrealizedPnLObserved   bool
+	RealizedPnL             string
+	RealizedPnLObserved     bool
+	Redeemable              bool
+	RedeemableObserved      bool
+	ClaimableAmount         string
+	ClaimableAmountObserved bool
+	SyncStatus              SyncStatus
+	UpstreamSource          string
+	UpstreamID              string
+	ObservedAt              time.Time
+	UpdatedAt               time.Time
 }
 
 // UserPosition is the wire shape for one position row.
@@ -52,8 +66,8 @@ type UserPosition struct {
 	MarketID     string                     `json:"marketId,omitempty"`
 	TokenID      string                     `json:"tokenId"`
 	OutcomeLabel string                     `json:"outcomeLabel,omitempty"`
-	Size         markets.DecimalString        `json:"size"`
-	AvgPrice     *markets.DecimalString       `json:"avgPrice,omitempty"`
+	Size         markets.DecimalString      `json:"size"`
+	AvgPrice     *markets.DecimalString     `json:"avgPrice,omitempty"`
 	SyncStatus   SyncStatus                 `json:"syncStatus"`
 	Provenance   markets.UpstreamProvenance `json:"provenance"`
 }
