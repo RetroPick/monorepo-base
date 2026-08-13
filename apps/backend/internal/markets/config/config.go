@@ -2,11 +2,12 @@ package config
 
 import (
 	"fmt"
-	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"retropick/apps/backend/internal/markets/origin"
 )
 
 const (
@@ -199,12 +200,12 @@ func Load() (Config, error) {
 
 func parseOrigins(raw string) ([]string, error) {
 	origins := parseCSV(raw)
-	for i, origin := range origins {
-		parsed, err := url.Parse(origin)
-		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || strings.Contains(parsed.Host, "*") || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-			return nil, fmt.Errorf("%q must be an exact http(s) origin (scheme and host with optional port)", origin)
+	for i, rawOrigin := range origins {
+		normalized, ok := origin.Normalize(rawOrigin)
+		if !ok {
+			return nil, fmt.Errorf("%q must be an exact http(s) origin (scheme and host with optional valid port)", rawOrigin)
 		}
-		origins[i] = strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host)
+		origins[i] = normalized
 	}
 	return origins, nil
 }

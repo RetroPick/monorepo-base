@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"retropick/apps/backend/internal/markets/origin"
 )
 
 // TokenValidator checks catalog membership for token subscriptions.
@@ -88,8 +88,8 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		now = cfg.Now
 	}
 	allowed := make(map[string]struct{})
-	for _, origin := range cfg.AllowedOrigins {
-		normalized, ok := normalizeOrigin(origin)
+	for _, rawOrigin := range cfg.AllowedOrigins {
+		normalized, ok := origin.Normalize(rawOrigin)
 		if ok {
 			allowed[normalized] = struct{}{}
 		}
@@ -102,23 +102,19 @@ func NewHandler(cfg HandlerConfig) *Handler {
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
 			CheckOrigin: func(r *http.Request) bool {
-				origin, ok := normalizeOrigin(r.Header.Get("Origin"))
+				values := r.Header.Values("Origin")
+				if len(values) != 1 || strings.Contains(values[0], ",") {
+					return false
+				}
+				normalized, ok := origin.Normalize(values[0])
 				if !ok {
 					return false
 				}
-				_, ok = allowed[origin]
+				_, ok = allowed[normalized]
 				return ok
 			},
 		},
 	}
-}
-
-func normalizeOrigin(raw string) (string, bool) {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || strings.Contains(parsed.Host, "*") || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return "", false
-	}
-	return strings.ToLower(parsed.Scheme) + "://" + strings.ToLower(parsed.Host), true
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {

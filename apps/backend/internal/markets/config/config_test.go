@@ -68,7 +68,16 @@ func TestLoad_ProductionLikeRealtimeAcceptsExactOrigins(t *testing.T) {
 }
 
 func TestLoad_RejectsMalformedRealtimeAllowedOrigin(t *testing.T) {
-	for _, origin := range []string{"https://app.example/path", "https://*.example", "app.example"} {
+	for _, origin := range []string{
+		"https://app.example:",
+		"https://app.example:0",
+		"https://app.example:65536",
+		"https://app.example:99999",
+		"https://[fe80::1%25eth0]",
+		"https://app.example/path",
+		"https://*.example",
+		"app.example",
+	} {
 		t.Run(origin, func(t *testing.T) {
 			t.Setenv("DATABASE_URL", "postgres://example")
 			t.Setenv("ENVIRONMENT", "development")

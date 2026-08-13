@@ -27,6 +27,19 @@ func TestHandlerAllowsExactNormalizedOrigin(t *testing.T) {
 	}
 }
 
+func TestHandlerRejectsDuplicateOriginHeaderFields(t *testing.T) {
+	_, response, err := dialHandlerOrigins(t, []string{"https://app.example"}, []string{
+		"https://app.example",
+		"https://evil.example",
+	})
+	assertHandshakeRejected(t, response, err)
+}
+
+func TestHandlerRejectsCommaCombinedOrigin(t *testing.T) {
+	_, response, err := dialHandler(t, []string{"https://app.example"}, "https://app.example, https://evil.example")
+	assertHandshakeRejected(t, response, err)
+}
+
 func TestHandlerRejectsUnknownMalformedAndMissingOrigins(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -54,6 +67,14 @@ func assertHandshakeRejected(t *testing.T, response *http.Response, err error) {
 }
 
 func dialHandler(t *testing.T, allowedOrigins []string, origin string) (*websocket.Conn, *http.Response, error) {
+	var origins []string
+	if origin != "" {
+		origins = []string{origin}
+	}
+	return dialHandlerOrigins(t, allowedOrigins, origins)
+}
+
+func dialHandlerOrigins(t *testing.T, allowedOrigins, origins []string) (*websocket.Conn, *http.Response, error) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -67,8 +88,8 @@ func dialHandler(t *testing.T, allowedOrigins []string, origin string) (*websock
 	t.Cleanup(server.Close)
 
 	headers := http.Header{}
-	if origin != "" {
-		headers.Set("Origin", origin)
+	for _, origin := range origins {
+		headers.Add("Origin", origin)
 	}
 	conn, response, err := websocket.DefaultDialer.Dial(
 		"ws"+strings.TrimPrefix(server.URL, "http")+"/api/v1/markets/realtime",
