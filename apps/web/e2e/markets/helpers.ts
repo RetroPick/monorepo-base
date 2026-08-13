@@ -79,7 +79,7 @@ export async function mockMarketsBff(page: Page, options: BffMockOptions = {}) {
     }
 
     if (url.includes("/me/portfolio/summary") && method === "GET") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", accountWallet: E2E_WALLET, aggregate: { totalMarkValue: { amount: "42000000", currency: "pUSD", decimals: 6 }, totalCostBasis: { amount: "40000000", currency: "pUSD", decimals: 6 }, unrealizedPnl: { amount: "2000000", currency: "pUSD", decimals: 6 }, realizedPnl: { amount: "0", currency: "pUSD", decimals: 6 }, claimableValue: { amount: "0", currency: "pUSD", decimals: 6 }, openPositionCount: 1 }, pnlDisclaimer: "Descriptive projection.", checkedAt: "2026-08-09T10:08:30Z", provenance: { source: "retropick_projection", observedAt: "2026-08-09T10:08:30Z" } }) });
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", accountWallet: E2E_WALLET, aggregate: { totalMarkValue: { amount: "42000000", currency: "pUSD", decimals: 6 }, totalCostBasis: { amount: "40000000", currency: "pUSD", decimals: 6 }, unrealizedPnl: { amount: "2000000", currency: "pUSD", decimals: 6 }, realizedPnl: { amount: "0", currency: "pUSD", decimals: 6 }, claimableValue: { amount: "0", currency: "pUSD", decimals: 6 }, openPositionCount: 1, availability: { markValue: { state: "available", availableOpenPositionCount: 1, unavailableOpenPositionCount: 0 }, realizedPnl: { state: "available" } } }, pnlDisclaimer: "Descriptive projection.", checkedAt: "2026-08-09T10:08:30Z", provenance: { source: "retropick_projection", observedAt: "2026-08-09T10:08:30Z" } }) });
     }
 
     if (url.includes("/me/activity") && method === "GET") {

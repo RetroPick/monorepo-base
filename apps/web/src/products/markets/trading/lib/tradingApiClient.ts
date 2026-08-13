@@ -1,6 +1,7 @@
 // MARKETS_CUSTODY: BFF trading client — session cookie only, no CLOB secrets in client
 
 import { getMarketsApiOrigin } from "../../wallet/config/runtimeEnv";
+import type { components } from "@retropick/polymarket";
 
 import type { UnsignedOrderPayload } from "./computeContentHash";
 
@@ -114,7 +115,7 @@ export type OrdersListResponse = {
   provenance: { source: string; observedAt: string; upstreamId?: string };
 };
 
-export type MoneyAmount = { amount: string; currency: string; decimals: number };
+export type MoneyAmount = components["schemas"]["MoneyAmount"];
 
 export type UserFill = {
   fillId: string;
@@ -136,61 +137,15 @@ export type FillsListResponse = {
   checkedAt: string;
 };
 
-export type UserPosition = {
-  positionId: string;
-  marketId: string;
-  tokenId: string;
-  outcomeName?: string;
-  size: string;
-  averageEntryPrice: string;
-  markPrice?: string | null;
-  costBasis: MoneyAmount;
-  markValue?: MoneyAmount | null;
-  unrealizedPnl?: MoneyAmount | null;
-  realizedPnl?: MoneyAmount | null;
-  resolutionState: "active" | "resolved" | "redeemable" | "redeemed";
-  claimable: boolean;
-  exchangeDomain: "standard" | "neg_risk";
-  updatedAt: string;
-};
+export type UserPosition = components["schemas"]["UserPosition"];
 
-export type PositionsListResponse = {
-  schemaVersion: string;
-  positions: UserPosition[];
-  page: { limit: number; cursor?: string };
-  checkedAt: string;
-  provenance: { source: string; observedAt: string; upstreamId?: string };
-};
+export type PositionsListResponse = components["schemas"]["PositionsListResponse"];
 
-export type PortfolioSummaryResponse = {
-  schemaVersion: string;
-  accountWallet: string;
-  aggregate: {
-    totalMarkValue: MoneyAmount;
-    totalCostBasis: MoneyAmount;
-    unrealizedPnl?: MoneyAmount | null;
-    realizedPnl: MoneyAmount;
-    claimableValue: MoneyAmount;
-    openPositionCount: number;
-  };
-  pnlDisclaimer: string;
-  checkedAt: string;
-  provenance: { source: string; observedAt: string; upstreamId?: string };
-};
+export type PortfolioSummaryResponse = components["schemas"]["PortfolioSummaryResponse"];
 
-export type ActivityEvent = {
-  eventId: string;
-  eventType: string;
-  occurredAt: string;
-  summary: string;
-};
+export type ActivityEvent = components["schemas"]["ActivityEvent"];
 
-export type ActivityListResponse = {
-  schemaVersion: string;
-  events: ActivityEvent[];
-  page: { limit: number; cursor?: string };
-  checkedAt: string;
-};
+export type ActivityListResponse = components["schemas"]["ActivityListResponse"];
 
 export type CancelPreviewResponse = {
   schemaVersion: string;

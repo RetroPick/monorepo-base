@@ -85,7 +85,7 @@ export function TradingLifecyclePanel() {
   return <section className="space-y-5" aria-label="Trading lifecycle">
     <div className="flex items-center justify-between gap-3"><div><h2 className="font-semibold">Portfolio and activity</h2><p className="text-xs text-muted-foreground">Refreshes every 10 seconds when this tab is visible.</p></div><Button size="sm" variant="outline" onClick={() => void refresh()}>Refresh</Button></div>
     <DataStateBanner error={actionError ?? orders.error ?? fills.error ?? positions.error ?? summary.error ?? activity.error} title="Could not refresh your trading lifecycle" onRetry={() => void refresh()} />
-    {capabilities?.features?.portfolio_read === true ? <div className="grid gap-3 sm:grid-cols-3"><Metric label="Mark value" value={formatMoneyAmountDisplay(summary.data?.aggregate.totalMarkValue)} /><Metric label="Unrealized PnL" value={formatMoneyAmountDisplay(summary.data?.aggregate.unrealizedPnl)} /><Metric label="Open positions" value={String(summary.data?.aggregate.openPositionCount ?? "—")} /></div> : <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600" role="status">Portfolio projections are unavailable in this environment.</p>}
+    {capabilities?.features?.portfolio_read === true ? <PortfolioMetrics summary={summary.data} /> : <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-600" role="status">Portfolio projections are unavailable in this environment.</p>}
     {summary.data ? <p className="text-xs text-muted-foreground">{summary.data.pnlDisclaimer}</p> : null}
     <LifecycleList title="Open orders" empty="No open orders." loading={orders.isLoading}>{orders.data?.orders.map((order) => <li key={order.orderId} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-3"><span>{order.side} {order.remainingSize} @ {order.price} · {order.status}</span><Button size="sm" variant="outline" disabled={!cancelEnabled} onClick={() => void requestCancel(order.orderId)}>Cancel</Button></li>)}</LifecycleList>
     <LifecycleList title="Fills" empty="No venue fills." loading={fills.isLoading}>{fills.data?.fills.map((fill) => <li key={fill.fillId} className="border-t border-border py-3">{fill.side} {fill.size} @ {fill.price} · fee {formatMoneyAmountDisplay(fill.fee)}</li>)}</LifecycleList>
@@ -95,4 +95,20 @@ export function TradingLifecyclePanel() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-lg border border-border p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 font-semibold">{value}</p></div>; }
+function PortfolioMetrics({ summary }: { summary: Awaited<ReturnType<typeof getMyPortfolioSummary>> | undefined }) {
+  const aggregate = summary?.aggregate;
+  const markAvailability = aggregate?.availability.markValue;
+  const realizedAvailability = aggregate?.availability.realizedPnl;
+
+  return <div className="space-y-2">
+    <div className="grid gap-3 sm:grid-cols-4">
+      <Metric label="Mark value" value={formatMoneyAmountDisplay(aggregate?.totalMarkValue)} />
+      <Metric label="Unrealized PnL" value={formatMoneyAmountDisplay(aggregate?.unrealizedPnl)} />
+      <Metric label="Realized PnL" value={formatMoneyAmountDisplay(aggregate?.realizedPnl)} />
+      <Metric label="Open positions" value={String(aggregate?.openPositionCount ?? "—")} />
+    </div>
+    {markAvailability?.state === "unavailable" ? <p className="text-xs text-muted-foreground" role="status">Mark coverage unavailable for {markAvailability.unavailableOpenPositionCount} of {aggregate?.openPositionCount ?? 0} open positions.</p> : null}
+    {realizedAvailability?.state === "unavailable" ? <p className="text-xs text-muted-foreground" role="status">Realized PnL source unavailable.</p> : null}
+  </div>;
+}
 function LifecycleList({ title, empty, loading, children }: { title: string; empty: string; loading: boolean; children: React.ReactNode }) { return <section className="rounded-xl border border-border p-4"><h3 className="font-semibold">{title}</h3>{loading ? <p className="mt-3 text-sm text-muted-foreground">Loading…</p> : <ul className="mt-3 text-sm">{children || <li className="text-muted-foreground">{empty}</li>}</ul>}</section>; }
