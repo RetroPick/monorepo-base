@@ -104,7 +104,7 @@ func Load() (Config, error) {
 		shutdown = parsed
 	}
 
-	realtimeOriginsRaw := strings.TrimSpace(os.Getenv("MARKETS_REALTIME_ALLOWED_ORIGINS"))
+	realtimeOriginsRaw := os.Getenv("MARKETS_REALTIME_ALLOWED_ORIGINS")
 	if realtimeOriginsRaw == "" && (environment == "development" || environment == "dev" || environment == "test") {
 		realtimeOriginsRaw = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001"
 	}
@@ -199,7 +199,10 @@ func Load() (Config, error) {
 }
 
 func parseOrigins(raw string) ([]string, error) {
-	origins := parseCSV(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	origins := strings.Split(raw, ",")
 	for i, rawOrigin := range origins {
 		normalized, ok := origin.Normalize(rawOrigin)
 		if !ok {

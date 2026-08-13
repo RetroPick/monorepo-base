@@ -90,6 +90,25 @@ func TestLoad_RejectsMalformedRealtimeAllowedOrigin(t *testing.T) {
 	}
 }
 
+func TestLoad_RejectsRealtimeOriginControlsAndSurroundingWhitespace(t *testing.T) {
+	for _, raw := range []string{
+		"https://app.example\r",
+		"https://app.example\n",
+		" https://app.example",
+		"https://app.example ",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			t.Setenv("DATABASE_URL", "postgres://example")
+			t.Setenv("ENVIRONMENT", "production")
+			t.Setenv("MARKETS_REALTIME_ENABLED", "1")
+			t.Setenv("MARKETS_REALTIME_ALLOWED_ORIGINS", raw)
+			if _, err := marketsconfig.Load(); err == nil {
+				t.Fatalf("expected raw origin %q to be rejected without sanitizing", raw)
+			}
+		})
+	}
+}
+
 func TestLoad_DisabledRealtimeDoesNotRequireAllowedOrigins(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("ENVIRONMENT", "production")
