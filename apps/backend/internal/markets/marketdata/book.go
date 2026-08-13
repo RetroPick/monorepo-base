@@ -242,7 +242,6 @@ func NormalizeHistory(rows []clob.PricePoint) ([]markets.PricePoint, error) {
 
 func normalizeLevels(rows []clob.Level, side Side) ([]markets.OrderBookLevel, error) {
 	levels := make([]markets.OrderBookLevel, 0, len(rows))
-	seen := make(map[string]struct{}, len(rows))
 	for _, row := range rows {
 		price, err := markets.ParseDecimalString(row.Price)
 		if err != nil || !probability(price) {
@@ -252,13 +251,14 @@ func normalizeLevels(rows []clob.Level, side Side) ([]markets.OrderBookLevel, er
 		if err != nil || decimalSign(size) <= 0 {
 			return nil, fmt.Errorf("%w: invalid level size", ErrInvalidBook)
 		}
-		if _, duplicate := seen[string(price)]; duplicate {
-			return nil, fmt.Errorf("%w: duplicate level price", ErrInvalidBook)
-		}
-		seen[string(price)] = struct{}{}
 		levels = append(levels, markets.OrderBookLevel{Price: price, Size: size})
 	}
 	sortLevels(levels, side)
+	for i := 1; i < len(levels); i++ {
+		if compareDecimal(levels[i-1].Price, levels[i].Price) == 0 {
+			return nil, fmt.Errorf("%w: duplicate level price", ErrInvalidBook)
+		}
+	}
 	return levels, nil
 }
 

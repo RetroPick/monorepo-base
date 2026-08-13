@@ -46,6 +46,93 @@ func TestBuildSnapshotSortsBestLevelsAndCalculatesExactSpread(t *testing.T) {
 	}
 }
 
+func TestBuildSnapshotRejectsSemanticallyDuplicateSameSidePrices(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		side  Side
+		first string
+		last  string
+	}{
+		{name: "bid tenths", side: SideBid, first: "0.4", last: "0.40"},
+		{name: "ask zero", side: SideAsk, first: "0", last: "0.0"},
+		{name: "bid one", side: SideBid, first: "1", last: "1.00"},
+		{name: "ask long trailing zeros", side: SideAsk, first: "0.123456789", last: "0.12345678900000000000000000000000000000000000000000"},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			book := validOrderBook(time.Date(2026, 7, 30, 5, 0, 0, 0, time.UTC))
+			levels := []clob.Level{{Price: tt.first, Size: "1"}, {Price: tt.last, Size: "2"}}
+			if tt.side == SideBid {
+				book.Bids = levels
+				book.Asks = nil
+			} else {
+				book.Bids = nil
+				book.Asks = levels
+			}
+
+			_, err := BuildSnapshot("market-1", book, book.Timestamp, 5*time.Second)
+			if !errors.Is(err, ErrInvalidBook) {
+				t.Fatalf("error %v, want %v", err, ErrInvalidBook)
+			}
+		})
+	}
+}
+
+func TestBuildSnapshotKeepsDistinctCloseDecimalsSorted(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 30, 5, 0, 0, 0, time.UTC)
+	book := validOrderBook(now)
+	book.Bids = []clob.Level{
+		{Price: "0.4000000000000000000000000000000000000001", Size: "1"},
+		{Price: "0.4", Size: "2"},
+	}
+	book.Asks = []clob.Level{
+		{Price: "0.6000000000000000000000000000000000000001", Size: "3"},
+		{Price: "0.6", Size: "4"},
+	}
+
+	snapshot, err := BuildSnapshot("market-1", book, now, 5*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Bids[0].Price != "0.4000000000000000000000000000000000000001" || snapshot.Bids[1].Price != "0.4" {
+		t.Fatalf("bids %+v", snapshot.Bids)
+	}
+	if snapshot.Asks[0].Price != "0.6" || snapshot.Asks[1].Price != "0.6000000000000000000000000000000000000001" {
+		t.Fatalf("asks %+v", snapshot.Asks)
+	}
+}
+
+func TestBuildSnapshotTreatsLockedAndCrossedBooksAsCrossed(t *testing.T) {
+	t.Parallel()
+
+	for _, ask := range []string{"0.6", "0.59"} {
+		ask := ask
+		t.Run(ask, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Date(2026, 7, 30, 5, 0, 0, 0, time.UTC)
+			book := validOrderBook(now)
+			book.Bids = []clob.Level{{Price: "0.60", Size: "1"}}
+			book.Asks = []clob.Level{{Price: ask, Size: "1"}}
+
+			snapshot, err := BuildSnapshot("market-1", book, now, 5*time.Second)
+			if !errors.Is(err, ErrCrossedBook) {
+				t.Fatalf("error %v, want %v", err, ErrCrossedBook)
+			}
+			if snapshot.Freshness.State != markets.FreshnessInvalid || snapshot.Freshness.Reason != "crossed_book" {
+				t.Fatalf("freshness %+v", snapshot.Freshness)
+			}
+		})
+	}
+}
+
 func TestBuildSnapshotMarksCrossedBookInvalid(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +271,19 @@ func TestNormalizeHistoryPreservesSparseTimestamps(t *testing.T) {
 	}
 	if points[0].Derived || points[0].Source != "polymarket_clob" {
 		t.Fatalf("point %+v", points[0])
+	}
+}
+
+func validOrderBook(now time.Time) clob.OrderBook {
+	return clob.OrderBook{
+		ConditionID:  "0xabc",
+		TokenID:      "token-yes",
+		Timestamp:    now,
+		Hash:         "hash-1",
+		Bids:         []clob.Level{{Price: "0.4", Size: "1"}},
+		Asks:         []clob.Level{{Price: "0.6", Size: "1"}},
+		MinOrderSize: "1",
+		TickSize:     "0.01",
 	}
 }
 
