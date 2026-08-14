@@ -9,6 +9,10 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "docker-compose.markets-staging.yml"
 NGINX = ROOT / "docker/nginx-production.conf.template"
 DOCKERFILE = ROOT / "apps/backend/Dockerfile"
+WEB_DOCKERFILE = ROOT / "apps/web/Dockerfile"
+DEV_MANIFEST = ROOT / "docker-compose.markets-dev.yml"
+LOCAL_CADDY = ROOT / "docker/Caddyfile.markets-staging-local"
+LOCAL_RUNBOOK = ROOT / ".harness/products/markets-v1/release/MARKETS_LOCAL_STAGING_RUNBOOK.md"
 
 
 def require(condition: bool, message: str) -> None:
@@ -85,16 +89,56 @@ def check_proxy() -> None:
         require(fragment in route, f"realtime proxy missing {fragment}")
 
 
+def check_local_staging() -> None:
+    dev_text = DEV_MANIFEST.read_text()
+    caddy_text = LOCAL_CADDY.read_text()
+    for fragment, message in (
+        ('MARKETS_REALTIME_ENABLED: "0"', "local realtime must be explicitly disabled"),
+        ('MARKETS_ORDER_SUBMIT_ENABLED: "false"', "local order submission must be explicitly disabled"),
+        ('MARKETS_PORTFOLIO_READ_ENABLED: "false"', "local portfolio reads must be explicitly disabled"),
+        ('MARKETS_AUTH_COOKIE_SECURE: "1"', "local TLS rehearsal must use secure auth cookies"),
+        ('MARKETS_AUTH_COOKIE_SAMESITE: "Lax"', "local TLS rehearsal must fix SameSite explicitly"),
+    ):
+        require(fragment in dev_text, message)
+    require("@metrics path /metrics" in caddy_text and "respond @metrics 404" in caddy_text,
+            "local TLS proxy must not expose the metrics endpoint")
+    for header in ("X-Content-Type-Options nosniff", "Referrer-Policy no-referrer", "X-Frame-Options DENY"):
+        require(header in caddy_text, f"local TLS proxy missing security header: {header}")
+    runbook_text = LOCAL_RUNBOOK.read_text()
+    require('export RETROPICK_VCS_REF="$(git rev-parse HEAD)"' in runbook_text,
+            "local runbook must bind builds to the checked-out exact revision")
+    require("--preserve-env=RETROPICK_VCS_REF," in runbook_text,
+            "local runbook must pass the exact revision through sudo")
+    require("org.opencontainers.image.revision" in runbook_text,
+            "local runbook must verify runtime image provenance")
+
+
 def check_image() -> None:
     text = DOCKERFILE.read_text()
+    web_text = WEB_DOCKERFILE.read_text()
+    staging_text = MANIFEST.read_text()
+    dev_text = DEV_MANIFEST.read_text()
     require("-o /out/migrator ./cmd/migrator" in text, "backend image must include /migrator")
     require('ENTRYPOINT ["/markets-api"]' in text, "backend image must still default to /markets-api")
+    for image_text, name in ((text, "backend"), (web_text, "web")):
+        require("ARG RETROPICK_VCS_REF" in image_text, f"{name} image must accept exact source revision")
+        require(
+            'org.opencontainers.image.revision="${RETROPICK_VCS_REF}"' in image_text,
+            f"{name} image must label its exact source revision",
+        )
+    require(
+        "RETROPICK_VCS_REF: \"${RETROPICK_VCS_REF:?exact canonical git SHA is required}\"" in staging_text,
+        "staging image build must fail fast without an exact source revision",
+    )
+    require(dev_text.count("RETROPICK_VCS_REF: \"${RETROPICK_VCS_REF:?exact canonical git SHA is required}\"") == 2,
+            "local backend and web builds must both fail fast without an exact source revision")
 
 
 def main() -> int:
     try:
         check_manifest()
         check_proxy()
+        check_local_staging()
         check_image()
     except AssertionError as exc:
         print(f"FAIL: {exc}", file=sys.stderr)

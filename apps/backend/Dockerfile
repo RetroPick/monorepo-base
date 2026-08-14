@@ -20,6 +20,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/healthcheck ./cmd/healthcheck
 
 FROM gcr.io/distroless/static-debian12:nonroot
+ARG RETROPICK_VCS_REF
+LABEL org.opencontainers.image.revision="${RETROPICK_VCS_REF}"
 WORKDIR /
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /out/markets-api /markets-api

@@ -7,6 +7,8 @@ x-markets-image: &markets-image
   build:
     context: .
     dockerfile: apps/backend/Dockerfile
+    args:
+      RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
   image: "${MARKETS_API_IMAGE:?MARKETS_API_IMAGE is required (immutable tag or digest)}"
 
 services:

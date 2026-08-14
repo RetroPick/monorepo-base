@@ -10,7 +10,13 @@ x-markets-backend-env: &markets-backend-env
   MARKETS_CATALOG_ENABLED: "1"
   MARKETS_MARKET_DATA_ENABLED: "0"
   MARKETS_SIGNALS_ENABLED: "1"
-  MARKETS_CORS_ALLOWED_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001"
+  MARKETS_CORS_ALLOWED_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001,https://localhost:8443"
+  # Production capabilities stay explicitly fail-closed in local staging proof.
+  MARKETS_REALTIME_ENABLED: "0"
+  MARKETS_ORDER_SUBMIT_ENABLED: "false"
+  MARKETS_PORTFOLIO_READ_ENABLED: "false"
+  MARKETS_AUTH_COOKIE_SECURE: "1"
+  MARKETS_AUTH_COOKIE_SAMESITE: "Lax"
   MARKETS_GAMMA_API_URL: "http://127.0.0.1:9"
   MARKETS_CLOB_API_URL: "http://127.0.0.1:9"
   MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
@@ -54,6 +60,8 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+      args:
+        RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
     image: retropick-markets-dev-backend
     container_name: retropick-markets-api
     restart: unless-stopped
@@ -76,6 +84,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
+        RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
         NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8080
         NEXT_PUBLIC_PRODUCT: markets
     container_name: retropick-markets-web

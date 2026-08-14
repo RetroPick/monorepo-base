@@ -12,9 +12,10 @@ Scope: a local VPS rehearsal only. The stack uses an ephemeral auth-session secr
 
 ```bash
 cd /opt/retropick
+export RETROPICK_VCS_REF="$(git rev-parse HEAD)"
 export MARKETS_AUTH_SESSION_SECRET="$(openssl rand -hex 32)"
 export MARKETS_AUTH_ALLOWED_DOMAINS=localhost
-sudo -n --preserve-env=MARKETS_AUTH_SESSION_SECRET,MARKETS_AUTH_ALLOWED_DOMAINS \
+sudo -n --preserve-env=RETROPICK_VCS_REF,MARKETS_AUTH_SESSION_SECRET,MARKETS_AUTH_ALLOWED_DOMAINS \
   docker compose -f docker-compose.markets-dev.yml \
   -f docker-compose.markets-staging-local.yml up --build -d --wait --wait-timeout 600
 ```
@@ -32,6 +33,19 @@ sudo -n docker cp retropick-markets-caddy-staging-local:/data/caddy/pki/authorit
 sudo -n install -m 0644 /tmp/retropick-caddy-root.crt /tmp/retropick-caddy-root-readable.crt
 curl -fsS --cacert /tmp/retropick-caddy-root-readable.crt \
   https://localhost:8443/api/v1/health/live
+
+# Runtime provenance must equal the exact revision exported before the build.
+test "$(sudo -n docker inspect retropick-markets-api \
+  --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$RETROPICK_VCS_REF"
+test "$(sudo -n docker inspect retropick-markets-web \
+  --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$RETROPICK_VCS_REF"
+
+# Capabilities remain fail closed, and metrics stay on loopback-only :8080.
+curl -fsS https://localhost:8443/api/v1/markets/capabilities \
+  --cacert /tmp/retropick-caddy-root-readable.crt | jq -e \
+  '.features.order_submit == false and .features.portfolio_read == false'
+test "$(curl -sS -o /dev/null -w '%{http_code}' \
+  --cacert /tmp/retropick-caddy-root-readable.crt https://localhost:8443/metrics)" = 404
 ```
 
 Expected: Docker health checks are `healthy`; readiness responds HTTP 200 with database `ok`; smoke prints `Markets stack smoke passed.`; Caddy forwards `/api/v1/health/live` over verified local TLS.
