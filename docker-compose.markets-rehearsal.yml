@@ -33,7 +33,7 @@ services:
   markets-migrate:
     <<: *markets-backend-image
     restart: "no"
-    entrypoint: [""]
+    entrypoint: []
     command: ["/migrator"]
     environment:
       DATABASE_URL: "postgres://retropick_rehearsal:${REHEARSAL_POSTGRES_PASSWORD:?REHEARSAL_POSTGRES_PASSWORD is required}@postgres:5432/retropick_rehearsal?sslmode=disable"

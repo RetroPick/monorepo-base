@@ -47,7 +47,10 @@ def check_manifest() -> None:
 
     require("<<: *markets-backend-image" in migrate, "migrator must use the backend image identity")
     require("<<: *markets-backend-image" in api, "API must use the backend image identity")
-    require('entrypoint: [""]' in migrate, "migrator must clear the API entrypoint")
+    require("entrypoint: []" in migrate,
+            "migrator must clear the API entrypoint with an empty Compose list")
+    require('entrypoint: [""]' not in migrate,
+            "migrator entrypoint must not name an empty executable")
     require('command: ["/migrator"]' in migrate, "migrator must run /migrator")
     require("condition: service_healthy" in migrate, "migrator must wait for PostgreSQL health")
     require("condition: service_completed_successfully" in api, "API must wait for successful migration")
