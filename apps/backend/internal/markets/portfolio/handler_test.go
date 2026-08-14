@@ -105,7 +105,7 @@ func TestActivityIsDurableUserAndWalletScoped(t *testing.T) {
 	assertPrivateNoStore(t, rec)
 }
 
-func TestSummaryCompleteAndExplicitZero(t *testing.T) {
+func TestSummaryOpenProjectionCannotClaimHistoricalRealizedZero(t *testing.T) {
 	rows := []positions.PositionRecord{
 		row(testUser, testWallet, "10", "0.4", "4000000", "1", "0", "0", true),
 		row(otherUser, testWallet, "999", "1", "999000000", "999", "999", "999", true),
@@ -120,7 +120,7 @@ func TestSummaryCompleteAndExplicitZero(t *testing.T) {
 	assertMoney(t, agg["totalMarkValue"], "4000000")
 	assertMoney(t, agg["totalCostBasis"], "4000000")
 	assertMoney(t, agg["unrealizedPnl"], "1000000")
-	assertMoney(t, agg["realizedPnl"], "0")
+	assertRealizedUnavailable(t, agg)
 	assertMoney(t, agg["claimableValue"], "0")
 	if agg["openPositionCount"] != float64(1) {
 		t.Fatalf("count=%v", agg["openPositionCount"])
@@ -142,7 +142,7 @@ func TestSummaryPartialCoverageNullsMarkMetricsAndSeparatesFreshness(t *testing.
 	if agg["totalMarkValue"] != nil || agg["unrealizedPnl"] != nil {
 		t.Fatalf("mark metrics=%v/%v", agg["totalMarkValue"], agg["unrealizedPnl"])
 	}
-	assertMoney(t, agg["realizedPnl"], "500000")
+	assertRealizedUnavailable(t, agg)
 	availability := agg["availability"].(map[string]any)["markValue"].(map[string]any)
 	if availability["state"] != "unavailable" || availability["availableOpenPositionCount"] != float64(1) || availability["unavailableOpenPositionCount"] != float64(1) {
 		t.Fatalf("availability=%v", availability)
@@ -152,7 +152,7 @@ func TestSummaryPartialCoverageNullsMarkMetricsAndSeparatesFreshness(t *testing.
 	}
 }
 
-func TestSummaryClosedHistoryContributesRealizedWithoutChangingOpenMetrics(t *testing.T) {
+func TestSummarySyntheticClosedProjectionCannotClaimHistoricalRealized(t *testing.T) {
 	open := row(testUser, testWallet, "10", "0.4", "4000000", "1", "0.5", "0", true)
 	closed := row(testUser, testWallet, "0", "", "9000000", "", "2", "7000000", false)
 	closed.CostBasisObserved = false
@@ -170,7 +170,7 @@ func TestSummaryClosedHistoryContributesRealizedWithoutChangingOpenMetrics(t *te
 	assertMoney(t, agg["totalCostBasis"], "4000000")
 	assertMoney(t, agg["unrealizedPnl"], "1000000")
 	assertMoney(t, agg["claimableValue"], "0")
-	assertMoney(t, agg["realizedPnl"], "2500000")
+	assertRealizedUnavailable(t, agg)
 	if body["provenance"].(map[string]any)["observedAt"] != closed.ObservedAt.Format(time.RFC3339) {
 		t.Fatalf("provenance=%v", body["provenance"])
 	}
@@ -179,7 +179,7 @@ func TestSummaryClosedHistoryContributesRealizedWithoutChangingOpenMetrics(t *te
 	}
 }
 
-func TestSummaryRealizedHistoryIsIndependentOfOpenMarkCoverage(t *testing.T) {
+func TestSummaryOpenRealizedFieldCannotClaimHistoricalRealized(t *testing.T) {
 	open := row(testUser, testWallet, "5", "", "1000000", "", "1.25", "0", false)
 	open.CostBasisObserved = true
 	open.ClaimableAmountObserved = true
@@ -189,10 +189,7 @@ func TestSummaryRealizedHistoryIsIndependentOfOpenMarkCoverage(t *testing.T) {
 	if agg["totalMarkValue"] != nil || agg["unrealizedPnl"] != nil {
 		t.Fatalf("mark metrics=%v/%v", agg["totalMarkValue"], agg["unrealizedPnl"])
 	}
-	assertMoney(t, agg["realizedPnl"], "1000000")
-	if agg["availability"].(map[string]any)["realizedPnl"].(map[string]any)["state"] != "available" {
-		t.Fatalf("availability=%v", agg["availability"])
-	}
+	assertRealizedUnavailable(t, agg)
 }
 
 func TestSummaryUnavailableHistoricalRealizedCoverageNullsAggregate(t *testing.T) {
@@ -210,13 +207,10 @@ func TestSummaryUnavailableHistoricalRealizedCoverageNullsAggregate(t *testing.T
 	}
 }
 
-func TestSummaryClosedHistoricalZeroIsAvailableZero(t *testing.T) {
+func TestSummarySyntheticClosedZeroDoesNotProveAuthoritativeZero(t *testing.T) {
 	closed := row(testUser, testWallet, "0", "", "0", "", "0", "0", false)
 	agg := decode(t, request(t, router(nil, []positions.PositionRecord{closed}, sessionResolver{session: wallet.SessionContext{UserID: testUser, SignerAddress: testSigner}}), "/api/v1/markets/me/portfolio/summary"))["aggregate"].(map[string]any)
-	assertMoney(t, agg["realizedPnl"], "0")
-	if agg["availability"].(map[string]any)["realizedPnl"].(map[string]any)["state"] != "available" {
-		t.Fatalf("availability=%v", agg["availability"])
-	}
+	assertRealizedUnavailable(t, agg)
 }
 
 func TestSummaryZeroOpenIsKnownZeroButRealizedUnavailable(t *testing.T) {
@@ -270,6 +264,12 @@ func assertMoney(t *testing.T, value any, amount string) {
 	money, ok := value.(map[string]any)
 	if !ok || money["amount"] != amount || money["currency"] != "pUSD" || money["decimals"] != float64(6) {
 		t.Fatalf("money=%v want=%s", value, amount)
+	}
+}
+func assertRealizedUnavailable(t *testing.T, agg map[string]any) {
+	t.Helper()
+	if agg["realizedPnl"] != nil || agg["availability"].(map[string]any)["realizedPnl"].(map[string]any)["state"] != "unavailable" {
+		t.Fatalf("realized=%v availability=%v", agg["realizedPnl"], agg["availability"])
 	}
 }
 func assertPrivateNoStore(t *testing.T, rec *httptest.ResponseRecorder) {
