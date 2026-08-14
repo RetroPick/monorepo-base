@@ -1,0 +1,131 @@
+# Standalone, non-seeded local production-like rehearsal topology.
+# This file intentionally does not extend docker-compose.markets-dev.yml.
+name: retropick-markets-rehearsal
+
+x-markets-backend-image: &markets-backend-image
+  build:
+    context: .
+    dockerfile: apps/backend/Dockerfile
+    args:
+      RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
+  image: "retropick-markets-rehearsal-backend:${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: retropick_rehearsal
+      POSTGRES_USER: retropick_rehearsal
+      POSTGRES_PASSWORD: "${REHEARSAL_POSTGRES_PASSWORD:?REHEARSAL_POSTGRES_PASSWORD is required}"
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - markets_rehearsal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U retropick_rehearsal -d retropick_rehearsal"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+      start_interval: 2s
+
+  markets-migrate:
+    <<: *markets-backend-image
+    restart: "no"
+    entrypoint: [""]
+    command: ["/migrator"]
+    environment:
+      DATABASE_URL: "postgres://retropick_rehearsal:${REHEARSAL_POSTGRES_PASSWORD:?REHEARSAL_POSTGRES_PASSWORD is required}@postgres:5432/retropick_rehearsal?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  markets-api:
+    <<: *markets-backend-image
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgres://retropick_rehearsal:${REHEARSAL_POSTGRES_PASSWORD:?REHEARSAL_POSTGRES_PASSWORD is required}@postgres:5432/retropick_rehearsal?sslmode=disable"
+      MARKETS_HTTP_PORT: "8080"
+      PORT: "8080"
+      MARKETS_CATALOG_ENABLED: "1"
+      MARKETS_MARKET_DATA_ENABLED: "0"
+      MARKETS_SIGNALS_ENABLED: "1"
+      MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
+      MARKETS_AUTH_ALLOWED_DOMAINS: "${MARKETS_AUTH_ALLOWED_DOMAINS:?exact SIWE domain allowlist is required}"
+      MARKETS_AUTH_COOKIE_SECURE: "1"
+      MARKETS_AUTH_COOKIE_SAMESITE: "Lax"
+      MARKETS_CORS_ALLOWED_ORIGINS: "${MARKETS_CORS_ALLOWED_ORIGINS:?exact CORS origin allowlist is required}"
+      MARKETS_REALTIME_ENABLED: "1"
+      MARKETS_REALTIME_ALLOWED_ORIGINS: "${MARKETS_REALTIME_ALLOWED_ORIGINS:?exact realtime origin allowlist is required}"
+      MARKETS_ORDER_SUBMIT_ENABLED: "false"
+      MARKETS_PORTFOLIO_READ_ENABLED: "false"
+      MARKETS_GEOIP_BASE_URL: "${MARKETS_GEOIP_BASE_URL:-}"
+      MARKETS_GEOIP_PATH: "${MARKETS_GEOIP_PATH:-/{ip}/json}"
+      MARKETS_GEOIP_API_KEY: "${MARKETS_GEOIP_API_KEY:-}"
+      MARKETS_GEOBLOCK_BASE_URL: "${MARKETS_GEOBLOCK_BASE_URL:-}"
+      MARKETS_GEOBLOCK_PATH: "${MARKETS_GEOBLOCK_PATH:-/api/geoblock}"
+      TRUSTED_PROXY_CIDRS: "172.16.0.0/12,127.0.0.0/8,10.0.0.0/8"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      markets-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8081:8080"
+    healthcheck:
+      test: ["CMD", "/healthcheck", "/api/v1/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  markets-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
+        NEXT_PUBLIC_API_BASE_URL: https://localhost:8443
+        NEXT_PUBLIC_PRODUCT: markets
+    image: "retropick-markets-rehearsal-web:${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
+    restart: unless-stopped
+    depends_on:
+      markets-api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3002:3001"
+    environment:
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3001/markets"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 30s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      markets-api:
+        condition: service_healthy
+      markets-web:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8443:443"
+    volumes:
+      - ./docker/Caddyfile.markets-rehearsal:/etc/caddy/Caddyfile:ro
+      - markets_rehearsal_caddy_data:/data
+      - markets_rehearsal_caddy_config:/config
+    healthcheck:
+      test: ["CMD", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  markets_rehearsal_postgres_data:
+  markets_rehearsal_caddy_data:
+  markets_rehearsal_caddy_config:
