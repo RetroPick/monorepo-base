@@ -1,0 +1,104 @@
+# Canonical non-secret Markets staging stack.
+# Operator supplies every environment-specific value; this file contains no
+# credentials and is intentionally distinct from seeded local development.
+name: retropick-markets-staging
+
+x-markets-image: &markets-image
+  build:
+    context: .
+    dockerfile: apps/backend/Dockerfile
+    args:
+      RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
+  image: "${MARKETS_API_IMAGE:?MARKETS_API_IMAGE is required (immutable tag or digest)}"
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+    volumes:
+      - markets_staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  markets-migrate:
+    <<: *markets-image
+    restart: "no"
+    entrypoint: [""]
+    command: ["/migrator"]
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  markets-api:
+    <<: *markets-image
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "${DATABASE_URL:?DATABASE_URL is required}"
+      MARKETS_HTTP_PORT: "8080"
+      PORT: "8080"
+      MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
+      MARKETS_AUTH_ALLOWED_DOMAINS: "${MARKETS_AUTH_ALLOWED_DOMAINS:?exact SIWE domain allowlist is required}"
+      MARKETS_AUTH_COOKIE_SECURE: "1"
+      MARKETS_AUTH_COOKIE_SAMESITE: "${MARKETS_AUTH_COOKIE_SAMESITE:?MARKETS_AUTH_COOKIE_SAMESITE is required}"
+      MARKETS_CORS_ALLOWED_ORIGINS: "${MARKETS_CORS_ALLOWED_ORIGINS:?exact CORS origin allowlist is required}"
+      MARKETS_REALTIME_ENABLED: "1"
+      MARKETS_REALTIME_ALLOWED_ORIGINS: "${MARKETS_REALTIME_ALLOWED_ORIGINS:?exact realtime origin allowlist is required}"
+      MARKETS_GEOIP_BASE_URL: "${MARKETS_GEOIP_BASE_URL:?MARKETS_GEOIP_BASE_URL is required}"
+      MARKETS_GEOIP_PATH: "${MARKETS_GEOIP_PATH:?MARKETS_GEOIP_PATH is required}"
+      MARKETS_GEOIP_API_KEY: "${MARKETS_GEOIP_API_KEY:?MARKETS_GEOIP_API_KEY is required}"
+      MARKETS_GEOBLOCK_BASE_URL: "${MARKETS_GEOBLOCK_BASE_URL:?MARKETS_GEOBLOCK_BASE_URL is required}"
+      MARKETS_GEOBLOCK_PATH: "${MARKETS_GEOBLOCK_PATH:?MARKETS_GEOBLOCK_PATH is required}"
+      TRUSTED_PROXY_CIDRS: "${TRUSTED_PROXY_CIDRS:?exact trusted proxy CIDRs are required}"
+      MARKETS_ORDER_SUBMIT_ENABLED: "false"
+      # Deployment contract mirrors the public capability: portfolio_read=false.
+      MARKETS_PORTFOLIO_READ_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      markets-migrate:
+        condition: service_completed_successfully
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "/healthcheck", "/api/v1/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      markets-api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_HOST: "${API_HOST:?API_HOST is required}"
+      API_UPSTREAM: "markets-api:8080"
+    volumes:
+      - ./docker/nginx-production.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/render-nginx-production.sh:/etc/nginx/render-production-conf.sh:ro
+      - "${TLS_CERT_ROOT:?TLS_CERT_ROOT is required}:/etc/letsencrypt:ro"
+      - "${ACME_WEBROOT:?ACME_WEBROOT is required}:/var/www/certbot:ro"
+    command: ["/bin/sh", "/etc/nginx/render-production-conf.sh"]
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+
+volumes:
+  markets_staging_postgres_data:

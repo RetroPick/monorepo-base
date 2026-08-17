@@ -90,7 +90,8 @@ func (p *CatalogSignalProducer) EmitAfterUpsert(
 
 	currentRuleHash := market.Resolution.ContentHash
 	if currentRuleHash == "" {
-		currentRuleHash = hashPayload([]byte(market.Resolution.Description))
+		_, sourceURL := firstResolutionSource(market.Resolution.Sources)
+		currentRuleHash = hashPayload([]byte(market.Resolution.Description + "\x00" + sourceURL))
 	}
 	if prior.RuleExists && prior.PreviousRuleHash != "" && prior.PreviousRuleHash != currentRuleHash {
 		envelope, err := p.engine.Evaluate(signals.Observation{

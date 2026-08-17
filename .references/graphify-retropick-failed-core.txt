@@ -1,0 +1,5 @@
+SKIP no supported files: apps/docs/contents
+SKIP no supported files: .harness/products/markets-v1
+SKIP no supported files: schemas
+FAILED graphify extract: archive/contracts/legacy-pool-v1/src
+FAILED graphify extract: archive/contracts/legacy-pool-v1/test

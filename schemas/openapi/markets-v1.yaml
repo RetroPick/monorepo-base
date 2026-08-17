@@ -518,8 +518,13 @@ paths:
       description: |
         Returns descriptive aggregate portfolio metrics for the session's primary linked
         account wallet. PnL is an informative projection — not custodial P&L authority.
-        unrealizedPnl is null when mark prices are unavailable. accountWallet comes from
-        the session resolver only — never from the request. Gated by features.portfolio_read.
+        Mark-derived metrics (totalMarkValue and unrealizedPnl) are null when currentValue
+        or a mark price is unavailable for any open position. realizedPnl is null when its
+        authoritative aggregate source is unavailable. These nulls mean unavailable, not zero;
+        aggregate.availability is metric source coverage, not position freshness; use freshness
+        for the observation state. It identifies mark coverage and realized-PnL source availability.
+        accountWallet comes from the session resolver only — never from the request. Gated by
+        features.portfolio_read.
         Responses MUST NOT be cached (private, no-store).
       x-phase: 4
       security:
@@ -532,8 +537,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/PortfolioSummaryResponse"
               examples:
-                activePortfolio:
-                  summary: Portfolio with one open position
+                completePortfolio:
+                  summary: Portfolio with complete mark and realized PnL source coverage
                   value:
                     schemaVersion: "1"
                     accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
@@ -559,6 +564,90 @@ paths:
                         currency: pUSD
                         decimals: 6
                       openPositionCount: 1
+                      availability:
+                        markValue:
+                          state: available
+                          availableOpenPositionCount: 1
+                          unavailableOpenPositionCount: 0
+                        realizedPnl:
+                          state: available
+                    pnlDisclaimer: Descriptive projection based on venue fills and mark prices; not custodial P&L authority.
+                    checkedAt: "2026-08-09T10:08:30Z"
+                    provenance:
+                      source: retropick_projection
+                      observedAt: "2026-08-09T10:08:30Z"
+                    freshness:
+                      state: fresh
+                      observedAt: "2026-08-09T10:08:30Z"
+                      ageMillis: 0
+                partialPortfolio:
+                  summary: One open position lacks a current mark; mark-derived totals are unavailable, not zero
+                  value:
+                    schemaVersion: "1"
+                    accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    aggregate:
+                      totalMarkValue: null
+                      totalCostBasis:
+                        amount: "40000000"
+                        currency: pUSD
+                        decimals: 6
+                      unrealizedPnl: null
+                      realizedPnl:
+                        amount: "500000"
+                        currency: pUSD
+                        decimals: 6
+                      claimableValue:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      openPositionCount: 2
+                      availability:
+                        markValue:
+                          state: unavailable
+                          availableOpenPositionCount: 1
+                          unavailableOpenPositionCount: 1
+                        realizedPnl:
+                          state: available
+                    pnlDisclaimer: Descriptive projection based on venue fills and mark prices; not custodial P&L authority.
+                    checkedAt: "2026-08-09T10:08:30Z"
+                    provenance:
+                      source: retropick_projection
+                      observedAt: "2026-08-09T10:08:30Z"
+                    freshness:
+                      state: fresh
+                      observedAt: "2026-08-09T10:08:30Z"
+                      ageMillis: 0
+                zeroOpenPositions:
+                  summary: No open positions; mark totals are known zero while realized PnL remains unavailable without its source
+                  value:
+                    schemaVersion: "1"
+                    accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    aggregate:
+                      totalMarkValue:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      totalCostBasis:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      unrealizedPnl:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      realizedPnl: null
+                      claimableValue:
+                        amount: "0"
+                        currency: pUSD
+                        decimals: 6
+                      openPositionCount: 0
+                      availability:
+                        markValue:
+                          state: available
+                          availableOpenPositionCount: 0
+                          unavailableOpenPositionCount: 0
+                        realizedPnl:
+                          state: unavailable
                     pnlDisclaimer: Descriptive projection based on venue fills and mark prices; not custodial P&L authority.
                     checkedAt: "2026-08-09T10:08:30Z"
                     provenance:
@@ -2951,24 +3040,68 @@ components:
     PortfolioPnLAggregate:
       type: object
       additionalProperties: false
-      required: [totalMarkValue, totalCostBasis, realizedPnl, claimableValue, openPositionCount]
+      required: [totalMarkValue, totalCostBasis, unrealizedPnl, realizedPnl, claimableValue, openPositionCount, availability]
       properties:
         totalMarkValue:
-          $ref: "#/components/schemas/MoneyAmount"
+          oneOf:
+            - $ref: "#/components/schemas/MoneyAmount"
+            - type: "null"
+          description: Null when currentValue or a mark price is unavailable for any open position; never substitute zero.
         totalCostBasis:
           $ref: "#/components/schemas/MoneyAmount"
         unrealizedPnl:
           oneOf:
             - $ref: "#/components/schemas/MoneyAmount"
             - type: "null"
-          description: Null when mark prices are unavailable for one or more open positions.
+          description: Null when currentValue or a mark price is unavailable for any open position; never substitute zero.
         realizedPnl:
-          $ref: "#/components/schemas/MoneyAmount"
+          oneOf:
+            - $ref: "#/components/schemas/MoneyAmount"
+            - type: "null"
+          description: Null when the authoritative realized-PnL source is unavailable; never substitute zero.
         claimableValue:
           $ref: "#/components/schemas/MoneyAmount"
         openPositionCount:
           type: integer
           minimum: 0
+        availability:
+          $ref: "#/components/schemas/PortfolioPnLAvailability"
+    PortfolioMarkValueAvailability:
+      type: object
+      additionalProperties: false
+      required: [state, availableOpenPositionCount, unavailableOpenPositionCount]
+      description: Coverage of mark-derived metrics across open positions at checkedAt.
+      properties:
+        state:
+          type: string
+          enum: [available, unavailable]
+          description: available only when unavailableOpenPositionCount is zero; unavailable metrics are represented as null, never zero.
+        availableOpenPositionCount:
+          type: integer
+          minimum: 0
+        unavailableOpenPositionCount:
+          type: integer
+          minimum: 0
+    PortfolioRealizedPnlAvailability:
+      type: object
+      additionalProperties: false
+      required: [state]
+      description: Availability of the aggregate realized PnL source across portfolio history; it is not derived from open-position coverage.
+      properties:
+        state:
+          type: string
+          enum: [available, unavailable]
+          description: unavailable means aggregate.realizedPnl is null, never zero.
+    PortfolioPnLAvailability:
+      type: object
+      additionalProperties: false
+      required: [markValue, realizedPnl]
+      description: Metric source coverage for nullable portfolio aggregate metrics. This is independent of position freshness.
+      properties:
+        markValue:
+          $ref: "#/components/schemas/PortfolioMarkValueAvailability"
+        realizedPnl:
+          $ref: "#/components/schemas/PortfolioRealizedPnlAvailability"
     PortfolioSummaryResponse:
       type: object
       additionalProperties: false

@@ -2,7 +2,7 @@
 
 **Status:** reviewed
 **Owner:** platform-orchestrator
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-12
 **Product:** RetroPick Markets V1
 
 ## Description
@@ -69,9 +69,9 @@ Track unresolved blockers and human approval gates. Agents MUST stop and log her
 | BLK-001 | GeoIP + geoblock adapters shipped; ops staging proof pending | PHASE-2 | backend | open | [MKT-P2-002-BLK001-evidence.md](verification/PHASE-2/MKT-P2-002-BLK001-evidence.md), [AUTH §4.1](../backend/AUTH_SESSION_AND_ELIGIBILITY.md#41-implementation-status-mkt-p2-002) |
 | BLK-002 | Android beyond README scaffold | PHASE-5 | android | open | [GRADLE_MODULE_GRAPH.md](../android/GRADLE_MODULE_GRAPH.md) |
 | BLK-003 | Builder production credentials | PHASE-7 | ops | open | [BUILDER_RELAYER_AND_FEES.md](../polymarket/BUILDER_RELAYER_AND_FEES.md) |
-| BLK-004 | CLOB integration not implemented | PHASE-3 | backend | open | [ORDER_LIFECYCLE.md](../polymarket/ORDER_LIFECYCLE.md) |
-| BLK-005 | Wallet connect and funding flows not implemented | PHASE-2 | web | open | [WALLET_AND_TRANSACTION_UX.md](../web/WALLET_AND_TRANSACTION_UX.md) |
-| BLK-006 | OpenAPI covers stub endpoints only | PHASE-1 | platform | open | `schemas/openapi/markets-v1.yaml` |
+| BLK-004 | CLOB V2 submit implementation is complete but remains gated: live/session L2 credential-provider wiring, controlled staging proof, and the Real on-chain transaction human approval are pending | PHASE-3 | backend + ops/security | open (implementation complete; external enablement gate) | [W2-006-order-submit-enablement-prep.md](../evidence/verification/PHASE-3/W2-006-order-submit-enablement-prep.md), [MKT-P3-006-exit-gate-analysis.md](../evidence/verification/PHASE-3/MKT-P3-006-exit-gate-analysis.md) |
+| BLK-005 | Wallet connect + funding flows implemented (partial); deterministic funding lifecycle + relayer sandbox pending (REC-6) | PHASE-2 | web | open (partial) | [WALLET_AND_TRANSACTION_UX.md](../web/WALLET_AND_TRANSACTION_UX.md) |
+| BLK-006 | OpenAPI covers full V1 surface (v1.4.0, 26 paths) — capability-gated at runtime | PHASE-1 | platform | open (implemented; gated) | `schemas/openapi/markets-v1.yaml` |
 | BLK-010 | Contract addresses require revalidation | PHASE-3 | research | open | [evidence-register.yaml](../research/evidence-register.yaml) |
 | BLK-011 | CLOB V2 details may change upstream | PHASE-3 | research | monitoring | [UPSTREAM_CHANGE_MANAGEMENT.md](../polymarket/UPSTREAM_CHANGE_MANAGEMENT.md) |
 | BLK-020 | Per-region legal review pending | PHASE-7 | legal | open | [PHASE-7-PRODUCTION-LAUNCH.md](../phases/PHASE-7-PRODUCTION-LAUNCH.md) |

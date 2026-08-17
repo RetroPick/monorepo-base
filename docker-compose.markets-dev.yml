@@ -10,12 +10,23 @@ x-markets-backend-env: &markets-backend-env
   MARKETS_CATALOG_ENABLED: "1"
   MARKETS_MARKET_DATA_ENABLED: "0"
   MARKETS_SIGNALS_ENABLED: "1"
-  MARKETS_CORS_ALLOWED_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001"
+  MARKETS_CORS_ALLOWED_ORIGINS: "http://localhost:3001,http://127.0.0.1:3001,https://localhost:8443"
+  # Production capabilities stay explicitly fail-closed in local staging proof.
+  MARKETS_REALTIME_ENABLED: "0"
+  MARKETS_ORDER_SUBMIT_ENABLED: "false"
+  MARKETS_PORTFOLIO_READ_ENABLED: "false"
+  MARKETS_AUTH_COOKIE_SECURE: "1"
+  MARKETS_AUTH_COOKIE_SAMESITE: "Lax"
   MARKETS_GAMMA_API_URL: "http://127.0.0.1:9"
   MARKETS_CLOB_API_URL: "http://127.0.0.1:9"
   MARKETS_AUTH_SESSION_SECRET: "${MARKETS_AUTH_SESSION_SECRET:?MARKETS_AUTH_SESSION_SECRET is required}"
+  # Auth must fail closed without an explicit SIWE-domain allowlist.
+  MARKETS_AUTH_ALLOWED_DOMAINS: "${MARKETS_AUTH_ALLOWED_DOMAINS:?MARKETS_AUTH_ALLOWED_DOMAINS is required}"
   MARKETS_BOOTSTRAP: "migrate-and-seed"
   MARKETS_DEV_SEED_SCENARIO: "populated"
+  # Keep the deterministic local projection fresh while the intentionally
+  # unreachable upstream demonstrates outage handling.
+  MARKETS_DEV_SEED_REFRESH_INTERVAL: "1m"
   # BLK-001 eligibility upstreams — set values in gitignored .env (see .env.markets-dev.example)
   MARKETS_GEOIP_BASE_URL: ${MARKETS_GEOIP_BASE_URL:-}
   MARKETS_GEOIP_PATH: ${MARKETS_GEOIP_PATH:-/{ip}/json}
@@ -34,7 +45,7 @@ services:
       POSTGRES_PASSWORD: retropick
       POSTGRES_DB: retropick
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - markets_dev_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -49,6 +60,8 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+      args:
+        RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
     image: retropick-markets-dev-backend
     container_name: retropick-markets-api
     restart: unless-stopped
@@ -58,7 +71,7 @@ services:
     environment:
       <<: *markets-backend-env
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD", "/healthcheck", "/api/v1/health/live"]
       interval: 10s
@@ -71,6 +84,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
+        RETROPICK_VCS_REF: "${RETROPICK_VCS_REF:?exact canonical git SHA is required}"
         NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:8080
         NEXT_PUBLIC_PRODUCT: markets
     container_name: retropick-markets-web
@@ -79,7 +93,7 @@ services:
       markets-api:
         condition: service_healthy
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       PORT: "3001"
       HOSTNAME: "0.0.0.0"

@@ -2,7 +2,13 @@ asyncapi: 3.0.0
 info:
   title: RetroPick Markets Realtime V1
   version: 1.0.0
-  description: Public BFF WebSocket contract for Markets V1 Phase 1.3 realtime data.
+  description: |
+    Public BFF WebSocket contract for Markets V1 Phase 1.3 realtime data.
+    Deployments enable realtime only with an exact allowlist of normalized browser
+    origins (http(s) scheme, host, and optional port). Handshakes with unknown,
+    malformed, wildcard, or missing Origin are rejected. This endpoint is public
+    and has no session authentication, so non-browser clients must send an
+    explicitly allowed Origin rather than bypassing the browser-origin policy.
 defaultContentType: application/json
 servers:
   production:

@@ -34,6 +34,8 @@ RUN --mount=type=cache,target=/pnpm/store,id=pnpm-markets-web \
     pnpm --filter @retropick/markets-web build
 
 FROM node:20-alpine AS runner
+ARG RETROPICK_VCS_REF
+LABEL org.opencontainers.image.revision="${RETROPICK_VCS_REF}"
 WORKDIR /app
 
 RUN apk add --no-cache wget

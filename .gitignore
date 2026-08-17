@@ -60,3 +60,6 @@ package/prediction-v2/logs/
 .harness/state/logs/
 .harness/state/snapshots/
 .harness/state/locks/
+
+# Hermes kanban linked worktrees (repo-local) — never commit
+.worktrees/

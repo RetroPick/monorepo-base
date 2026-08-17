@@ -12,7 +12,9 @@ export default defineConfig({
   },
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: [["list"], ["junit", { outputFile: "e2e/markets/junit.xml" }]],
+  reporter: process.env.CI
+    ? [["list"], ["junit", { outputFile: "e2e/markets/junit.xml" }]]
+    : [["list"]],
   use: {
     baseURL,
     trace: "on-first-retry",
@@ -25,8 +27,12 @@ export default defineConfig({
   ],
   webServer: {
     command: "pnpm exec next dev -p 3011",
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_MARKETS_E2E_TEST_MODE: "1",
+    },
     url: baseURL,
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 300_000,
   },
 });

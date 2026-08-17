@@ -204,7 +204,11 @@ func (s *Store) ApplyPage(ctx context.Context, page catalog.Page) error {
 			return fmt.Errorf("apply markets catalog page: rule %s: %w", market.ID, err)
 		}
 		if s.signalsEnabled && s.signalProducer != nil {
-			if err := s.signalProducer.EmitAfterUpsert(ctx, queries, market, market.Provenance.ObservedAt, prior); err != nil {
+			// Feed the signal pipeline the exact canonical hashes persisted by this transaction.
+			signalMarket := market
+			signalMarket.Provenance.ContentHash = contentHash
+			signalMarket.Resolution.ContentHash = ruleHash
+			if err := s.signalProducer.EmitAfterUpsert(ctx, queries, signalMarket, signalMarket.Provenance.ObservedAt, prior); err != nil {
 				return fmt.Errorf("apply markets catalog page: signals for %s: %w", market.ID, err)
 			}
 		}

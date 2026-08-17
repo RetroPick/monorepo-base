@@ -1,6 +1,7 @@
 // MARKETS_CUSTODY: BFF trading client — session cookie only, no CLOB secrets in client
 
 import { getMarketsApiOrigin } from "../../wallet/config/runtimeEnv";
+import type { components } from "@retropick/polymarket";
 
 import type { UnsignedOrderPayload } from "./computeContentHash";
 
@@ -113,6 +114,52 @@ export type OrdersListResponse = {
   checkedAt: string;
   provenance: { source: string; observedAt: string; upstreamId?: string };
 };
+
+export type MoneyAmount = components["schemas"]["MoneyAmount"];
+
+export type UserFill = {
+  fillId: string;
+  orderId: string;
+  venueTradeId: string;
+  marketId: string;
+  tokenId: string;
+  side: OrderSide;
+  price: string;
+  size: string;
+  fee: MoneyAmount;
+  filledAt: string;
+};
+
+export type FillsListResponse = {
+  schemaVersion: string;
+  fills: UserFill[];
+  page: { limit: number; cursor?: string };
+  checkedAt: string;
+};
+
+export type UserPosition = components["schemas"]["UserPosition"];
+
+export type PositionsListResponse = components["schemas"]["PositionsListResponse"];
+
+export type PortfolioSummaryResponse = components["schemas"]["PortfolioSummaryResponse"];
+
+export type ActivityEvent = components["schemas"]["ActivityEvent"];
+
+export type ActivityListResponse = components["schemas"]["ActivityListResponse"];
+
+export type CancelPreviewResponse = {
+  schemaVersion: string;
+  previewId: string;
+  contentHash: string;
+  expiresAt: string;
+  orderId: string;
+  humanSummary: { action: string; market: string; outcome: string; size: string; price: string; chainId: number };
+  unsignedPayload: { orderId: string; maker: string; tokenId: string; salt: string; timestamp: string };
+  warnings?: string[];
+};
+
+export type CancelOrderRequest = { previewId: string; contentHash: string; signature: string };
+export type CancelOrderResponse = { schemaVersion: string; orderId: string; status: "cancel_pending" | "canceled" };
 
 function marketsUrl(path: string): string {
   const origin = getMarketsApiOrigin();
@@ -249,4 +296,35 @@ export async function listMyOrders(
   if (params?.tokenId) query.set("tokenId", params.tokenId);
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   return getJson<OrdersListResponse>(`/me/orders${suffix}`, signal);
+}
+
+export async function listMyFills(signal?: AbortSignal): Promise<FillsListResponse> {
+  return getJson<FillsListResponse>("/me/fills", signal);
+}
+
+export async function listMyPositions(signal?: AbortSignal): Promise<PositionsListResponse> {
+  return getJson<PositionsListResponse>("/me/positions", signal);
+}
+
+export async function getMyPortfolioSummary(signal?: AbortSignal): Promise<PortfolioSummaryResponse> {
+  return getJson<PortfolioSummaryResponse>("/me/portfolio/summary", signal);
+}
+
+export async function listMyActivity(signal?: AbortSignal): Promise<ActivityListResponse> {
+  return getJson<ActivityListResponse>("/me/activity", signal);
+}
+
+export async function previewCancelOrder(orderId: string, signal?: AbortSignal): Promise<CancelPreviewResponse> {
+  return postJson<CancelPreviewResponse>(`/orders/${encodeURIComponent(orderId)}/cancel-preview`, {}, { signal });
+}
+
+export async function cancelOrder(
+  orderId: string,
+  payload: CancelOrderRequest,
+  signal?: AbortSignal,
+): Promise<CancelOrderResponse> {
+  return postJson<CancelOrderResponse>(`/orders/${encodeURIComponent(orderId)}/cancel`, payload, {
+    idempotencyKey: newIdempotencyKey(),
+    signal,
+  });
 }

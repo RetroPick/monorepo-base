@@ -17,6 +17,7 @@ import (
 
 	"retropick/apps/backend/internal/db"
 	"retropick/apps/backend/internal/markets"
+	"retropick/apps/backend/internal/markets/activity"
 	"retropick/apps/backend/internal/markets/auth"
 	"retropick/apps/backend/internal/markets/balances"
 	"retropick/apps/backend/internal/markets/catalog"
@@ -28,6 +29,8 @@ import (
 	"retropick/apps/backend/internal/markets/intelligence"
 	"retropick/apps/backend/internal/markets/marketdata"
 	"retropick/apps/backend/internal/markets/orders"
+	"retropick/apps/backend/internal/markets/portfolio"
+	"retropick/apps/backend/internal/markets/positions"
 	"retropick/apps/backend/internal/markets/postgres"
 	"retropick/apps/backend/internal/markets/realtime"
 	"retropick/apps/backend/internal/markets/reconcile"
@@ -35,6 +38,12 @@ import (
 	"retropick/apps/backend/internal/markets/syncworker"
 	"retropick/apps/backend/internal/markets/wallet"
 )
+
+type postgresPositionReader struct{ store *positions.PostgresStore }
+
+func (r postgresPositionReader) List(ctx context.Context, userID, accountWallet string) ([]positions.PositionRecord, error) {
+	return r.store.ListForAccount(ctx, userID, accountWallet)
+}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -227,6 +236,10 @@ func main() {
 		},
 	})
 
+	posMetrics := positions.NewRecorder()
+	durablePositionStore := positions.NewPostgresStore(pool)
+	activityStore := activity.NewPostgresStore(pool)
+
 	authCfg, err := auth.LoadConfig()
 	if err != nil {
 		log.Error("auth config", "err", err)
@@ -257,13 +270,29 @@ func main() {
 		SignalsOperational:    store.SignalsOperational(),
 		MarketDataOperational: marketsSvc.MarketDataOperational(),
 		RealtimeState:         rtRuntime,
-		ServiceName:           "retropick-markets-api",
+		PositionActivityHealthy: func() bool {
+			return durablePositionStore.Healthy(context.Background()) && activityStore.Healthy(context.Background())
+		},
+		ServiceName: "retropick-markets-api",
 	})
 	r.Get("/metrics", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		_, _ = fmt.Fprint(w, metrics.Prometheus())
+		_, _ = fmt.Fprint(w, posMetrics.Prometheus())
 	})
 	walletCfg := wallet.HandlerConfigFromPool(pool)
+	portfolioHandler := portfolio.NewHandler(portfolio.HandlerConfig{
+		Sessions:   wallet.ContextSessionResolver{},
+		Discoverer: walletCfg.Discoverer,
+		Activity:   activityStore,
+		Positions:  postgresPositionReader{store: durablePositionStore},
+	})
+	posCfg := positions.ProductionConfig{
+		Discoverer: walletCfg.Discoverer,
+		DataAPIURL: cfg.DataAPIURL,
+		Store:      positions.NewProjectionStore(),
+		Metrics:    posMetrics,
+	}
 	ordersHandlerCfg := orders.NewProductionHandlerConfig(orders.ProductionConfig{
 		Discoverer:    walletCfg.Discoverer,
 		Pool:          pool,
@@ -283,6 +312,14 @@ func main() {
 		routeDeps,
 		[]markets.EligibleMeRouteRegistrar{
 			func(r chi.Router) {
+				// Portfolio read surface (OpenAPI v1.4.0: /markets/me/positions,
+				// /markets/me/activity, /markets/me/portfolio/summary) sits behind the
+				// portfolio_read capability gate — 503 capability_disabled until QA green.
+				r.Group(func(r chi.Router) {
+					r.Use(markets.PortfolioReadGate(marketsSvc))
+					positions.RegisterMeRoutes(r, positions.NewProductionHandlerConfig(posCfg))
+					portfolio.RegisterMeRoutes(r, portfolioHandler)
+				})
 				balances.RegisterRoutes(r, balances.NewProductionHandlerConfig(balances.ProductionConfig{
 					Discoverer: walletCfg.Discoverer,
 					CLOBURL:    cfg.CLOBAPIURL,
@@ -303,6 +340,27 @@ func main() {
 
 	workerCtx, workerCancel := context.WithCancel(ctx)
 	defer workerCancel()
+	if bootstrapDev {
+		refreshInterval, refreshErr := devSeedRefreshInterval()
+		if refreshErr != nil {
+			log.Error("dev seed refresh config", "err", refreshErr)
+			os.Exit(1)
+		}
+		if refreshInterval > 0 {
+			scenario := os.Getenv("MARKETS_DEV_SEED_SCENARIO")
+			if scenario == "" {
+				scenario = "populated"
+			}
+			go func() {
+				err := devseed.Refresh(workerCtx, refreshInterval, func(refreshCtx context.Context) error {
+					return devseed.Apply(refreshCtx, pool, scenario)
+				})
+				if err != nil && err != context.Canceled {
+					log.Error("dev seed refresh stopped", "err", err)
+				}
+			}()
+		}
+	}
 	go func() {
 		if err := worker.Run(workerCtx); err != nil && err != context.Canceled {
 			log.Error("catalog worker stopped", "err", err)
@@ -316,6 +374,7 @@ func main() {
 		reconcileWorker := reconcile.NewWorker(reconcile.WorkerConfig{
 			Store:        ordersHandlerCfg.Service.Projections(),
 			Journal:      orders.NewPostgresMutationJournal(pool),
+			Activity:     activityStore,
 			Venue:        reconcile.NewCLOBVenueReader(tradingClient),
 			Metrics:      metrics,
 			Interval:     10 * time.Second,
@@ -324,6 +383,22 @@ func main() {
 		go func() {
 			if err := reconcileWorker.Run(workerCtx); err != nil && err != context.Canceled {
 				log.Error("reconcile worker stopped", "err", err)
+			}
+		}()
+	}
+	if positions.PositionReconcileEnabled() {
+		go func() {
+			if err := positions.NewProductionWorker(posCfg).Run(workerCtx); err != nil && err != context.Canceled {
+				log.Error("position reconcile worker stopped", "err", err)
+			}
+		}()
+		go func() {
+			durableWorker := positions.NewPostgresWorker(positions.PostgresWorkerConfig{
+				Store: durablePositionStore,
+				Venue: positions.NewDataAPIClient(cfg.DataAPIURL, 0),
+			})
+			if err := durableWorker.Run(workerCtx); err != nil && err != context.Canceled {
+				log.Error("durable position reconcile worker stopped", "err", err)
 			}
 		}()
 	}
@@ -355,4 +430,16 @@ func marketsReconcileEnabled() bool {
 	default:
 		return true
 	}
+}
+
+func devSeedRefreshInterval() (time.Duration, error) {
+	raw := strings.TrimSpace(os.Getenv("MARKETS_DEV_SEED_REFRESH_INTERVAL"))
+	if raw == "" {
+		return 0, nil
+	}
+	interval, err := time.ParseDuration(raw)
+	if err != nil || interval <= 0 {
+		return 0, fmt.Errorf("MARKETS_DEV_SEED_REFRESH_INTERVAL must be a positive duration")
+	}
+	return interval, nil
 }

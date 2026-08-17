@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"retropick/apps/backend/internal/markets/origin"
 )
 
 // TokenValidator checks catalog membership for token subscriptions.
@@ -23,20 +24,20 @@ type TokenValidator interface {
 
 // HandlerConfig configures the public realtime WebSocket handler.
 type HandlerConfig struct {
-	Hub              *Hub
-	Planner          SubscriptionPlanner
-	AllowedOrigins   []string
-	MaxSubscriptions int
-	MaxCommandRate   int
-	MaxFrameSize     int64
-	IdleTimeout      time.Duration
-	WriteTimeout     time.Duration
+	Hub               *Hub
+	Planner           SubscriptionPlanner
+	AllowedOrigins    []string
+	MaxSubscriptions  int
+	MaxCommandRate    int
+	MaxFrameSize      int64
+	IdleTimeout       time.Duration
+	WriteTimeout      time.Duration
 	HeartbeatInterval time.Duration
-	Logger           *slog.Logger
-	Validator        TokenValidator
-	OnSubscribe      func(marketID, tokenID string)
-	OnUnsubscribe    func(marketID, tokenID string)
-	Now              func() time.Time
+	Logger            *slog.Logger
+	Validator         TokenValidator
+	OnSubscribe       func(marketID, tokenID string)
+	OnUnsubscribe     func(marketID, tokenID string)
+	Now               func() time.Time
 }
 
 // SubscriptionPlanner updates upstream subscription planner.
@@ -87,8 +88,11 @@ func NewHandler(cfg HandlerConfig) *Handler {
 		now = cfg.Now
 	}
 	allowed := make(map[string]struct{})
-	for _, origin := range cfg.AllowedOrigins {
-		allowed[origin] = struct{}{}
+	for _, rawOrigin := range cfg.AllowedOrigins {
+		normalized, ok := origin.Normalize(rawOrigin)
+		if ok {
+			allowed[normalized] = struct{}{}
+		}
 	}
 	return &Handler{
 		cfg:    cfg,
@@ -98,11 +102,15 @@ func NewHandler(cfg HandlerConfig) *Handler {
 			ReadBufferSize:  4096,
 			WriteBufferSize: 4096,
 			CheckOrigin: func(r *http.Request) bool {
-				if len(allowed) == 0 {
-					return true
+				values := r.Header.Values("Origin")
+				if len(values) != 1 || strings.Contains(values[0], ",") {
+					return false
 				}
-				origin := r.Header.Get("Origin")
-				_, ok := allowed[origin]
+				normalized, ok := origin.Normalize(values[0])
+				if !ok {
+					return false
+				}
+				_, ok = allowed[normalized]
 				return ok
 			},
 		},

@@ -2,6 +2,7 @@
 set -eu
 
 : "${API_HOST:?API_HOST is required}"
+API_UPSTREAM="${API_UPSTREAM:-api:8080}"
 
 template="/etc/nginx/templates/default.conf.template"
 output="/etc/nginx/conf.d/default.conf"
@@ -31,6 +32,6 @@ EOF
 )
 fi
 
-export API_HOST APP_SERVER_BLOCK ALL_SERVER_NAMES
-envsubst '${API_HOST} ${APP_SERVER_BLOCK} ${ALL_SERVER_NAMES}' < "${template}" > "${output}"
+export API_HOST API_UPSTREAM APP_SERVER_BLOCK ALL_SERVER_NAMES
+envsubst '${API_HOST} ${API_UPSTREAM} ${APP_SERVER_BLOCK} ${ALL_SERVER_NAMES}' < "${template}" > "${output}"
 exec nginx -g 'daemon off;'

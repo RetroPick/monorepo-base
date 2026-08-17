@@ -1,18 +1,18 @@
 # Executive outcome — Markets V1 documentation baseline
 
-**Date:** 2026-07-25
-**Status:** documentation complete — spec freeze ready (no product implementation yet)
+**Date:** 2026-07-25 (reconciled 2026-08-11)
+**Status:** documentation complete — spec freeze ready; P1–P4 implemented but gated (mutation paths off)
 **Wave:** 9 (agent harness) complete
 
 ## Description
 
-This is the executive outcome snapshot for Markets V1 documentation baseline (Wave 9 complete as of 2026-07-25; Smart Money Launch docs + dual-track phase reposition as of 2026-08-09): the reviewed corpus and agent harness are ready for spec freeze, but **product code is not “live”** — PHASE-1 remains the first implementation phase (`current_phase: PHASE-1`).
+This is the executive outcome snapshot for Markets V1 documentation baseline (Wave 9 complete as of 2026-07-25; Smart Money Launch docs + dual-track phase reposition as of 2026-08-09): the reviewed corpus and agent harness are ready for spec freeze, and **product code is not "live"** — P1–P4 implementations exist under the 2026-08-09..11 recovery program, but mutation paths are gated off and `current_phase` is **PHASE-2** (frozen by design per REC-0/REC-14; see [implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml)).
 
 It separates documentation completeness from shipping reality, summarizes recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later), custody/signing posture, Polymarket constraints, **Smart Money Launch** (ten features under `intelligence/`, archived Wave-6 bulk), dual-track phases (Core + Smart Money; Spec→Build→Harden→Production), and critical blockers (BLK-*). Use at kickoff, phase-gate reviews, and whenever someone claims “Markets is live.”
 
 Phase ownership authority: [phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](phases/PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md). Intelligence product scope: [intelligence/INTELLIGENCE_LAUNCH_V1.md](intelligence/INTELLIGENCE_LAUNCH_V1.md).
 
-Live progress belongs in harness `implementation-manifest.yaml` / `task-graph.yaml` and code stubs under `apps/` — not this narrative alone. Do not clear BLK rows without evidence; do not treat Wave language as staging-live or production trading.
+Live progress belongs in harness `implementation-manifest.yaml` / `task-graph.yaml` and code under `apps/` — not this narrative alone. Do not clear BLK rows without evidence; do not treat Wave language as staging-live or production trading.
 
 ## 0. Developer intent (5W+1H)
 
@@ -22,20 +22,20 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 
 | Lens | Answer |
 |------|--------|
-| **Who** | Executives and orchestrators needing an honest baseline; agents about to start PHASE-1 who must not assume trading/Android already exist; humans deciding formal scope sign-off after Wave 9 harness completion. |
-| **What** | Executive outcome snapshot (2026-07-25): 121 reviewed docs + agent harness complete; **product code not started** as executable Markets work (PHASE-1 first); recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later); custody/signing posture; Polymarket constraints; intelligence tiers; critical blockers (BLK-*). |
+| **Who** | Executives and orchestrators needing an honest baseline; agents about to start Markets work who must not assume trading/Android are already live; humans deciding formal scope sign-off after Wave 9 harness completion. |
+| **What** | Executive outcome snapshot (2026-07-25, reconciled 2026-08-11): 121 reviewed docs + agent harness complete; **P1–P4 implemented under the 2026-08-09..11 recovery program but gated** (`current_phase` PHASE-2 frozen; mutation paths off); recommended architecture (Go BFF ACL, shared OpenAPI, Compose Android later); custody/signing posture; Polymarket constraints; intelligence tiers; critical blockers (BLK-*). |
 | **When** | At program kickoff, phase-gate reviews, and whenever someone claims “Markets is live.” Re-read after evidence revalidation or when blocker IDs change in [BLOCKERS_AND_HUMAN_APPROVALS.md](../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md). |
-| **Where** | This file + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) + harness manifest/`task-graph.yaml`. Code truth for stubs: `apps/backend/internal/markets/` (partial), `apps/android/` (README-only), OpenAPI stub surface — not this narrative alone. |
+| **Where** | This file + [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) + harness manifest/`task-graph.yaml`. Code truth: `apps/backend/internal/markets/` (P1–P4 modules; positions glue not yet mounted), `apps/web` (catalog + trading/funding UI), `apps/android/` (README-only), OpenAPI v1.4.0 (capability-gated) — not this narrative alone. |
 | **Why** | Wave completion language is easy to misread as shipped product. This outcome doc separates spec freeze readiness from implementation reality and lists BLK-001–021 so agents escalate instead of inventing geoblock, CLOB, or Gradle projects ad hoc. |
-| **How** | Treat PHASE-0 docs as complete; start only PHASE-1 ready tasks; revalidate CLOB V2 / contract addresses before trading phases; keep ADR-001 (no custom exchange) and non-custody rules. Do not clear BLK rows without evidence. |
+| **How** | Treat PHASE-0 docs as complete; read each task's `gate` note in `task-graph.yaml`; revalidate CLOB V2 / contract addresses before trading phases; keep ADR-001 (no custom exchange) and non-custody rules. Do not clear BLK rows without evidence; do not advance `current_phase` without orchestrator authorization + staging proof. |
 
 ### Worked example
 
 **Happy path — kickoff**
 
-1. Read Honest status: specs/harness complete; code not started.
-2. Confirm first executable phase = PHASE-1 Foundation and Read Markets.
-3. Open task-graph; pick a catalog/OpenAPI task; ignore PHASE-3 trading until deps and BLK-004/006 addressable.
+1. Read Honest status: specs/harness complete; P1–P4 implemented but gated; `current_phase` PHASE-2 frozen.
+2. Confirm manifest `current_phase` = PHASE-2 and read the task-graph `gate` notes before selecting a task.
+3. Open task-graph; pick a non-mutation task (catalog/OpenAPI/read surfaces) or a gated P3/P4 follow-up; do not treat gated tasks as live trading.
 
 **Happy path — blocker hygiene**
 
@@ -52,7 +52,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 **Agent checklist**
 
 - [ ] Honest status table acknowledged?
-- [ ] Phase plan: PHASE-1 first executable?
+- [ ] Manifest `current_phase` + task `gate` notes read?
 - [ ] Relevant BLK-* read?
 - [ ] Architecture bullets match ADRs?
 - [ ] Evidence still partially_verified where noted?
@@ -65,7 +65,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 |-----------|-------|
 | Specification corpus | **Complete** — 121 documents reviewed per [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md) |
 | Agent harness | **Complete** — task graph, manifest, traceability, §23 invariant check |
-| Product code | **Not started** — PHASE-1 is first executable implementation phase |
+| Product code | **Implemented (P1–P4) but gated** — recovery program 2026-08-09..11; mutation paths off; `current_phase` PHASE-2 frozen |
 | Upstream evidence | **Partially verified** — revalidate Polymarket CLOB V2 before trading phases |
 | Human scope sign-off | **Recommended** — PHASE-0 exit gate satisfied by documentation; formal approval still advised |
 
@@ -84,7 +84,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 | Monorepo layout (R0–R3) | Yes | `apps/web`, `apps/backend`, `packages/polymarket` |
 | Legacy epoch stack | Reference only | Quarantined; not extended for Markets |
 | Android app | No | README only; greenfield in PHASE-5 |
-| Markets BFF stub | Partial | Gamma catalog + eligibility stub exists |
+| Markets BFF | Extensive | Gamma catalog + P1–P4 modules (orders/clob/reconcile/positions/intelligence); positions glue not yet mounted |
 
 ## Stack decisions
 
@@ -133,10 +133,10 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 | Phase | Name | Doc status | Implementation |
 |-------|------|------------|----------------|
 | PHASE-0 | Discovery and Spec Freeze | **complete** | documentation only |
-| PHASE-1 | Foundation and Read Markets | reviewed | **first executable** |
-| PHASE-2 | Account Wallet and Funding | reviewed | planned |
-| PHASE-3 | Web Trading Core | reviewed | planned |
-| PHASE-4 | Portfolio, Redemption, Withdrawal | reviewed | planned |
+| PHASE-1 | Foundation and Read Markets | complete | **delivered** (P1-010 exit) |
+| PHASE-2 | Account Wallet and Funding | reviewed | **current_phase — delivered; exit CONDITIONAL (BLK-001 staging proof)** |
+| PHASE-3 | Web Trading Core | reviewed | implemented-but-gated (W1-004; phase not advanced) |
+| PHASE-4 | Portfolio, Redemption, Withdrawal | reviewed | implemented-but-gated (W1-004; glue pending) |
 | PHASE-5 | Android Compose Markets | reviewed | planned |
 | PHASE-6 | Hardening, CI/CD, SRE | reviewed | planned |
 | PHASE-7 | Production Launch | reviewed | planned |
@@ -148,11 +148,11 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 
 | ID | Blocker | Phase |
 |----|---------|-------|
-| BLK-001 | Geoblock eligibility upstream not wired | PHASE-2 |
-| BLK-002 | Android Gradle project does not exist | PHASE-5 |
-| BLK-004 | CLOB integration not implemented | PHASE-3 |
-| BLK-005 | Wallet connect and funding flows not implemented | PHASE-2 |
-| BLK-006 | OpenAPI covers stub endpoints only | PHASE-1 |
+| BLK-001 | GeoIP + geoblock adapters shipped; ops staging proof pending | PHASE-2 |
+| BLK-002 | Android beyond README scaffold | PHASE-5 |
+| BLK-004 | CLOB V2 submit implemented; gated — live venue credentials + staging proof pending | PHASE-3 |
+| BLK-005 | Wallet connect + funding flows implemented (partial); funding lifecycle + relayer sandbox pending (REC-6) | PHASE-2 |
+| BLK-006 | OpenAPI covers full V1 surface (v1.4.0) — capability-gated at runtime | PHASE-1 |
 
 ### External/upstream blockers
 
@@ -182,22 +182,22 @@ See [../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.
 
 ## First executable phase
 
-**PHASE-1 — Foundation and Read Markets** is ready to begin.
+**`current_phase` is PHASE-2 — Account Wallet and Funding** (frozen by the recovery program; do not advance without orchestrator authorization + BLK-001/BLK-004 staging proof).
 
-Rationale: specification and harness are complete; PHASE-0 deliverables exist and are reviewed; no signing or fund movement in PHASE-1.
+Rationale: PHASE-1 (read) is complete and delivered; PHASE-2 foundations are implemented and verified (exit CONDITIONAL on BLK-001 ops staging proof); PHASE-3/PHASE-4 tasks are implemented-but-gated — see `gate` notes in `task-graph.yaml`. No signing or fund movement beyond sandbox/fixtures until the human gates clear.
 
-**First three agent tasks (require human acknowledgment before merge):**
+**Next executable work:**
 
-1. `MKT-P1-001` — OpenAPI markets-v1 expansion for catalog read models
-2. `MKT-P1-002` — Gamma catalog client hardening in `internal/markets/gamma`
-3. `MKT-P1-003` — Markets database schema v1 (catalog cache, watchlist foundation)
+1. PHASE-4 glue — wire positions/portfolio/activity routes into `cmd/markets-api` (deferred from MKT-P4-001, owned separately)
+2. `MKT-P4-002` — web portfolio view consuming `GET /markets/me/positions` (OpenAPI v1.4.0 frozen)
+3. Phase-advance evidence — BLK-001 ops staging proof + BLK-004 live-credential rehearsal, then orchestrator authorization to move `current_phase`
 
 ## Verification summary
 
 | Check | Result |
 |-------|--------|
 | Files in document map | 121/121 present, all `reviewed` |
-| Harness manifest | PHASE-0–8 populated, `current_phase: PHASE-1` |
-| Task graph | Wave 9 doc-verification + PHASE-0–8 implementation tasks |
+| Harness manifest | PHASE-0–8 populated, `current_phase: PHASE-2` (frozen per recovery program) |
+| Task graph | 61 tasks; P3/P4 implemented-but-gated marked `done` with `gate:` notes + evidence links (W1-004 reconciliation) |
 | Cross-document invariants (§23) | 28/28 checked — [INVARIANT_CHECK.md](../../.harness/products/markets-v1/governance/INVARIANT_CHECK.md) |
-| Product code implemented | **No** — documentation and harness only |
+| Product code implemented | **Yes, gated** — P1–P4 recovery program (2026-08-09..11); mutation flags off |

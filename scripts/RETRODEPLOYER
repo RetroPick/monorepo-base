@@ -1987,7 +1987,7 @@ _cmd_help() {
   echo -e "  ${C}./scripts/RETRODEPLOYER monitor global${R} ${D}[--live]${R}"
   echo -e "  ${C}./scripts/RETRODEPLOYER monitor templates${R} ${D}[--active|--all]${R}"
   echo -e "  ${C}./scripts/RETRODEPLOYER monitor trade-ready${R}  ${D}· epoch Open + in betting window?${R}"
-  echo -e "  ${C}./scripts/RETRODEPLOYER frontend-visibility${R} ${D}{ hide | unhide | list } [templateId|slug]  ${D}· hide from fe-v1${M} /app/chain-markets${D} (${M}GET /api/v1/markets${D} omits; detail 404)${R}"
+  echo -e "  ${C}./scripts/RETRODEPLOYER frontend-visibility${R} ${D}{ hide | unhide | list } [templateId|slug]  ${D}· hide from the markets frontend (${M}GET /api/v1/markets${D} omits; detail 404)${R}"
   echo -e "  ${C}./scripts/RETRODEPLOYER monitor incidents${R} ${D}| keeper | oracle | selector <0x...> | watch${R}"
   echo ""
   echo -e "${T}${B}Emergency${R} ${D}(prepare-only; no silent broadcast)${R}"
@@ -2513,7 +2513,7 @@ _retro_template_id_from_arg() {
   cast keccak "0x${_bytes_hex}" | tr '[:upper:]' '[:lower:]' | tr -d '\n'
 }
 
-# POST /api/v1/ops/frontend-visibility — hide | unhide from public /api/v1/markets (fe-v1 chain-markets).
+# POST /api/v1/ops/frontend-visibility — hide | unhide from public /api/v1/markets (markets frontend).
 _cmd_frontend_visibility() {
   if [[ $# -eq 0 || "$1" == "-h" || "$1" == "--help" || "$1" == help ]]; then
     cat <<'EOF'

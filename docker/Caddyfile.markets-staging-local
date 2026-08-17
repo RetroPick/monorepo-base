@@ -1,0 +1,17 @@
+# Local-only Markets staging proof proxy. Caddy issues from its internal CA;
+# do not use this file for public DNS or production.
+https://localhost {
+	tls internal
+
+	# Keep Prometheus on the loopback-only API port; do not publish it through TLS.
+	@metrics path /metrics
+	respond @metrics 404
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+	}
+
+	reverse_proxy markets-api:8080
+}

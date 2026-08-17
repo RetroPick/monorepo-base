@@ -1,0 +1,26 @@
+# Local-only production-like rehearsal proxy. The internal CA and all host
+# publications are loopback-only; never use this configuration for public TLS.
+https://localhost {
+	tls internal
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+	}
+
+	route {
+		# Keep Prometheus on the API's loopback-only diagnostic port.
+		respond /metrics 404
+
+		# Caddy's reverse_proxy preserves HTTP Upgrade/WebSocket semantics.
+		handle /api/* {
+			reverse_proxy markets-api:8080
+		}
+
+		# Every non-API path belongs to the Web application.
+		handle {
+			reverse_proxy markets-web:3001
+		}
+	}
+}

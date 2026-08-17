@@ -835,7 +835,8 @@ tasks:
   phase: PHASE-3
   title: CLOB V2 order submit
   goal: Submit limit orders via CLOB V2 with idempotency.
-  status: planned
+  status: done
+  gate: "gated (phase not advanced) — implemented 2026-08-09 (CLOB V2 authenticated submit + BFF glue, kill-switch off by default); BLK-004 live-venue-credential / staging sign-off pending"
   depends_on:
   - MKT-P3-001
   may_run_in_parallel_with: []
@@ -853,7 +854,9 @@ tasks:
   acceptance_criteria:
   - CLOB V2 only
   - Reconcile unknown states before retry
-  verification_evidence: []
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-002-evidence.md
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-002-glue-evidence.md
   rollback: ''
   human_approval_required: true
   handoff_to: []
@@ -861,7 +864,8 @@ tasks:
   phase: PHASE-3
   title: Order cancel and status
   goal: Cancel open orders; poll reconciliation.
-  status: planned
+  status: done
+  gate: "gated (phase not advanced) — implemented 2026-08-09 (cancel preview/submit with hash binding + idempotency; GET /me/orders, GET /me/fills projections)"
   depends_on:
   - MKT-P3-002
   may_run_in_parallel_with: []
@@ -876,7 +880,8 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-003-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -884,7 +889,8 @@ tasks:
   phase: PHASE-3
   title: Web trading UI
   goal: Order entry, preview, sign, submit on web.
-  status: planned
+  status: done
+  gate: "gated (phase not advanced) — implemented 2026-08-09 (order ticket: limit form, preview modal, EIP-712 signTypedData, capability-gated submit via useMarketsOrderSubmitCapability)"
   depends_on:
   - MKT-P3-001
   may_run_in_parallel_with: []
@@ -902,7 +908,8 @@ tasks:
   acceptance_criteria:
   - WCAG 2.1 AA on critical paths
   - Fresh eligibility before each order
-  verification_evidence: []
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-004-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -910,7 +917,8 @@ tasks:
   phase: PHASE-3
   title: Order reconciliation worker
   goal: Reconcile unknown order states before retry.
-  status: planned
+  status: done
+  gate: "gated (phase not advanced) — implemented 2026-08-09..11 (reconcile worker polls CLOB /data/orders + /data/trades, repairs unknown->open/rejected after 90s grace; never auto-resubmits)"
   depends_on:
   - MKT-P3-002
   may_run_in_parallel_with: []
@@ -926,7 +934,8 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-005-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -934,7 +943,8 @@ tasks:
   phase: PHASE-3
   title: PHASE-3 exit gate verification
   goal: End-to-end limit order on web with preview-sign-submit.
-  status: planned
+  status: done
+  gate: "gated (phase not advanced) — exit-gate verification executed 2026-08-09; verdict CONDITIONAL (backend+web structurally complete, preview_sign_match + Playwright J03/J07 green); phase advance blocked: staging proof, BLK-004 sign-off, orchestrator authorization pending; current_phase stays PHASE-2"
   depends_on:
   - MKT-P3-003
   - MKT-P3-004
@@ -951,8 +961,11 @@ tasks:
   commands: []
   acceptance_criteria:
   - preview_sign_match metric green
-  - e2e journey J-03 pass
-  verification_evidence: []
+  - e2e journeys J-03 and J-07 pass
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-006-evidence.md
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-006-phase-gate.md
+  - .harness/products/markets-v1/evidence/verification/PHASE-3/MKT-P3-006-exit-gate-analysis.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -960,7 +973,8 @@ tasks:
   phase: PHASE-4
   title: Position reconciliation
   goal: BFF positions match CLOB within SLA.
-  status: planned
+  status: done
+  gate: "gated (phase not advanced) — implemented 2026-08-10 (positions package: ProjectionStore, Data API reader, 5m reconcile worker, GET /me/positions handler, 13 tests); main.go glue wiring deferred to separate approved task — NOT mounted at HEAD; OpenAPI v1.4.0 paths frozen"
   depends_on:
   - MKT-P3-006
   may_run_in_parallel_with: []
@@ -976,7 +990,10 @@ tasks:
   tests: []
   commands: []
   acceptance_criteria: []
-  verification_evidence: []
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/PHASE-4/MKT-P4-001-evidence.md
+  - .harness/products/markets-v1/evidence/verification/PHASE-4/MKT-P4-migration-evidence.md
+  - .harness/products/markets-v1/evidence/verification/PHASE-4/MKT-P4-openapi-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []
@@ -1008,7 +1025,8 @@ tasks:
   phase: PHASE-4
   title: Whale/large-trade feed
   goal: Descriptive intelligence feed with reason codes.
-  status: planned
+  status: done
+  gate: "delivered 2026-08-10 under Smart Money I1 track (SM-I-001) — per 2026-08-09 phase spec, PHASE-4 ownership moved to SM-I-001; do not treat as a PHASE-4 portfolio exit-gate authority; current_phase not advanced"
   depends_on:
   - MKT-P4-001
   may_run_in_parallel_with:
@@ -1027,7 +1045,8 @@ tasks:
   acceptance_criteria:
   - No insider accusations
   - Signals evidence-linked
-  verification_evidence: []
+  verification_evidence:
+  - .harness/products/markets-v1/evidence/verification/intelligence/SM-I-001-evidence.md
   rollback: ''
   human_approval_required: false
   handoff_to: []

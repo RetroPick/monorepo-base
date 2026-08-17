@@ -35,6 +35,33 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, scenario string) error {
 	return nil
 }
 
+// Refresh reapplies a deterministic local seed immediately and at interval.
+// It is intended only for explicitly configured local stacks whose upstream is
+// deliberately unreachable; production catalog freshness remains worker-owned.
+func Refresh(ctx context.Context, interval time.Duration, apply func(context.Context) error) error {
+	if interval <= 0 {
+		return fmt.Errorf("devseed refresh interval must be positive")
+	}
+	if apply == nil {
+		return fmt.Errorf("devseed refresh apply function is required")
+	}
+	if err := apply(ctx); err != nil {
+		return err
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if err := apply(ctx); err != nil {
+				return err
+			}
+		}
+	}
+}
+
 // BuildPage returns the catalog page for a dev seed scenario.
 func BuildPage(scenario string, observed time.Time) catalog.Page {
 	switch scenario {
