@@ -1,1 +1,7 @@
 .vercel
+/alert
+/keeper
+/reporter
+/indexer
+/funding-worker
+/price-worker

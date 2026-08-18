@@ -31,156 +31,39 @@ services:
       postgres:
         condition: service_healthy
 
-  api:
+  markets-api:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
       args:
-        SERVICE: api
-    container_name: retropick-api-prod
+        SERVICE: markets-api
+    container_name: retropick-markets-api-prod
     restart: unless-stopped
     env_file:
       - ${RETROPICK_ENV_FILE:-.env.production}
     environment:
       DB_MAX_CONNS: ${API_DB_MAX_CONNS:-8}
       DB_MIN_CONNS: ${API_DB_MIN_CONNS:-2}
-      METRICS_HOST: "0.0.0.0"
-      METRICS_PORT: "9090"
     depends_on:
       postgres:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "/healthcheck", "/api/v1/livez"]
+      test: ["CMD", "/healthcheck", "/api/v1/health/live"]
       interval: 10s
       timeout: 3s
       retries: 12
       start_period: 15s
     expose:
       - "8080"
-    ports:
-      - "127.0.0.1:9090:9090"
-
-  indexer:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: indexer
-    container_name: retropick-indexer-prod
-    restart: unless-stopped
-    env_file:
-      - ${RETROPICK_ENV_FILE:-.env.production}
-    environment:
-      DB_MAX_CONNS: ${INDEXER_DB_MAX_CONNS:-4}
-      DB_MIN_CONNS: ${INDEXER_DB_MIN_CONNS:-1}
-      METRICS_HOST: "0.0.0.0"
-      METRICS_PORT: "9091"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:9091:9091"
-
-  price-worker:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: price-worker
-    container_name: retropick-price-worker-prod
-    restart: unless-stopped
-    env_file:
-      - ${RETROPICK_ENV_FILE:-.env.production}
-    environment:
-      DB_MAX_CONNS: ${PRICE_DB_MAX_CONNS:-2}
-      DB_MIN_CONNS: ${PRICE_DB_MIN_CONNS:-1}
-      METRICS_HOST: "0.0.0.0"
-      METRICS_PORT: "9094"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:9094:9094"
-
-  funding-worker:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: funding-worker
-    container_name: retropick-funding-worker-prod
-    restart: unless-stopped
-    env_file:
-      - ${RETROPICK_ENV_FILE:-.env.production}
-    environment:
-      DB_MAX_CONNS: ${FUNDING_DB_MAX_CONNS:-4}
-      DB_MIN_CONNS: ${FUNDING_DB_MIN_CONNS:-1}
-      METRICS_HOST: "0.0.0.0"
-      METRICS_PORT: "9093"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:9093:9093"
-
-  keeper:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: keeper
-    container_name: retropick-keeper-prod
-    restart: unless-stopped
-    env_file:
-      - ${RETROPICK_ENV_FILE:-.env.production}
-    environment:
-      DB_MAX_CONNS: ${KEEPER_DB_MAX_CONNS:-2}
-      DB_MIN_CONNS: ${KEEPER_DB_MIN_CONNS:-0}
-      METRICS_HOST: "0.0.0.0"
-      METRICS_PORT: "9092"
-    volumes:
-      - /etc/retropick/secrets:/run/secrets:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
-    ports:
-      - "127.0.0.1:9092:9092"
-
-  alert:
-    build:
-      context: .
-      dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: alert
-    container_name: retropick-alert-prod
-    restart: unless-stopped
-    env_file:
-      - ${RETROPICK_ENV_FILE:-.env.production}
-    environment:
-      DB_MAX_CONNS: ${ALERT_DB_MAX_CONNS:-1}
-      DB_MIN_CONNS: ${ALERT_DB_MIN_CONNS:-0}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
 
   nginx:
     image: nginx:1.27-alpine
     container_name: retropick-nginx-prod
     restart: unless-stopped
     depends_on:
-      - api
+      - markets-api
     ports:
       - "80:80"
       - "443:443"
@@ -205,7 +88,7 @@ services:
     container_name: retropick-web-prod
     restart: unless-stopped
     depends_on:
-      - api
+      - markets-api
     expose:
       - "3000"
 

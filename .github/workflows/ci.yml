@@ -36,7 +36,7 @@ jobs:
       - run: go -C apps/backend test ./...
       - run: bash scripts/check-graphify-freshness.sh
 
-  migration-v3:
+  migration-markets:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -61,7 +61,7 @@ jobs:
         env:
           DATABASE_URL: postgres://retropick:retropick@localhost:5432/retropick?sslmode=disable
         run: |
-          go -C apps/backend test ./internal/db/... -run TestMigrationV3 -count=1
+          go -C apps/backend test ./internal/db/... -run TestMarketsMigrations -count=1
           go -C apps/backend test ./internal/markets/postgres -count=1
           go -C apps/backend test ./migrations -run TestMarketsV1Migration -count=1
 

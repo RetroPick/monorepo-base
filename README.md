@@ -293,6 +293,7 @@ Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at th
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
 | Agent contract | [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) |
 | Archive (epoch v1) | [`archive/README.md`](archive/README.md) |
+| Markets-only backend | [`docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md`](docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md) |
 
 ## Monorepo layout
 
@@ -300,7 +301,7 @@ Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at th
 apps/web              Markets Next.js shell (Discover on :3001)
 apps/fe-v1            Legacy Markets UI (Vite; until PHASE-6 cutover)
 apps/android          Markets Android prototype (Capacitor + Next.js submodule)
-apps/backend          Go API — Markets BFF (internal/markets)
+apps/backend          Go API — Markets BFF (cmd/markets-api, internal/markets)
 packages/polymarket   Shared TS client + types
 schemas/openapi       Web + Android API contract
 docker-compose.markets-dev.yml   One-button Markets V1 stack

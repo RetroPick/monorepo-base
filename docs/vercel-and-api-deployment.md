@@ -11,7 +11,7 @@ For a compact reference table and copy-paste env snippets, see [README.md § Pro
 | What Vercel runs | What Vercel does **not** run |
 |------------------|------------------------------|
 | The **Next.js** app in `apps/web` | The **Go API** in `apps/backend` |
-| Static pages + server runtime for that app | **Postgres**, **indexer**, or **migrations** as long-lived services |
+| Static pages + server runtime for that app | **Postgres** or **migrations** as long-lived services |
 
 The browser loads your site from `https://*.vercel.app` (or your custom domain). Any request to **`http://127.0.0.1:8080`** is interpreted as “the user’s own computer,” not your server—so the API appears **not reachable**.
 
@@ -41,14 +41,14 @@ flowchart LR
 You will operate **two deployments**:
 
 1. **Frontend:** Vercel project with root directory `apps/web` (see [`apps/web/vercel.json`](../apps/web/vercel.json): install from monorepo root, `pnpm --filter web build`).
-2. **Backend:** One **public HTTPS** URL for the HTTP API (e.g. `https://api.example.com`), running the image built from [`apps/backend/Dockerfile`](../apps/backend/Dockerfile) with **`SERVICE=api`**, plus managed **Postgres** and usually a separate **`SERVICE=indexer`** worker.
+2. **Backend:** One **public HTTPS** URL for the HTTP API (e.g. `https://api.example.com`), running the image built from [`apps/backend/Dockerfile`](../apps/backend/Dockerfile) with **`SERVICE=markets-api`**, plus managed **Postgres**.
 
 Optional but common:
 
 - **Migrator:** Same Docker image with **`SERVICE=migrator`**—run as a **release / predeploy job** whenever the database schema changes, **before** starting new API containers.
 - **Docs:** Separate Vercel project rooted at `apps/docs` if you ship docs in production.
 
-**Optional — HTTP API on Vercel (non-production):** You can deploy **`apps/backend`** (`cmd/api`) with Vercel’s **Go** preset instead of a container host. Postgres and the **indexer** stay outside Vercel. This contradicts [PRODUCTION.md](../PRODUCTION.md) for production; archived walkthrough: **[archive/design/vercel-backend.md](archive/design/vercel-backend.md)**.
+**Optional — HTTP API on Vercel (non-production):** Not the production path. Archived walkthrough: **[archive/design/vercel-backend.md](archive/design/vercel-backend.md)**.
 
 ---
 
@@ -81,13 +81,13 @@ See also the commented **production API** block in [`.env.example`](../.env.exam
 
 ### A.3 Build and run the API container
 
-The Docker image is built from the **monorepo** context so it can copy `packages/legacy/abi` as in the Dockerfile.
+The Docker image is built from the **monorepo** context.
 
 Conceptually:
 
 ```bash
 # From monorepo root — example only; exact flags depend on your host.
-docker build -f apps/backend/Dockerfile --build-arg SERVICE=api -t retropick-api .
+docker build -f apps/backend/Dockerfile --build-arg SERVICE=markets-api -t retropick-markets-api .
 ```
 
 Run the container with the env vars above. Your host’s docs explain how to map `PORT`, secrets, and HTTPS.
@@ -97,10 +97,6 @@ Run the container with the env vars above. Your host’s docs explain how to map
 Use the **same image** with **`SERVICE=migrator`** as a **one-off job** (or CI step) **before** rolling out a new API version after schema updates—see the README table (“Migrator | Release/predeploy job”).
 
 If you skip migrations, the API may fail health checks or queries against an outdated database.
-
-### A.5 Indexer (recommended for full behavior)
-
-The **indexer** is a separate long-lived process: same `Dockerfile`, **`SERVICE=indexer`**, same `DATABASE_URL` / `RPC_URL` as the API. It typically does **not** need a public URL.
 
 ---
 
@@ -200,7 +196,7 @@ Deploying to **Fly/Railway/Vercel** still requires **your** accounts and secrets
 
 ## 5. Quick order recap
 
-1. Deploy **Postgres** + **API** (`SERVICE=api`) at **`https://api...`**; run **`SERVICE=migrator`** when schema changes; run **indexer** if you rely on it.
+1. Deploy **Postgres** + **markets-api** (`SERVICE=markets-api`) at **`https://api...`**; run **`SERVICE=migrator`** when schema changes.
 2. Set **`NEXT_PUBLIC_API_URL`** (and docs URL if needed) on **Vercel** → **redeploy** `fe-v1`.
 3. Set **CORS** on the API for your Vercel origins.
 4. **curl** health/markets, then verify in the browser.

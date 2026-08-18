@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	path := "/api/v1/livez"
+	path := "/api/v1/health/live"
 	if len(os.Args) > 1 && os.Args[1] != "" {
 		path = os.Args[1]
 	}

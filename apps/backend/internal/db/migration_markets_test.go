@@ -8,7 +8,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func TestMigrationV3(t *testing.T) {
+func TestMarketsMigrations(t *testing.T) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		t.Skip("DATABASE_URL not set")
@@ -25,11 +25,6 @@ func TestMigrationV3(t *testing.T) {
 	defer sqlDB.Close()
 
 	required := []string{
-		"indexer_blocks",
-		"fee_events",
-		"fee_route_batches",
-		"reporter_submissions",
-		"referral_bindings",
 		"markets_catalog_events",
 		"markets_catalog_markets",
 		"markets_catalog_outcomes",
@@ -42,6 +37,9 @@ func TestMigrationV3(t *testing.T) {
 		"markets_market_signals",
 		"markets_signal_evidence",
 		"markets_signal_retractions",
+		"markets_price_observations",
+		"markets_liquidity_observations",
+		"markets_realtime_recovery",
 	}
 	for _, table := range required {
 		var exists bool

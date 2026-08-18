@@ -28,12 +28,6 @@ var (
 	ErrDataUnavailable     = errors.New("market data unavailable")
 )
 
-type CatalogClient interface {
-	ListEvents(ctx context.Context, limit, offset int) ([]gamma.Event, error)
-	GetEvent(ctx context.Context, eventID string) (gamma.Event, error)
-	GetMarket(ctx context.Context, marketID string) (gamma.Market, error)
-}
-
 type MarketDataClient interface {
 	GetOrderBook(ctx context.Context, tokenID string) (clob.OrderBook, error)
 	GetPriceHistory(ctx context.Context, request clob.PriceHistoryRequest) ([]clob.PricePoint, error)
@@ -92,7 +86,6 @@ func CatalogWorkerSnapshotFrom(ready, degraded, hasProjection bool) CatalogWorke
 }
 
 type ServiceConfig struct {
-	Catalog           CatalogClient
 	CatalogProjection CatalogProjection
 	CatalogWorker     CatalogWorkerState
 	CatalogEnabled    bool
