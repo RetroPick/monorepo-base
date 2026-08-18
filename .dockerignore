@@ -14,9 +14,9 @@ coverage
 .env.*
 apps/backend/tmp
 apps/public
-package/prediction-v2/cache
-package/prediction-v2/out
-package/prediction-v2/broadcast
+archive/contracts/legacy-pool-v1/cache
+archive/contracts/legacy-pool-v1/out
+archive/contracts/legacy-pool-v1/broadcast
 graphify-out
 apps/fe-v1
 apps/ops-web

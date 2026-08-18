@@ -172,7 +172,7 @@ Exposed via `GET /api/v1/markets/capabilities`:
 ```bash
 # Example — values from local .env.example only
 docker compose up -d postgres redis
-cd apps/backend && go run ./cmd/api
+cd apps/backend && go run ./cmd/markets-api
 cd apps/web && NEXT_PUBLIC_PRODUCT=markets pnpm dev
 ```
 

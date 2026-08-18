@@ -45,3 +45,33 @@ were copied under `archive/apps/backend/` (see
 
 Archive is still not a buildable Go module. Restore by copying packages back
 into the live `apps/backend` module.
+
+## Legacy cleanup pass (2026-08-18, post ADR-R4/R5)
+
+| Active path (before) | Archive path |
+|----------------------|--------------|
+| `docker-compose.alfajores.yml`, `compose.alfajores.env` | `archive/docker/` |
+| Epoch smokes (`smoke-production.sh`, `RETRODEPLOYER`, …) | `archive/scripts/` |
+| `packages/contracts`, `packages/types`, `package/abi/` | `archive/packages/legacy/` |
+| Epoch normative docs (`PRODUCTION.md`, `ORCHESTRATOR.md`, …) | `archive/docs/` |
+| Legacy `.harness/agents/*.agent.md` (non `rp-*`) | `archive/harness/agents/` |
+| Epoch migrations `000001`–`000015` | `archive/apps/backend/migrations/epoch/` |
+| `BENCHMARK.md` (epoch perf baseline) | `archive/docs/epoch-v1/BENCHMARK.md` |
+
+Live Markets stack: `cmd/markets-api`, `apps/web`, `docker-compose.markets-dev.yml`.
+
+## Docs and artifacts pass (2026-08-18, post A–F)
+
+| Active path (before) | Archive path |
+|----------------------|--------------|
+| `docs/archive/` | `archive/docs/legacy-docs-archive/` |
+| `docs/product/*` | `archive/docs/product/` |
+| `docs/feature/operator-backend-surface/` | `archive/docs/feature/` |
+| `apps/docs/` (epoch protocol Next.js site) | `archive/apps/docs/` |
+| `scripts/market/` | `archive/scripts/market/` |
+| `.harness/skills/retropick-market-engine/` | `archive/harness/skills/` |
+| `.harness/tasks/done/` (epoch tasks) | `archive/harness/tasks/done/` |
+| `.marketTypes.md`, `.business/*`, `.retropick-emergency/` | `archive/docs/product/`, `archive/docs/business/`, `archive/ops/` |
+| `docker/anchor.Dockerfile` | `archive/docs/product/` (with market types) |
+
+Live docs: `.dev/markets-v1/`, `docs/ARCHITECTURE.md`. Stub: `apps/docs/README.md`.

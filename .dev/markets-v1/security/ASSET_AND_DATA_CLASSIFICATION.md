@@ -155,7 +155,7 @@ flowchart LR
   subgraph T3 [T3 Restricted]
     Sec[secret manager]
   end
-  Cat --> API[cmd/api]
+  Cat --> API[cmd/markets-api]
   Me --> API
   Sec --> API
   API --> Client[web android]

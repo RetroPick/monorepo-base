@@ -27,7 +27,7 @@ Short orientation for implementers and agents. Read this before consuming featur
 | **Who** | Orchestrator sequencing INTEL-DOC / I0–I6; `be-api` / intelligence workers; `fe-markets`; QA; security reviewing Never-V1. Not traders executing orders from this tree alone. |
 | **What** | Index + consume order for Smart Money Intelligence Launch V1: foundations + feature specs `01`–`10`. Scope is ten features + shared architecture. Not Markets PHASE advancement. Not auto-copy. |
 | **When** | Before any intelligence implementation task; when deciding PUBLIC vs ACCOUNT gate; when choosing whether a Wave-6 sibling is still authoritative. Re-read after archive moves. |
-| **Where** | This tree: `.dev/markets-v1/intelligence/`. Runtime compute target: `apps/backend/internal/markets/intelligence/` (ADR-008). Client: `apps/fe-v1` via BFF only. Manifest phase: `../../../.harness/products/markets-v1/planning/implementation-manifest.yaml`. |
+| **Where** | This tree: `.dev/markets-v1/intelligence/`. Runtime compute target: `apps/backend/internal/markets/intelligence/` (ADR-008). Client: `apps/web` via BFF only. Manifest phase: `../../../.harness/products/markets-v1/planning/implementation-manifest.yaml`. |
 | **Why** | Without a single Launch index, agents reload archived UV/arb scanners, invent endpoints, or treat INTEL-DOC as PHASE-2/4 exit. Index enforces growth-loop scope and ADR-009. |
 | **How** | Follow consume order below; implement only SM-I-* Launch IDs; gate ACCOUNT features behind flags + auth; keep money as BIGINT; prove with [INTELLIGENCE_TEST_STRATEGY.md](INTELLIGENCE_TEST_STRATEGY.md) + `testdata/`. |
 

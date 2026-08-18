@@ -8,11 +8,11 @@ import (
 func TestMarketsV1Phase13RealtimeMigration(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000017_markets_v1_realtime.up.sql")
+	up, err := Files.ReadFile("000002_markets_v1_realtime.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000017_markets_v1_realtime.down.sql")
+	down, err := Files.ReadFile("000002_markets_v1_realtime.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -108,7 +108,7 @@ flowchart TB
         end
         subgraph Legacy["Legacy (frozen)"]
             LW[apps/web/src/products/legacy]
-            LB[apps/backend/internal/legacy]
+            LB[archive/apps/backend/internal/legacy]
             LP[packages/legacy]
             AR[archive/]
         end
@@ -220,7 +220,7 @@ retropick/
 | Phase | Date | Monorepo change | Markets impact |
 |-------|------|-----------------|----------------|
 | **R0** | 2026-07-24 | Product line split in `docs/ARCHITECTURE.md` | Markets declared Polymarket-native |
-| **R1** | 2026-07-24 | `internal/markets/` placeholder; legacy → `internal/legacy/` | Greenfield BFF directory |
+| **R1** | 2026-07-24 | `internal/markets/` placeholder; legacy → `archive/archive/apps/backend/internal/legacy/` | Greenfield BFF directory |
 | **R2** | 2026-07-24 | `schemas/openapi/markets-v1.yaml` stub | Contract-first development |
 | **R3** | 2026-07-24 | Gamma read path in BFF; web product routes | Catalog behind BFF |
 | **R4** | 2026-07-24 | Legacy archived to `archive/` | Markets primary active line |
@@ -277,29 +277,29 @@ Current scaffold lives at `apps/android/`. Target state renames or duplicates to
 ```mermaid
 flowchart TB
     Router[internal/api/router] --> MH[internal/markets/handler]
-    Router --> LH[internal/legacy/handler]
+    Router --> LH[archive/archive/apps/backend/internal/legacy/handler]
     MH --> MS[internal/markets/service]
     MS --> MG[internal/markets/gamma]
     MS --> MC[internal/markets/clob]
     MS --> MI[internal/markets/intelligence]
-    LH --> LD[internal/legacy/domain]
+    LH --> LD[archive/archive/apps/backend/internal/legacy/domain]
     MS --> PL[internal/platform/*]
     LD --> PL
 ```
 
 | Package | May import | Must not import |
 |---------|------------|-----------------|
-| `internal/markets/*` | `internal/platform/*`, `packages/polymarket` (via codegen/types) | `internal/legacy/*` |
-| `internal/legacy/*` | `internal/platform/*` | `internal/markets/*` |
-| `internal/platform/*` | stdlib, third-party | `internal/markets/*`, `internal/legacy/*` |
+| `internal/markets/*` | `internal/platform/*`, `packages/polymarket` (via codegen/types) | `archive/archive/apps/backend/internal/legacy/*` |
+| `archive/archive/apps/backend/internal/legacy/*` | `internal/platform/*` | `internal/markets/*` |
+| `internal/platform/*` | stdlib, third-party | `internal/markets/*`, `archive/archive/apps/backend/internal/legacy/*` |
 
 Route registration:
 - Markets: `/api/v1/markets/*`
-- Legacy (frozen): `/api/v1/legacy/markets/*`
+- Legacy (frozen): `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*`
 
-### 6.4 `apps/ops-web` and `apps/landing-web`
+### 6.4 `archive/archive/apps/ops-web` and `apps/landing-web`
 
-Out of Markets V1 critical path. Ops console has read-only views into BFF metrics and audit logs. No trading or signing.
+Out of Markets V1 critical path. The epoch ops console is archived; any future admin surface must not share Markets signing keys.
 
 ## 7. Package Boundaries
 
@@ -398,8 +398,8 @@ Legacy epoch v1 is **frozen** per R4. No new features.
 
 | Artifact | Status | Markets interaction |
 |----------|--------|---------------------|
-| `/api/v1/legacy/markets/*` | Frozen handlers | None — separate prefix |
-| `internal/legacy/domain/` | Quarantined | No imports from markets |
+| `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*` | Frozen handlers | None — separate prefix |
+| `archive/archive/apps/backend/internal/legacy/domain/` | Quarantined | No imports from markets |
 | `packages/legacy/` | Claim-only TS | Not in Markets bundle |
 | `apps/web/src/products/legacy/` | To be removed | Not in `NEXT_PUBLIC_PRODUCT=markets` build |
 | `archive/` | Historical reference | No runtime dependency |
@@ -516,7 +516,7 @@ Automated gates in Phase 6:
 flowchart LR
     DEV[Developer machine]
     DEV --> WEB[pnpm dev:web:markets]
-    DEV --> API[go run cmd/api]
+    DEV --> API[go run cmd/markets-api]
     DEV --> DB[(Docker Postgres)]
     DEV --> REDIS[(Docker Redis)]
     WEB --> API
@@ -565,7 +565,7 @@ See [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUEST
 | `packages/polymarket/**` | backend-markets + web-markets | legal (OSS) |
 | `schemas/openapi/markets-v1.yaml` | platform-orchestrator | all client teams |
 | `deploy/web-markets/**` | platform/SRE | security |
-| `internal/legacy/**` | maintenance only | explicit approval |
+| `archive/archive/apps/backend/internal/legacy/**` | maintenance only | explicit approval |
 
 ## Appendix B — Naming Conventions
 

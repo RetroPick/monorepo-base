@@ -158,7 +158,7 @@ Pre-funding: all workers on same VM as API (systemd or docker-compose).
 
 | Process | vCPU share | Memory |
 |---------|------------|--------|
-| cmd/api | 1.0 | 1.5 GB |
+| cmd/markets-api | 1.0 | 1.5 GB |
 | markets-ingest | 0.5 | 512 MB |
 | signal-engine | 0.5 | 512 MB |
 | alert-delivery | 0.25 | 256 MB |

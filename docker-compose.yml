@@ -1,6 +1,5 @@
-# Default DB URL: postgres:5432 (Compose DNS). For Docker Desktop bridge timeouts, use
-# compose.desktop-hairpin.env. extra_hosts defines host.docker.internal where the engine
-# does not (Linux Engine / WSL), so hairpin URLs resolve.
+# Markets V1 local stack (postgres + markets-api + apps/web).
+# Prefer: pnpm dev:markets-stack  (uses docker-compose.markets-dev.yml with seed/bootstrap)
 
 services:
   postgres:
@@ -11,8 +10,6 @@ services:
       POSTGRES_USER: retropick
       POSTGRES_PASSWORD: retropick
       POSTGRES_DB: retropick
-    # Host 5433 avoids clashing with a local Postgres on 5432. Containers use the
-    # service hostname `postgres` on port 5432 (Compose network), not the host publish port.
     ports:
       - "5433:5432"
     volumes:
@@ -29,8 +26,6 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: migrator
     container_name: retropick-migrator
     restart: "no"
     extra_hosts:
@@ -45,8 +40,6 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: markets-api
     container_name: retropick-markets-api
     restart: unless-stopped
     extra_hosts:
@@ -75,17 +68,21 @@ services:
   web:
     build:
       context: .
-      dockerfile: apps/fe-v1/Dockerfile
+      dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:8080
-        NEXT_PUBLIC_REOWN_PROJECT_ID: d2f5d76bb1b000f9443e2172d3a560ba
-    container_name: retropick-web
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+        NEXT_PUBLIC_PRODUCT: markets
+        NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID:-d2f5d76bb1b000f9443e2172d3a560ba}
+    container_name: retropick-markets-web
     restart: unless-stopped
     depends_on:
       markets-api:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
 
 volumes:
   postgres_data:

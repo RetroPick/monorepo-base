@@ -37,7 +37,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 1. Task: “catalog list.” Audit shows Gamma client + `ListEvents` stub and three OpenAPI endpoints.
 2. Extend normalizer/service tests under `internal/markets/` and grow `markets-v1.yaml`.
 3. Web hooks under `products/markets` call the BFF—not Gamma from the browser in production.
-4. Leave `/api/v1/legacy/markets/*` untouched.
+4. Leave `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*` untouched.
 
 **Failure / Never-V1**
 
@@ -141,7 +141,7 @@ internal/markets/
 
 **Not present:** CLOB client, order orchestrator, portfolio DB, relayer, geoblock client, websocket hub, intelligence workers.
 
-**Adjacent backend packages (epoch-era, not Markets):** `indexer/`, `keeper/`, `marketdata/`, `funding/`, etc. remain in `internal/` for operational/historical reasons but are **not** Markets V1 paths. Epoch domain archived to `archive/apps/backend/internal/legacy/`.
+**Adjacent backend packages (epoch-era, not Markets):** `indexer/`, `keeper/`, `marketdata/`, `funding/`, etc. remain in `internal/` for operational/historical reasons but are **not** Markets V1 paths. Epoch domain archived to `archive/apps/backend/archive/archive/apps/backend/internal/legacy/`.
 
 ### 5.3 Web — `apps/web/src/products/markets/`
 
@@ -200,11 +200,11 @@ Per `archive/README.md` (2026-07-24):
 |--------------------|--------------|
 | `contracts/legacy-pool-v1/` | `archive/contracts/legacy-pool-v1/` |
 | `packages/legacy/` | `archive/packages/legacy/` |
-| `apps/backend/internal/legacy/` | `archive/apps/backend/internal/legacy/` |
+| `apps/backend/archive/archive/apps/backend/internal/legacy/` | `archive/apps/backend/archive/archive/apps/backend/internal/legacy/` |
 | `apps/web/src/products/legacy/` | `archive/apps/web/products/legacy/` |
 | Epoch docs | `archive/docs/epoch-v1/` |
 
-**Policy:** Active code MUST NOT import from `archive/`. Legacy API was `/api/v1/legacy/markets/*` — frozen, not extended.
+**Policy:** Active code MUST NOT import from `archive/`. Legacy API was `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*` — frozen, not extended.
 
 ### 5.8 Schemas and deploy
 

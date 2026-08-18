@@ -145,7 +145,7 @@ Persist decisions in `markets.eligibility_decisions` for audit (hashed IP, regio
 | Redis cache `mkt:eligibility:{ip_hash}` | deferred | See cache doc |
 | Postgres `eligibility_decisions` audit | deferred | Future migration |
 
-**BLK-001 honesty:** GeoIP and geoblock adapters are shipped and env-gated. `ProductionEligibilityEvaluator` in `service.go` wires `geo.ResolverFromEnv()` and `eligibility.GeoblockFromEnv()` (both `cmd/api` and `cmd/markets-api` pass the same evaluator to the auth module). **BLK-001 remains open** until ops injects both geo + geoblock env in target deploy and integration proves `eligible: true` for an allowed region — default deploy (no env) still returns `geo_unknown` / `geoblock_upstream_unavailable`. `DefaultEvaluator()` keeps deny-all for tests without injection. Full tracker: [MKT-P2-002-BLK001-evidence.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md).
+**BLK-001 honesty:** GeoIP and geoblock adapters are shipped and env-gated. `ProductionEligibilityEvaluator` in `service.go` wires `geo.ResolverFromEnv()` and `eligibility.GeoblockFromEnv()` (both `cmd/markets-api` and `cmd/markets-api` pass the same evaluator to the auth module). **BLK-001 remains open** until ops injects both geo + geoblock env in target deploy and integration proves `eligible: true` for an allowed region — default deploy (no env) still returns `geo_unknown` / `geoblock_upstream_unavailable`. `DefaultEvaluator()` keeps deny-all for tests without injection. Full tracker: [MKT-P2-002-BLK001-evidence.md](../../../.harness/products/markets-v1/evidence/verification/PHASE-2/MKT-P2-002-BLK001-evidence.md).
 
 **GeoIP environment variables (Chat Geo):**
 

@@ -22,5 +22,9 @@
 | D17 | **Markets BFF stub (R2)** — `internal/markets`, `/api/v1/markets/eligibility|capabilities|events`, `@retropick/polymarket` | Web Markets shell wired to BFF | be-api |
 
 | D19 | **Legacy epoch v1 archived** — code/docs under `archive/`; active tree is Markets/PRISM/Android | Greenfield Markets platform; no route collision with epoch | orchestrator |
+| D20 | **Markets-only live backend (R5)** — `cmd/markets-api` only; epoch libs under `archive/apps/backend/` | Removes split-brain runtime; see ADR-R5 | rp-backend-markets |
+| D21 | **Post-R5 repo hygiene** — compose, docs, packages point at Markets paths only | Operators and agents see one canonical architecture | rp-release-orchestrator |
 
-When a decision conflicts with a shortcut, **orchestrator** blocks the task until this table is updated or the shortcut is withdrawn.
+> **Historical:** D1–D18 and owner agents (`be-*`, `sc-*`, `fe-*`) describe the archived epoch stack. Paths like `contracts/legacy-pool-v1` → `archive/contracts/legacy-pool-v1/`. Legacy `/api/v1/legacy/*` routes were removed with R5 (not served by live BFF).
+
+When a decision conflicts with a shortcut, **rp-release-orchestrator** blocks the task until this table is updated or the shortcut is withdrawn.

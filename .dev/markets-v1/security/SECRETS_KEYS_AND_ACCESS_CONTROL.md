@@ -149,7 +149,7 @@ Defines secret storage, key rotation, RBAC for operators, and separation between
 
 ## 9. Builder / relayer key handling
 
-- Stored as T3 restricted; access limited to `cmd/api` runtime identity.
+- Stored as T3 restricted; access limited to `cmd/markets-api` runtime identity.
 - Separate keys per environment.
 - Usage metered; alert on anomalous volume ([ABUSE_FRAUD_AND_RATE_LIMITS.md](./ABUSE_FRAUD_AND_RATE_LIMITS.md)).
 - Cannot sign CLOB orders without user signature.

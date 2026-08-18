@@ -45,7 +45,7 @@ Ticket: “Issue YES/NO tokens for our World Cup market on RetroPick contracts.�
 **Failure / Never-V1 (still bound by Decision)**
 
 - Creating `contracts/markets/` or a RetroPick matching engine for Markets.
-- Extending `/api/v1/legacy/markets/*` for new Markets features.
+- Extending `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*` for new Markets features.
 - Conflating `contracts/prism/` settlement with Markets client routes.
 - Treating rejected Alternatives as “maybe later in this PR.”
 
@@ -104,7 +104,7 @@ Specifically:
 2. No new Markets smart contracts in `contracts/` — integration only.
 3. No RetroPick-issued outcome tokens for Markets product line.
 4. PRISM (`contracts/prism/`) is a **separate product** and must not be conflated with Markets settlement.
-5. Legacy epoch APIs (`/api/v1/legacy/markets/*`) remain frozen; no extension for new Markets features.
+5. Legacy epoch APIs (`/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*`) remain frozen; no extension for new Markets features.
 
 ## Consequences
 

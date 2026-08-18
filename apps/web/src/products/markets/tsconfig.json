@@ -12,10 +12,7 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
-      "@retropick/polymarket": ["../../../../../packages/polymarket/src/index.ts"],
-      "@tanstack/react-query": ["../../../../../apps/fe-v1/node_modules/@tanstack/react-query"],
-      "react-router-dom": ["../../../../../apps/fe-v1/node_modules/react-router-dom"],
-      "clsx": ["../../../../../apps/fe-v1/node_modules/clsx"]
+      "@retropick/polymarket": ["../../../../../packages/polymarket/src/index.ts"]
     }
   },
   "include": ["./**/*.ts", "./**/*.tsx"],

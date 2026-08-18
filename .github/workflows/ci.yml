@@ -30,6 +30,7 @@ jobs:
       - run: pnpm test
       - run: bash scripts/check-markets-openapi-drift.sh
       - run: bash scripts/check-markets-realtime-asyncapi-drift.sh
+      - run: bash scripts/check-active-legacy-refs.sh
       - run: pnpm build
       - run: go -C apps/backend build ./...
       - run: go -C apps/backend test ./internal/markets -run 'TestMarketsOpenAPIContainsPhaseOneReadContract|TestOpenAPIRuntimeConformancePhaseOne' -count=1

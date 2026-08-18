@@ -13,7 +13,7 @@ that had been left in the live module.
 | `archive/apps/backend/internal/` | Epoch packages (`indexer`, `keeper`, `funding`, `ethops`, …) |
 | `archive/apps/backend/internal/epoch-libs/api/` | Full live `internal/api` at cleanup (archive already had partial `internal/api`) |
 | `archive/apps/backend/internal/legacy/` | Domain packages from earlier R4 |
-| `archive/apps/backend/migrations/epoch-000001-000015/` | Epoch SQL migrations |
+| `archive/apps/backend/migrations/epoch/` | Epoch SQL migrations |
 | `archive/apps/backend/migrations/pre-cleanup-full/` | Full 000001–000018 snapshot |
 | `archive/apps/backend/sql/` | `queries.sql`, `v3_queries.sql`, `schema-pre-cleanup.sql` |
 
@@ -32,3 +32,18 @@ Do **not** expect `go build` to succeed from inside `archive/` alone.
 ## Live tree after cleanup
 
 Active Markets V1 entrypoint: `apps/backend/cmd/markets-api`.
+
+## Markets-only migration baseline (Slice F, 2026-08-18)
+
+Live `apps/backend/migrations/` applies **000001–000010** Markets-only SQL only.
+
+**Recreate procedure** (required after Slice F on any epoch-era database):
+
+```bash
+docker compose -f docker-compose.markets-dev.yml down -v
+docker compose -f docker-compose.markets-dev.yml up -d postgres
+go -C apps/backend run ./cmd/migrator   # or markets-api auto-migrate on boot
+go -C apps/backend test ./migrations -run TestMarketsV1Migration -count=1
+```
+
+Epoch history remains in `archive/apps/backend/migrations/epoch/`.

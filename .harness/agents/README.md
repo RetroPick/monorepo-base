@@ -16,7 +16,7 @@
 
 ## Reference roster (preserved, disabled)
 
-Legacy MarketEngine / epoch / pre-R0 monorepo agents (`be-api`, `be-data`, `be-funding`, `be-indexer`, `be-keeper`, `be-realtime`, `devops-sre`, `docs-curator`, `fe-markets`, `fe-ops`, `fe-wallet`, `harness-librarian`, `orchestrator`, `pkg-abi-registry`, `qa-integration`, `sc-deploy-upgrades`, `sc-market-engine`, `sc-oracles`, `sc-testing`, `security`) are preserved as REFERENCE / DISABLED FOR MARKETS-V1 RELEASE. Do not route Markets V1 release tasks to them.
+Legacy MarketEngine / epoch agents are preserved under [`../../archive/harness/agents/`](../../archive/harness/agents/) as REFERENCE / DISABLED FOR MARKETS-V1 RELEASE. Do not route Markets V1 release tasks to them.
 
 ## Responsibility boundaries
 

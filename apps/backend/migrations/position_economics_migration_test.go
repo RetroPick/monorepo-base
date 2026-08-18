@@ -7,11 +7,11 @@ import (
 
 func TestMarketsV1PositionEconomicsMigrationUsesFixedPointAndCoverage(t *testing.T) {
 	t.Parallel()
-	up, err := Files.ReadFile("000025_markets_position_projection_economics_check.up.sql")
+	up, err := Files.ReadFile("000010_markets_position_projection_economics_check.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000025_markets_position_projection_economics_check.down.sql")
+	down, err := Files.ReadFile("000010_markets_position_projection_economics_check.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

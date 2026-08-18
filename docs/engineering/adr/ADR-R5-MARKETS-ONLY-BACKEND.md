@@ -21,3 +21,7 @@ ADR-R4 moved epoch **cmds** and `internal/legacy/domain` to `archive/`, but the 
 - `go test ./...` in `apps/backend` is Markets-only.
 - Restore of MarketEngine requires copying archived cmds **and** libraries back into the live module (archive has no `go.mod`).
 - Health probes are `/api/v1/health/live` and `/api/v1/health/ready`.
+
+## Follow-up (2026-08-18 legacy cleanup Slice F)
+
+Slice F completes the migration/sqlc baseline: epoch migrations `000001`–`000015` live under `archive/apps/backend/migrations/epoch/`; the live chain is `000001`–`000010` Markets-only. Existing epoch databases must be recreated (`docker compose down -v` + fresh migrate). See `archive/apps/backend/RESTORE_MARKETS_CLEANUP.md`.

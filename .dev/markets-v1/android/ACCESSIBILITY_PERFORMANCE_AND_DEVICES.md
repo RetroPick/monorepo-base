@@ -245,7 +245,7 @@ flowchart TB
     Android[apps/android-markets]
   end
   subgraph bff [Markets BFF]
-    API[cmd/api /api/v1/markets]
+    API[cmd/markets-api /api/v1/markets]
   end
   subgraph venue [Venue]
     Gamma[Polymarket Gamma]

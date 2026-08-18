@@ -131,7 +131,7 @@ Markets wallet connect module shipped under `apps/web/src/products/markets/walle
 | SIWE session hook | `wallet/hooks/useMarketsWalletSession.ts` | **Done** — server nonce, cookie session, restore, logout (MKT-P2-005 web) |
 | Staging harness | `/markets/wallet` route | **Done** |
 | Shell wiring | `AppProviders` + shared `Header` | **Done** |
-| fe-v1 legacy quarantine | `apps/fe-v1/src/components/Header.tsx` | **Done** — `isMarketsShellRoute` hides WalletButton on `/app/markets/*` |
+| fe-v1 legacy quarantine | `apps/web/src/components/Header.tsx` | **Done** — `isMarketsShellRoute` hides WalletButton on `/app/markets/*` |
 
 **Environment:** `NEXT_PUBLIC_REOWN_PROJECT_ID` (WalletConnect), `NEXT_PUBLIC_API_BASE_URL` (BFF).
 

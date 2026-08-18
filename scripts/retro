@@ -42,21 +42,16 @@ doctor() {
     fi
   done
   if command -v forge >/dev/null 2>&1; then
-    printf 'ok      tool forge\n'
+    printf 'ok      tool forge (epoch contracts only)\n'
   else
-    printf 'warn    tool forge (required for contract tests and deploy simulation)\n'
-  fi
-  if [[ -f "$V1_ROOT/archive/contracts/legacy-pool-v1/foundry.toml" ]]; then
-    printf 'ok      contracts archive/contracts/legacy-pool-v1\n'
-  else
-    printf 'missing contracts archive/contracts/legacy-pool-v1\n'
-    failed=1
+    printf 'skip    tool forge (optional — Markets V1 does not require Foundry)\n'
   fi
   for file in \
-    scripts/lib/load-env.sh \
-    archive/contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py \
+    scripts/markets-dev-up.sh \
+    scripts/markets-dev-smoke.sh \
+    scripts/smoke-production.sh \
     scripts/compose-production.sh \
-    scripts/smoke-production.sh; do
+    docker-compose.markets-dev.yml; do
     if [[ -f "$V1_ROOT/$file" ]]; then
       printf 'ok      file %s\n' "$file"
     else
@@ -64,19 +59,23 @@ doctor() {
       failed=1
     fi
   done
+  if [[ -f "$V1_ROOT/archive/contracts/legacy-pool-v1/foundry.toml" ]]; then
+    printf 'ok      epoch contracts archive/contracts/legacy-pool-v1\n'
+  else
+    printf 'warn    epoch contracts archive (optional for Markets work)\n'
+  fi
   for file in \
-    scripts/market/prepare-upsert-template.sh \
-    scripts/market/prepare-ops-tx.sh \
-    scripts/market/broadcast-prepared-ops-tx.sh; do
+    archive/scripts/market/prepare-upsert-template.sh \
+    archive/scripts/market/prepare-ops-tx.sh \
+    archive/scripts/market/broadcast-prepared-ops-tx.sh; do
     if [[ -f "$V1_ROOT/$file" ]]; then
       printf 'ok      file %s\n' "$file"
     else
-      printf 'missing file %s\n' "$file"
-      failed=1
+      printf 'warn    file %s (epoch ops — archived)\n' "$file"
     fi
   done
   if [[ -n "${RETROPICK_API_BASE:-}" ]]; then
-    if curl -fsS --max-time 3 "${RETROPICK_API_BASE%/}/api/v1/livez" >/dev/null; then
+    if curl -fsS --max-time 3 "${RETROPICK_API_BASE%/}/api/v1/health/live" >/dev/null; then
       printf 'ok      api %s\n' "${RETROPICK_API_BASE%/}"
     else
       printf 'missing api %s\n' "${RETROPICK_API_BASE%/}"
@@ -135,6 +134,6 @@ case "$cmd" in
       *) usage; exit 2 ;;
     esac
     ;;
-  market) exec bash "$V1_ROOT/scripts/RETRODEPLOYER" "$@" ;;
-  *) exec bash "$V1_ROOT/scripts/RETRODEPLOYER" "$cmd" "$@" ;;
+  market) exec bash "$V1_ROOT/archive/scripts/RETRODEPLOYER" "$@" ;;
+  *) exec bash "$V1_ROOT/archive/scripts/RETRODEPLOYER" "$cmd" "$@" ;;
 esac

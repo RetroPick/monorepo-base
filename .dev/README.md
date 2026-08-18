@@ -57,26 +57,23 @@ Keep a single monorepo because the products share schemas, identity/session poli
 ```text
 retropick/
 ├── apps/
-│   ├── markets-web/             # Polymarket-native web product
-│   ├── prism-web/               # PRISM web product
-│   ├── android-markets/         # Kotlin/Compose Gradle build
-│   ├── backend/                 # Go modular services and workers
-│   └── ops-web/                 # Internal operations console
+│   ├── web/                     # Markets V1 web (@retropick/markets-web)
+│   ├── backend/                 # Go Markets BFF (cmd/markets-api)
+│   ├── android/                 # RetroPick-Android gitlink
+│   ├── landing-web/             # Marketing waitlist (separate product)
+│   └── docs/                    # stub → archive/apps/docs (epoch protocol site)
+├── archive/                     # Epoch MarketEngine, ops-web, legacy agents, epoch docs
 ├── contracts/
-│   ├── prism/                   # New PRISM contracts and tests
-│   └── legacy-pool-v1/          # Frozen/claim-only V1 boundary
+│   └── prism/                   # PRISM placeholders (future)
 ├── packages/
-│   ├── platform/                # auth, telemetry, API errors, config
-│   ├── polymarket/              # venue adapter, schemas, fixtures
-│   ├── prism/                   # payoff schemas, SDK, simulations
-│   └── legacy/                  # V1 read/claim compatibility only
+│   ├── polymarket/              # venue adapter, OpenAPI codegen
+│   ├── prism/                   # PRISM placeholders
+│   └── config/                  # shared eslint/tsconfig
 ├── schemas/
-│   ├── openapi/                 # canonical client-facing APIs
-│   ├── events/                  # versioned event envelopes
-│   └── json/                    # payoff and market-definition schemas
-├── infra/
-├── docs/
-└── tools/
+│   ├── openapi/markets-v1.yaml
+│   └── asyncapi/markets-realtime-v1.yaml
+├── .dev/markets-v1/             # canonical Markets V1 engineering docs
+└── .harness/products/markets-v1/
 ```
 
 The existing Go services, PostgreSQL/sqlc conventions, TypeScript packages, pnpm/Turbo web tooling, Docker development setup, indexer patterns, configuration, and operations console can be reused. The current V1 pool `MarketEngine` should not be renamed into PRISM: its economic invariants and settlement model are materially different.
@@ -92,9 +89,9 @@ Kotlin is a separate Gradle build inside the monorepo. It cannot consume TypeScr
 | Chain/indexer/event infrastructure | Reuse generic primitives; add product-specific decoders | `packages/platform/chain`, backend indexers |
 | TypeScript shared types | Keep web-only implementation; move contracts to language-neutral schemas | `schemas/*` plus generated clients |
 | Existing `market-types`, pricing, equivalence, and resolution packages | Mine for tests/terminology; do not assume economic compatibility | new `packages/polymarket` and `packages/prism` APIs |
-| V1 upgradeable pool `MarketEngine` and yield routers | Freeze for existing obligations; do not use for PRISM | `contracts/legacy-pool-v1` |
-| Frontend V1 | Reuse design primitives selectively; create explicit product apps | `apps/markets-web`, `apps/prism-web` |
-| Ops console, Docker, CI, configuration | Reuse after product/environment credential separation | `apps/ops-web`, `infra`, `tools` |
+| V1 upgradeable pool `MarketEngine` and yield routers | Archived epoch domain | `archive/contracts/legacy-pool-v1`, `archive/apps/backend/` |
+| Frontend V1 | Markets web is `apps/web` | `apps/web/src/products/markets/` |
+| Ops console, Docker, CI, configuration | Reuse after product/environment credential separation | `archive/apps/ops-web`, `infra`, `tools` |
 
 Code reuse is subordinate to invariant reuse. If a component assumes pari-mutuel pooling, shared yield, or a single price-feed outcome, it is not a safe PRISM primitive merely because its interface is convenient.
 
@@ -207,4 +204,4 @@ Full implementation-grade documentation and machine-readable harness for **Retro
 | Phase manifest | [../.harness/products/markets-v1/planning/implementation-manifest.yaml](../.harness/products/markets-v1/planning/implementation-manifest.yaml) |
 | Public pointer | [docs/markets-v1/README.md](../docs/markets-v1/README.md) |
 
-**Current phase:** PHASE-0 (Discovery and Spec Freeze). Documentation baseline complete; product implementation not started.
+**Current phase:** Read live `current_phase` from [implementation-manifest.yaml](../.harness/products/markets-v1/planning/implementation-manifest.yaml) (do not assume from this file). Markets V1 implementation is active under `apps/web` + `cmd/markets-api`.

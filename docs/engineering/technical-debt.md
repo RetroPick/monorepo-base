@@ -3,13 +3,13 @@
 ## Current
 
 - Frontend still imports some product-domain helpers from app-local files.
-- `apps/backend` has multiple service responsibilities by design; future split should happen after CI/process supervision is stable.
-- Contract project remains physically in `contracts/legacy-pool-v1` with `contracts/legacy-pool-v1` as canonical symlink.
-- Legacy docs and generated repo snapshots are being archived incrementally.
+- `apps/backend` is Markets-only; further service splits should wait until CI and staging are stable.
+- Canonical epoch contracts live under `archive/contracts/legacy-pool-v1/` (not a live deploy path).
+- Legacy docs and generated repo snapshots continue to consolidate under `archive/docs/`.
 
 ## Deferred
 
-- Move `apps/web` to `apps/web`.
-- Move `apps/ops-web` to `apps/admin`.
-- Move contracts to `contracts/evm` after submodule health is proven.
+- Quarantine global Header `WalletButton` on markets routes (MKT-P2-001) before trading UX.
+- Epoch operator console is archived under `archive/apps/ops-web/` (see ADR-R4).
+- PRISM implementation (`contracts/prism/`, `packages/prism/`) — future product line.
 - Adopt shared packages throughout app code with tests per slice.

@@ -11,7 +11,7 @@ jobs:
         with:
           submodules: recursive
       - uses: foundry-rs/foundry-toolchain@v1
-      - run: forge build --root archive/archive/contracts/legacy-pool-v1
+      - run: forge build --root archive/contracts/legacy-pool-v1
       - name: Foundry test (sequential for script env isolation)
-        run: FOUNDRY_PROFILE=ci forge test --root archive/archive/contracts/legacy-pool-v1 -j1
-      - run: bash archive/archive/contracts/legacy-pool-v1/script/check-storage-layout.sh
+        run: FOUNDRY_PROFILE=ci forge test --root archive/contracts/legacy-pool-v1 -j1
+      - run: bash archive/contracts/legacy-pool-v1/script/check-storage-layout.sh

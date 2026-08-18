@@ -2,10 +2,9 @@
 
 | Directory | Deployable |
 |-----------|------------|
-| `web-markets/` | Markets web (`apps/fe-v1`) |
-| `web-prism/` | PRISM web (`apps/fe-v1`) |
-| `android/` | Android Markets (`apps/android`) |
-| `backend/` | Go API and workers (`apps/backend`) |
-| `contracts/` | Foundry deploy per network |
+| `web-markets/` | Markets web (`apps/web`, package `@retropick/markets-web`) |
+| `web-prism/` | PRISM web (future) |
+| `android/` | Android Markets (`apps/android` gitlink → RetroPick-Android) |
+| `backend/` | Go Markets BFF (`apps/backend/cmd/markets-api`) |
 
-Root `docker-compose.yml` remains the local dev entrypoint.
+Local dev: `pnpm dev:markets-stack` (`docker-compose.markets-dev.yml`).

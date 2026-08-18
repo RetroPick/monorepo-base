@@ -47,7 +47,9 @@ docs/upgrade-v3/*.log
 package/prediction-v2/logs/
 .dev/.upgrade_v3/
 
-# TypeScript incremental build metadata
+# fe-v1 build artifact debris (app renamed to apps/web per D15)
+apps/fe-v1/
+
 *.tsbuildinfo
 
 # Local SSH keys / private credentials

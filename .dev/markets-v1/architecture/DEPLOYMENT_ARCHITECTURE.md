@@ -208,7 +208,7 @@ CORS on BFF allows only registered web origins per environment.
 
 ### 6.1 Deploy unit composition
 
-The BFF deploy unit is a **single Go binary** (`apps/backend/cmd/api`) plus:
+The BFF deploy unit is a **single Go binary** (`apps/backend/cmd/markets-api`) plus:
 
 - SQL migrations (`apps/backend/migrations/`)
 - Worker processes (same image, different entrypoints or supervisor)
@@ -489,7 +489,7 @@ docker compose -f docker/docker-compose.yml up postgres redis
 
 # Terminal 2 — BFF
 cd apps/backend && cp ../../deploy/backend/.env.example .env
-go run ./cmd/api
+go run ./cmd/markets-api
 
 # Terminal 3 — web
 cd apps/web && cp ../../deploy/web-markets/.env.example .env.local

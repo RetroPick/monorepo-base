@@ -21,8 +21,6 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: migrator
     container_name: retropick-migrator-prod
     restart: "no"
     env_file:
@@ -35,8 +33,6 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
-      args:
-        SERVICE: markets-api
     container_name: retropick-markets-api-prod
     restart: unless-stopped
     env_file:
@@ -69,6 +65,7 @@ services:
       - "443:443"
     environment:
       API_HOST: ${API_HOST}
+      API_UPSTREAM: markets-api:8080
       APP_HOST: ${APP_HOST:-}
     volumes:
       - ./docker/nginx-production.conf.template:/etc/nginx/templates/default.conf.template:ro
@@ -77,20 +74,24 @@ services:
       - /var/www/certbot:/var/www/certbot:ro
     command: ["/bin/sh", "/etc/nginx/render-production-conf.sh"]
 
-  web:
+  markets-web:
     profiles: ["full-vps"]
     build:
       context: .
-      dockerfile: apps/fe-v1/Dockerfile
+      dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+        NEXT_PUBLIC_PRODUCT: markets
         NEXT_PUBLIC_REOWN_PROJECT_ID: ${NEXT_PUBLIC_REOWN_PROJECT_ID}
-    container_name: retropick-web-prod
+    container_name: retropick-markets-web-prod
     restart: unless-stopped
     depends_on:
       - markets-api
     expose:
-      - "3000"
+      - "3001"
+    environment:
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
 
 volumes:
   retropick_postgres:

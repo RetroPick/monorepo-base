@@ -3,8 +3,8 @@
 ## Development
 
 - Use pnpm from the repository root.
-- Keep `apps/backend` as the backend module unless a migration explicitly changes that boundary.
-- Prefer `contracts/legacy-pool-v1` in new contract docs and scripts.
+- Live backend module: `apps/backend/` (`cmd/markets-api` is the product BFF).
+- Epoch contracts live under `archive/contracts/legacy-pool-v1/` — use `pnpm contracts:test` only when changing archived contracts.
 - Do not commit secrets, deploy keys, mnemonics, local `.env` files, or generated runtime artifacts.
 
 ## Verification
@@ -14,6 +14,6 @@ Run the smallest relevant checks for your change:
 - TypeScript/shared packages: `pnpm typecheck`
 - Frontend apps: `pnpm lint && pnpm test`
 - Backend: `go -C apps/backend test ./...`
-- Contracts: `pnpm contracts:test`
+- Legacy contracts (optional): `pnpm contracts:test`
 
-For repo-wide changes, run `pnpm check`, `pnpm build`, and `pnpm contracts:test`.
+For repo-wide changes, run `pnpm check`, `pnpm build`, and `bash scripts/check-active-legacy-refs.sh`.
