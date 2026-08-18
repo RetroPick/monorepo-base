@@ -1,7 +1,7 @@
 product: retropick-markets
 version: v1
 mode: implementation_reconciled
-last_updated: 2026-07-31
+last_updated: 2026-08-08
 current_phase: PHASE-1.3
 phase_1_3_status: runtime_closure_in_progress
 reconciliation:
@@ -12,8 +12,8 @@ reconciliation:
   assignment_slice: phase1_3_realtime_intelligence
   authorization: user_uploaded_implementation_assignment
   phase_1_3_note: >-
-    Phase 1.3 is NOT complete. ADR-014 transactional observation-to-signal wiring,
-    catalog-backed token registry, and live signal pipeline remain open (P13C-001, P13C-002).
+    Phase 1.3 is NOT complete. P13C-002 closed ADR-014 transactional wiring;
+    P13C-003 … P13C-008 remain open.
 phase_order:
   - id: PHASE-0
     name: Discovery and Spec Freeze
@@ -199,7 +199,10 @@ unresolved_blockers:
     title: Live signal pipeline — observation-to-signal transactional wiring missing
     phase: PHASE-1.3
     task: P13C-002
-    note: ADR-014 schema and sqlc queries exist; RealtimeSignalProducer not wired
+    status: resolved
+    resolved_at: "2026-08-08"
+    evidence: .dev/markets-v1/agent-harness/P13C-002-VERIFICATION-EVIDENCE.md
+    note: LiveSignalCommitter atomic observation+signal+evidence proven by integration tests
   - id: BLK-005
     title: SEC-P13-001 exposed credential rotation pending owner
     phase: PHASE-1.3

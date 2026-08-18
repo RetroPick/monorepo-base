@@ -8,11 +8,11 @@ import (
 func TestMarketsV1MigrationDeclaresRequiredProjections(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000016_markets_v1_foundation.up.sql")
+	up, err := Files.ReadFile("000001_markets_v1_foundation.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000016_markets_v1_foundation.down.sql")
+	down, err := Files.ReadFile("000001_markets_v1_foundation.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestMarketsV1MigrationDeclaresRequiredProjections(t *testing.T) {
 func TestMarketsV1MigrationBoundsRawPayloadRetention(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000016_markets_v1_foundation.up.sql")
+	up, err := Files.ReadFile("000001_markets_v1_foundation.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

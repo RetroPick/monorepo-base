@@ -1068,7 +1068,7 @@ tasks:
     phase: "PHASE-1.3"
     title: "Transactional observation and live signal pipeline"
     goal: "Wire reconciler observations to durable buckets and signal emit atomically per ADR-014."
-    status: "pending"
+    status: "done"
     depends_on:
       - "MKT-P13-004"
       - "P13C-001"
@@ -1083,7 +1083,7 @@ tasks:
       - ".dev/markets-v1/architecture/adr/ADR-014-PHASE-1-3-OBSERVATION-PERSISTENCE.md"
       - "apps/backend/internal/markets/postgres/catalog_signals.go"
     deliverables:
-      - "RealtimeSignalProducer writing observation + signal + evidence in one transaction"
+      - "LiveSignalCommitter writing observation + signal + evidence in one transaction"
       - "price_move and liquidity_change emitted from reconciler path (not catalog sync)"
       - "Idempotency keys include rule version, type, market, bucket timestamp, direction"
     schema_changes: []
@@ -1103,7 +1103,9 @@ tasks:
       - "ADR-014 transactional wiring exists and is tested"
       - "MKT-P1-008 catalog signals remain separate and unaffected"
       - "BLK-004 resolved"
-    verification_evidence: []
+    verification_evidence:
+      - ".dev/markets-v1/agent-harness/P13C-002-VERIFICATION-EVIDENCE.md"
+      - "apps/backend/internal/markets/postgres/live_signal_commit_test.go"
     rollback: "Disable live signal emission; catalog signals remain."
     human_approval_required: false
     handoff_to:

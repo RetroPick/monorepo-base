@@ -7,43 +7,7 @@ import (
 	"time"
 
 	"retropick/apps/backend/internal/markets/clob"
-	"retropick/apps/backend/internal/markets/gamma"
 )
-
-type stubCatalog struct {
-	rows   []gamma.Event
-	event  gamma.Event
-	market gamma.Market
-	err    error
-}
-
-func (s stubCatalog) ListEvents(_ context.Context, limit, offset int) ([]gamma.Event, error) {
-	if s.err != nil {
-		return nil, s.err
-	}
-	if offset >= len(s.rows) {
-		return []gamma.Event{}, nil
-	}
-	end := offset + limit
-	if end > len(s.rows) {
-		end = len(s.rows)
-	}
-	return s.rows[offset:end], nil
-}
-
-func (s stubCatalog) GetEvent(_ context.Context, _ string) (gamma.Event, error) {
-	if s.err != nil {
-		return gamma.Event{}, s.err
-	}
-	return s.event, nil
-}
-
-func (s stubCatalog) GetMarket(_ context.Context, _ string) (gamma.Market, error) {
-	if s.err != nil {
-		return gamma.Market{}, s.err
-	}
-	return s.market, nil
-}
 
 type stubMarketData struct {
 	book    clob.OrderBook

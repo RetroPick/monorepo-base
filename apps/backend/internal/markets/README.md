@@ -52,7 +52,6 @@ resynchronizing order book is never labeled live.
 ```bash
 go test ./internal/markets/... -count=1
 go test ./internal/markets -run TestOpenAPIRuntimeConformancePhaseOne -count=1
-go test ./internal/config -count=1
 go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.28.0 generate
 git diff --exit-code internal/dbqueries
 ```

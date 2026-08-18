@@ -34,3 +34,14 @@ forge test --root archive/contracts/legacy-pool-v1
 ```
 
 Or `pnpm contracts:build` / `pnpm contracts:test` at repo root (points to archive).
+
+## Ultra-clean pass (2026-08-17)
+
+Live `apps/backend` is Markets-only (`cmd/markets-api`). Remaining epoch
+**libraries** (indexer, keeper, funding, ethops, full `internal/api`, …),
+epoch migrations `000001`–`000015`, and sqlc `queries.sql` / `v3_queries.sql`
+were copied under `archive/apps/backend/` (see
+`archive/apps/backend/RESTORE_MARKETS_CLEANUP.md`).
+
+Archive is still not a buildable Go module. Restore by copying packages back
+into the live `apps/backend` module.

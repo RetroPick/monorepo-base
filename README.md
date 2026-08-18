@@ -18,8 +18,11 @@ pnpm install
 # Markets web (default)
 pnpm dev:web
 
-# Go Markets BFF (requires DATABASE_URL, REGISTRY_PATH)
-go -C apps/backend run ./cmd/api
+# Go Markets BFF (requires DATABASE_URL)
+go -C apps/backend run ./cmd/markets-api
+
+# Local stack: postgres + migrator + markets-api
+pnpm docker:up
 
 # Android scaffold prompt
 # See apps/android/.dev/BUILD_SESSION_PROMPT.md
@@ -37,13 +40,14 @@ Set `NEXT_PUBLIC_API_URL=http://127.0.0.1:8080` for web → BFF catalog.
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
 | Agent contract | [`.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md`](.dev/markets-v1/agent-harness/AGENT_OPERATING_CONTRACT.md) |
 | Archive (epoch v1) | [`archive/README.md`](archive/README.md) |
+| Markets-only backend | [`docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md`](docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md) |
 
 ## Monorepo layout
 
 ```text
-apps/web          Markets + PRISM web shells
+apps/fe-v1        Markets web
 apps/android      Markets Android (scaffold)
-apps/backend      Go API — Markets BFF (internal/markets)
+apps/backend      Go Markets BFF (cmd/markets-api, internal/markets)
 packages/polymarket  Shared TS types
 schemas/openapi   Web + Android API contract
 contracts/prism   Future PRISM contracts

@@ -14,6 +14,7 @@ Move all legacy epoch v1 code and docs to `archive/`. The active monorepo serves
 - Web default product is `markets` (`NEXT_PUBLIC_PRODUCT` unset).
 - CI Foundry workflow is `workflow_dispatch` against `archive/contracts/legacy-pool-v1`.
 - Claim-only or epoch operations require explicit restore from archive.
+- **Superseded in part by [ADR-R5](ADR-R5-MARKETS-ONLY-BACKEND.md):** live `cmd/api` is gone; the product BFF is `cmd/markets-api`.
 
 ## Restore procedure
 

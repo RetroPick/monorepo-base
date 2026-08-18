@@ -71,7 +71,7 @@ Stop and document in [BLOCKERS_AND_HUMAN_APPROVALS.md](BLOCKERS_AND_HUMAN_APPROV
 | Area | Path | Rule |
 |------|------|------|
 | Markets BFF | `apps/backend/internal/markets/` | Greenfield Markets work |
-| Legacy epoch | `apps/backend/archive/apps/backend/internal/legacy/domain/` | Quarantine; no new Markets features |
+| Legacy epoch | `archive/apps/backend/` | Quarantine; no new Markets features |
 | Web shell | `apps/web/` | Product routes under `src/products/markets` |
 | Android | `apps/android/` | README-only at R3; Compose implementation in PHASE-5 |
 | OpenAPI | `schemas/openapi/markets-v1.yaml` | Canonical web+Android contract |

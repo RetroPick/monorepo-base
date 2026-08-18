@@ -8,11 +8,11 @@ import (
 func TestMarketsV1Phase13RealtimeMigration(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000017_markets_v1_realtime.up.sql")
+	up, err := Files.ReadFile("000002_markets_v1_realtime.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000017_markets_v1_realtime.down.sql")
+	down, err := Files.ReadFile("000002_markets_v1_realtime.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,5 +29,9 @@ func TestMarketsV1Phase13RealtimeMigration(t *testing.T) {
 		if !strings.Contains(string(down), "DROP TABLE IF EXISTS "+table) {
 			t.Errorf("down migration does not drop %s", table)
 		}
+	}
+
+	if !strings.Contains(string(up), "epsilon TEXT NOT NULL") {
+		t.Error("realtime migration should declare epsilon as decimal TEXT")
 	}
 }

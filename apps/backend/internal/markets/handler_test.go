@@ -12,25 +12,8 @@ import (
 
 	"retropick/apps/backend/internal/markets"
 	"retropick/apps/backend/internal/markets/clob"
-	"retropick/apps/backend/internal/markets/gamma"
 	"retropick/apps/backend/internal/markets/marketdata"
 )
-
-type catalogStub struct {
-	event gamma.Event
-}
-
-func (s catalogStub) ListEvents(_ context.Context, _, _ int) ([]gamma.Event, error) {
-	return []gamma.Event{s.event}, nil
-}
-
-func (s catalogStub) GetEvent(_ context.Context, _ string) (gamma.Event, error) {
-	return s.event, nil
-}
-
-func (s catalogStub) GetMarket(_ context.Context, _ string) (gamma.Market, error) {
-	return s.event.Markets[0], nil
-}
 
 type marketDataStub struct {
 	now time.Time
