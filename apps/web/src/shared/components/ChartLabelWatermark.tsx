@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { cn } from "@/shared/lib/utils";
 
 export const CHART_LABEL_SRC = "/assets/chartlabel.png";
-const CHART_LABEL_FALLBACK_SRC = "/retropick-logo.png";
+const CHART_LABEL_FALLBACK_SRC = "/logo-baru.webp";
 
 export type ChartLabelWatermarkVariant = "markets" | "portfolio";
 

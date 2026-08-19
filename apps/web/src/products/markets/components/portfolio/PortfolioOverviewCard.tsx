@@ -66,7 +66,16 @@ export function PortfolioOverviewCard({
           <div className="mt-1 space-y-1.5 text-xs">
             <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">Total PnL</span>
-              <span className="font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{totalPnlLabel}</span>
+              <span
+                className={cn(
+                  "font-semibold tabular-nums",
+                  totalPnlLabel.startsWith("-")
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-emerald-600 dark:text-emerald-400",
+                )}
+              >
+                {totalPnlLabel}
+              </span>
             </div>
             <div className="flex justify-between gap-2">
               <span className="text-muted-foreground">Total TXNS</span>

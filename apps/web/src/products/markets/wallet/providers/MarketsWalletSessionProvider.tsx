@@ -17,6 +17,8 @@ import {
 import { readMarketsE2EHarness } from "../../e2e/e2eHarness";
 import { MarketsAuthError, MarketsWalletError } from "../lib/walletErrors";
 
+import { getMarketsWagmiConfig } from "../config/wagmiConfig";
+
 export type WalletSessionState =
   | "idle"
   | "restoring"
@@ -55,7 +57,8 @@ function applySessionSuccess(
 
 export function MarketsWalletSessionProvider({ children }: { children: ReactNode }) {
   const e2eHarness = readMarketsE2EHarness();
-  const wagmiAccount = useAccount();
+  const config = getMarketsWagmiConfig();
+  const wagmiAccount = useAccount({ config });
   const address = e2eHarness?.wallet?.connected
     ? (e2eHarness.wallet.address as `0x${string}`)
     : wagmiAccount.address;
@@ -63,7 +66,7 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
     ? true
     : Boolean(wagmiAccount.isConnected && wagmiAccount.address);
   const chainId = e2eHarness?.wallet?.chainId ?? wagmiAccount.chainId;
-  const { signMessageAsync } = useSignMessage();
+  const { signMessageAsync } = useSignMessage({ config });
   const [sessionState, setSessionState] = useState<WalletSessionState>("idle");
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionWallet, setSessionWallet] = useState<string | null>(null);

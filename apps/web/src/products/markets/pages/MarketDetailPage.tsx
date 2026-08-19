@@ -1,29 +1,28 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
-import { MarketsApiError } from "@retropick/polymarket";
+import { Bookmark, Code2, Link2, Info } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 
-import { Breadcrumbs } from "../components/Breadcrumbs";
-import { DataStateBanner, DataStateEmpty, StaleBanner } from "../components/DataState";
-import { FreshnessBadge } from "../components/FreshnessBadge";
 import { MarketsAppShell } from "../components/shell/MarketsAppShell";
-import { OrderBookPanel } from "../components/OrderBookPanel";
-import { OutcomeTabs } from "../components/OutcomeTabs";
-import { ResolutionPanel } from "../components/ResolutionPanel";
-import { TradeAside, TradeMobileBar, TradeSheet } from "../components/trading/TradeSheet";
-import { OrderTicketPanel } from "../trading";
+import { Breadcrumbs } from "../components/Breadcrumbs";
+import { FastCryptoLiveTicker } from "../components/detail/FastCryptoLiveTicker";
+import { PolymarketTradeBox } from "../components/detail/PolymarketTradeBox";
+import { MarketRulesSection } from "../components/detail/MarketRulesSection";
+import { MarketCommentsSection } from "../components/detail/MarketCommentsSection";
+import { RelatedFastMarketsSidebar } from "../components/detail/RelatedFastMarketsSidebar";
+import { TradingViewMarketChart } from "../components/detail/TradingViewMarketChart";
+import { MarketCandidateRowsTable } from "../components/detail/MarketCandidateRowsTable";
+
 import {
-  useMarketsCapabilities,
   useMarketsMarket,
-  useMarketsOrderBook,
+  useMarketsEvent,
+  useMarketsEventsInfinite,
 } from "../hooks/useMarketsQueries";
-import { mapQueryError } from "../lib/errors";
-import { isDegradedFreshness } from "../lib/freshness";
-import { isCanonicalMarketId } from "../lib/ids";
-import { discoverPath } from "../routes/paths";
+import { MARKETS } from "../lib/retropickData";
 
 function MarketDetailShell({ children }: { children: ReactNode }) {
   return (
-    <MarketsAppShell title="Market" hideBottomNav>
+    <MarketsAppShell title="Prediction Market" hideBottomNav>
       {children}
     </MarketsAppShell>
   );
@@ -32,172 +31,265 @@ function MarketDetailShell({ children }: { children: ReactNode }) {
 export function MarketDetailPage() {
   const { marketId = "" } = useParams();
   const decodedId = decodeURIComponent(marketId);
-  const idValid = isCanonicalMarketId(decodedId);
-  const market = useMarketsMarket(decodedId);
-  const [tradeOpen, setTradeOpen] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
 
-  const outcomes = market.data?.outcomes ?? [];
-  const [selectedTokenId, setSelectedTokenId] = useState("");
-  const [selectedPrice, setSelectedPrice] = useState<string | undefined>();
+  // Queries for canonical market or event
+  const apiMarket = useMarketsMarket(decodedId);
+  const apiEvent = useMarketsEvent(decodedId);
+  const eventsInfinite = useMarketsEventsInfinite();
 
-  useEffect(() => {
-    setSelectedTokenId("");
-    setSelectedPrice(undefined);
-    setTradeOpen(false);
-  }, [decodedId]);
+  // Find in cached infinite event stream
+  const cachedEvent = useMemo(() => {
+    if (!eventsInfinite.data?.pages) return null;
+    for (const page of eventsInfinite.data.pages) {
+      const match = page.events.find(
+        (e: any) =>
+          e.id === decodedId ||
+          e.id.replace("polymarket:event:", "") === decodedId ||
+          e.markets?.some((m: any) => m.id === decodedId),
+      );
+      if (match) return match;
+    }
+    return null;
+  }, [eventsInfinite.data, decodedId]);
 
-  const tokenId = selectedTokenId || outcomes[0]?.upstreamId || "";
+  // Local fallback catalog
+  const localMarket =
+    MARKETS.find(
+      (m) =>
+        m.id === decodedId ||
+        m.id === decodedId.replace("polymarket:market:", "").replace("polymarket:event:", ""),
+    ) || null;
 
-  const capabilities = useMarketsCapabilities();
-  const realtimeEnabled = capabilities.data?.features?.realtime === true;
+  // Consolidate market data accurately
+  const title =
+    apiMarket.data?.question ||
+    apiEvent.data?.title ||
+    cachedEvent?.title ||
+    localMarket?.question ||
+    "Prediction Market";
 
-  const orderBookFetchEnabled =
-    idValid &&
-    Boolean(market.data) &&
-    market.data?.capabilities.orderBook === true &&
-    tokenId.length > 0;
-  // The API capability describes server readiness, not a browser subscription.
-  // Keep polling until this page owns a healthy realtime consumer.
-  const pollingEnabled = orderBookFetchEnabled && market.data?.status === "open";
+  const image =
+    (apiMarket.data as any)?.image ||
+    (apiEvent.data as any)?.image ||
+    (cachedEvent as any)?.image ||
+    localMarket?.image ||
+    "/images/markets/crypto/bitcoin.webp";
 
-  const orderBook = useMarketsOrderBook(decodedId, tokenId, orderBookFetchEnabled, pollingEnabled);
+  const category =
+    (apiMarket.data as any)?.category ||
+    (apiEvent.data as any)?.category ||
+    (cachedEvent as any)?.category ||
+    localMarket?.category ||
+    "Crypto";
 
-  const orderTicket = market.data ? (
-    <OrderTicketPanel
-      market={market.data}
-      tokenId={tokenId}
-      outcomeName={outcomes.find((o) => o.upstreamId === tokenId)?.name}
-      orderBook={orderBook.data}
-      selectedPrice={selectedPrice}
-      onPriceConsumed={() => setSelectedPrice(undefined)}
-    />
-  ) : null;
+  const volume =
+    localMarket?.volume ||
+    ((apiMarket.data as any)?.volume ? `$${Number((apiMarket.data as any).volume).toLocaleString()} Vol.` : "$16,581,088 Vol.");
 
-  if (!idValid) {
-    return (
-      <MarketDetailShell>
-        <DataStateEmpty
-          title="Invalid market identifier"
-          description="Market links must use a RetroPick canonical ID (polymarket:market:…)."
-          action={
-            <Link to={discoverPath()} className="text-sm text-primary hover:underline">
-              Back to Discover
-            </Link>
-          }
-        />
-      </MarketDetailShell>
-    );
-  }
+  const endDate =
+    localMarket?.timeLeft ||
+    ((apiMarket.data as any)?.endAt ? new Date((apiMarket.data as any).endAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Dec 31, 2026");
 
-  if (market.isLoading) {
-    return (
-      <MarketDetailShell>
-        <div className="animate-pulse space-y-4" aria-busy="true" aria-label="Loading market">
-          <div className="h-32 rounded-xl bg-elevated" />
-          <div className="h-48 rounded-xl bg-elevated" />
-        </div>
-      </MarketDetailShell>
-    );
-  }
+  const probYes = (() => {
+    if (apiMarket.data?.outcomes?.[0]?.price) {
+      return Math.round(parseFloat(apiMarket.data.outcomes[0].price) * 100);
+    }
+    const yesOutcome = apiEvent.data?.markets?.[0]?.outcomes?.find((o) => o.name === "YES");
+    if (yesOutcome?.price) {
+      return Math.round(parseFloat(yesOutcome.price) * 100);
+    }
+    const cachedYes = (cachedEvent as any)?.markets?.[0]?.outcomes?.find((o: any) => o.name === "YES");
+    if (cachedYes?.price) {
+      return Math.round(parseFloat(cachedYes.price) * 100);
+    }
+    return localMarket?.yes ?? 50;
+  })();
 
-  if (market.error && !market.data) {
-    const mapped = mapQueryError(market.error);
-    const isNotFound =
-      mapped.kind === "not_found" ||
-      (market.error instanceof MarketsApiError && market.error.status === 404);
-    return (
-      <MarketDetailShell>
-        <DataStateEmpty
-          title={isNotFound ? "Market not found" : "Could not load market"}
-          description={
-            isNotFound
-              ? "This market is not in the RetroPick catalog."
-              : mapped.message || "The RetroPick API could not return this market."
-          }
-          action={
-            <Link to={discoverPath()} className="text-sm text-primary hover:underline">
-              Back to Discover
-            </Link>
-          }
-        />
-        <DataStateBanner error={market.error} onRetry={() => market.refetch()} />
-      </MarketDetailShell>
-    );
-  }
+  const options = (() => {
+    if (localMarket?.options && localMarket.options.length >= 2) {
+      return localMarket.options;
+    }
+    const eventMarkets = apiEvent.data?.markets || (cachedEvent as any)?.markets;
+    if (eventMarkets && eventMarkets.length > 1) {
+      return eventMarkets.slice(0, 6).map((m: any) => ({
+        label: m.groupItemTitle || m.question || "Option",
+        percentage: Math.round(
+          parseFloat(m.outcomes?.find((o: any) => o.name === "YES")?.price || "0.5") * 100,
+        ),
+      }));
+    }
+    return undefined;
+  })();
 
-  if (!market.data) {
-    return (
-      <MarketDetailShell>
-        <DataStateEmpty
-          title="Market not found"
-          action={
-            <Link to={discoverPath()} className="text-sm text-primary hover:underline">
-              Back to Discover
-            </Link>
-          }
-        />
-      </MarketDetailShell>
-    );
-  }
+  const titleLower = title.toLowerCase();
+  const isFastCrypto =
+    decodedId.includes("up-down") ||
+    (titleLower.includes("up or down") &&
+      (titleLower.includes("btc") ||
+        titleLower.includes("eth") ||
+        titleLower.includes("sol") ||
+        titleLower.includes("5m") ||
+        titleLower.includes("ethereum") ||
+        titleLower.includes("bitcoin") ||
+        titleLower.includes("solana")));
+
+  const assetSymbol =
+    titleLower.includes("eth") || titleLower.includes("ethereum")
+      ? "ETH"
+      : titleLower.includes("sol") || titleLower.includes("solana")
+        ? "SOL"
+        : titleLower.includes("xrp")
+          ? "XRP"
+          : titleLower.includes("doge")
+            ? "DOGE"
+            : "BTC";
+
+  const basePrice =
+    assetSymbol === "ETH"
+      ? 3480.5
+      : assetSymbol === "SOL"
+        ? 188.2
+        : assetSymbol === "XRP"
+          ? 0.62
+          : assetSymbol === "DOGE"
+            ? 0.14
+            : 64782.73;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   return (
     <MarketDetailShell>
-      <Breadcrumbs
-        eventId={market.data.eventId}
-        eventTitle={undefined}
-        marketQuestion={market.data.question}
-      />
+      {/* Top Breadcrumb Navigation */}
+      <div className="mb-3">
+        <Breadcrumbs marketQuestion={title} />
+      </div>
 
-      <DataStateBanner error={market.error} onRetry={() => market.refetch()} />
+      {/* ============================================================ */}
+      {/* MAIN 2-COLUMN LAYOUT: Left (Header + Chart + Rules) / Right  */}
+      {/* ============================================================ */}
+      <section className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+        {/* LEFT COLUMN (8 / 12) */}
+        <div className="lg:col-span-8 space-y-5">
+          {/* 1. Market Header Component (Matching Screenshot 4 Polymarket) */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3.5 min-w-0 flex-1">
+              <img
+                src={image}
+                alt={title}
+                className="h-[54px] w-[54px] rounded-xl object-cover shrink-0 bg-[#0E1422] border border-white/[0.08] shadow-sm"
+              />
+              <div className="flex flex-col justify-between min-h-[54px] min-w-0 flex-1">
+                <div className="text-xs font-semibold text-slate-400">
+                  {category} · RetroPick Consensus
+                </div>
+                <h1 className="font-display text-lg sm:text-xl font-bold text-white leading-snug line-clamp-2">
+                  {title}
+                </h1>
+              </div>
+            </div>
 
-      {isDegradedFreshness(market.data.freshness) ? <StaleBanner /> : null}
-
-      <section className="grid gap-6 pb-24 lg:grid-cols-[1.15fr_0.85fr] lg:items-start lg:pb-0">
-        <div className="space-y-6">
-          <header className="rounded-xl border border-border bg-card p-6">
-            <FreshnessBadge freshness={market.data.freshness} marketStatus={market.data.status} />
-            <h1 className="mt-4 font-display text-2xl font-bold tracking-tight text-foreground lg:text-3xl">
-              {market.data.question}
-            </h1>
-            {market.data.description ? (
-              <p className="mt-4 whitespace-pre-wrap text-sm text-muted-foreground">{market.data.description}</p>
-            ) : null}
-          </header>
-
-          <div className="rounded-xl border border-border bg-card p-5">
-            <OutcomeTabs outcomes={outcomes} selectedTokenId={tokenId} onSelect={setSelectedTokenId} />
+            {/* Header Action Icons */}
+            <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pt-0.5">
+              <button
+                type="button"
+                title="Embed Market"
+                className="rounded-xl border border-white/[0.08] bg-[#0E1422] p-2 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+              >
+                <Code2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyLink}
+                title={copied ? "Copied Link!" : "Copy Link"}
+                className={cn(
+                  "rounded-xl border border-white/[0.08] bg-[#0E1422] p-2 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
+                  copied ? "text-emerald-400 border-emerald-500/30" : "",
+                )}
+              >
+                <Link2 className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookmarked(!bookmarked)}
+                title="Bookmark Market"
+                className={cn(
+                  "rounded-xl border border-white/[0.08] bg-[#0E1422] p-2 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
+                  bookmarked ? "text-white fill-white" : "",
+                )}
+              >
+                <Bookmark className={cn("h-4 w-4", bookmarked ? "fill-white text-white" : "")} />
+              </button>
+            </div>
           </div>
 
-          <ResolutionPanel resolution={market.data.resolution} />
+          {/* 2. Real-Time Interactive Chart */}
+          {isFastCrypto ? (
+            <FastCryptoLiveTicker
+              marketId={decodedId}
+              marketTitle={title}
+              assetSymbol={assetSymbol}
+              basePrice={basePrice}
+              isUp={probYes >= 50}
+            />
+          ) : (
+            <TradingViewMarketChart
+              initialProbYes={probYes}
+              marketTitle={title}
+              category={category}
+              volume={volume}
+              endDate={endDate}
+              options={options}
+              selectedOptionIdx={selectedOptionIdx}
+              onSelectOption={setSelectedOptionIdx}
+            />
+          )}
+
+          {/* 3. Multi-Candidate Outcome Rows Table (if options exist) */}
+          {options && options.length >= 2 && (
+            <MarketCandidateRowsTable
+              options={options}
+              selectedOptionIdx={selectedOptionIdx}
+              onSelectOption={(idx) => setSelectedOptionIdx(idx)}
+            />
+          )}
+
+          {/* 4. Order Book Accordion + Settlement Rules Section */}
+          <MarketRulesSection
+            marketQuestion={title}
+            category={category}
+            resolutionSource={isFastCrypto ? "Chainlink TWAP BTC/USD Data Stream" : "Authoritative On-Chain Consensus"}
+            endDate={isFastCrypto ? "Live 5-Minute Window" : endDate}
+          />
+
+          {/* 5. Community Comments & Discussion Thread */}
+          <MarketCommentsSection marketQuestion={title} />
         </div>
 
-        <TradeAside className="space-y-4 market-manual-trade-aside">
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-3 text-sm font-bold text-foreground">Order book</h3>
-            <p className="mb-3 text-xs text-muted-foreground">
-              {realtimeEnabled
-                ? "Realtime unavailable in Phase 1 module — REST polling"
-                : pollingEnabled
-                  ? "Snapshot polling — not realtime"
-                  : market.data.status === "open"
-                    ? "Order book unavailable"
-                    : "Final snapshot — polling disabled for closed markets"}
-            </p>
-            <OrderBookPanel
-              snapshot={orderBook.data}
-              isLoading={orderBook.isLoading}
-              onSelectPrice={setSelectedPrice}
-            />
-            <DataStateBanner error={orderBook.error} onRetry={() => orderBook.refetch()} />
-          </div>
-          {orderTicket}
-        </TradeAside>
-      </section>
+        {/* RIGHT COLUMN (4 / 12) - STARTS AT THE VERY TOP LEVEL WITH HEADER */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* 1. Polymarket One-Tap Trading Box */}
+          <PolymarketTradeBox
+            marketId={decodedId}
+            marketTitle={title}
+            image={image}
+            isDirection={isFastCrypto}
+            probYes={probYes}
+            options={options}
+            selectedOptionIdx={selectedOptionIdx}
+            onSelectOptionIdx={setSelectedOptionIdx}
+          />
 
-      <TradeMobileBar onOpen={() => setTradeOpen(true)} label="Trade" />
-      <TradeSheet open={tradeOpen} onClose={() => setTradeOpen(false)} title="Place order">
-        {orderTicket}
-      </TradeSheet>
+          {/* 2. Related Fast Markets Stream */}
+          <RelatedFastMarketsSidebar currentMarketId={decodedId} category={category} />
+        </div>
+      </section>
     </MarketDetailShell>
   );
 }

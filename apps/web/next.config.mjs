@@ -15,6 +15,17 @@ const nextConfig = {
       ...config.resolve.alias,
       "@": path.resolve(__dirname, "src"),
     };
+    // ox (transitive dep of viem/wagmi) dynamically `import(id)`s Node
+    // worker_threads for salt mining — a benign pattern webpack can't
+    // statically analyze. Scoped suppression keeps dev output clean without
+    // masking unrelated warnings.
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      {
+        module: /virtualMasterPool\.js/,
+        message: /Critical dependency: the request of a dependency is an expression/,
+      },
+    ];
     return config;
   },
 };

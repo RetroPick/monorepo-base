@@ -5,6 +5,8 @@ import { ChartLabelWatermark } from "@/shared/components/ChartLabelWatermark";
 import { discoverChipActive, discoverChipIdle, discoverChipPill } from "@/shared/lib/ui/discover-chip-styles";
 import { cn } from "@/shared/lib/utils";
 
+import { GUEST_NET_WORTH_SERIES } from "../../fixtures/portfolioGuest";
+
 export type NetWorthTimeframe = "all" | "30d" | "7d";
 
 export type NetWorthCardProps = {
@@ -22,6 +24,37 @@ const TIMES: { id: NetWorthTimeframe; label: string }[] = [
   { id: "30d", label: "30d" },
   { id: "7d", label: "7d" },
 ];
+
+function NetWorthSparkline({ data }: { data: number[] }) {
+  if (data.length === 0) return null;
+  const w = 100;
+  const h = 24;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const step = w / (data.length - 1);
+  const pts = data.map((v, i) => [i * step, h - 2 - ((v - min) / range) * (h - 4)] as const);
+  const line = pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `${line} L${w},${h} L0,${h} Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-full w-full" aria-hidden>
+      <defs>
+        <linearGradient id="networth-area" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="hsl(var(--accent-cyan))" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="hsl(var(--accent-cyan))" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="networth-line" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="hsl(var(--accent-cyan))" />
+          <stop offset="100%" stopColor="hsl(var(--primary))" />
+        </linearGradient>
+      </defs>
+      <path d={area} fill="url(#networth-area)" />
+      <path d={line} fill="none" stroke="url(#networth-line)" strokeWidth="1.75" vectorEffect="non-scaling-stroke" />
+      <circle cx={last[0]} cy={last[1]} r="2" fill="hsl(var(--accent-cyan))" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
 
 export function NetWorthCard({
   netWorthLabel,
@@ -69,13 +102,9 @@ export function NetWorthCard({
         {chartSlot ? (
           <div className="relative z-[1] min-h-0 flex-1 px-2 pb-1 pt-2">{chartSlot}</div>
         ) : (
-          <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="absolute inset-x-3 bottom-8 h-12 w-[calc(100%-1.5rem)]" aria-hidden>
-            <path
-              d="M0 12 L100 12"
-              className="fill-none stroke-[2] stroke-emerald-500/90 dark:stroke-emerald-400/90"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
+          <div className="absolute inset-x-3 bottom-2 top-2">
+            <NetWorthSparkline data={GUEST_NET_WORTH_SERIES} />
+          </div>
         )}
         <ChartLabelWatermark variant="portfolio" className="absolute right-2 top-2 z-20 sm:right-3 sm:top-3" />
       </div>

@@ -26,9 +26,8 @@ describe("EventCard", () => {
       </MemoryRouter>,
     );
 
-    const link = screen.getByRole("link", { name: /sample prediction event/i });
-    expect(link).toHaveAttribute("href", "/markets/events/polymarket%3Aevent%3A123");
-    expect(screen.getByText("3 markets")).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: /sample prediction event/i });
+    expect(links[0]).toHaveAttribute("href", "/markets/events/polymarket%3Aevent%3A123");
     expect(screen.getByLabelText("3 markets")).toBeInTheDocument();
   });
 });

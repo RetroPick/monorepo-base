@@ -2,7 +2,6 @@ import { Compass, BarChart3, Briefcase, Zap } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { cn } from "@/shared/lib/utils";
-
 import {
   discoverPath,
   intelligencePath,
@@ -34,7 +33,7 @@ export function BottomNav({ active }: BottomNavProps) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 flex h-[92px] items-start justify-around border-t border-border bg-card/98 px-4 pb-6 pt-2.5 shadow-2xl lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-50 flex h-20 items-center justify-around border-t border-white/10 bg-[#0E131F]/95 backdrop-blur-xl px-4 pb-2 pt-2 shadow-2xl shadow-black lg:hidden"
       aria-label="Primary navigation"
     >
       {ITEMS.map(({ id, label, icon: Icon, href }) => {
@@ -50,18 +49,18 @@ export function BottomNav({ active }: BottomNavProps) {
           >
             <div
               className={cn(
-                "flex h-9 w-16 items-center justify-center rounded-2xl transition-all duration-200",
+                "flex h-9 w-14 items-center justify-center rounded-xl transition-all duration-200",
                 isActive
-                  ? "border border-primary/25 bg-primary/20 text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  ? "border border-primary/40 bg-primary/20 text-primary shadow-lg shadow-primary/20"
+                  : "text-slate-400 hover:text-white",
               )}
             >
               <Icon className={cn("h-5 w-5", isActive ? "stroke-[2.5px]" : "stroke-2")} aria-hidden />
             </div>
             <span
               className={cn(
-                "text-[11px] transition-colors",
-                isActive ? "font-extrabold tracking-tight text-foreground" : "font-semibold text-muted-foreground",
+                "text-[10px] transition-colors",
+                isActive ? "font-extrabold text-white" : "font-semibold text-slate-400",
               )}
             >
               {label}

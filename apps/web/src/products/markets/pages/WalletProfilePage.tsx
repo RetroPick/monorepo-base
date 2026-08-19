@@ -28,20 +28,28 @@ export function WalletProfilePage() {
       <Link to={intelligencePath()} className="text-xs font-bold text-primary hover:underline">
         ← Back to Intelligence
       </Link>
-      <header className="mt-4 rounded-xl border border-border bg-card p-6">
-        <p className="font-mono text-sm font-bold">{decoded}</p>
+      <header className="card-surface mt-4 rounded-xl border border-border p-6">
+        <div className="flex items-center gap-3">
+          <div
+            className="grid size-11 place-items-center rounded-full bg-muted font-mono text-sm font-bold text-muted-foreground"
+            aria-hidden
+          >
+            {decoded.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase() || "0x"}
+          </div>
+          <p className="min-w-0 truncate font-mono text-sm font-bold">{decoded}</p>
+        </div>
         <div className="mt-4 grid grid-cols-3 gap-3">
-          <div className="rounded-lg bg-elevated p-3">
-            <p className="text-[10px] uppercase text-muted-foreground">ROI</p>
-            <p className="mt-1 text-lg font-bold text-yes">+124%</p>
+          <div className="stat-tile">
+            <p className="stat-tile-label">ROI</p>
+            <p className="stat-tile-value text-yes">+124%</p>
           </div>
-          <div className="rounded-lg bg-elevated p-3">
-            <p className="text-[10px] uppercase text-muted-foreground">Win rate</p>
-            <p className="mt-1 text-lg font-bold">68%</p>
+          <div className="stat-tile">
+            <p className="stat-tile-label">Win rate</p>
+            <p className="stat-tile-value">68%</p>
           </div>
-          <div className="rounded-lg bg-elevated p-3">
-            <p className="text-[10px] uppercase text-muted-foreground">Volume</p>
-            <p className="mt-1 text-lg font-bold">$1.2M</p>
+          <div className="stat-tile">
+            <p className="stat-tile-label">Volume</p>
+            <p className="stat-tile-value">$1.2M</p>
           </div>
         </div>
       </header>

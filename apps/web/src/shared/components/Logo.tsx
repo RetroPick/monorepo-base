@@ -19,13 +19,13 @@ export default function Logo({
 }: LogoProps) {
   return (
     <Image
-      src="/retropick-logo.png"
+      src="/logo-baru.webp"
       alt={alt}
       width={size}
       height={size}
       priority={priority}
       sizes={`${size}px`}
-      className={cn("aspect-square rounded-full object-contain", className)}
+      className={cn("aspect-square object-contain", className)}
     />
   );
 }

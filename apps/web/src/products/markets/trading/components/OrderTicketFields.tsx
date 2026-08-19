@@ -33,10 +33,10 @@ export function OrderTicketFields({
           <button
             type="button"
             aria-pressed={side === "BUY"}
-            className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-2 text-sm font-bold transition-all duration-150 ${
               side === "BUY"
-                ? "border-emerald-500/60 bg-emerald-500/10 text-emerald-400"
-                : "border-border text-muted-foreground"
+                ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300 shadow-[0_0_14px_hsl(var(--yes)/0.2)]"
+                : "border-border text-muted-foreground hover:border-emerald-500/30 hover:text-white"
             }`}
             onClick={() => onSideChange("BUY")}
           >
@@ -45,10 +45,10 @@ export function OrderTicketFields({
           <button
             type="button"
             aria-pressed={side === "SELL"}
-            className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+            className={`rounded-lg border px-3 py-2 text-sm font-bold transition-all duration-150 ${
               side === "SELL"
-                ? "border-rose-500/60 bg-rose-500/10 text-rose-400"
-                : "border-border text-muted-foreground"
+                ? "border-rose-500/60 bg-rose-500/15 text-rose-300 shadow-[0_0_14px_hsl(var(--no)/0.2)]"
+                : "border-border text-muted-foreground hover:border-rose-500/30 hover:text-white"
             }`}
             onClick={() => onSideChange("SELL")}
           >
@@ -66,7 +66,7 @@ export function OrderTicketFields({
           value={price}
           disabled={disabled}
           onChange={(e) => onPriceChange(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none ring-primary transition-all focus:border-primary/50 focus:ring-2"
           placeholder="0.42"
         />
       </label>
@@ -80,7 +80,7 @@ export function OrderTicketFields({
           value={size}
           disabled={disabled}
           onChange={(e) => onSizeChange(e.target.value)}
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm"
+          className="w-full rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm outline-none ring-primary transition-all focus:border-primary/50 focus:ring-2"
           placeholder="Shares"
         />
       </label>

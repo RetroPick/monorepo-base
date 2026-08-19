@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   title: "RetroPick Markets",
   description: "Prediction markets via RetroPick",
   icons: {
-    icon: [{ url: "/retropick-logo.png", type: "image/png" }],
+    icon: [{ url: "/logo-baru.webp", type: "image/webp" }],
   },
 };
 

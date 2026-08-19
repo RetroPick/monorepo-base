@@ -166,6 +166,52 @@ export class MarketsClient {
     return this.getJson<HealthResponse>("/health/ready", options);
   }
 
+  async getClobMidpoint(tokenId: string, options?: RequestOptions): Promise<{ mid: number; price: number } | null> {
+    try {
+      const url = `https://clob.polymarket.com/midpoint?token_id=${encodeURIComponent(tokenId)}`;
+      const res = await this.fetchImpl(url, { signal: options?.signal });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const mid = parseFloat(data?.mid);
+      if (isNaN(mid)) return null;
+      return { mid, price: Math.round(mid * 100) };
+    } catch {
+      return null;
+    }
+  }
+
+  async getClobPriceHistory(
+    tokenId: string,
+    interval: HistoryInterval = "1d",
+    fidelity: number = 60,
+    options?: RequestOptions
+  ): Promise<{ timestamp: number; price: number }[]> {
+    try {
+      const url = `https://clob.polymarket.com/prices-history?market=${encodeURIComponent(tokenId)}&interval=${interval}&fidelity=${fidelity}`;
+      const res = await this.fetchImpl(url, { signal: options?.signal });
+      if (!res.ok) return [];
+      const data = await res.json();
+      const history = data?.history || [];
+      return history.map((item: any) => ({
+        timestamp: item.t,
+        price: Math.round((parseFloat(item.p) || 0) * 100),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  async getClobOrderBook(tokenId: string, options?: RequestOptions): Promise<OrderBookSnapshot | null> {
+    try {
+      const url = `https://clob.polymarket.com/book?token_id=${encodeURIComponent(tokenId)}`;
+      const res = await this.fetchImpl(url, { signal: options?.signal });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
   private async getJson<T>(
     path: string,
     options: RequestOptions = {},

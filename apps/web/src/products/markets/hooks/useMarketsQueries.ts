@@ -42,3 +42,22 @@ export function useMarketsOrderBook(
     marketsQueryOptions.orderBook(marketId, tokenId, fetchEnabled, pollingEnabled),
   );
 }
+
+export function useLiveMarketMidpoint(tokenId?: string) {
+  return useQuery({
+    queryKey: ["clob", "midpoint", tokenId],
+    queryFn: () => (tokenId ? getMarketsClient().getClobMidpoint(tokenId) : Promise.resolve(null)),
+    enabled: Boolean(tokenId && tokenId.length > 0),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+}
+
+export function useLivePriceHistory(tokenId?: string, interval: "1h" | "6h" | "1d" | "1w" | "max" = "1d") {
+  return useQuery({
+    queryKey: ["clob", "price-history", tokenId, interval],
+    queryFn: () => (tokenId ? getMarketsClient().getClobPriceHistory(tokenId, interval) : Promise.resolve([])),
+    enabled: Boolean(tokenId && tokenId.length > 0),
+    staleTime: 60_000,
+  });
+}

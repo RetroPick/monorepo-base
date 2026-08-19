@@ -4,6 +4,27 @@ packages:
   - '!apps/android'
   - 'packages/*'
   - 'packages/config/*'
-ignoredBuiltDependencies:
+onlyBuiltDependencies:
+  - '@reown/appkit'
+  - '@swc/core'
+  - bufferutil
+  - esbuild
+  - protobufjs
   - sharp
   - unrs-resolver
+  - utf-8-validate
+pmOnFail: ignore
+virtualStoreDirMaxLength: 60
+
+patchedDependencies:
+  '@reown/appkit-adapter-wagmi@1.8.19': patches/@reown__appkit-adapter-wagmi@1.8.19.patch
+
+allowBuilds:
+  '@reown/appkit': true
+  '@swc/core': true
+  bufferutil: true
+  esbuild: true
+  protobufjs: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true

@@ -33,11 +33,11 @@ export async function initMarketsAppKit(): Promise<void> {
         name: "RetroPick Markets",
         description: "Polymarket-native prediction markets",
         url: getMetadataUrl(),
-        icons: [`${getMetadataUrl()}/retropick-logo.png`],
+        icons: [`${getMetadataUrl()}/logo-baru.webp`],
       },
       enableEmbedded: false,
       enableReconnect: false,
-      allowUnsupportedChain: false,
+      allowUnsupportedChain: true,
       coinbasePreference: "all",
       defaultAccountTypes: { eip155: "eoa" },
       themeVariables: {

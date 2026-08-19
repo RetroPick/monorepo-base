@@ -1768,6 +1768,12 @@ components:
         marketCount:
           type: integer
           minimum: 0
+        image:
+          type: [string, "null"]
+          description: Event artwork URL from the Polymarket Gamma catalog
+        coverImage:
+          type: [string, "null"]
+          description: Wide cover artwork URL from the Polymarket Gamma catalog
         freshness:
           $ref: "#/components/schemas/MarketFreshness"
         provenance:
@@ -1780,6 +1786,7 @@ components:
           title: Conformance Event
           status: open
           marketCount: 1
+          image: https://polymarket-upload.s3.us-east-2.amazonaws.com/conformance.png
           freshness:
             state: fresh
             observedAt: "2026-07-30T12:00:00Z"
@@ -1811,6 +1818,9 @@ components:
         endAt:
           type: [string, "null"]
           format: date-time
+        image:
+          type: [string, "null"]
+          description: Market artwork URL from the Polymarket Gamma catalog
         outcomes:
           type: array
           items:

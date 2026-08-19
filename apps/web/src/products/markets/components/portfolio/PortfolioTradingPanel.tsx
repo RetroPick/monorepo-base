@@ -3,6 +3,8 @@ import { Bookmark, LayoutList, Settings } from "lucide-react";
 import { discoverChipActive, discoverChipIdle, discoverChipPill } from "@/shared/lib/ui/discover-chip-styles";
 import { cn } from "@/shared/lib/utils";
 
+import { GUEST_POSITIONS } from "../../fixtures/portfolioGuest";
+
 export type PortfolioMainTab = "trades" | "watchlist";
 export type PortfolioSubTab = "position" | "open" | "closed" | "transactions" | "resolution";
 
@@ -115,8 +117,8 @@ export function PortfolioTradingPanel({
             <table className="w-full min-w-[960px] text-left text-sm">
               <thead>
                 <tr className="border-b border-border/50 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:border-white/[0.08]">
+                  <th className="px-3 py-2">Market</th>
                   <th className="px-3 py-2">Outcome</th>
-                  <th className="px-3 py-2">Resolution</th>
                   <th className="px-3 py-2">Shares</th>
                   <th className="px-3 py-2">Market Value</th>
                   <th className="px-3 py-2">Avg. Cost</th>
@@ -125,9 +127,38 @@ export function PortfolioTradingPanel({
                 </tr>
               </thead>
               <tbody>
+                {GUEST_POSITIONS.map((pos) => (
+                  <tr key={pos.id} className="border-b border-border/40 transition-colors last:border-b-0 hover:bg-white/[0.02] dark:border-white/[0.06]">
+                    <td className="max-w-[280px] truncate px-3 py-3 font-medium text-foreground" title={pos.market}>
+                      {pos.market}
+                    </td>
+                    <td className="px-3 py-3">
+                      <span
+                        className={cn(
+                          "inline-block rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase",
+                          pos.outcome === "YES" ? "bg-yes-soft text-yes" : "bg-no-soft text-no",
+                        )}
+                      >
+                        {pos.outcome}
+                      </span>
+                    </td>
+                    <td className="px-3 py-3 font-mono tabular-nums">{pos.shares}</td>
+                    <td className="px-3 py-3 font-mono tabular-nums">{pos.marketValue}</td>
+                    <td className="px-3 py-3 font-mono tabular-nums text-muted-foreground">{pos.avgCost}</td>
+                    <td className="px-3 py-3 font-mono tabular-nums">{pos.lastPrice}</td>
+                    <td
+                      className={cn(
+                        "px-3 py-3 font-mono font-bold tabular-nums",
+                        pos.pnlPositive ? "text-emerald-400" : "text-rose-400",
+                      )}
+                    >
+                      {pos.unrealizedPnl}
+                    </td>
+                  </tr>
+                ))}
                 <tr>
-                  <td colSpan={7} className="px-3 py-10 text-center text-muted-foreground">
-                    No data yet.
+                  <td colSpan={7} className="px-3 pt-3 text-[10px] text-muted-foreground">
+                    Guest preview · real positions appear after connecting a wallet (PHASE-4).
                   </td>
                 </tr>
               </tbody>

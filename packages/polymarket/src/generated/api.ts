@@ -186,14 +186,14 @@ export interface paths {
          * Aggregate portfolio value and PnL for the authenticated user
          * @description Returns descriptive aggregate portfolio metrics for the session's primary linked
          *     account wallet. PnL is an informative projection — not custodial P&L authority.
-         *     Mark-derived metrics (totalMarkValue and unrealizedPnl) are null when currentValue
-         *     or a mark price is unavailable for any open position. realizedPnl is null when its
-         *     authoritative aggregate source is unavailable. These nulls mean unavailable, not zero;
-         *     aggregate.availability is metric source coverage, not position freshness; use freshness
-         *     for the observation state. It identifies mark coverage and realized-PnL source availability.
-         *     accountWallet comes from the session resolver only — never from the request. Gated by
-         *     features.portfolio_read.
-         *     Responses MUST NOT be cached (private, no-store).
+          *     Mark-derived metrics (totalMarkValue and unrealizedPnl) are null when currentValue
+          *     or a mark price is unavailable for any open position. realizedPnl is null when its
+          *     authoritative aggregate source is unavailable. These nulls mean unavailable, not zero;
+          *     aggregate.availability is metric source coverage, not position freshness; use freshness
+          *     for the observation state. It identifies mark coverage and realized-PnL source availability.
+          *     accountWallet comes from the session resolver only — never from the request. Gated by
+          *     features.portfolio_read.
+          *     Responses MUST NOT be cached (private, no-store).
          */
         get: operations["getMyPortfolioSummary"];
         put?: never;
@@ -648,6 +648,10 @@ export interface components {
             /** Format: date-time */
             endAt?: string | null;
             marketCount: number;
+            /** @description Event artwork URL from the Polymarket Gamma catalog */
+            image?: string | null;
+            /** @description Wide cover artwork URL from the Polymarket Gamma catalog */
+            coverImage?: string | null;
             freshness: components["schemas"]["MarketFreshness"];
             provenance: components["schemas"]["UpstreamProvenance"];
         };
@@ -698,6 +702,8 @@ export interface components {
             status: components["schemas"]["MarketStatus"];
             /** Format: date-time */
             endAt?: string | null;
+            /** @description Market artwork URL from the Polymarket Gamma catalog */
+            image?: string | null;
             outcomes: components["schemas"]["Outcome"][];
             capabilities: components["schemas"]["MarketCapability"];
             freshness: components["schemas"]["MarketFreshness"];

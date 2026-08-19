@@ -61,7 +61,7 @@ export function TradeMobileBar({
       <button
         type="button"
         onClick={onOpen}
-        className="w-full rounded-lg bg-primary py-3 text-sm font-bold text-primary-foreground shadow-sm"
+        className="w-full rounded-xl bg-gradient-to-r from-primary to-blue-600 py-3 text-sm font-bold text-white shadow-lg shadow-primary/25 transition-all hover:opacity-90 active:scale-[0.99]"
       >
         {label}
       </button>

@@ -10,6 +10,10 @@ export function marketPath(marketId: string) {
   return `/markets/m/${encodeURIComponent(marketId)}`;
 }
 
+export function leaderboardPath() {
+  return "/markets/leaderboard";
+}
+
 export function portfolioPath() {
   return "/markets/portfolio";
 }

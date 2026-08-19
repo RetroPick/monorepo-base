@@ -10,12 +10,17 @@ import PaperPortfolioPage from "../pages/PaperPortfolioPage";
 import PortfolioPage from "../pages/PortfolioPage";
 import SmartMoneyPage from "../pages/SmartMoneyPage";
 import WalletProfilePage from "../pages/WalletProfilePage";
+import LeaderboardPage from "../pages/LeaderboardPage";
 import { FundingPage } from "../funding/pages/FundingPage";
 import { WalletConnectPage } from "../wallet/pages/WalletConnectPage";
 
 export const marketsRoutes: RouteObject[] = [
   { path: "/markets", element: <EventsDiscoverPage /> },
   { path: "/markets/search", element: <Navigate to="/markets" replace /> },
+  { path: "/markets/leaderboard", element: <LeaderboardPage /> },
+  { path: "/markets/traders", element: <Navigate to="/markets/leaderboard?tab=traders" replace /> },
+  { path: "/markets/whales", element: <Navigate to="/markets/leaderboard?tab=whales" replace /> },
+  { path: "/markets/paper-trade", element: <Navigate to="/markets/portfolio?tab=paper" replace /> },
   { path: "/markets/wallet", element: <WalletConnectPage /> },
   { path: "/markets/funding", element: <FundingPage /> },
   { path: "/markets/intelligence", element: <IntelligenceHubPage /> },
