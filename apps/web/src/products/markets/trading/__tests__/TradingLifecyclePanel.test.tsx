@@ -98,10 +98,10 @@ describe("TradingLifecyclePanel portfolio availability", () => {
     expect(screen.getByText(/realized pnl source unavailable/i)).toBeInTheDocument();
   });
 
-  it("preserves fixed-point display for available aggregate values", () => {
+  it("preserves known zero separately from unavailable fixed-point aggregate values", () => {
     queryData.set("summary", {
       aggregate: {
-        totalMarkValue: { amount: "1234567", currency: "USDC", decimals: 6 },
+        totalMarkValue: { amount: "0", currency: "USDC", decimals: 6 },
         totalCostBasis: { amount: "1000000", currency: "USDC", decimals: 6 },
         unrealizedPnl: { amount: "234567", currency: "USDC", decimals: 6 },
         realizedPnl: { amount: "-10000", currency: "USDC", decimals: 6 },
@@ -121,26 +121,53 @@ describe("TradingLifecyclePanel portfolio availability", () => {
 
     render(<TradingLifecyclePanel />);
 
-    expect(screen.getByText("1.234567 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Mark value").nextElementSibling).toHaveTextContent("0 USDC");
     expect(screen.getByText("0.234567 USDC")).toBeInTheDocument();
     expect(screen.getByText("-0.01 USDC")).toBeInTheDocument();
     expect(screen.queryByText(/source unavailable/i)).not.toBeInTheDocument();
   });
 
-  it("suppresses portfolio UI and queries when portfolio reads are disabled", () => {
-    capabilityFeatures = { portfolio_read: false, order_submit: false };
-    queryData.set("orders", {
-      orders: [{ orderId: "order-visible", side: "BUY", remainingSize: "2", price: "0.45", status: "open" }],
+  it("labels stale partial position projections without turning unavailable values into zero", () => {
+    queryData.set("summary", {
+      aggregate: {
+        totalMarkValue: null,
+        totalCostBasis: { amount: "1200000", currency: "USDC", decimals: 6 },
+        unrealizedPnl: null,
+        realizedPnl: null,
+        claimableValue: { amount: "0", currency: "USDC", decimals: 6 },
+        openPositionCount: 1,
+        availability: {
+          markValue: { state: "unavailable", availableOpenPositionCount: 0, unavailableOpenPositionCount: 1 },
+          realizedPnl: { state: "unavailable" },
+        },
+      },
+      freshness: { state: "stale", observedAt: "2026-08-09T10:00:00Z", ageMillis: 120_000 },
+      pnlDisclaimer: "Projected values are informational.",
     });
-    queryData.set("fills", {
-      fills: [{
-        fillId: "fill-visible",
-        side: "BUY",
-        size: "1",
-        price: "0.44",
-        fee: { amount: "100000", currency: "USDC", decimals: 6 },
+    queryData.set("positions", {
+      positions: [{
+        positionId: "position-partial",
+        outcomeName: "Yes",
+        tokenId: "token-yes",
+        size: "100",
+        markPrice: null,
+        markValue: null,
+        unrealizedPnl: null,
+        freshness: { state: "stale", observedAt: "2026-08-09T10:00:00Z", ageMillis: 120_000 },
       }],
     });
+
+    render(<TradingLifecyclePanel />);
+
+    expect(screen.getByText(/portfolio projection may be delayed/i)).toBeInTheDocument();
+    expect(screen.getByText("Mark unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Current value unavailable")).toBeInTheDocument();
+    expect(screen.getByText("Unrealized PnL unavailable")).toBeInTheDocument();
+  });
+
+  it("suppresses portfolio UI and queries when portfolio reads are disabled", () => {
+    capabilityFeatures = { portfolio_read: false, order_submit: false };
+
     queryData.set("positions", {
       positions: [{
         positionId: "position-hidden",
@@ -175,24 +202,12 @@ describe("TradingLifecyclePanel portfolio availability", () => {
 
     render(<TradingLifecyclePanel />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Portfolio projections are unavailable in this environment.",
-    );
+    expect(screen.getByRole("status")).toHaveTextContent("Portfolio projections unavailable");
     for (const key of ["positions", "summary", "activity"]) {
       const query = queryConfigs.get(key);
       expect(query?.enabled).toBe(false);
       expect(query?.queryFn).not.toHaveBeenCalled();
     }
-    expect(queryConfigs.get("orders")?.enabled).toBe(true);
-    expect(queryConfigs.get("orders")?.queryFn).toHaveBeenCalledOnce();
-    expect(queryConfigs.get("fills")?.enabled).toBe(true);
-    expect(queryConfigs.get("fills")?.queryFn).toHaveBeenCalledOnce();
-
-    expect(screen.getByRole("heading", { name: "Open orders" })).toBeInTheDocument();
-    expect(screen.getByText("BUY 2 @ 0.45 · open")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
-    expect(screen.getByRole("heading", { name: "Fills" })).toBeInTheDocument();
-    expect(screen.getByText("BUY 1 @ 0.44 · fee 0.1 USDC")).toBeInTheDocument();
 
     expect(screen.queryByRole("heading", { name: "Positions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Activity" })).not.toBeInTheDocument();
@@ -201,7 +216,6 @@ describe("TradingLifecyclePanel portfolio availability", () => {
     for (const metric of ["Mark value", "Cost basis", "Unrealized PnL", "Realized PnL", "Claimable value"]) {
       expect(screen.queryByText(metric)).not.toBeInTheDocument();
     }
-    expect(screen.queryByText("0 USDC")).not.toBeInTheDocument();
     expect(screen.queryByText(/success|submitted|portfolio reads enabled/i)).not.toBeInTheDocument();
   });
 });

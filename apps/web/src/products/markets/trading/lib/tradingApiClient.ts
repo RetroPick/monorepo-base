@@ -258,6 +258,7 @@ async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
   const response = await fetch(marketsUrl(path), {
     method: "GET",
     credentials: "include",
+    cache: "no-store",
     headers: { Accept: "application/json" },
     signal,
   });
