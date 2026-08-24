@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { HistoryInterval } from "@retropick/polymarket";
 
 import { getMarketsClient } from "../api/marketsClient";
 import { isCanonicalEventId, isCanonicalMarketId } from "../lib/ids";
@@ -41,4 +42,17 @@ export function useMarketsOrderBook(
   return useQuery(
     marketsQueryOptions.orderBook(marketId, tokenId, fetchEnabled, pollingEnabled),
   );
+}
+
+export function useMarketsPriceHistory(
+  marketId: string,
+  tokenId: string,
+  interval: HistoryInterval,
+  fetchEnabled: boolean,
+) {
+  return useQuery(marketsQueryOptions.priceHistory(marketId, tokenId, interval, fetchEnabled));
+}
+
+export function useMarketsMarketHealth(marketId: string, tokenId: string, fetchEnabled: boolean) {
+  return useQuery(marketsQueryOptions.marketHealth(marketId, tokenId, fetchEnabled));
 }
