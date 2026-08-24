@@ -31,7 +31,7 @@ test.describe("J07 — order preview, sign, submit", () => {
     expect(submitCalls.length).toBe(1);
   });
 
-  test("e2e-j07 kill switch off does not submit after sign", async ({
+  test("e2e-j07 kill switch off permits preview review without signing or submit", async ({
     page,
   }) => {
     const submitCalls: unknown[] = [];
@@ -52,7 +52,10 @@ test.describe("J07 — order preview, sign, submit", () => {
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await dialog.getByRole("button", { name: /sign in wallet/i }).click();
+    await expect(dialog.getByText(/preview expires/i)).toBeVisible();
+    await expect(dialog.getByText(/may remain open and fill partially/i)).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /sign in wallet/i })).not.toBeVisible();
+    await dialog.getByRole("button", { name: /close preview/i }).click();
 
     await expect(page.getByText(/order submitted/i)).not.toBeVisible();
     expect(submitCalls.length).toBe(0);

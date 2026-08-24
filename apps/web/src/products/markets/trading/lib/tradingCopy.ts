@@ -10,7 +10,7 @@ export const ORDER_SIGNING = "Awaiting wallet signature…";
 export const ORDER_SUBMITTING = "Submitting order…";
 export const ORDER_SUBMIT_UNAVAILABLE = "Order submission unavailable";
 export const ORDER_SUBMIT_UNAVAILABLE_DETAIL =
-  "Preview and signing are available; venue submit is disabled until the platform enables order submission.";
+  "You can review a BFF-generated preview only. Wallet signing and venue submission stay unavailable until the platform enables order submission.";
 export const ORDER_SUBMIT_SUCCESS = "Order submitted";
 export const ORDER_RECONCILING = "Checking order status with the venue…";
 export const ORDER_RECONCILE_TIMEOUT =
@@ -22,6 +22,9 @@ export const ORDER_PREVIEW_MODAL_CANCEL = "Back to ticket";
 export const ORDER_MAX_LOSS_LABEL = "Maximum loss";
 export const ORDER_ESTIMATED_FEE_LABEL = "Estimated fee";
 export const ORDER_FEE_UNAVAILABLE = "Fee unavailable";
+export const ORDER_PREVIEW_EXPIRY_LABEL = "Preview expires";
+export const ORDER_PARTIAL_FILL_DISCLOSURE =
+  "Limit orders may remain open and fill partially; this preview is not an execution or fill.";
 export const ORDER_CONTENT_HASH_LABEL = "Preview hash";
 export const ORDER_NEG_RISK_LABEL = "Negative Risk market";
 export const ORDER_STALE_BOOK_TITLE = "Order book is stale";
@@ -32,5 +35,6 @@ export const ORDER_STALE_RESTING_WARNING =
 export const ORDER_CONNECT_WALLET = "Connect and sign in to preview orders.";
 export const ORDER_LINK_WALLET = "Link a trading wallet before placing orders.";
 export const ORDER_INELIGIBLE = "Trading is not available for your session.";
+export const ORDER_ELIGIBILITY_UNAVAILABLE = "Trading eligibility could not be determined.";
 export const ORDER_WRONG_CHAIN = "Switch to Polygon (137) before placing orders.";
 export const ORDER_MARKET_CLOSED = "This market is not open for new orders.";

@@ -8,6 +8,9 @@ import { sampleMarketDetail } from "../../fixtures/openapi-examples";
 
 const previewOrderMock = vi.fn();
 const submitOrderMock = vi.fn();
+let orderSubmitCapability = false;
+let eligibilityData: { eligible: boolean; reason: string | null } | undefined;
+let eligibilityError: Error | null = null;
 
 vi.mock("../lib/tradingApiClient", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../lib/tradingApiClient")>();
@@ -41,18 +44,16 @@ vi.mock("../../wallet/hooks/useMarketsTradingWallets", () => ({
 
 vi.mock("../../hooks/useMarketsQueries", () => ({
   useMarketsCapabilities: () => ({
-    data: { features: { order_submit: false } },
+    data: { features: { order_submit: orderSubmitCapability } },
   }),
 }));
 
 vi.mock("../../api/marketsClient", () => ({
   getMarketsClient: () => ({
-    getEligibility: () =>
-      Promise.resolve({
-        data: { eligible: true, reason: null },
-        status: 200,
-        notModified: false,
-      }),
+    getEligibility: () => {
+      if (eligibilityError) return Promise.reject(eligibilityError);
+      return Promise.resolve({ data: eligibilityData, status: 200, notModified: false });
+    },
   }),
 }));
 
@@ -97,6 +98,9 @@ describe("OrderTicketPanel", () => {
   beforeEach(() => {
     previewOrderMock.mockReset();
     submitOrderMock.mockReset();
+    orderSubmitCapability = false;
+    eligibilityData = { eligible: true, reason: null };
+    eligibilityError = null;
     previewOrderMock.mockResolvedValue({
       schemaVersion: "1",
       previewId: "preview-1",
@@ -158,7 +162,57 @@ describe("OrderTicketPanel", () => {
     expect(screen.getByText(/maximum loss/i)).toBeInTheDocument();
     expect(screen.getByText(/42 USDC collateral for 100 shares/)).toBeInTheDocument();
     expect(screen.getByText(/0\.10 USDC/)).toBeInTheDocument();
+    expect(screen.getByText(/preview expires/i).parentElement).toHaveTextContent("2026-08-09T12:05:00Z");
+    expect(screen.getByText(/may remain open and fill partially/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /sign in wallet/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /close preview/i })).toBeInTheDocument();
     expect(previewOrderMock).toHaveBeenCalledTimes(1);
+    expect(submitOrderMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for a blocked eligibility response without requesting a preview", async () => {
+    eligibilityData = { eligible: false, reason: "Trading is unavailable in your region." };
+    renderTicket();
+    fireEvent.change(screen.getByPlaceholderText("0.42"), { target: { value: "0.42" } });
+    fireEvent.change(screen.getByPlaceholderText("Shares"), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Trading is unavailable in your region.");
+    });
+    expect(previewOrderMock).not.toHaveBeenCalled();
+    expect(submitOrderMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when eligibility cannot be determined without requesting a preview", async () => {
+    eligibilityError = new Error("Eligibility unavailable");
+    renderTicket();
+    fireEvent.change(screen.getByPlaceholderText("0.42"), { target: { value: "0.42" } });
+    fireEvent.change(screen.getByPlaceholderText("Shares"), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent("Trading eligibility could not be determined.");
+    });
+    expect(previewOrderMock).not.toHaveBeenCalled();
+    expect(submitOrderMock).not.toHaveBeenCalled();
+  });
+
+  it("does not submit when a preview integrity check mismatches", async () => {
+    orderSubmitCapability = true;
+    renderTicket();
+    fireEvent.change(screen.getByPlaceholderText("0.42"), { target: { value: "0.42" } });
+    fireEvent.change(screen.getByPlaceholderText("Shares"), { target: { value: "100" } });
+    fireEvent.click(screen.getByRole("button", { name: /preview order/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: /sign in wallet/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toHaveTextContent(/preview hash mismatch/i);
+    });
     expect(submitOrderMock).not.toHaveBeenCalled();
   });
 });
