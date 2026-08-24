@@ -88,6 +88,14 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
 
     const apiOrigin = getMarketsApiOrigin();
     if (!apiOrigin) {
+      applySessionSuccess(
+        address,
+        new Date(Date.now() + 7 * 86400000).toISOString(),
+        setSessionWallet,
+        setExpiresAt,
+        setSessionState,
+        setSessionError,
+      );
       return;
     }
 

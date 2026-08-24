@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+"use client";
+
+import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Flame,
   Star,
@@ -19,8 +21,6 @@ import {
   Cpu,
   Bot,
   Leaf,
-  Vote,
-  Info,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -43,7 +43,7 @@ export const SORT_TABS = [
   { id: "ending", label: "Ending Soon", icon: Clock, iconColor: "text-slate-400" },
 ];
 
-// 2. Topic Categories with colorful themed icons (Non-political)
+// 2. Topic Categories with colorful themed icons
 export const TOPIC_CATEGORIES = [
   { id: "crypto", label: "Crypto", icon: Coins, iconColor: "text-amber-400" },
   { id: "economics", label: "Economics", icon: Landmark, iconColor: "text-blue-400" },
@@ -54,18 +54,78 @@ export const TOPIC_CATEGORIES = [
   { id: "climate", label: "Climate", icon: Leaf, iconColor: "text-emerald-400" },
 ];
 
-// 3. Market Types / Mechanisms (Bottom Bar)
-export const MARKET_TYPES = [
-  { id: "all", label: "All Types", icon: null, iconColor: "" },
-  { id: "direction", label: "Direction", icon: ArrowUpDown, iconColor: "text-emerald-400" },
-  { id: "threshold", label: "Threshold", icon: CircleDot, iconColor: "text-cyan-400" },
-  { id: "range", label: "Range", icon: SlidersHorizontal, iconColor: "text-blue-400" },
-  { id: "ladder", label: "Ladder", icon: BarChart3, iconColor: "text-amber-400" },
-  { id: "velocity", label: "Velocity", icon: Gauge, iconColor: "text-orange-400" },
-  { id: "date", label: "Date", icon: Calendar, iconColor: "text-slate-300" },
-  { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
-  { id: "convergence", label: "Convergence", icon: GitMerge, iconColor: "text-purple-400" },
-];
+// 3. Dynamic Market Types Tailored per Category
+export const CATEGORY_MARKET_TYPES_MAP: Record<
+  string,
+  { id: string; label: string; icon: any; iconColor: string }[]
+> = {
+  all: [
+    { id: "all", label: "All Types", icon: null, iconColor: "" },
+    { id: "direction", label: "Direction", icon: ArrowUpDown, iconColor: "text-emerald-400" },
+    { id: "threshold", label: "Threshold", icon: CircleDot, iconColor: "text-cyan-400" },
+    { id: "range", label: "Range", icon: SlidersHorizontal, iconColor: "text-blue-400" },
+    { id: "ladder", label: "Ladder", icon: BarChart3, iconColor: "text-amber-400" },
+    { id: "velocity", label: "Velocity", icon: Gauge, iconColor: "text-orange-400" },
+    { id: "date", label: "Date", icon: Calendar, iconColor: "text-slate-300" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+    { id: "convergence", label: "Convergence", icon: GitMerge, iconColor: "text-purple-400" },
+  ],
+  financials: [
+    { id: "all", label: "All Financials", icon: null, iconColor: "" },
+    { id: "market_cap", label: "Market Cap Target", icon: DollarSign, iconColor: "text-emerald-400" },
+    { id: "earnings", label: "Earnings & Revenue", icon: BarChart3, iconColor: "text-blue-400" },
+    { id: "stock_price", label: "Stock Price", icon: ArrowUpDown, iconColor: "text-cyan-400" },
+    { id: "ipo", label: "IPO & Listing", icon: Zap, iconColor: "text-amber-400" },
+    { id: "indices", label: "Indices (S&P/Nasdaq)", icon: SlidersHorizontal, iconColor: "text-purple-400" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+  ],
+  crypto: [
+    { id: "all", label: "All Crypto", icon: null, iconColor: "" },
+    { id: "direction", label: "Direction (5m)", icon: ArrowUpDown, iconColor: "text-emerald-400" },
+    { id: "threshold", label: "Price Threshold", icon: CircleDot, iconColor: "text-cyan-400" },
+    { id: "range", label: "Price Range", icon: SlidersHorizontal, iconColor: "text-blue-400" },
+    { id: "date", label: "Target Date", icon: Calendar, iconColor: "text-amber-400" },
+    { id: "etf_l2", label: "ETFs & L2s", icon: Coins, iconColor: "text-purple-400" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+  ],
+  economics: [
+    { id: "all", label: "All Economics", icon: null, iconColor: "" },
+    { id: "fed_decision", label: "Fed Decision", icon: Landmark, iconColor: "text-blue-400" },
+    { id: "rate_cut", label: "Rate Cuts (bps)", icon: BarChart3, iconColor: "text-emerald-400" },
+    { id: "inflation", label: "Inflation & CPI", icon: Gauge, iconColor: "text-amber-400" },
+    { id: "gdp_jobs", label: "GDP & Jobs", icon: SlidersHorizontal, iconColor: "text-cyan-400" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+  ],
+  sports: [
+    { id: "all", label: "All Sports", icon: null, iconColor: "" },
+    { id: "match_winner", label: "Match Winner (Vs)", icon: Trophy, iconColor: "text-rose-400" },
+    { id: "spread", label: "Spread / Handicap", icon: SlidersHorizontal, iconColor: "text-blue-400" },
+    { id: "total", label: "Total Over / Under", icon: ArrowUpDown, iconColor: "text-emerald-400" },
+    { id: "championship", label: "Championship / Cup", icon: Star, iconColor: "text-amber-400" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+  ],
+  ai: [
+    { id: "all", label: "All AI", icon: null, iconColor: "" },
+    { id: "model_release", label: "Model Releases", icon: Bot, iconColor: "text-yellow-400" },
+    { id: "benchmark", label: "Reasoning Benchmark", icon: Gauge, iconColor: "text-cyan-400" },
+    { id: "valuation", label: "AI Valuation", icon: DollarSign, iconColor: "text-emerald-400" },
+    { id: "milestone", label: "Frontier Milestone", icon: Zap, iconColor: "text-purple-400" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+  ],
+  tech_science: [
+    { id: "all", label: "All Tech & Science", icon: null, iconColor: "" },
+    { id: "semiconductors", label: "Chips & Semiconductors", icon: Cpu, iconColor: "text-cyan-400" },
+    { id: "space", label: "Space & Missions", icon: Star, iconColor: "text-blue-400" },
+    { id: "hardware", label: "Hardware & Devices", icon: SlidersHorizontal, iconColor: "text-amber-400" },
+    { id: "multiple_choice", label: "Multiple Choice", icon: ListChecks, iconColor: "text-indigo-400" },
+  ],
+  climate: [
+    { id: "all", label: "All Climate", icon: null, iconColor: "" },
+    { id: "clean_energy", label: "Clean Energy", icon: Leaf, iconColor: "text-emerald-400" },
+    { id: "emissions", label: "Emissions & Carbon", icon: Gauge, iconColor: "text-blue-400" },
+    { id: "temperature", label: "Global Temperatures", icon: SlidersHorizontal, iconColor: "text-amber-400" },
+  ],
+};
 
 export function PolymarketCategoryBar({
   activeSort,
@@ -75,8 +135,6 @@ export function PolymarketCategoryBar({
   activeMarketType,
   onSelectMarketType,
 }: PolymarketCategoryBarProps) {
-  const [showInfo, setShowInfo] = useState(false);
-
   const tier1Ref = useRef<HTMLDivElement>(null);
   const [tier1CanScrollLeft, setTier1CanScrollLeft] = useState(false);
   const [tier1CanScrollRight, setTier1CanScrollRight] = useState(false);
@@ -84,6 +142,11 @@ export function PolymarketCategoryBar({
   const tier2Ref = useRef<HTMLDivElement>(null);
   const [tier2CanScrollLeft, setTier2CanScrollLeft] = useState(false);
   const [tier2CanScrollRight, setTier2CanScrollRight] = useState(false);
+
+  // Dynamic types list based on active category
+  const currentMarketTypes = useMemo(() => {
+    return CATEGORY_MARKET_TYPES_MAP[activeCategory] || CATEGORY_MARKET_TYPES_MAP["all"];
+  }, [activeCategory]);
 
   const checkTier1Scroll = () => {
     const el = tier1Ref.current;
@@ -108,7 +171,7 @@ export function PolymarketCategoryBar({
     };
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [currentMarketTypes]);
 
   const scrollTier1 = (direction: "left" | "right") => {
     if (!tier1Ref.current) return;
@@ -122,10 +185,14 @@ export function PolymarketCategoryBar({
     tier2Ref.current.scrollBy({ left: offset, behavior: "smooth" });
   };
 
-  const isTopicActive = (id: string) =>
-    activeCategory === id ||
-    (id === "economics" && activeCategory === "economy") ||
-    (id === "tech_science" && (activeCategory === "tech" || activeCategory === "science"));
+  const handleCategoryChange = (newCat: string) => {
+    onSelectCategory(newCat);
+    // Reset market type if it's not valid for the new category
+    const validTypes = (CATEGORY_MARKET_TYPES_MAP[newCat] || CATEGORY_MARKET_TYPES_MAP["all"]).map((t) => t.id);
+    if (!validTypes.includes(activeMarketType)) {
+      onSelectMarketType("all");
+    }
+  };
 
   return (
     <div className="mb-4 space-y-2 w-full select-none">
@@ -133,7 +200,6 @@ export function PolymarketCategoryBar({
       {/* TIER 1: Activity / Sort Pills + Categories                   */}
       {/* ============================================================ */}
       <div className="relative group/tier1 w-full">
-        {/* Left Fade + Arrow */}
         {tier1CanScrollLeft && (
           <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-8 pl-0.5 bg-gradient-to-r from-background via-background/90 to-transparent pointer-events-none">
             <button
@@ -147,7 +213,6 @@ export function PolymarketCategoryBar({
           </div>
         )}
 
-        {/* Scroll Container */}
         <div
           ref={tier1Ref}
           onScroll={checkTier1Scroll}
@@ -176,19 +241,18 @@ export function PolymarketCategoryBar({
             );
           })}
 
-          {/* Space / Vertical Divider between Sort and Categories */}
           <div className="h-3.5 w-[1px] bg-white/10 mx-1 shrink-0" />
 
           {/* Topic Categories */}
           {TOPIC_CATEGORIES.map((cat) => {
             const Icon = cat.icon;
-            const active = isTopicActive(cat.id);
+            const active = activeCategory === cat.id;
 
             return (
               <button
                 key={cat.id}
                 type="button"
-                onClick={() => onSelectCategory(active ? "all" : cat.id)}
+                onClick={() => handleCategoryChange(active ? "all" : cat.id)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs transition-all cursor-pointer whitespace-nowrap shrink-0",
                   active
@@ -203,7 +267,6 @@ export function PolymarketCategoryBar({
           })}
         </div>
 
-        {/* Right Fade + Arrow */}
         {tier1CanScrollRight && (
           <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-8 pr-0.5 bg-gradient-to-l from-background via-background/90 to-transparent pointer-events-none">
             <button
@@ -219,10 +282,9 @@ export function PolymarketCategoryBar({
       </div>
 
       {/* ============================================================ */}
-      {/* TIER 2: Market Types Pills                                   */}
+      {/* TIER 2: Dynamically Tailored Market Types Pills              */}
       {/* ============================================================ */}
       <div className="relative group/tier2 w-full">
-        {/* Left Fade + Arrow */}
         {tier2CanScrollLeft && (
           <div className="absolute left-0 top-0 bottom-0 z-10 flex items-center pr-8 pl-0.5 bg-gradient-to-r from-background via-background/90 to-transparent pointer-events-none">
             <button
@@ -236,14 +298,12 @@ export function PolymarketCategoryBar({
           </div>
         )}
 
-        {/* Scroll Container */}
         <div
           ref={tier2Ref}
           onScroll={checkTier2Scroll}
           className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scrollbar-none scroll-smooth py-0.5"
         >
-          {/* Market Type Pills (Without Market Type label) */}
-          {MARKET_TYPES.map((type) => {
+          {currentMarketTypes.map((type) => {
             const Icon = type.icon;
             const active = activeMarketType === type.id;
 
@@ -266,7 +326,6 @@ export function PolymarketCategoryBar({
           })}
         </div>
 
-        {/* Right Fade + Arrow */}
         {tier2CanScrollRight && (
           <div className="absolute right-0 top-0 bottom-0 z-10 flex items-center pl-8 pr-0.5 bg-gradient-to-l from-background via-background/90 to-transparent pointer-events-none">
             <button
@@ -285,4 +344,3 @@ export function PolymarketCategoryBar({
 }
 
 export default PolymarketCategoryBar;
-

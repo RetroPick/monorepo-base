@@ -504,3 +504,33 @@ w3m-modal {
       radial-gradient(44rem 34rem at 50% 120%, hsl(var(--primary) / 0.04), transparent 62%);
   }
 }
+
+/* ==========================================================================
+   TradingView Lightweight Charts - Permanent Watermark & Logo Elimination
+   ========================================================================== */
+a[href*="tradingview"],
+a[href*="tradingview.com"],
+div[id*="tv-attr-logo"],
+div[class*="tv-attr-logo"],
+div[class*="tv-watermark"],
+div[class*="attribution"],
+div[class*="watermark"],
+svg[class*="tv-logo"],
+#tv-attr-logo,
+.tv-attr-logo,
+.tv-watermark,
+.tv-logo {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+  left: -9999px !important;
+  top: -9999px !important;
+  z-index: -9999 !important;
+}

@@ -47,7 +47,6 @@ export function DrawerMenu({ open, onClose, onCategorySelect, onSearchChange }: 
 
   const navItems = [
     { label: "Markets", path: discoverPath(), icon: TrendingUp },
-    { label: "Leaderboard", path: leaderboardPath(), icon: Award },
     { label: "Intelligence", path: intelligencePath(), icon: Sparkles },
     { label: "Portfolio", path: portfolioPath(), icon: PieChart },
   ];
@@ -108,7 +107,10 @@ export function DrawerMenu({ open, onClose, onCategorySelect, onSearchChange }: 
             </span>
             {navItems.map((item) => {
               const Icon = item.icon;
-              const active = location.pathname === item.path || (item.label === "Markets" && location.pathname.startsWith("/markets/m/"));
+              const active =
+                location.pathname === item.path ||
+                (item.label === "Markets" && location.pathname.startsWith("/markets/m/")) ||
+                (item.label === "Intelligence" && (location.pathname.startsWith("/markets/intelligence") || location.pathname.startsWith("/markets/leaderboard")));
 
               return (
                 <Link

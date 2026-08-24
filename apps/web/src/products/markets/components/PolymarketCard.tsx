@@ -4,9 +4,10 @@ import { Bookmark } from "lucide-react";
 import type { EventSummary, MarketSummary } from "@retropick/polymarket";
 
 import { cn } from "@/shared/lib/utils";
-import { calcProbabilityFromId, derivedVolumeUsd, derivedLiquidityUsd, sparklineFromId } from "../lib/cardStats";
+import { calcProbabilityFromId, derivedVolumeUsd } from "../lib/cardStats";
 import { marketPath } from "../routes/paths";
 import { resolveMarketImage } from "../lib/retropickData";
+import { useUserPortfolio } from "../hooks/useUserPortfolio";
 
 interface PolymarketCardProps {
   event: EventSummary & {
@@ -219,22 +220,33 @@ function CircularChanceGauge({
 }
 
 export function PolymarketCard({ event }: PolymarketCardProps) {
-  const [bookmarked, setBookmarked] = useState(false);
+  const { isWatchlisted, toggleWatchlist } = useUserPortfolio();
+  const bookmarked = isWatchlisted(event.id);
 
-  // Derive accurate probability and volume
-  const rawProb =
-    event.rawMarket?.yes ??
-    (event.markets && event.markets[0]?.outcomes
-      ? Math.round((parseFloat(event.markets[0].outcomes.find((o) => o.name === "YES")?.price || "0.5") * 100))
-      : calcProbabilityFromId(event.id));
-
-  const probYes = rawProb;
+  // Prefer real probability from venue data; never fabricate from the id.
+  const probYes: number | null = (() => {
+    const yes = event.rawMarket?.yes;
+    if (typeof yes === "number" && Number.isFinite(yes)) return Math.round(yes);
+    const outcomes = event.markets?.[0]?.outcomes;
+    const yesPrice = outcomes?.find((o) => o.name === "YES" || o.name === "Yes")?.price;
+    if (yesPrice != null) {
+      const p = parseFloat(yesPrice);
+      if (Number.isFinite(p)) return Math.round(p * 100);
+    }
+    return calcProbabilityFromId(event.id);
+  })();
   const titleLower = event.title.toLowerCase();
 
   const toggleBookmark = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setBookmarked(!bookmarked);
+    toggleWatchlist({
+      marketId: event.id,
+      title: event.title,
+      category: (event as any).category || (event.rawMarket as any)?.category || "Crypto",
+      yesChance: probYes ?? 50,
+      volume24h: (event as any).volume || "$1.2M",
+    });
   };
 
   // Only genuine fast-paced directional price prediction markets (e.g., BTC/ETH/SOL 5-min or 15-min up/down)
@@ -285,8 +297,9 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
 
   const isMultiOutcome = multiOptions.length >= 2 && !isLiveFastMarket && !isBinary;
 
-  // Format Volume display
-  const displayVolume = event.rawMarket?.volume || event.volume || derivedVolumeUsd(event.id);
+  // Format Volume display — only real volume, otherwise honest placeholder.
+  const displayVolume: string | null =
+    event.rawMarket?.volume || event.volume || derivedVolumeUsd(event.id);
 
   return (
     <article className="group relative flex h-[190px] w-full flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-3.5 shadow-sm hover:border-white/20 hover:bg-[#12192B] transition-all">
@@ -300,12 +313,20 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
             </h3>
           </div>
 
-          {!isMultiOutcome && (
-            <CircularChanceGauge
-              percentage={probYes}
-              label={isLiveFastMarket ? "Up" : "chance"}
-            />
-          )}
+          {!isMultiOutcome &&
+            (probYes != null ? (
+              <CircularChanceGauge
+                percentage={probYes}
+                label={isLiveFastMarket ? "Up" : "chance"}
+              />
+            ) : (
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs font-mono text-slate-500"
+                aria-label="Probability unavailable"
+              >
+                —
+              </div>
+            ))}
         </div>
 
         {/* Middle Body: Multi-outcome rows OR Large Yes/No buttons */}
@@ -384,7 +405,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
             </span>
           ) : (
             <span className="flex items-center gap-1">
-              <span>{displayVolume}</span>
+              <span>{displayVolume ?? "—"}</span>
               <SwapIcon className="h-3 w-3 text-slate-500" />
             </span>
           )}

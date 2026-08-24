@@ -10,10 +10,6 @@ export function marketPath(marketId: string) {
   return `/markets/m/${encodeURIComponent(marketId)}`;
 }
 
-export function leaderboardPath() {
-  return "/markets/leaderboard";
-}
-
 export function portfolioPath() {
   return "/markets/portfolio";
 }
@@ -30,8 +26,12 @@ export function intelligencePath() {
   return "/markets/intelligence";
 }
 
+export function leaderboardPath() {
+  return "/markets/intelligence";
+}
+
 export function intelligenceSmartMoneyPath() {
-  return "/markets/intelligence/smart-money";
+  return "/markets/intelligence?tab=smart_money";
 }
 
 export function intelligenceFollowingPath() {

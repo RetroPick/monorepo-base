@@ -18,7 +18,9 @@ let adapterSingleton: WagmiAdapter | undefined;
 export function getMarketsWagmiAdapter(): WagmiAdapter {
   if (!adapterSingleton) {
     adapterSingleton = new WagmiAdapter({
-      storage: createStorage({ storage: cookieStorage }),
+      storage: createStorage({
+        storage: typeof window !== "undefined" ? window.localStorage : cookieStorage,
+      }),
       ssr: true,
       projectId: marketsProjectId,
       networks: MARKETS_WALLET_NETWORKS,

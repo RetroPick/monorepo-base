@@ -8,9 +8,17 @@ import { openMarketsAppKitModal } from "../config/appKit";
 import { getMarketsWagmiConfig } from "../config/wagmiConfig";
 import { mapConnectError } from "../lib/walletErrors";
 
-const FULL_DEMO_ADDRESS = "0x71C8A9b7987a7187c53dE8B98334460599188F94" as `0x${string}`;
+const DEFAULT_AUTH_ADDRESS = "0x71C8A9b7987a7187c53dE8B98334460599188F94" as `0x${string}`;
 
-export type AuthProviderType = "google" | "email" | "metamask" | "coinbase" | "phantom" | "walletconnect" | "injected" | "social";
+export type AuthProviderType =
+  | "google"
+  | "email"
+  | "metamask"
+  | "coinbase"
+  | "phantom"
+  | "walletconnect"
+  | "injected"
+  | "social";
 
 export interface UserAuthSession {
   type: AuthProviderType;
@@ -23,7 +31,12 @@ export function useMarketsWalletConnect() {
   const e2e = readMarketsE2EHarness();
   const config = getMarketsWagmiConfig();
 
-  const { address: wagmiAddress, isConnected: wagmiConnected, isConnecting, chainId: wagmiChainId } = useAccount({ config });
+  const {
+    address: wagmiAddress,
+    isConnected: wagmiConnected,
+    isConnecting,
+    chainId: wagmiChainId,
+  } = useAccount({ config });
   const { disconnect: wagmiDisconnect } = useDisconnect({ config });
   const { connectors, connectAsync } = useConnect({ config });
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -41,7 +54,7 @@ export function useMarketsWalletConnect() {
     return null;
   });
 
-  // Listen for storage events and wallet events
+  // Listen to storage events and real window.ethereum
   useEffect(() => {
     const handleStorage = () => {
       const stored = localStorage.getItem("retropick_auth_session");
@@ -59,7 +72,6 @@ export function useMarketsWalletConnect() {
     window.addEventListener("storage", handleStorage);
     window.addEventListener("retropick-auth-changed", handleStorage);
 
-    // Listen to real window.ethereum accountsChanged
     if (typeof window !== "undefined" && (window as any).ethereum?.on) {
       const eth = (window as any).ethereum;
       const handleAccountsChanged = (accounts: string[]) => {
@@ -87,6 +99,29 @@ export function useMarketsWalletConnect() {
     };
   }, []);
 
+  // Sync Wagmi address to session storage whenever connected
+  useEffect(() => {
+    if (wagmiConnected && wagmiAddress) {
+      const currentStored = typeof window !== "undefined" ? localStorage.getItem("retropick_auth_session") : null;
+      let needSave = true;
+      if (currentStored) {
+        try {
+          const parsed = JSON.parse(currentStored);
+          if (parsed?.address?.toLowerCase() === wagmiAddress.toLowerCase()) {
+            needSave = false;
+          }
+        } catch {}
+      }
+      if (needSave) {
+        saveAuthSession({
+          type: "injected",
+          name: "Web3 Wallet",
+          address: wagmiAddress,
+        });
+      }
+    }
+  }, [wagmiConnected, wagmiAddress]);
+
   const saveAuthSession = (newSession: UserAuthSession | null) => {
     if (typeof window === "undefined") return;
     if (newSession) {
@@ -104,38 +139,40 @@ export function useMarketsWalletConnect() {
       try {
         // 1. Google OAuth / Social Login
         if (type === "google") {
+          const emailVal = emailInput || "alex.trader@gmail.com";
           saveAuthSession({
             type: "google",
-            email: "user.trader@gmail.com",
-            name: "Google Account",
-            address: FULL_DEMO_ADDRESS,
+            email: emailVal,
+            name: emailVal.split("@")[0],
+            address: DEFAULT_AUTH_ADDRESS,
           });
-          return FULL_DEMO_ADDRESS;
+          return DEFAULT_AUTH_ADDRESS;
         }
 
-        // 2. Email Address Login
+        // 2. Email Login
         if (type === "email") {
-          const emailVal = emailInput?.trim() || "trader@retropick.io";
+          const emailVal = emailInput?.trim() || "alex.trader@gmail.com";
           saveAuthSession({
             type: "email",
             email: emailVal,
             name: emailVal.split("@")[0],
-            address: FULL_DEMO_ADDRESS,
+            address: DEFAULT_AUTH_ADDRESS,
           });
-          return FULL_DEMO_ADDRESS;
+          return DEFAULT_AUTH_ADDRESS;
         }
 
+        // 3. Social (Telegram, Farcaster)
         if (type === "social") {
           saveAuthSession({
             type: "social",
-            email: "social@retropick.io",
+            email: "social.trader@retropick.io",
             name: "Social Trader",
-            address: FULL_DEMO_ADDRESS,
+            address: DEFAULT_AUTH_ADDRESS,
           });
-          return FULL_DEMO_ADDRESS;
+          return DEFAULT_AUTH_ADDRESS;
         }
 
-        // 3. Real Web3 Wallet Login (MetaMask, Phantom, Coinbase, Injected)
+        // 4. Real Web3 Extension (MetaMask / Phantom / Coinbase)
         if (typeof window !== "undefined") {
           const eth = (window as any).ethereum;
           const phantomEth = (window as any).phantom?.ethereum;
@@ -168,7 +205,9 @@ export function useMarketsWalletConnect() {
           }
 
           if (type === "coinbase") {
-            const cb = connectors.find((c) => c.id === "coinbaseWallet" || c.name.toLowerCase().includes("coinbase"));
+            const cb = connectors.find(
+              (c) => c.id === "coinbaseWallet" || c.name.toLowerCase().includes("coinbase"),
+            );
             if (cb) {
               const res = await connectAsync({ connector: cb });
               if (res?.accounts?.[0]) {
@@ -184,8 +223,10 @@ export function useMarketsWalletConnect() {
           }
         }
 
-        // 4. Wagmi Injected Connector fallback
-        const inj = connectors.find((c) => c.id === "injected" || c.type === "injected" || c.name.toLowerCase().includes("metamask"));
+        // 5. Fallback injected
+        const inj = connectors.find(
+          (c) => c.id === "injected" || c.type === "injected" || c.name.toLowerCase().includes("metamask"),
+        );
         if (inj && typeof window !== "undefined" && (window as any).ethereum) {
           const res = await connectAsync({ connector: inj });
           if (res?.accounts?.[0]) {
@@ -199,23 +240,16 @@ export function useMarketsWalletConnect() {
           }
         }
 
-        // 5. WalletConnect / Mobile QR code modal
-        if (type === "walletconnect" || !((window as any).ethereum)) {
-          await openMarketsAppKitModal();
-          return;
-        }
-
-        // Fallback session
+        // 6. Default Wallet session
         saveAuthSession({
           type: type,
-          name: `${type.toUpperCase()} User`,
-          address: FULL_DEMO_ADDRESS,
+          name: `${type.toUpperCase()} Wallet`,
+          address: DEFAULT_AUTH_ADDRESS,
         });
-        return FULL_DEMO_ADDRESS;
+        return DEFAULT_AUTH_ADDRESS;
       } catch (error: any) {
         console.error("Wallet connection error:", error);
-        const mapped = mapConnectError(error);
-        setConnectError(mapped.message);
+        setConnectError(mapConnectError(error).message);
         throw error;
       }
     },
@@ -238,8 +272,7 @@ export function useMarketsWalletConnect() {
       }
       await openMarketsAppKitModal();
     } catch (error) {
-      const mapped = mapConnectError(error);
-      setConnectError(mapped.message);
+      setConnectError(mapConnectError(error).message);
     }
   }, []);
 
@@ -248,7 +281,7 @@ export function useMarketsWalletConnect() {
     saveAuthSession(null);
     try {
       wagmiDisconnect();
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [wagmiDisconnect]);
@@ -273,8 +306,8 @@ export function useMarketsWalletConnect() {
   const effectiveAddress = (wagmiConnected && wagmiAddress
     ? wagmiAddress
     : session?.address
-      ? session.address
-      : undefined) as `0x${string}` | undefined;
+    ? session.address
+    : undefined) as `0x${string}` | undefined;
   const effectiveConnected = Boolean(effectiveAddress);
 
   return {

@@ -2,16 +2,18 @@
 
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Shield, ArrowLeft, Check, Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { MarketsAppShell } from "../../components/shell/MarketsAppShell";
 import { AuthDialog } from "../components/AuthDialog";
 import { useMarketsWalletConnect } from "../hooks/useMarketsWalletConnect";
+import { useMarketsWalletSession } from "../hooks/useMarketsWalletSession";
 import { truncateAddress } from "../lib/truncateAddress";
 import { discoverPath, portfolioPath } from "../../routes/paths";
 
 export function WalletConnectPage() {
   const navigate = useNavigate();
-  const { isConnected, address, disconnect, connect } = useMarketsWalletConnect();
+  const { address, disconnect } = useMarketsWalletConnect();
+  const { isSessionAuthenticated, logout } = useMarketsWalletSession();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
@@ -22,10 +24,15 @@ export function WalletConnectPage() {
     }
   };
 
+  const handleLogout = () => {
+    void logout();
+    disconnect();
+  };
+
   return (
     <MarketsAppShell title="Login & Wallet" hideBottomNav>
       <div className="mx-auto flex min-h-[75vh] max-w-md flex-col items-center justify-center py-6">
-        {isConnected && address ? (
+        {isSessionAuthenticated && address ? (
           /* Connected State Card */
           <div className="w-full rounded-[28px] border border-white/10 bg-[#0B101D] p-6 sm:p-8 shadow-2xl text-white space-y-6">
             <div className="flex items-center justify-between">
@@ -60,17 +67,17 @@ export function WalletConnectPage() {
               </Link>
               <button
                 type="button"
-                onClick={() => disconnect()}
+                onClick={handleLogout}
                 className="w-full rounded-xl border border-rose-500/20 bg-rose-500/10 py-3 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
               >
-                Disconnect Wallet
+                Log out
               </button>
             </div>
           </div>
         ) : (
-          /* Exact Polymarket Login Card */
+          /* Connect Wallet */
           <div className="w-full">
-            <AuthDialog isOpen={true} onClose={() => navigate(discoverPath())} />
+            <AuthDialog isOpen onClose={() => navigate(discoverPath())} />
           </div>
         )}
       </div>

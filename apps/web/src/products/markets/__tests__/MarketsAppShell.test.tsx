@@ -11,6 +11,14 @@ vi.mock("../wallet/hooks/useMarketsWalletConnect", () => ({
   useMarketsWalletConnect: () => ({ isConnected: false }),
 }));
 
+vi.mock("../wallet/hooks/useMarketsWalletSession", () => ({
+  useMarketsWalletSession: () => ({
+    isSessionAuthenticated: false,
+    authenticate: vi.fn(),
+    sessionState: "idle",
+  }),
+}));
+
 vi.mock("../wallet/components/ConnectWalletButton", () => ({
   ConnectWalletButton: ({ label }: { label: React.ReactNode }) => (
     <button type="button">{typeof label === "string" ? label : "Sign In"}</button>
@@ -37,7 +45,7 @@ describe("MarketsAppShell", () => {
     renderShell();
     expect(screen.getByText("Page content")).toBeInTheDocument();
     expect(screen.getAllByRole("navigation").length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /log in/i })).toBeInTheDocument();
   });
 
   it("shows mobile bottom nav on discover routes", () => {

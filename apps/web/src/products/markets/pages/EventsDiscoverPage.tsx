@@ -11,7 +11,6 @@ import { EventCardSkeleton } from "../components/EventCardSkeleton";
 import { FreshnessBadge } from "../components/FreshnessBadge";
 import { MarketsAppShell } from "../components/shell/MarketsAppShell";
 import { useMarketsEventsInfinite } from "../hooks/useMarketsQueries";
-import { derivedVolumeNumeric } from "../lib/cardStats";
 import { isDegradedFreshness } from "../lib/freshness";
 
 const GRID_CLASS =
@@ -49,7 +48,6 @@ const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
   ai: ["ai", "anthropic", "openai", "gpt", "gemini", "claude", "grok", "deepseek", "llm", "intelligence", "nvidia"],
   climate: ["climate", "green energy", "carbon", "weather", "temperature", "emission", "solar", "hurricane", "environment"],
   culture: ["culture", "movie", "music", "entertainment", "oscar", "grammy"],
-  geopolitics: ["geopolitics", "hormuz", "traffic", "trade", "blockade", "iran", "war", "election"],
   space: ["space", "spacex", "starship", "booster", "mars", "moon", "nasa"],
   gaming: ["game", "esports", "cs2", "lol", "t1", "geng", "natus", "heretics"],
 };
@@ -69,10 +67,20 @@ export function EventsDiscoverPage() {
   const listFreshness = events.data?.pages[0]?.freshness;
 
   const visibleEvents = useMemo(() => {
+    const POLITICAL_REGEX = /\b(trump|biden|pardon|president|presidential|election|senate|governor|congress|democrat|republican|harris|vance|putin|zelensky|cabinet|impeach|politician|political|supreme court|white house|parliament|prime minister|midterms|likud|gaza|israel|iran|palestine|nato|luxon|starmer|macron|blockade|war|clarity act)\b/i;
+
+    // Filter out all political markets from the platform
+    const nonPolitical = allEvents.filter((e: any) => {
+      const catLower = (e.category ?? "").toLowerCase();
+      if (catLower === "politics" || catLower === "geopolitics") return false;
+      if (POLITICAL_REGEX.test(e.title) || POLITICAL_REGEX.test(e.rawMarket?.question || "")) return false;
+      return true;
+    });
+
     const query = search.trim().toLowerCase();
     let filtered = query
-      ? allEvents.filter((e) => e.title.toLowerCase().includes(query))
-      : [...allEvents];
+      ? nonPolitical.filter((e) => e.title.toLowerCase().includes(query))
+      : [...nonPolitical];
 
     // 1. Filter by Market Mechanism / Type if not "all"
     if (activeMarketType !== "all") {
@@ -144,6 +152,92 @@ export function EventsDiscoverPage() {
               (e.title && /\b(convergence|which|reach 100m|deliver most)\b/i.test(e.title)),
           );
           break;
+
+        // Financials sub-types
+        case "market_cap":
+          filtered = filtered.filter((e: any) => /\b(market cap|trillion|billion|\$5t|\$3t|\$4t|\$1t|valuation)\b/i.test(e.title));
+          break;
+        case "earnings":
+          filtered = filtered.filter((e: any) => /\b(earnings|revenue|profit|eps|guidance|q1|q2|q3|q4|growth)\b/i.test(e.title));
+          break;
+        case "stock_price":
+          filtered = filtered.filter((e: any) => /\b(stock|shares|nasdaq|nyse|nvda|aapl|msft|tsla|price)\b/i.test(e.title));
+          break;
+        case "ipo":
+          filtered = filtered.filter((e: any) => /\b(ipo|listing|public offering|debut|spac)\b/i.test(e.title));
+          break;
+        case "indices":
+          filtered = filtered.filter((e: any) => /\b(s&p|spx|nasdaq|dow jones|index|indices|all-time high)\b/i.test(e.title));
+          break;
+
+        // Crypto sub-types
+        case "etf_l2":
+          filtered = filtered.filter((e: any) => /\b(etf|l2|layer 2|base|arbitrum|optimism|zksync|solana|sui|tvl)\b/i.test(e.title));
+          break;
+
+        // Economics sub-types
+        case "fed_decision":
+          filtered = filtered.filter((e: any) => /\b(fed|fomc|powell|interest rate|rate cut|meeting|decision)\b/i.test(e.title));
+          break;
+        case "rate_cut":
+          filtered = filtered.filter((e: any) => /\b(rate cut|bps|basis points|cut rates|hike|interest rate)\b/i.test(e.title));
+          break;
+        case "inflation":
+          filtered = filtered.filter((e: any) => /\b(inflation|cpi|pce|core cpi|prices)\b/i.test(e.title));
+          break;
+        case "gdp_jobs":
+          filtered = filtered.filter((e: any) => /\b(gdp|jobs|unemployment|payrolls|labor|recession)\b/i.test(e.title));
+          break;
+
+        // Sports sub-types
+        case "match_winner":
+          filtered = filtered.filter((e: any) => e.cardType === "vs_match" || /\b(vs|winner|beat|defeat|win match)\b/i.test(e.title));
+          break;
+        case "spread":
+          filtered = filtered.filter((e: any) => /\b(spread|handicap|\+2\.5|\-2\.5|\+1\.5|\-1\.5)\b/i.test(e.title));
+          break;
+        case "total":
+          filtered = filtered.filter((e: any) => /\b(total|over|under|o\/u|goals|points)\b/i.test(e.title));
+          break;
+        case "championship":
+          filtered = filtered.filter((e: any) => /\b(champion|cup|super bowl|world cup|finals|title|ballon)\b/i.test(e.title));
+          break;
+
+        // AI sub-types
+        case "model_release":
+          filtered = filtered.filter((e: any) => /\b(release|gpt-5|gpt-6|claude|gemini|deepseek|launch|model|openai)\b/i.test(e.title));
+          break;
+        case "benchmark":
+          filtered = filtered.filter((e: any) => /\b(benchmark|reasoning|arc|mmlu|humaneval|score|leaderboard)\b/i.test(e.title));
+          break;
+        case "valuation":
+          filtered = filtered.filter((e: any) => /\b(valuation|worth|\$100b|\$200b|\$500b|\$1t|raise)\b/i.test(e.title));
+          break;
+        case "milestone":
+          filtered = filtered.filter((e: any) => /\b(milestone|agi|quantum|superintelligence|autonomous)\b/i.test(e.title));
+          break;
+
+        // Tech & Science sub-types
+        case "semiconductors":
+          filtered = filtered.filter((e: any) => /\b(chip|chips|semiconductor|tsmc|nvidia|intel|amd|gpu)\b/i.test(e.title));
+          break;
+        case "space":
+          filtered = filtered.filter((e: any) => /\b(space|mars|moon|nasa|spacex|starship|rocket)\b/i.test(e.title));
+          break;
+        case "hardware":
+          filtered = filtered.filter((e: any) => /\b(hardware|device|quantum|robot|phone)\b/i.test(e.title));
+          break;
+
+        // Climate sub-types
+        case "clean_energy":
+          filtered = filtered.filter((e: any) => /\b(clean energy|solar|wind|nuclear|battery|ev|renewable)\b/i.test(e.title));
+          break;
+        case "emissions":
+          filtered = filtered.filter((e: any) => /\b(emissions|carbon|co2|net zero)\b/i.test(e.title));
+          break;
+        case "temperature":
+          filtered = filtered.filter((e: any) => /\b(temperature|warmest|heat|record|climate)\b/i.test(e.title));
+          break;
       }
     }
 
@@ -175,8 +269,22 @@ export function EventsDiscoverPage() {
     switch (activeSort) {
       case "active":
       case "volume":
-      case "trending":
-        return filtered.sort((a, b) => derivedVolumeNumeric(b.id) - derivedVolumeNumeric(a.id));
+      case "trending": {
+        const volumeOf = (e: any): number | null => {
+          const raw = (e as any).volume ?? (e as any).rawMarket?.volume;
+          if (raw == null) return null;
+          const n = typeof raw === "number" ? raw : parseFloat(String(raw).replace(/[^0-9.]/g, ""));
+          return Number.isFinite(n) ? n : null;
+        };
+        return filtered.sort((a, b) => {
+          const va = volumeOf(a);
+          const vb = volumeOf(b);
+          if (va == null && vb == null) return 0;
+          if (va == null) return 1;
+          if (vb == null) return -1;
+          return vb - va;
+        });
+      }
       case "new":
         return filtered.sort(
           (a, b) => new Date(b.startAt ?? 0).getTime() - new Date(a.startAt ?? 0).getTime(),

@@ -36,7 +36,7 @@ export async function initMarketsAppKit(): Promise<void> {
         icons: [`${getMetadataUrl()}/logo-baru.webp`],
       },
       enableEmbedded: false,
-      enableReconnect: false,
+      enableReconnect: true,
       allowUnsupportedChain: true,
       coinbasePreference: "all",
       defaultAccountTypes: { eip155: "eoa" },
@@ -46,9 +46,9 @@ export async function initMarketsAppKit(): Promise<void> {
       },
       features: {
         analytics: false,
-        email: false,
-        socials: false,
-        connectMethodsOrder: ["wallet"],
+        email: true,
+        socials: ["google"],
+        connectMethodsOrder: ["email", "social", "wallet"],
         emailShowWallets: true,
       },
     });

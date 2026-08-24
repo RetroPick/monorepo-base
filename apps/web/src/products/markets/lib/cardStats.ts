@@ -1,48 +1,44 @@
 /**
- * Deterministic pseudo-stats for catalog cards.
+ * Catalog card stats are only shown when real data is available.
  *
- * The Markets contract (schemas/openapi/markets-v1.yaml) does not yet expose
- * volume/liquidity/change per event. These helpers derive stable, render-safe
- * preview values from the canonical id — same pattern the module already used
- * for sparklines/probabilities. When the BFF adds real fields, prefer those
- * and treat these as fallback only.
+ * The canonical Markets contract (schemas/openapi/markets-v1.yaml) does not yet
+ * expose per-event volume / liquidity / 24h-change, so these helpers return
+ * `null` instead of fabricating deterministic pseudo-values from the event id.
+ * Call sites render a neutral "—" placeholder when a value is `null`.
+ *
+ * When the BFF adds real volume / price fields to `EventSummary`, prefer those
+ * at the call site and delete these helpers.
  */
 
-export function hashFromId(id: string): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return hash;
-}
-
-export function sparklineFromId(id: string): number[] {
-  const hash = hashFromId(id);
-  return Array.from({ length: 14 }, (_, i) => 0.3 + ((hash >> (i % 16)) & 0xff) / 450);
-}
-
-export function calcProbabilityFromId(id: string): number {
-  const hash = hashFromId(id);
-  return 35 + (hash % 52);
-}
-
-export function formatUsdCompact(value: number): string {
+export function formatUsdCompact(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
   if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(1)}M`;
   if (value >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
   return `$${Math.round(value)}`;
 }
 
-export function derivedVolumeUsd(id: string): string {
-  return formatUsdCompact(180_000 + (hashFromId(id) % 2_800_000));
+// No fabricated values: the id does not carry volume, probability, liquidity,
+// change, or price history. Return null so consumers render an honest "—".
+export function sparklineFromId(_id: string): number[] | null {
+  return null;
 }
 
-export function derivedVolumeNumeric(id: string): number {
-  return 180_000 + (hashFromId(id) % 2_800_000);
+export function calcProbabilityFromId(_id: string): number | null {
+  return null;
 }
 
-export function derivedLiquidityUsd(id: string): string {
-  return formatUsdCompact(60_000 + ((hashFromId(id) >> 8) % 900_000));
+export function derivedVolumeUsd(_id: string): string | null {
+  return null;
 }
 
-/** 24h change in % — range -11% .. +14%. */
-export function derivedChangePct(id: string): number {
-  return ((hashFromId(id) >> 4) % 26) - 11;
+export function derivedVolumeNumeric(_id: string): number | null {
+  return null;
+}
+
+export function derivedLiquidityUsd(_id: string): string | null {
+  return null;
+}
+
+export function derivedChangePct(_id: string): number | null {
+  return null;
 }

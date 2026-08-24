@@ -18,6 +18,7 @@ import {
   useMarketsEvent,
   useMarketsEventsInfinite,
 } from "../hooks/useMarketsQueries";
+import { useUserPortfolio } from "../hooks/useUserPortfolio";
 import { MARKETS } from "../lib/retropickData";
 
 function MarketDetailShell({ children }: { children: ReactNode }) {
@@ -31,7 +32,7 @@ function MarketDetailShell({ children }: { children: ReactNode }) {
 export function MarketDetailPage() {
   const { marketId = "" } = useParams();
   const decodedId = decodeURIComponent(marketId);
-  const [bookmarked, setBookmarked] = useState(false);
+  const { isWatchlisted, toggleWatchlist } = useUserPortfolio();
   const [copied, setCopied] = useState(false);
   const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
 
@@ -108,7 +109,17 @@ export function MarketDetailPage() {
     return localMarket?.yes ?? 50;
   })();
 
+  const isMultiOutcome = Boolean(
+    (localMarket?.options &&
+      localMarket.options.length >= 2 &&
+      (localMarket.marketType === "MULTIPLE_CHOICE" ||
+        localMarket.marketType === "CONVERGENCE" ||
+        localMarket.marketType === "RANGE")) ||
+      ((apiEvent.data?.markets || (cachedEvent as any)?.markets)?.length > 1),
+  );
+
   const options = (() => {
+    if (!isMultiOutcome) return undefined;
     if (localMarket?.options && localMarket.options.length >= 2) {
       return localMarket.options;
     }
@@ -166,11 +177,6 @@ export function MarketDetailPage() {
 
   return (
     <MarketDetailShell>
-      {/* Top Breadcrumb Navigation */}
-      <div className="mb-3">
-        <Breadcrumbs marketQuestion={title} />
-      </div>
-
       {/* ============================================================ */}
       {/* MAIN 2-COLUMN LAYOUT: Left (Header + Chart + Rules) / Right  */}
       {/* ============================================================ */}
@@ -217,14 +223,22 @@ export function MarketDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setBookmarked(!bookmarked)}
-                title="Bookmark Market"
+                onClick={() =>
+                  toggleWatchlist({
+                    marketId: decodedId,
+                    title,
+                    category,
+                    yesChance: probYes,
+                    volume24h: volume,
+                  })
+                }
+                title={isWatchlisted(decodedId) ? "Remove from Watchlist" : "Save to Watchlist"}
                 className={cn(
                   "rounded-xl border border-white/[0.08] bg-[#0E1422] p-2 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
-                  bookmarked ? "text-white fill-white" : "",
+                  isWatchlisted(decodedId) ? "text-amber-400 border-amber-500/30" : "",
                 )}
               >
-                <Bookmark className={cn("h-4 w-4", bookmarked ? "fill-white text-white" : "")} />
+                <Bookmark className={cn("h-4 w-4", isWatchlisted(decodedId) ? "fill-amber-400 text-amber-400" : "")} />
               </button>
             </div>
           </div>
@@ -251,8 +265,8 @@ export function MarketDetailPage() {
             />
           )}
 
-          {/* 3. Multi-Candidate Outcome Rows Table (if options exist) */}
-          {options && options.length >= 2 && (
+          {/* 3. Multi-Candidate Outcome Rows Table (only if genuine multi-choice / candidate market) */}
+          {isMultiOutcome && options && options.length >= 2 && (
             <MarketCandidateRowsTable
               options={options}
               selectedOptionIdx={selectedOptionIdx}
@@ -278,6 +292,7 @@ export function MarketDetailPage() {
           <PolymarketTradeBox
             marketId={decodedId}
             marketTitle={title}
+            category={category}
             image={image}
             isDirection={isFastCrypto}
             probYes={probYes}

@@ -1,24 +1,23 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
-  Wallet,
   Copy,
   Check,
   LogOut,
   ExternalLink,
   ChevronDown,
   PieChart,
-  Shield,
   Sparkles,
-  Mail,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useMarketsWalletConnect } from "../../wallet/hooks/useMarketsWalletConnect";
+import { useMarketsWalletSession } from "../../wallet/hooks/useMarketsWalletSession";
 import { truncateAddress } from "../../wallet/lib/truncateAddress";
 import { portfolioPath, discoverPath } from "../../routes/paths";
 
 export function MarketsUserMenu() {
-  const { address, session, disconnect } = useMarketsWalletConnect();
+  const { address, disconnect } = useMarketsWalletConnect();
+  const { logout } = useMarketsWalletSession();
 
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -44,37 +43,29 @@ export function MarketsUserMenu() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const getProviderBadge = () => {
-    if (session?.type === "google") return { label: "Google Account", icon: "G", color: "bg-blue-600" };
-    if (session?.type === "email") return { label: "Email Account", icon: "@", color: "bg-emerald-600" };
-    if (session?.type === "metamask") return { label: "MetaMask", icon: "🦊", color: "bg-amber-600" };
-    if (session?.type === "coinbase") return { label: "Coinbase", icon: "🔵", color: "bg-blue-600" };
-    if (session?.type === "phantom") return { label: "Phantom", icon: "👻", color: "bg-purple-600" };
-    return { label: "Web3 Wallet", icon: "W", color: "bg-indigo-600" };
+  const handleLogout = () => {
+    void logout();
+    disconnect();
+    setIsOpen(false);
   };
-
-  const provider = getProviderBadge();
 
   return (
     <div ref={menuRef} className="relative">
-      {/* Sleek Connected Profile Pill Button matching Polymarket */}
+      {/* Connected Profile Pill Button */}
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-[#101726] hover:bg-[#162035] hover:border-blue-500/30 px-3 py-1.5 text-xs font-bold text-white transition-all shadow-md cursor-pointer"
       >
         {/* Avatar Circle with Online Dot */}
-        <div className={cn("relative flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-black text-white shadow-inner", provider.color)}>
-          <span>{session?.email ? session.email[0].toUpperCase() : address.slice(2, 4).toUpperCase()}</span>
+        <div className="relative flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-indigo-700 text-[10px] font-black text-white shadow-inner">
+          {address.slice(2, 4).toUpperCase()}
           <span className="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full border-2 border-[#090E1A] bg-emerald-400" />
         </div>
 
-        {/* Address & Balance */}
         <div className="flex flex-col items-start leading-tight">
-          <span className="font-mono text-xs text-slate-200">
-            {session?.email ? session.email.split("@")[0] : truncateAddress(address)}
-          </span>
-          <span className="text-[10px] font-medium text-emerald-400 font-mono">$0.00 Cash</span>
+          <span className="font-mono text-xs text-slate-200">{truncateAddress(address)}</span>
+          <span className="text-[10px] font-medium text-slate-400">Polygon · 137</span>
         </div>
 
         <ChevronDown className={cn("h-3.5 w-3.5 text-slate-400 transition-transform", isOpen ? "rotate-180" : "")} />
@@ -86,24 +77,15 @@ export function MarketsUserMenu() {
           {/* Header with Address & Network Badge */}
           <div className="rounded-xl border border-white/[0.06] bg-[#121929] p-3 space-y-2">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-[11px] font-semibold text-slate-400">{provider.label}</span>
+              <span className="text-[11px] font-semibold text-slate-400">Wallet</span>
               <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-300">
                 <span className="h-1.5 w-1.5 rounded-full bg-purple-400" />
                 Polygon · 137
               </span>
             </div>
 
-            {session?.email && (
-              <div className="flex items-center gap-1.5 text-xs text-slate-300 font-medium truncate">
-                <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                <span className="truncate">{session.email}</span>
-              </div>
-            )}
-
             <div className="flex items-center justify-between pt-1">
-              <span className="font-mono text-xs font-bold text-slate-200">
-                {truncateAddress(address)}
-              </span>
+              <span className="font-mono text-xs font-bold text-slate-200">{truncateAddress(address)}</span>
               <button
                 type="button"
                 onClick={handleCopy}
@@ -153,18 +135,15 @@ export function MarketsUserMenu() {
             </a>
           </div>
 
-          {/* Disconnect & Sign Actions */}
+          {/* Sign Out */}
           <div className="border-t border-white/[0.06] pt-2">
             <button
               type="button"
-              onClick={() => {
-                disconnect();
-                setIsOpen(false);
-              }}
+              onClick={handleLogout}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 py-2 text-xs font-bold text-rose-400 hover:bg-rose-500/20 transition-all cursor-pointer"
             >
               <LogOut className="h-3.5 w-3.5" />
-              <span>Log out / Disconnect</span>
+              <span>Log out</span>
             </button>
           </div>
         </div>

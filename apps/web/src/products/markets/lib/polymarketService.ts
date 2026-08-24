@@ -3,7 +3,6 @@ import { type Market, type MarketOption } from "./retropickData";
 export type MarketCategoryEnum = Market['category'];
 
 const PRIORITY_ORDER: MarketCategoryEnum[] = [
-  'Politics',
   'Crypto',
   'AI',
   'Economics',
@@ -15,16 +14,28 @@ const PRIORITY_ORDER: MarketCategoryEnum[] = [
   'Science',
 ];
 
-const KEYWORD_MAP: Record<MarketCategoryEnum, string[]> = {
-  Politics: [
-    'trump', 'biden', 'pardon', 'president', 'presidential', 'election',
-    'senate', 'governor', 'congress', 'democrat', 'republican', 'harris',
-    'vance', 'putin', 'zelensky', 'cabinet', 'impeach', 'politician',
-    'political', 'politi', 'elect', 'supreme court', 'white house', 'parliament',
-    'prime minister', 'government', 'midterms', 'midterm', 'likud', 'gaza', 'ceasefire',
-    'israel', 'iran', 'palestine', 'middle east', 'nato', 'un security council', 'balance of power',
-    'us election', 'primaries', 'caucus', 'vote', 'voting', 'dan sullivan', 'eli cohen'
-  ],
+const POLITICAL_KEYWORDS = [
+  'trump', 'biden', 'pardon', 'president', 'presidential', 'election',
+  'senate', 'governor', 'congress', 'democrat', 'republican', 'harris',
+  'vance', 'putin', 'zelensky', 'cabinet', 'impeach', 'politician',
+  'political', 'politi', 'elect', 'supreme court', 'white house', 'parliament',
+  'prime minister', 'government', 'midterms', 'midterm', 'likud', 'gaza', 'ceasefire',
+  'israel', 'iran', 'palestine', 'middle east', 'nato', 'un security council', 'balance of power',
+  'us election', 'primaries', 'caucus', 'vote', 'voting', 'dan sullivan', 'eli cohen',
+  'luxon', 'starmer', 'macron', 'blockade', 'war', 'clarity act'
+];
+
+export function isPoliticalEvent(textOrEvent: any): boolean {
+  if (!textOrEvent) return false;
+  const str = typeof textOrEvent === 'string'
+    ? textOrEvent
+    : `${textOrEvent.title || ''} ${textOrEvent.question || ''} ${textOrEvent.category || ''} ${textOrEvent.slug || ''}`;
+  const lower = str.toLowerCase();
+  if (lower.includes('politics') || lower.includes('geopolitics')) return true;
+  return POLITICAL_KEYWORDS.some(kw => lower.includes(kw));
+}
+
+const KEYWORD_MAP: Record<Exclude<MarketCategoryEnum, undefined>, string[]> = {
   Crypto: [
     'bitcoin', 'btc', 'ethereum', 'eth', 'solana', 'sol', 'xrp', 'ripple',
     'base chain', 'base network', 'arbitrum', 'optimism', 'zksync', 'defi', 'dex',
@@ -90,7 +101,6 @@ export function classifyMarketCategory(
   const haystack = `${question.toLowerCase()} ${eventTitle.toLowerCase()} ${slug.toLowerCase().replace(/-/g, ' ')}`;
 
   const scores: Record<MarketCategoryEnum, number> = {
-    Politics: 0,
     Sports: 0,
     Crypto: 0,
     AI: 0,
@@ -281,49 +291,12 @@ export function extractSubTags(
   return result
 }
 
-const BFF_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api/v1'
-
 export async function fetchLivePolymarketMarkets(): Promise<Market[]> {
-  // 1. Try Go BFF backend endpoint from monorepo-base
-  try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 1800)
-    const bffRes = await fetch(`${BFF_API_URL}/markets`, { signal: controller.signal })
-    clearTimeout(timeoutId)
-    if (bffRes.ok) {
-      const bffData = await bffRes.json()
-      const rawBffMarkets = Array.isArray(bffData) ? bffData : bffData?.data || bffData?.markets || []
-      if (rawBffMarkets.length > 0) {
-        console.log('[RetroPick] Successfully fetched markets from Go BFF Backend')
-        const bffMapped = rawBffMarkets.map((m: any, idx: number): Market | null => {
-          const qLower = (m.question || '').toLowerCase()
-          const cat = classifyMarketCategory(m.question || '', m.category || '')
-          const yesVal = Math.round(typeof m.yes === 'number' ? m.yes : (parseFloat(m.yesPrice || '0.5') * 100))
-          return {
-            id: m.id || String(idx),
-            question: m.question || 'Untitled Market',
-            category: cat,
-            marketType: m.marketType || 'UP_OR_DOWN',
-            tags: extractSubTags(m.question || '', cat),
-            yes: yesVal,
-            volume: m.volume || '$1.2m',
-            liquidity: m.liquidity || '$450k',
-            participants: m.participants || '1,420 Traders',
-            timeLeft: m.timeLeft || 'Ends Dec 31',
-            trend: yesVal >= 50 ? 'up' : 'down',
-            chart: m.chart || [48, 50, 52, 51, 55, 58, 60, yesVal],
-            verified: true,
-            icon: m.icon,
-            image: m.image,
-            options: m.options
-          }
-        }).filter((m: any): m is Market => m !== null)
-        if (bffMapped.length > 0) return bffMapped
-      }
-    }
-  } catch (_) {
-    // Go BFF unavailable, fallback to direct Polymarket API
-  }
+  // Direct Polymarket Gamma fallback only.
+  //
+  // The canonical BFF path (apps/backend → /api/v1/markets/events) is handled by
+  // `@retropick/polymarket` in `marketsClient.ts`; this function is reached only
+  // after that path already failed, so re-calling the BFF here would be redundant.
 
   try {
     const controller = new AbortController()
@@ -340,6 +313,7 @@ export async function fetchLivePolymarketMarkets(): Promise<Market[]> {
     const rawMarkets = Array.isArray(data) ? data : data?.markets || []
 
     const mapped = rawMarkets.map((m: any, idx: number): Market | null => {
+      if (isPoliticalEvent(m)) return null;
       const qLower = (m.question || '').toLowerCase()
       const originalCat = (m.category || '').toLowerCase()
       const tagSlugs = (m.tags || []).map((t: any) => (t.slug || m.slug || '').toLowerCase())

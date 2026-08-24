@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Star } from "lucide-react";
 import type { EventSummary } from "@retropick/polymarket";
-import { derivedVolumeUsd, calcProbabilityFromId } from "../../lib/cardStats";
 import { eventPath } from "../../routes/paths";
 
 interface MarketsTableListProps {
@@ -47,8 +46,16 @@ function TableMarketAvatar({ event, categoryTag }: { event: any; categoryTag: st
   );
 }
 
-// Generates smooth SVG sparkline path matching green (upward) or red (downward) trend
-function MiniSparkline({ prob }: { prob: number }) {
+// Neutral trend placeholder (no fabricated up/down signal when data is absent)
+function MiniSparkline({ prob }: { prob: number | null }) {
+  if (prob == null) {
+    return (
+      <span className="text-xs font-mono text-slate-600" aria-label="Trend unavailable">
+        —
+      </span>
+    );
+  }
+
   const isGreen = prob >= 40;
   const strokeColor = isGreen ? "#34D399" : "#F87171"; // emerald or rose
 
@@ -107,9 +114,10 @@ export function MarketsTableList({ events, onViewAllClick }: MarketsTableListPro
       {/* Rows */}
       <div className="divide-y divide-slate-800/60">
         {events.map((event) => {
-          const yesProb = calcProbabilityFromId(event.id);
-          const noProb = 100 - yesProb;
-          const volume = derivedVolumeUsd(event.id);
+          // EventSummary carries no real volume/probability today — render honest placeholders.
+          const yesProb: number | null = null;
+          const noProb: number | null = null;
+          const volume: string | null = null;
           const isStarred = starredIds.has(event.id);
           const slugLower = (event.slug ?? "").toLowerCase();
           const categoryTag = slugLower.includes("btc") || slugLower.includes("eth")
@@ -144,11 +152,11 @@ export function MarketsTableList({ events, onViewAllClick }: MarketsTableListPro
               {/* Column 2: Yes % / No % */}
               <div className="flex items-center justify-between sm:justify-center gap-4 font-mono text-sm sm:text-base font-bold tabular-nums">
                 <div className="flex flex-col items-center">
-                  <span className="text-emerald-400">{yesProb}%</span>
+                  <span className="text-emerald-400">{yesProb != null ? `${yesProb}%` : "—"}</span>
                   <span className="text-[10px] font-semibold text-emerald-400/80">Yes</span>
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-rose-400">{noProb}%</span>
+                  <span className="text-rose-400">{noProb != null ? `${noProb}%` : "—"}</span>
                   <span className="text-[10px] font-semibold text-rose-400/80">No</span>
                 </div>
               </div>
@@ -160,7 +168,7 @@ export function MarketsTableList({ events, onViewAllClick }: MarketsTableListPro
 
               {/* Column 4: Volume */}
               <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-center font-mono">
-                <span className="text-sm sm:text-base font-bold text-white tabular-nums">{volume}</span>
+                <span className="text-sm sm:text-base font-bold text-white tabular-nums">{volume ?? "—"}</span>
                 <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">Volume</span>
               </div>
 
