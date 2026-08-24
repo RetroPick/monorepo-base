@@ -15,6 +15,7 @@ import {
 export type BffMockOptions = {
   orderSubmit?: boolean;
   portfolioRead?: boolean;
+  intelligenceWhaleFeed?: boolean;
   eligible?: boolean;
   eligibilityReason?: string;
   marketFreshness?: "fresh" | "stale";
@@ -37,6 +38,7 @@ export async function injectMarketsE2EHarness(page: Page) {
 export async function mockMarketsBff(page: Page, options: BffMockOptions = {}) {
   const orderSubmit = options.orderSubmit ?? false;
   const portfolioRead = options.portfolioRead ?? false;
+  const intelligenceWhaleFeed = options.intelligenceWhaleFeed ?? false;
   const eligible = options.eligible ?? true;
   const captureSubmit = options.captureSubmit;
 
@@ -59,11 +61,30 @@ export async function mockMarketsBff(page: Page, options: BffMockOptions = {}) {
     if (url.includes("/capabilities") && method === "GET") {
       const capabilities = capabilitiesFixture(orderSubmit);
       capabilities.features.portfolio_read = portfolioRead;
+      capabilities.features.intelligence_whale_feed = intelligenceWhaleFeed;
       return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(capabilities),
       });
+    }
+
+    if (url.includes("/intelligence/whales") && method === "GET") {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schemaVersion: "1",
+          items: intelligenceWhaleFeed ? [{ fingerprint: "whale-e2e-1", wallet: E2E_WALLET, marketId: "polymarket:market:456", marketTitle: "Will A happen?", outcome: "Yes", side: "BUY", price: "0.42", size: "100", notionalUsd: "42", tradeTs: "2026-08-24T12:00:00Z", whaleScore: "80", reasonCodes: ["WHALE_NOTIONAL_THRESHOLD"], freshness: { state: "fresh", observedAt: "2026-08-24T12:00:00Z", ageMillis: 0 }, provenance: { source: "polymarket_data", upstreamId: "trade-e2e-1", observedAt: "2026-08-24T12:00:00Z" }, evidence: { version: 1, signalType: "whale_trade", computedAt: "2026-08-24T12:00:00Z", inputs: { tradeId: "trade-e2e-1" }, metrics: { notionalMinor: 42000000 }, paramsRef: "intelligence_params_v1.yaml#whale_score_launch", reasonCodes: ["WHALE_NOTIONAL_THRESHOLD"], hash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", lifecycle: "active" }, lagSeconds: 0, source: "data_trades" }] : [],
+          page: { nextCursor: null, limit: 50 },
+          checkedAt: "2026-08-24T12:00:00Z",
+          freshness: { state: "fresh", observedAt: "2026-08-24T12:00:00Z", ageMillis: 0 },
+        }),
+      });
+    }
+
+    if (url.includes("/intelligence/signals") && method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ schemaVersion: "1", signals: [], page: { nextCursor: null, limit: 50 } }) });
     }
 
     if (url.includes("/me/orders") && method === "GET") {

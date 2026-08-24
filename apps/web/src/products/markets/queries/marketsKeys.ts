@@ -1,6 +1,10 @@
 export const marketsKeys = {
   all: ["markets"] as const,
   capabilities: () => [...marketsKeys.all, "capabilities"] as const,
+  intelligence: {
+    signals: () => [...marketsKeys.all, "intelligence", "signals"] as const,
+    whales: () => [...marketsKeys.all, "intelligence", "whales"] as const,
+  },
   events: {
     all: () => [...marketsKeys.all, "events"] as const,
     infiniteList: () => [...marketsKeys.events.all(), "infinite"] as const,

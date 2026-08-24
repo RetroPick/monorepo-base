@@ -13,16 +13,15 @@ vi.mock("../wallet/hooks/useMarketsWalletSession", () => ({
 import { PaperPortfolioPage } from "../pages/PaperPortfolioPage";
 
 describe("PaperPortfolioPage", () => {
-  it("labels fixture paper data as simulated rather than venue execution", () => {
+  it("does not render fixture data unless an explicit development flag enables it", () => {
     render(
       <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <PaperPortfolioPage />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/simulated intelligence preview/i)).toBeInTheDocument();
-    expect(screen.getByText(/paper portfolio only — not polymarket fills/i)).toBeInTheDocument();
-    expect(screen.getByText(/virtual balance/i)).toBeInTheDocument();
+    expect(screen.getByText(/paper copy unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/virtual balance/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/order submitted/i)).not.toBeInTheDocument();
   });
 });

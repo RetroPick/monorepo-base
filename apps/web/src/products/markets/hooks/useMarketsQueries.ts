@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { HistoryInterval } from "@retropick/polymarket";
 
+import { listMarketsWhales } from "../api/intelligenceClient";
 import { getMarketsClient } from "../api/marketsClient";
 import { isCanonicalEventId, isCanonicalMarketId } from "../lib/ids";
 import { marketsKeys } from "../queries/marketsKeys";
@@ -8,6 +9,26 @@ import { marketsQueryOptions } from "../queries/marketsQueryOptions";
 
 export function useMarketsCapabilities() {
   return useQuery(marketsQueryOptions.capabilities());
+}
+
+export function useMarketsSignals() {
+  return useQuery({
+    queryKey: marketsKeys.intelligence.signals(),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      getMarketsClient()
+        .listSignals(undefined, { signal })
+        .then((response) => response.data),
+    staleTime: 30_000,
+  });
+}
+
+export function useMarketsWhales(enabled: boolean) {
+  return useQuery({
+    queryKey: marketsKeys.intelligence.whales(),
+    queryFn: ({ signal }: { signal?: AbortSignal }) => listMarketsWhales(signal),
+    staleTime: 30_000,
+    enabled,
+  });
 }
 
 export function useMarketsEventsInfinite() {
