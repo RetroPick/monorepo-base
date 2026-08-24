@@ -162,6 +162,37 @@ describe("useMarketsWalletSession", () => {
     expect(result.current.sessionError).toMatch(/expired/i);
   });
 
+  it("demotes an authenticated session when its expiry time is reached", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-09T12:00:00Z"));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes("/auth/session")) {
+          return {
+            ok: true,
+            json: async () => ({
+              authenticated: true,
+              wallet: WALLET,
+              expiresAt: new Date(Date.now() + 1_000).toISOString(),
+            }),
+          };
+        }
+        throw new Error(`unexpected fetch: ${String(input)}`);
+      }),
+    );
+
+    const { result } = renderHook(() => useMarketsWalletSession(), { wrapper });
+    await act(async () => { await Promise.resolve(); });
+    expect(result.current.isSessionAuthenticated).toBe(true);
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+    expect(result.current.isSessionAuthenticated).toBe(false);
+    expect(result.current.sessionState).toBe("idle");
+    expect(result.current.sessionError).toMatch(/expired/i);
+    vi.useRealTimers();
+  });
+
   it("authenticates with server nonce and SIWE verify", async () => {
     const fetchMock = mockAuthFetch();
     vi.stubGlobal("fetch", fetchMock);

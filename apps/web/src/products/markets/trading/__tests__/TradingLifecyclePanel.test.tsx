@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryData = new Map<string, unknown>();
 const queryConfigs = new Map<string, { enabled: boolean; queryFn: ReturnType<typeof vi.fn> }>();
 let capabilityFeatures = { portfolio_read: true, order_submit: false };
+let session = { isSessionAuthenticated: true, expiresAt: "2099-01-01T00:00:00Z" };
+const getEligibility = vi.fn();
 
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
@@ -30,6 +32,15 @@ vi.mock("@tanstack/react-query", () => ({
 
 vi.mock("wagmi", () => ({
   useSignTypedData: () => ({ signTypedDataAsync: vi.fn(), isPending: false }),
+  useSignMessage: () => ({ signMessageAsync: vi.fn(), isPending: false }),
+}));
+
+vi.mock("../../api/marketsClient", () => ({
+  getMarketsClient: () => ({ getEligibility }),
+}));
+
+vi.mock("../../wallet/config/runtimeEnv", () => ({
+  getMarketsApiOrigin: () => "http://localhost:8080",
 }));
 
 vi.mock("../lib/tradingApiClient", async (importOriginal) => {
@@ -41,6 +52,8 @@ vi.mock("../lib/tradingApiClient", async (importOriginal) => {
     listMyPositions: vi.fn(() => Promise.resolve(queryData.get("positions"))),
     getMyPortfolioSummary: vi.fn(() => Promise.resolve(queryData.get("summary"))),
     listMyActivity: vi.fn(() => Promise.resolve(queryData.get("activity"))),
+    previewCancelOrder: vi.fn(),
+    cancelOrder: vi.fn(),
   };
 });
 
@@ -51,7 +64,7 @@ vi.mock("../../hooks/useMarketsQueries", () => ({
 }));
 
 vi.mock("../../wallet/hooks/useMarketsWalletSession", () => ({
-  useMarketsWalletSession: () => ({ isSessionAuthenticated: true }),
+  useMarketsWalletSession: () => session,
 }));
 
 import { TradingLifecyclePanel } from "../components/TradingLifecyclePanel";
@@ -62,6 +75,8 @@ describe("TradingLifecyclePanel portfolio availability", () => {
     queryData.clear();
     queryConfigs.clear();
     capabilityFeatures = { portfolio_read: true, order_submit: false };
+    session = { isSessionAuthenticated: true, expiresAt: "2099-01-01T00:00:00Z" };
+    getEligibility.mockReset();
     queryData.set("orders", { orders: [] });
     queryData.set("fills", { fills: [] });
     queryData.set("positions", { positions: [] });
@@ -203,12 +218,14 @@ describe("TradingLifecyclePanel portfolio availability", () => {
     render(<TradingLifecyclePanel />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Portfolio projections unavailable");
-    for (const key of ["positions", "summary", "activity"]) {
+    for (const key of ["orders", "fills", "positions", "summary", "activity"]) {
       const query = queryConfigs.get(key);
       expect(query?.enabled).toBe(false);
       expect(query?.queryFn).not.toHaveBeenCalled();
     }
 
+    expect(screen.queryByRole("heading", { name: "Open orders" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Fills" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Positions" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Activity" })).not.toBeInTheDocument();
     expect(screen.queryByText("Hidden position fixture")).not.toBeInTheDocument();
@@ -217,5 +234,21 @@ describe("TradingLifecyclePanel portfolio availability", () => {
       expect(screen.queryByText(metric)).not.toBeInTheDocument();
     }
     expect(screen.queryByText(/success|submitted|portfolio reads enabled/i)).not.toBeInTheDocument();
+  });
+
+  it("does not request a cancel preview when the fresh BFF eligibility decision denies cancellation", async () => {
+    capabilityFeatures = { portfolio_read: true, order_submit: true };
+    queryData.set("orders", {
+      orders: [{ orderId: "order-denied", side: "BUY", remainingSize: "10", price: "0.42", status: "open" }],
+    });
+    getEligibility.mockResolvedValue({ data: { eligible: false, reason: "Trading is unavailable in your region." } });
+
+    render(<TradingLifecyclePanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel order" }));
+
+    await waitFor(() => expect(getEligibility).toHaveBeenCalledTimes(1));
+    const { previewCancelOrder } = await import("../lib/tradingApiClient");
+    expect(previewCancelOrder).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("Trading is unavailable in your region.");
   });
 });

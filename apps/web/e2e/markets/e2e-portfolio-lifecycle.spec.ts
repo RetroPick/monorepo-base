@@ -22,3 +22,18 @@ test("portfolio hides private projections when the BFF capability is disabled", 
   await expect(page.getByRole("heading", { name: "Positions" })).toBeHidden();
   await expect(page.getByRole("heading", { name: "Activity" })).toBeHidden();
 });
+
+test("denied fresh eligibility sends no cancel-preview request", async ({ page }) => {
+  let cancelPreviewRequests = 0;
+  page.on("request", (request) => {
+    if (request.method() === "POST" && request.url().includes("/cancel-preview")) {
+      cancelPreviewRequests += 1;
+    }
+  });
+  await setupMarketsE2EPage(page, { portfolioRead: true, orderSubmit: true, eligible: false, eligibilityReason: "Trading unavailable." });
+  await page.goto("/markets/portfolio", { waitUntil: "networkidle", timeout: 120_000 });
+
+  await page.getByRole("button", { name: "Cancel order" }).click();
+  await expect(page.getByText("Trading unavailable.", { exact: true })).toBeVisible();
+  expect(cancelPreviewRequests).toBe(0);
+});

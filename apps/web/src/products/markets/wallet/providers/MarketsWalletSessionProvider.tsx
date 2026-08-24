@@ -38,6 +38,7 @@ type MarketsWalletSessionContextValue = {
 };
 
 const MarketsWalletSessionContext = createContext<MarketsWalletSessionContextValue | null>(null);
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 function applySessionSuccess(
   wallet: string,
@@ -56,6 +57,18 @@ function applySessionSuccess(
 function isFutureSessionExpiry(expiresAt: string): boolean {
   const expiresAtMillis = Date.parse(expiresAt);
   return Number.isFinite(expiresAtMillis) && expiresAtMillis > Date.now();
+}
+
+function clearExpiredSession(
+  setSessionWallet: (wallet: string | null) => void,
+  setExpiresAt: (expiresAt: string | null) => void,
+  setSessionState: (state: WalletSessionState) => void,
+  setSessionError: (error: string | null) => void,
+) {
+  setSessionWallet(null);
+  setExpiresAt(null);
+  setSessionState("idle");
+  setSessionError("Your Markets session has expired. Sign in again.");
 }
 
 export function MarketsWalletSessionProvider({ children }: { children: ReactNode }) {
@@ -82,6 +95,31 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
       setExpiresAt(null);
     }
   }, [address, isConnected]);
+
+  useEffect(() => {
+    if (sessionState !== "authenticated" || !expiresAt) {
+      return;
+    }
+
+    const expiryMillis = Date.parse(expiresAt);
+    if (!Number.isFinite(expiryMillis) || expiryMillis <= Date.now()) {
+      clearExpiredSession(setSessionWallet, setExpiresAt, setSessionState, setSessionError);
+      return;
+    }
+
+    let timeout: ReturnType<typeof setTimeout>;
+    const scheduleExpiry = () => {
+      const remaining = expiryMillis - Date.now();
+      if (remaining <= 0) {
+        clearExpiredSession(setSessionWallet, setExpiresAt, setSessionState, setSessionError);
+        return;
+      }
+      timeout = setTimeout(scheduleExpiry, Math.min(remaining, MAX_TIMEOUT_MS));
+    };
+    scheduleExpiry();
+
+    return () => clearTimeout(timeout);
+  }, [expiresAt, sessionState]);
 
   useEffect(() => {
     if (!isConnected || !address) {
@@ -260,7 +298,7 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
       sessionError,
       sessionWallet,
       expiresAt,
-      isSessionAuthenticated: sessionState === "authenticated",
+      isSessionAuthenticated: sessionState === "authenticated" && expiresAt != null && isFutureSessionExpiry(expiresAt),
       isRestoring: sessionState === "restoring",
       authenticate,
       logout,
