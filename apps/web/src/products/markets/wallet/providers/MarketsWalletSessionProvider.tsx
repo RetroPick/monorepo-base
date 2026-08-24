@@ -53,6 +53,11 @@ function applySessionSuccess(
   setSessionError(null);
 }
 
+function isFutureSessionExpiry(expiresAt: string): boolean {
+  const expiresAtMillis = Date.parse(expiresAt);
+  return Number.isFinite(expiresAtMillis) && expiresAtMillis > Date.now();
+}
+
 export function MarketsWalletSessionProvider({ children }: { children: ReactNode }) {
   const e2eHarness = readMarketsE2EHarness();
   const wagmiAccount = useAccount();
@@ -93,7 +98,11 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
     setSessionError(null);
 
     const harness = readMarketsE2EHarness();
-    if (harness?.session && addressesMatch(harness.session.wallet, address)) {
+    if (
+      harness?.session &&
+      addressesMatch(harness.session.wallet, address) &&
+      isFutureSessionExpiry(harness.session.expiresAt)
+    ) {
       applySessionSuccess(
         harness.session.wallet,
         harness.session.expiresAt,
@@ -123,6 +132,13 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
           setExpiresAt(null);
           setSessionState("idle");
           setSessionError("Connected wallet does not match your Markets session. Sign in again.");
+          return;
+        }
+        if (!isFutureSessionExpiry(session.expiresAt)) {
+          setSessionWallet(null);
+          setExpiresAt(null);
+          setSessionState("idle");
+          setSessionError("Your Markets session has expired. Sign in again.");
           return;
         }
         applySessionSuccess(
@@ -194,6 +210,9 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
 
       setSessionState("submitting");
       const verified = await postSiweVerify({ message: prepared, signature });
+      if (!addressesMatch(verified.wallet, address) || !isFutureSessionExpiry(verified.expiresAt)) {
+        throw new MarketsAuthError("AUTH_FAILED", "Markets session verification was invalid. Sign in again.");
+      }
       applySessionSuccess(
         verified.wallet,
         verified.expiresAt,

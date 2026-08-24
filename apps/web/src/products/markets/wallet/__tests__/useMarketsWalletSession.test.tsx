@@ -7,7 +7,7 @@ import { useMarketsWalletSession } from "../hooks/useMarketsWalletSession";
 
 const WALLET = "0x1234567890AbcdEF1234567890aBcdef12345678" as const;
 const OTHER_WALLET = "0xABcdEFABcdEFabcdEfAbCdefabcdeFABcDEFabCD" as const;
-const EXPIRES_AT = "2026-08-09T12:15:00Z";
+const EXPIRES_AT = "2099-08-09T12:15:00Z";
 
 const signMessageAsync = vi.fn();
 
@@ -132,6 +132,34 @@ describe("useMarketsWalletSession", () => {
       expect(result.current.sessionState).toBe("idle");
     });
     expect(result.current.sessionError).toMatch(/does not match/i);
+  });
+
+  it("rejects an expired restored session instead of treating it as authenticated", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes("/auth/session")) {
+          return {
+            ok: true,
+            json: async () => ({
+              authenticated: true,
+              wallet: WALLET,
+              expiresAt: new Date(Date.now() - 60_000).toISOString(),
+            }),
+          };
+        }
+        throw new Error(`unexpected fetch: ${url}`);
+      }),
+    );
+
+    const { result } = renderHook(() => useMarketsWalletSession(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.sessionState).toBe("idle");
+    });
+    expect(result.current.isSessionAuthenticated).toBe(false);
+    expect(result.current.sessionError).toMatch(/expired/i);
   });
 
   it("authenticates with server nonce and SIWE verify", async () => {
