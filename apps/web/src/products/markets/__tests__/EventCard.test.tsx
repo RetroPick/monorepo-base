@@ -19,7 +19,7 @@ const sampleEvent: EventSummary = {
 };
 
 describe("EventCard", () => {
-  it("links to event detail with Android-parity chrome", () => {
+  it("links to event detail and shows only canonical catalog metadata", () => {
     render(
       <MemoryRouter>
         <EventCard event={sampleEvent} />
@@ -30,5 +30,7 @@ describe("EventCard", () => {
     expect(link).toHaveAttribute("href", "/markets/events/polymarket%3Aevent%3A123");
     expect(screen.getByText("3 markets")).toBeInTheDocument();
     expect(screen.getByLabelText("3 markets")).toBeInTheDocument();
+    expect(screen.getByText("Catalog event")).toBeInTheDocument();
+    expect(screen.queryByText("Activity")).not.toBeInTheDocument();
   });
 });
