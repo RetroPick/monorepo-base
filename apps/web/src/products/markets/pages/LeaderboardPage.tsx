@@ -832,7 +832,7 @@ export function LeaderboardPage() {
               )}
             >
               <Trophy className={cn("h-4 w-4", activeTab === "traders" ? "text-amber-400" : "text-slate-500")} />
-              <span>Top Traders ({TOP_TRADERS.length})</span>
+              <span>Top Traders</span>
             </button>
 
             <button
@@ -846,7 +846,7 @@ export function LeaderboardPage() {
               )}
             >
               <Zap className={cn("h-4 w-4", activeTab === "whales" ? "text-cyan-400" : "text-slate-500")} />
-              <span>Whales ({WHALE_TRADES.length})</span>
+              <span>Whales</span>
             </button>
 
             <button
@@ -860,7 +860,7 @@ export function LeaderboardPage() {
               )}
             >
               <Crown className={cn("h-4 w-4", activeTab === "smart_money" ? "text-amber-300" : "text-slate-500")} />
-              <span>Smart Money ({SMART_MONEY.length})</span>
+              <span>Smart Money</span>
             </button>
           </div>
         </div>

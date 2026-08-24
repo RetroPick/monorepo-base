@@ -145,7 +145,7 @@ export function IntelligenceHubPage() {
               className="flex items-center gap-2 rounded-2xl border border-amber-500/30 bg-amber-500/15 px-4 py-2.5 text-xs font-bold text-amber-300 hover:bg-amber-500/25 transition-all shadow-lg shadow-amber-500/10"
             >
               <Crown className="h-4 w-4 text-amber-400" />
-              <span>Smart Money ({FIXTURE_SMART_MONEY.length})</span>
+              <span>Smart Money</span>
             </Link>
             <Link
               to={intelligenceFollowingPath()}
@@ -236,7 +236,7 @@ export function IntelligenceHubPage() {
           )}
         >
           <Layers className="h-3.5 w-3.5" />
-          <span>All Feeds &amp; Overview</span>
+          <span>All Feeds</span>
         </button>
 
         <button
@@ -250,7 +250,7 @@ export function IntelligenceHubPage() {
           )}
         >
           <Zap className="h-3.5 w-3.5 text-amber-400" />
-          <span>Whale Order Stream ({FIXTURE_WHALE_FEED.length})</span>
+          <span>Whales</span>
         </button>
 
         <button
@@ -264,7 +264,7 @@ export function IntelligenceHubPage() {
           )}
         >
           <Crown className="h-3.5 w-3.5 text-yellow-400" />
-          <span>Smart Money Ranks ({FIXTURE_SMART_MONEY.length})</span>
+          <span>Smart Money</span>
         </button>
 
         <button
@@ -278,7 +278,7 @@ export function IntelligenceHubPage() {
           )}
         >
           <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-          <span>AI Alpha Signals ({FIXTURE_INTELLIGENCE_SIGNALS.length})</span>
+          <span>AI Alpha Signals</span>
         </button>
       </div>
 
