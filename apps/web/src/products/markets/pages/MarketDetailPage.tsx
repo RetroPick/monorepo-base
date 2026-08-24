@@ -199,7 +199,12 @@ export function MarketDetailPage() {
             onRetry={() => marketHealth.refetch()}
           />
 
-          <RelatedMarketsPanel currentMarketId={market.data.id} markets={event.data?.markets} />
+          <RelatedMarketsPanel
+            currentMarketId={market.data.id}
+            error={event.error}
+            markets={event.data?.markets}
+            onRetry={() => event.refetch()}
+          />
         </div>
 
         <TradeAside className="space-y-4 market-manual-trade-aside">

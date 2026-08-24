@@ -22,6 +22,43 @@ function scaledPrice(value: string): bigint | null {
   return scaled;
 }
 
+const SVG_AXIS_SCALE = 10_000n;
+const ISO_TIMESTAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/;
+
+function isValidCalendarDate(year: number, month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false;
+  const daysByMonth = [31, year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysByMonth[month - 1];
+}
+
+function parseCanonicalTimestamp(timestamp: string): bigint | null {
+  const match = ISO_TIMESTAMP.exec(timestamp);
+  if (!match) return null;
+
+  const [, rawYear, rawMonth, rawDay, rawHour, rawMinute, rawSecond, rawTimezone] = match;
+  const year = Number(rawYear);
+  const month = Number(rawMonth);
+  const day = Number(rawDay);
+  const hour = Number(rawHour);
+  const minute = Number(rawMinute);
+  const second = Number(rawSecond);
+  const timezoneHour = rawTimezone === "Z" ? 0 : Number(rawTimezone.slice(1, 3));
+  const timezoneMinute = rawTimezone === "Z" ? 0 : Number(rawTimezone.slice(4, 6));
+  if (
+    !isValidCalendarDate(year, month, day) ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    timezoneHour > 23 ||
+    timezoneMinute > 59
+  ) {
+    return null;
+  }
+
+  const epochMillis = Date.parse(timestamp);
+  return Number.isSafeInteger(epochMillis) ? BigInt(epochMillis) : null;
+}
+
 export function PriceHistoryPanel({ history, isLoading, error, onRetry }: PriceHistoryPanelProps) {
   if (isLoading && !history) {
     return <p className="text-sm text-muted-foreground">Loading price history…</p>;
@@ -37,17 +74,28 @@ export function PriceHistoryPanel({ history, isLoading, error, onRetry }: PriceH
     );
   }
 
-  const chartPoints = history.points
-    .map((point, index) => {
+  const plottedPoints = history.points.flatMap((point) => {
       const price = scaledPrice(point.price);
-      if (price == null) return null;
-      const x = index;
-      const y = 10_000n - price;
-      return `${x},${y}`;
+      const timestamp = parseCanonicalTimestamp(point.timestamp);
+      if (price == null || timestamp == null) return [];
+      return [{ price, priceText: point.price, timestamp, derived: point.derived }];
     })
-    .filter((point): point is string => point != null)
+  const earliestTimestamp = plottedPoints.reduce<bigint | undefined>(
+    (earliest, point) => (earliest == null || point.timestamp < earliest ? point.timestamp : earliest),
+    undefined,
+  );
+  const latestTimestamp = plottedPoints.reduce<bigint | undefined>(
+    (latest, point) => (latest == null || point.timestamp > latest ? point.timestamp : latest),
+    undefined,
+  );
+  const timestampSpan = earliestTimestamp != null && latestTimestamp != null ? latestTimestamp - earliestTimestamp : 0n;
+  const chartPoints = plottedPoints
+    .map((point) => {
+      const x = timestampSpan === 0n ? SVG_AXIS_SCALE / 2n : ((point.timestamp - earliestTimestamp!) * SVG_AXIS_SCALE) / timestampSpan;
+      return `${x},${SVG_AXIS_SCALE - point.price}`;
+    })
     .join(" ");
-  const latest = history.points.at(-1);
+  const latest = plottedPoints.at(-1);
 
   return (
     <section aria-label="Price history" className="rounded-xl border border-border bg-card p-5">
@@ -66,7 +114,7 @@ export function PriceHistoryPanel({ history, isLoading, error, onRetry }: PriceH
           className="mt-4 h-32 w-full rounded-lg bg-muted/30"
           preserveAspectRatio="none"
           role="img"
-          viewBox={`0 0 ${Math.max(history.points.length - 1, 1)} 10000`}
+          viewBox="0 0 10000 10000"
         >
           <polyline fill="none" points={chartPoints} stroke="currentColor" strokeWidth="2" />
         </svg>
@@ -75,7 +123,7 @@ export function PriceHistoryPanel({ history, isLoading, error, onRetry }: PriceH
       )}
       {latest ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Latest observed price: <span className="font-mono text-foreground">{formatPrice(latest.price)}</span>
+          Latest observed price: <span className="font-mono text-foreground">{formatPrice(latest.priceText)}</span>
           {latest.derived ? " · derived by the BFF" : ""}
         </p>
       ) : null}
@@ -130,11 +178,21 @@ export function MarketHealthPanel({ health, isLoading, error, onRetry }: MarketH
 interface RelatedMarketsPanelProps {
   currentMarketId: string;
   markets?: Array<{ id: string; question: string }>;
+  error?: unknown;
+  onRetry?: () => void;
 }
 
-export function RelatedMarketsPanel({ currentMarketId, markets = [] }: RelatedMarketsPanelProps) {
+export function RelatedMarketsPanel({ currentMarketId, markets = [], error, onRetry }: RelatedMarketsPanelProps) {
   const related = markets.filter((market) => market.id !== currentMarketId).slice(0, 4);
-  if (related.length === 0) return null;
+  if (related.length === 0) {
+    if (!error) return null;
+    return (
+      <section aria-label="Related markets" className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-sm font-bold text-foreground">Related markets</h2>
+        <DataStateBanner error={error} onRetry={onRetry} title="Related markets unavailable" className="mt-3" />
+      </section>
+    );
+  }
 
   return (
     <section aria-label="Related markets" className="rounded-xl border border-border bg-card p-5">
