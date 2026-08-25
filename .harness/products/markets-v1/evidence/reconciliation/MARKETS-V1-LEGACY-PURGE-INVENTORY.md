@@ -2,7 +2,7 @@
 
 ## Description
 
-Evidence-only, full-tree purge authority for the current landing head. It does not mutate product, CI, workflow, configuration, deployment, or external systems. Every tracked entry receives one of the five allowed path-role dispositions; future external audits are recorded as evidence-only follow-up, not a sixth classification or a repository-local blocker.
+Evidence-only, full-tree purge authority for the current landing head. It does not mutate product, CI, workflow, configuration, deployment, or external systems. Every tracked entry receives one of the five allowed path-role dispositions; future external audits are evidence-only follow-up, not a sixth classification or a repository-local blocker.
 
 ## 0. Developer intent (5W+1H)
 
@@ -13,7 +13,7 @@ Evidence-only, full-tree purge authority for the current landing head. It does n
 | When | Before any R1 purge mutation. |
 | Where | Current tracked tree at the committed landing head. |
 | Why | Avoid deleting canonical Markets code while eliminating archived/dead units safely. |
-| How | Exact tracked-path enumeration, path-role classification, reference-source closure, and ordered ownership waves. |
+| How | Exact tracked-path enumeration, executable rewrite contracts, reference-source closure, and ordered ownership waves. |
 
 ## Baseline
 
@@ -30,12 +30,12 @@ Evidence-only, full-tree purge authority for the current landing head. It does n
 |---|---:|
 | `DELETE_LEGACY` | 6607 |
 | `KEEP_MARKETS` | 528 |
-| `KEEP_SHARED` | 1609 |
-| `REWRITE_FOR_MARKETS` | 258 |
+| `KEEP_SHARED` | 1605 |
+| `REWRITE_FOR_MARKETS` | 262 |
 
 `UNCERTAIN_REVIEW`: **0**. The only classifications in this authority are `DELETE_LEGACY`, `KEEP_MARKETS`, `KEEP_SHARED`, `REWRITE_FOR_MARKETS`, and `UNCERTAIN_REVIEW`.
 
-The exact top-level × classification deletion/count matrix is `top_level_classification_counts` in the companion JSON; it covers every root/workspace/package/pnpm/turbo/tsconfig/Docker/compose/scripts/workflows/harness/agent/docs/deploy/contracts/apps/packages/references path rather than a keyword-selected subset.
+The exact top-level × classification matrix is `top_level_classification_counts` in the companion JSON. It is recomputed from every tracked path, not a keyword-selected subset.
 
 ## Coverage and retained-subtree rules
 
@@ -47,45 +47,37 @@ The exact top-level × classification deletion/count matrix is `top_level_classi
 
 ## Active archive-prefix source closure
 
-- Exactly **65** actionable, non-archive, non-generated/non-reconciliation-evidence tracked sources containing `archive/` are individually listed in JSON `active_archive_prefix_sources`, with their disposition, owner, occurrence count, and required action.
-- Every source must be deleted or rewritten before wave 4; generated `graphify-out/**` and reconciliation evidence are intentionally excluded from this 65-source active closure and are separately recorded.
+- Exactly **65** actionable, non-archive, non-generated/non-reconciliation-evidence tracked sources containing `archive/` are individually listed in JSON `active_archive_prefix_sources`.
+- Every closure source is now `DELETE_LEGACY` or `REWRITE_FOR_MARKETS`; all rewrite members carry an exact wave-2 `rewrite_list` operation and verification command.
+- The four formerly contradictory retained sources are `REWRITE_FOR_MARKETS`: `.ai/AGENTS-opensrc.md`, `.dev/README.md`, `.dev/prompt/RETROPICK MARKETS V1 — SMART MONEY INTELLIGENCE LAUNCH V1 (1).md`, and `references/polymarket/polyterm/docs/AGENT_COOKBOOK.md`.
+- Generated `graphify-out/**` and reconciliation evidence are intentionally excluded from this 65-source active closure and are separately recorded.
 
 ## Ordered purge plan
 
 | Wave | Owners | Deterministic action |
 |---:|---|---|
-| 1 | rp-release-orchestrator/rp-sre-release | Delete dead non-archive units and retire legacy workflow/check; first resolve external branch protection. |
-| 2 | rp-sre-release/rp-recovery-architect | Rewrite control surfaces, remove all 65 active archive-prefix sources, reconcile Go 1.25 module with CI/docs. |
-| 3 | product owners | Resolve Vercel and legal external decisions; execute resulting landing/legal disposition. |
-| 4 | rp-recovery-architect | Verify zero active archive references outside retained evidence, then delete archive/ as one final unit. |
+| 1 | rp-release-orchestrator/rp-sre-release | Delete only `DELETE_LEGACY` records with no predecessor rewrite; record branch-protection evidence before retired workflow mutation. |
+| 2 | Named `rewrite_list` owners | Execute and verify every wave-2 rewrite contract, including all active archive-prefix sources. |
+| 3 | legal owner / rp-web | Execute only the two preservation-only legal rewrite contracts after legal-review evidence; preserve text at current Markets legal destinations before retiring old-path bodies. |
+| 4 | rp-recovery-architect | Re-scan active references and delete `archive/**` only after each closure member has passed its contract verification. |
 
 ## Rewrite authority
 
-The JSON `rewrite_list` is the exact path-to-expected-replacement list. It covers root/workspace/package/pnpm/turbo/tsconfig/Docker/compose/Makefile-equivalent, scripts, workflows, harness, agents, docs, deploy and configuration surfaces. Required specifics: remove the legacy guard and its CI/docs callers; retain a positive Markets-boundary check only if separately approved; rewrite gitlink scripts for only `apps/android`; remove archive/PRISM/old-Android claims from retained guidance; reconcile CI/docs Go declaration to module Go `1.25`; regenerate `pnpm-lock.yaml` only after workspace deletion.
+The JSON `rewrite_list` contains exactly one object for every `REWRITE_FOR_MARKETS` record. Each object has an exact path, owner, stale literal list derived from the current source, canonical Markets anchor, dependency wave, concrete in-place edit/preservation action, executable verification command, and postcondition. `records[].current_replacement` is byte-identical to that object's `action`; no record uses a generic or circular replacement sentence.
 
-## Preserved-path evidence summary
-
-- `KEEP_MARKETS`: manifest-defined BFF (`apps/backend/internal/markets/**`), web (`apps/web/**`), canonical schemas, Polymarket package, and the approved Android gitlink.
-- `KEEP_SHARED`: reference corpora, shared config/tooling, and reconciliation evidence with no product runtime/deploy claim.
-- No current Markets canonical code is classified delete/rewrite from a keyword match; the records give location-based reason and explicit replacement.
+Terms and Privacy are preservation-only rewrites: their complete text must first be copied into `docs/markets-v1/legal/Terms.md` and `docs/markets-v1/legal/PrivacyPolicy.md`, respectively, with legal review recorded separately. Deletion is not an authorized outcome.
 
 ## External actions (evidence only; no credentials used)
 
 1. Vercel/project owner must inventory real project roots, build commands, environment bindings and domains before any future landing deployment mutation. Repository authority preserves the canonical, nonduplicate `apps/landing-web/**` implementation as `KEEP_SHARED`; copied `sources/**` and `src/retro-waitlist-page/**` remain `DELETE_LEGACY`.
-2. Legal owner must review/relocate the tracked Terms/Privacy content to current Markets legal documentation/routes as required. Those source records are `REWRITE_FOR_MARKETS`, never silently deleted.
+2. Legal owner must review the preservation/relocation of tracked Terms/Privacy content into the current Markets legal documentation/routes. These records are `REWRITE_FOR_MARKETS`, never deleted.
 3. Repository administrator must check branch-protection required status names before executing retired-workflow changes; the tracked CI/workflow records are already deterministically classified.
 4. These are evidence-only external follow-ups; no external mutation was performed, and none blocks deterministic repository deletion authority.
 
-## Current CI and toolchain observations
-
-- `apps/backend/go.mod` declares Go `1.25`; `.github/workflows/ci.yml` and `docs/engineering/local-development.md` currently declare Go `1.26`. Wave 2 must align CI/docs to the module-supported `1.25` line unless an independently verified upgrade changes the module.
-- The current workflow invokes `scripts/check-active-legacy-refs.sh`; that script is `DELETE_LEGACY`, so its workflow/docs callers are exact `REWRITE_FOR_MARKETS` records. A replacement may only be a positive Markets-boundary check, not a legacy-name blacklist.
-- `archive/contracts/legacy-pool-v1/treasury-vault-eth` is the archived gitlink slated for final archive deletion; `apps/android` is the only protected gitlink.
-
 ## Validation contract
 
-The companion JSON is authoritative for programmatic validation: exact coverage, no duplicate/nontracked records, required fields, zero unresolved `UNCERTAIN_REVIEW`, archive-delete invariant, phase `PHASE-2`, exact Android gitlink, 65 active archive-prefix sources, and path protection for canonical Markets code.
+The companion JSON is authoritative for programmatic validation: exact coverage, no duplicate/nontracked records, required fields, zero unresolved `UNCERTAIN_REVIEW`, archive-delete invariant, phase `PHASE-2`, exact Android gitlink, active archive-prefix closure, canonical Markets protection, and one-to-one executable `rewrite_list` equality.
 
 ## R0 status
 
-**R0_READY.** Deterministic repository-local deletion/rewrite waves are ready to be assigned. Vercel, legal, and branch-protection checks remain evidence-only external follow-ups before their corresponding future operational mutations.
+**R0_READY.** A worker can mechanically execute every `DELETE_LEGACY` or `REWRITE_FOR_MARKETS` record using the path-level list and verification contracts; repository deletion remains prohibited until the preceding waves complete.
