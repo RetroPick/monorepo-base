@@ -1,90 +1,92 @@
-# Markets V1 legacy purge inventory
+# Markets V1 legacy purge authority inventory
 
 ## Description
 
-Forensic, read-only R0 inventory of every tracked archived item and every active-tree legacy-signal candidate at `fff54010b32388e584959163fb02de775968eb02`. This is a classification baseline, not authorization to delete or rewrite.
+Evidence-only, full-tree purge authority for the current landing head. It does not mutate product, CI, workflow, configuration, deployment, or external systems. Every tracked entry receives one path-role disposition; external decisions are explicit blockers rather than `UNCERTAIN_REVIEW`.
 
 ## 0. Developer intent (5W+1H)
 
 | Dimension | Intent |
 |---|---|
-| Who | Release orchestrator and path owners use this evidence for scoped R1+ cleanup. |
-| What | Classify legacy candidates with reachability and replacement evidence. |
-| When | Before any legacy purge mutation. |
-| Where | Current tracked tree on `integration/markets-v1-main-cleanup`. |
-| Why | Prevent deletion of active Markets/shared surfaces and surface mixed control files. |
-| How | Programmatic tracked-file inventory plus content signal and bounded active reference graph. |
+| Who | Release orchestrator and named path owners. |
+| What | A machine-validated full-tree deletion/rewrite/retention authority. |
+| When | Before any R1 purge mutation. |
+| Where | Current tracked tree at the committed landing head. |
+| Why | Avoid deleting canonical Markets code while eliminating archived/dead units safely. |
+| How | Exact tracked-path enumeration, path-role classification, reference-source closure, and ordered ownership waves. |
 
 ## Baseline
 
-- Starting commit: `fff54010b32388e584959163fb02de775968eb02`
-- Branch: `integration/markets-v1-main-cleanup` (no upstream configured at capture)
-- Tree at capture: clean
+- Generated head: `98503700b70f616b67618c79c8e37e743c68507f`
+- Baseline before initial evidence: `fff54010b32388e584959163fb02de775968eb02`
+- Branch: `integration/markets-v1-main-cleanup`
 - Current phase: `PHASE-2`
-- Gitlinks: `apps/android` = `5827aa536fab9cf266f8a758f8a6811bec175751`; `archive/contracts/legacy-pool-v1/treasury-vault-eth` = `3fab6622c2ca5727d6e49385f7695f23f12216c8`.
-- Tracked files: 9000; tracked under `archive/`: 6106.
+- Current tracked entries: `9002`; archive entries: `6106`.
+- Gitlinks: `apps/android` = `5827aa536fab9cf266f8a758f8a6811bec175751`; archived treasury gitlink = `3fab6622c2ca5727d6e49385f7695f23f12216c8`.
 
-## Candidate counts
+## Deterministic classification counts
 
-| `DELETE_LEGACY` | 6166 |
-| `KEEP_MARKETS` | 141 |
-| `KEEP_SHARED` | 89 |
-| `REWRITE_FOR_MARKETS` | 29 |
-| `UNCERTAIN_REVIEW` | 31 |
+| Classification | Count |
+|---|---:|
+| `DELETE_LEGACY` | 6607 |
+| `EXTERNAL_DECISION_REQUIRED` | 143 |
+| `KEEP_MARKETS` | 528 |
+| `KEEP_SHARED` | 1468 |
+| `REWRITE_FOR_MARKETS` | 256 |
 
-### By top-level path
+`UNCERTAIN_REVIEW`: **0**. `EXTERNAL_DECISION_REQUIRED` is not a semantic uncertainty: it records decisions that cannot be established from Git and blocks only the affected external action.
 
-| `.ai` | 2 |
-| `.dev` | 109 |
-| `.dockerignore` | 1 |
-| `.docs` | 1 |
-| `.env.example` | 1 |
-| `.github` | 2 |
-| `.gitignore` | 1 |
-| `.harness` | 17 |
-| `.references` | 1 |
-| `AGENTS.md` | 1 |
-| `CONTRIBUTING.md` | 1 |
-| `DECISIONS.md` | 1 |
-| `HARNESS.md` | 1 |
-| `ORCHESTRATOR.md` | 1 |
-| `PRODUCTION.md` | 1 |
-| `README.md` | 1 |
-| `android` | 54 |
-| `apps` | 30 |
-| `archive` | 6106 |
-| `contracts` | 2 |
-| `deploy` | 3 |
-| `docs` | 15 |
-| `graphify-out` | 7 |
-| `package.json` | 1 |
-| `packages` | 4 |
-| `pnpm-lock.yaml` | 1 |
-| `pnpm-workspace.yaml` | 1 |
-| `references` | 80 |
-| `schemas` | 2 |
-| `scripts` | 8 |
+The exact top-level × classification deletion/count matrix is `top_level_classification_counts` in the companion JSON; it covers every root/workspace/package/pnpm/turbo/tsconfig/Docker/compose/scripts/workflows/harness/agent/docs/deploy/contracts/apps/packages/references path rather than a keyword-selected subset.
 
-The machine-readable companion contains **all 6456 candidate records**, including every one of the 6106 tracked `archive/` paths. Every record has: path, reason, inbound/outbound references, runtime/CI/deployment reachability, replacement, disposition, and owner.
+## Coverage and retained-subtree rules
 
-## Findings
+- The JSON has one record for every `git ls-files` entry, including both mode-160000 gitlinks.
+- `archive/**`: all 6106 entries are `DELETE_LEGACY`, with archive deletion ordered last.
+- `android/**`: all 150 entries are `DELETE_LEGACY`; canonical Android is only the `apps/android` gitlink.
+- `apps/landing-web/sources/**`: all 195 entries are `DELETE_LEGACY`; `src/retro-waitlist-page/**`: all 111 entries are `DELETE_LEGACY`.
+- Canonical BFF, Markets web, OpenAPI/AsyncAPI, and `packages/polymarket/**` are path-protected `KEEP_MARKETS`; the 19 reviewer-named canonical paths are enumerated in JSON validation contract.
 
-1. `archive/` is **not currently deletable as a single mutation**: active `package.json` scripts run `archive/scripts/RETRODEPLOYER` and Foundry against `archive/contracts/legacy-pool-v1`; `.github/workflows/contracts.yml` is manually dispatchable and also builds that tree. The active guard explicitly excludes `archive/`, as intended. After those entry points and any required historical-retention decision are resolved, the archive is classified `DELETE_LEGACY` as a unit.
-2. Mixed active files needing scoped rewrite rather than deletion: `package.json` (deprecated RETRODEPLOYER/Forge scripts while retaining Markets scripts) and any active operational file explicitly labelled `REWRITE_FOR_MARKETS` in JSON.
-3. `scripts/check-active-legacy-refs.sh` is a required Markets safeguard, not a deletion target; its legacy text is deliberate fail-closed policy.
-4. `pnpm-workspace.yaml` is shared tooling, not evidence for removal. PRISM paths remain `KEEP_SHARED` because Markets governance says PRISM is separately out of scope; no filename-only deletion was made.
-5. External cleanup recommendations (no mutation made): remove/retire the archived `contracts.yml` dispatch workflow with the legacy contracts entry points; inspect branch-protection rules outside this repo so retired checks are not required; inspect Vercel project/environment bindings for retired docs/PRISM/legacy deployments; reconcile Go toolchain declarations (`.github/workflows/ci.yml` and `docs/engineering/local-development.md` state Go 1.26+; backend module/toolchain must be checked by owner before any change).
+## Active archive-prefix source closure
 
-## Unresolved uncertainties
+- Exactly **65** actionable, non-archive, non-generated/non-reconciliation-evidence tracked sources containing `archive/` are individually listed in JSON `active_archive_prefix_sources`, with their disposition, owner, occurrence count, and required action.
+- Every source must be deleted or rewritten before wave 4; generated `graphify-out/**` and reconciliation evidence are intentionally excluded from this 65-source active closure and are separately recorded.
 
-- `scripts/smoke-base-sepolia.sh` has no proven active caller in this inventory and needs owner confirmation before deletion.
-- Any `UNCERTAIN_REVIEW` path in the companion JSON needs semantic owner review; do not execute deletion from a signal hit alone.
-- Archive retention (historical/legal/audit) is a release decision separate from runtime reachability.
+## Ordered purge plan
 
-## Validation
+| Wave | Owners | Deterministic action |
+|---:|---|---|
+| 1 | rp-release-orchestrator/rp-sre-release | Delete dead non-archive units and retire legacy workflow/check; first resolve external branch protection. |
+| 2 | rp-sre-release/rp-recovery-architect | Rewrite control surfaces, remove all 65 active archive-prefix sources, reconcile Go 1.25 module with CI/docs. |
+| 3 | product owners | Resolve Vercel and legal external decisions; execute resulting landing/legal disposition. |
+| 4 | rp-recovery-architect | Verify zero active archive references outside retained evidence, then delete archive/ as one final unit. |
 
-- Candidate construction and field completeness are validated by `validate_legacy_inventory.py` in the command evidence of this task.
-- Coverage rule: every tracked `archive/` file is present in the JSON records.
-- No product, CI, workflow, configuration, deployment, or source path was modified by this R0 task.
+## Rewrite authority
 
-**R0_READY** — evidence is complete; mutation work remains gated on owner review of the explicit external/uncertain items.
+The JSON `rewrite_list` is the exact path-to-expected-replacement list. It covers root/workspace/package/pnpm/turbo/tsconfig/Docker/compose/Makefile-equivalent, scripts, workflows, harness, agents, docs, deploy and configuration surfaces. Required specifics: remove the legacy guard and its CI/docs callers; retain a positive Markets-boundary check only if separately approved; rewrite gitlink scripts for only `apps/android`; remove archive/PRISM/old-Android claims from retained guidance; reconcile CI/docs Go declaration to module Go `1.25`; regenerate `pnpm-lock.yaml` only after workspace deletion.
+
+## Preserved-path evidence summary
+
+- `KEEP_MARKETS`: manifest-defined BFF (`apps/backend/internal/markets/**`), web (`apps/web/**`), canonical schemas, Polymarket package, and the approved Android gitlink.
+- `KEEP_SHARED`: reference corpora, shared config/tooling, and reconciliation evidence with no product runtime/deploy claim.
+- No current Markets canonical code is classified delete/rewrite from a keyword match; the records give location-based reason and explicit replacement.
+
+## External actions (evidence only; no credentials used)
+
+1. Vercel/project owner must inventory real project roots, build commands, environment bindings and domains before deciding the canonical `apps/landing-web/**` unit.
+2. Legal owner must decide whether tracked legacy Terms/Privacy are deleted or reviewed/relocated to Markets pages and routes.
+3. Repository administrator must check branch-protection required status names before retiring legacy workflows/checks.
+4. These are external facts; no external mutation was performed. Because they affect execution authority, this inventory is **BLOCKED_EXTERNAL_DECISIONS**, not `R0_READY`.
+
+## Current CI and toolchain observations
+
+- `apps/backend/go.mod` declares Go `1.25`; `.github/workflows/ci.yml` and `docs/engineering/local-development.md` currently declare Go `1.26`. Wave 2 must align CI/docs to the module-supported `1.25` line unless an independently verified upgrade changes the module.
+- The current workflow invokes `scripts/check-active-legacy-refs.sh`; that script is `DELETE_LEGACY`, so its workflow/docs callers are exact `REWRITE_FOR_MARKETS` records. A replacement may only be a positive Markets-boundary check, not a legacy-name blacklist.
+- `archive/contracts/legacy-pool-v1/treasury-vault-eth` is the archived gitlink slated for final archive deletion; `apps/android` is the only protected gitlink.
+
+## Validation contract
+
+The companion JSON is authoritative for programmatic validation: exact coverage, no duplicate/nontracked records, required fields, zero unresolved `UNCERTAIN_REVIEW`, archive-delete invariant, phase `PHASE-2`, exact Android gitlink, 65 active archive-prefix sources, and path protection for canonical Markets code.
+
+## R0 status
+
+**BLOCKED_EXTERNAL_DECISIONS — not R0_READY.** Deterministic repository-local deletion/rewrite waves are ready to be assigned, but the landing/Vercel and legal execution choices cannot be inferred from the tracked tree.
