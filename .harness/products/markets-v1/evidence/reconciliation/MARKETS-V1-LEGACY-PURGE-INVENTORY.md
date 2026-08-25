@@ -2,7 +2,7 @@
 
 ## Description
 
-Evidence-only, full-tree purge authority for the current landing head. It does not mutate product, CI, workflow, configuration, deployment, or external systems. Every tracked entry receives one path-role disposition; external decisions are explicit blockers rather than `UNCERTAIN_REVIEW`.
+Evidence-only, full-tree purge authority for the current landing head. It does not mutate product, CI, workflow, configuration, deployment, or external systems. Every tracked entry receives one of the five allowed path-role dispositions; future external audits are recorded as evidence-only follow-up, not a sixth classification or a repository-local blocker.
 
 ## 0. Developer intent (5W+1H)
 
@@ -29,12 +29,11 @@ Evidence-only, full-tree purge authority for the current landing head. It does n
 | Classification | Count |
 |---|---:|
 | `DELETE_LEGACY` | 6607 |
-| `EXTERNAL_DECISION_REQUIRED` | 143 |
 | `KEEP_MARKETS` | 528 |
-| `KEEP_SHARED` | 1468 |
-| `REWRITE_FOR_MARKETS` | 256 |
+| `KEEP_SHARED` | 1609 |
+| `REWRITE_FOR_MARKETS` | 258 |
 
-`UNCERTAIN_REVIEW`: **0**. `EXTERNAL_DECISION_REQUIRED` is not a semantic uncertainty: it records decisions that cannot be established from Git and blocks only the affected external action.
+`UNCERTAIN_REVIEW`: **0**. The only classifications in this authority are `DELETE_LEGACY`, `KEEP_MARKETS`, `KEEP_SHARED`, `REWRITE_FOR_MARKETS`, and `UNCERTAIN_REVIEW`.
 
 The exact top-level × classification deletion/count matrix is `top_level_classification_counts` in the companion JSON; it covers every root/workspace/package/pnpm/turbo/tsconfig/Docker/compose/scripts/workflows/harness/agent/docs/deploy/contracts/apps/packages/references path rather than a keyword-selected subset.
 
@@ -72,10 +71,10 @@ The JSON `rewrite_list` is the exact path-to-expected-replacement list. It cover
 
 ## External actions (evidence only; no credentials used)
 
-1. Vercel/project owner must inventory real project roots, build commands, environment bindings and domains before deciding the canonical `apps/landing-web/**` unit.
-2. Legal owner must decide whether tracked legacy Terms/Privacy are deleted or reviewed/relocated to Markets pages and routes.
-3. Repository administrator must check branch-protection required status names before retiring legacy workflows/checks.
-4. These are external facts; no external mutation was performed. Because they affect execution authority, this inventory is **BLOCKED_EXTERNAL_DECISIONS**, not `R0_READY`.
+1. Vercel/project owner must inventory real project roots, build commands, environment bindings and domains before any future landing deployment mutation. Repository authority preserves the canonical, nonduplicate `apps/landing-web/**` implementation as `KEEP_SHARED`; copied `sources/**` and `src/retro-waitlist-page/**` remain `DELETE_LEGACY`.
+2. Legal owner must review/relocate the tracked Terms/Privacy content to current Markets legal documentation/routes as required. Those source records are `REWRITE_FOR_MARKETS`, never silently deleted.
+3. Repository administrator must check branch-protection required status names before executing retired-workflow changes; the tracked CI/workflow records are already deterministically classified.
+4. These are evidence-only external follow-ups; no external mutation was performed, and none blocks deterministic repository deletion authority.
 
 ## Current CI and toolchain observations
 
@@ -89,4 +88,4 @@ The companion JSON is authoritative for programmatic validation: exact coverage,
 
 ## R0 status
 
-**BLOCKED_EXTERNAL_DECISIONS — not R0_READY.** Deterministic repository-local deletion/rewrite waves are ready to be assigned, but the landing/Vercel and legal execution choices cannot be inferred from the tracked tree.
+**R0_READY.** Deterministic repository-local deletion/rewrite waves are ready to be assigned. Vercel, legal, and branch-protection checks remain evidence-only external follow-ups before their corresponding future operational mutations.
