@@ -1,10 +1,12 @@
 import { type ReactNode, useEffect, useState } from "react";
+import type { HistoryInterval } from "@retropick/polymarket";
 import { Link, useParams } from "react-router-dom";
 import { MarketsApiError } from "@retropick/polymarket";
 
 import { Breadcrumbs } from "../components/Breadcrumbs";
 import { DataStateBanner, DataStateEmpty, StaleBanner } from "../components/DataState";
 import { FreshnessBadge } from "../components/FreshnessBadge";
+import { MarketHealthPanel, PriceHistoryPanel, RelatedMarketsPanel } from "../components/MarketDataPanels";
 import { MarketsAppShell } from "../components/shell/MarketsAppShell";
 import { OrderBookPanel } from "../components/OrderBookPanel";
 import { OutcomeTabs } from "../components/OutcomeTabs";
@@ -13,8 +15,11 @@ import { TradeAside, TradeMobileBar, TradeSheet } from "../components/trading/Tr
 import { OrderTicketPanel } from "../trading";
 import {
   useMarketsCapabilities,
+  useMarketsEvent,
   useMarketsMarket,
+  useMarketsMarketHealth,
   useMarketsOrderBook,
+  useMarketsPriceHistory,
 } from "../hooks/useMarketsQueries";
 import { mapQueryError } from "../lib/errors";
 import { isDegradedFreshness } from "../lib/freshness";
@@ -39,6 +44,7 @@ export function MarketDetailPage() {
   const outcomes = market.data?.outcomes ?? [];
   const [selectedTokenId, setSelectedTokenId] = useState("");
   const [selectedPrice, setSelectedPrice] = useState<string | undefined>();
+  const [historyInterval] = useState<HistoryInterval>("1d");
 
   useEffect(() => {
     setSelectedTokenId("");
@@ -61,6 +67,10 @@ export function MarketDetailPage() {
   const pollingEnabled = orderBookFetchEnabled && market.data?.status === "open";
 
   const orderBook = useMarketsOrderBook(decodedId, tokenId, orderBookFetchEnabled, pollingEnabled);
+  const historyFetchEnabled = idValid && Boolean(market.data) && market.data?.capabilities.history === true && tokenId.length > 0;
+  const priceHistory = useMarketsPriceHistory(decodedId, tokenId, historyInterval, historyFetchEnabled);
+  const marketHealth = useMarketsMarketHealth(decodedId, tokenId, orderBookFetchEnabled);
+  const event = useMarketsEvent(market.data?.eventId ?? "");
 
   const orderTicket = market.data ? (
     <OrderTicketPanel
@@ -162,6 +172,11 @@ export function MarketDetailPage() {
             {market.data.description ? (
               <p className="mt-4 whitespace-pre-wrap text-sm text-muted-foreground">{market.data.description}</p>
             ) : null}
+            {market.data.endAt ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Ends <time dateTime={market.data.endAt}>{new Date(market.data.endAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</time>
+              </p>
+            ) : null}
           </header>
 
           <div className="rounded-xl border border-border bg-card p-5">
@@ -169,6 +184,27 @@ export function MarketDetailPage() {
           </div>
 
           <ResolutionPanel resolution={market.data.resolution} />
+
+          <PriceHistoryPanel
+            error={priceHistory.error}
+            history={priceHistory.data}
+            isLoading={priceHistory.isLoading}
+            onRetry={() => priceHistory.refetch()}
+          />
+
+          <MarketHealthPanel
+            error={marketHealth.error}
+            health={marketHealth.data}
+            isLoading={marketHealth.isLoading}
+            onRetry={() => marketHealth.refetch()}
+          />
+
+          <RelatedMarketsPanel
+            currentMarketId={market.data.id}
+            error={event.error}
+            markets={event.data?.markets}
+            onRetry={() => event.refetch()}
+          />
         </div>
 
         <TradeAside className="space-y-4 market-manual-trade-aside">

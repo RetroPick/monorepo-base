@@ -99,6 +99,7 @@ export async function fetchAuthSession(signal?: AbortSignal): Promise<AuthSessio
   const response = await fetch(`${origin}${AUTH_BASE}/session`, {
     method: "GET",
     credentials: "include",
+    cache: "no-store",
     signal,
   });
   if (response.status === 401) {

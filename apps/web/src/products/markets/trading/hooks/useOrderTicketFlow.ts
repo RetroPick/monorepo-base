@@ -28,7 +28,7 @@ import {
   needsReconcilePolling,
   pollOrderUntilTerminal,
 } from "../lib/pollOrderStatus";
-import { ORDER_REJECTED } from "../lib/tradingCopy";
+import { ORDER_ELIGIBILITY_UNAVAILABLE, ORDER_REJECTED } from "../lib/tradingCopy";
 import { useMarketsOrderSubmitCapability } from "./useMarketsOrderSubmitCapability";
 
 export type OrderTicketFlowState =
@@ -136,6 +136,11 @@ export function useOrderTicketFlow(input: UseOrderTicketFlowInput) {
 
     try {
       const elig = await eligibilityQuery.refetch();
+      if (elig.error || !elig.data) {
+        setErrorMessage(ORDER_ELIGIBILITY_UNAVAILABLE);
+        setFlowState("error");
+        return;
+      }
       if (!elig.data?.eligible) {
         setErrorMessage(elig.data?.reason ?? "Trading is not available for your session.");
         setFlowState("error");
@@ -178,6 +183,14 @@ export function useOrderTicketFlow(input: UseOrderTicketFlowInput) {
   const confirmSignAndSubmit = useCallback(async () => {
     if (!preview || !accountWallet) return;
 
+    // The capability is a hard client-side safety gate as well as a UI state.
+    // Do not request a wallet signature when the resulting order cannot be submitted.
+    if (!orderSubmitEnabled) {
+      setPreview(null);
+      setFlowState("idle");
+      return;
+    }
+
     setErrorMessage(null);
     setFlowState("submitting");
 
@@ -196,12 +209,6 @@ export function useOrderTicketFlow(input: UseOrderTicketFlowInput) {
 
       const typedData = buildOrderTypedData(preview);
       const signature = await signTypedDataAsync(typedData);
-
-      if (!orderSubmitEnabled) {
-        setPreview(null);
-        setFlowState("idle");
-        return;
-      }
 
       const result = await submitOrder({
         previewId: preview.previewId,

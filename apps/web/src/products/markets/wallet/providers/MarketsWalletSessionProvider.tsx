@@ -38,6 +38,7 @@ type MarketsWalletSessionContextValue = {
 };
 
 const MarketsWalletSessionContext = createContext<MarketsWalletSessionContextValue | null>(null);
+const MAX_TIMEOUT_MS = 2_147_483_647;
 
 function applySessionSuccess(
   wallet: string,
@@ -51,6 +52,23 @@ function applySessionSuccess(
   setExpiresAt(expiresAt);
   setSessionState("authenticated");
   setSessionError(null);
+}
+
+function isFutureSessionExpiry(expiresAt: string): boolean {
+  const expiresAtMillis = Date.parse(expiresAt);
+  return Number.isFinite(expiresAtMillis) && expiresAtMillis > Date.now();
+}
+
+function clearExpiredSession(
+  setSessionWallet: (wallet: string | null) => void,
+  setExpiresAt: (expiresAt: string | null) => void,
+  setSessionState: (state: WalletSessionState) => void,
+  setSessionError: (error: string | null) => void,
+) {
+  setSessionWallet(null);
+  setExpiresAt(null);
+  setSessionState("idle");
+  setSessionError("Your Markets session has expired. Sign in again.");
 }
 
 export function MarketsWalletSessionProvider({ children }: { children: ReactNode }) {
@@ -79,6 +97,31 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
   }, [address, isConnected]);
 
   useEffect(() => {
+    if (sessionState !== "authenticated" || !expiresAt) {
+      return;
+    }
+
+    const expiryMillis = Date.parse(expiresAt);
+    if (!Number.isFinite(expiryMillis) || expiryMillis <= Date.now()) {
+      clearExpiredSession(setSessionWallet, setExpiresAt, setSessionState, setSessionError);
+      return;
+    }
+
+    let timeout: ReturnType<typeof setTimeout>;
+    const scheduleExpiry = () => {
+      const remaining = expiryMillis - Date.now();
+      if (remaining <= 0) {
+        clearExpiredSession(setSessionWallet, setExpiresAt, setSessionState, setSessionError);
+        return;
+      }
+      timeout = setTimeout(scheduleExpiry, Math.min(remaining, MAX_TIMEOUT_MS));
+    };
+    scheduleExpiry();
+
+    return () => clearTimeout(timeout);
+  }, [expiresAt, sessionState]);
+
+  useEffect(() => {
     if (!isConnected || !address) {
       return;
     }
@@ -93,7 +136,11 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
     setSessionError(null);
 
     const harness = readMarketsE2EHarness();
-    if (harness?.session && addressesMatch(harness.session.wallet, address)) {
+    if (
+      harness?.session &&
+      addressesMatch(harness.session.wallet, address) &&
+      isFutureSessionExpiry(harness.session.expiresAt)
+    ) {
       applySessionSuccess(
         harness.session.wallet,
         harness.session.expiresAt,
@@ -123,6 +170,13 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
           setExpiresAt(null);
           setSessionState("idle");
           setSessionError("Connected wallet does not match your Markets session. Sign in again.");
+          return;
+        }
+        if (!isFutureSessionExpiry(session.expiresAt)) {
+          setSessionWallet(null);
+          setExpiresAt(null);
+          setSessionState("idle");
+          setSessionError("Your Markets session has expired. Sign in again.");
           return;
         }
         applySessionSuccess(
@@ -194,6 +248,9 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
 
       setSessionState("submitting");
       const verified = await postSiweVerify({ message: prepared, signature });
+      if (!addressesMatch(verified.wallet, address) || !isFutureSessionExpiry(verified.expiresAt)) {
+        throw new MarketsAuthError("AUTH_FAILED", "Markets session verification was invalid. Sign in again.");
+      }
       applySessionSuccess(
         verified.wallet,
         verified.expiresAt,
@@ -241,7 +298,7 @@ export function MarketsWalletSessionProvider({ children }: { children: ReactNode
       sessionError,
       sessionWallet,
       expiresAt,
-      isSessionAuthenticated: sessionState === "authenticated",
+      isSessionAuthenticated: sessionState === "authenticated" && expiresAt != null && isFutureSessionExpiry(expiresAt),
       isRestoring: sessionState === "restoring",
       authenticate,
       logout,

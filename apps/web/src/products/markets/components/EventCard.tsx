@@ -1,18 +1,17 @@
 import type { EventSummary } from "@retropick/polymarket";
 import { Link } from "react-router-dom";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Layers3 } from "lucide-react";
 
 import { cn } from "@/shared/lib/utils";
 
 import { eventPath } from "../routes/paths";
-import { MiniChart } from "./market/MiniChart";
 import { FreshnessBadge } from "./FreshnessBadge";
 
 interface EventCardProps {
   event: EventSummary;
 }
 
-const CARD_SHELL = "flex min-h-[200px] flex-col sm:h-[212px] sm:max-h-[212px]";
+const CARD_SHELL = "flex min-h-[238px] flex-col";
 
 function formatEndDate(endAt?: string | null) {
   if (!endAt) return "No end date";
@@ -21,23 +20,13 @@ function formatEndDate(endAt?: string | null) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-/** Deterministic sparkline from event id — visual only, not price data. */
-function sparklineFromId(id: string): number[] {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  return Array.from({ length: 12 }, (_, i) => 0.35 + ((hash >> (i % 16)) & 0xff) / 512);
-}
-
 export function EventCard({ event }: EventCardProps) {
-  const sparkline = sparklineFromId(event.id);
-  const trendUp = sparkline[sparkline.length - 1] >= sparkline[0];
-
   return (
     <Link
       to={eventPath(event.id)}
       className={cn(
         CARD_SHELL,
-        "rounded-xl border border-border bg-card p-4 shadow-sm transition hover:border-primary/40 hover:bg-elevated/30",
+        "rounded-2xl border border-border/80 bg-card p-4 shadow-sm transition hover:border-primary/40 hover:bg-elevated/30",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -45,12 +34,15 @@ export function EventCard({ event }: EventCardProps) {
         <FreshnessBadge freshness={event.freshness} marketStatus={event.status} />
       </div>
 
-      <div className="mt-3 flex items-center gap-2">
-        <MiniChart points={sparkline} positive={trendUp} width={72} height={28} />
-        <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Activity</span>
+      <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+        <span className="inline-flex items-center gap-1 rounded-full bg-secondary/60 px-2.5 py-1">
+          <Layers3 className="size-3.5" aria-hidden />
+          Catalog event
+        </span>
+        <span className="truncate">Canonical BFF</span>
       </div>
 
-      <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+      <div className="mt-auto flex items-end justify-between gap-3 pt-5">
         <div className="min-w-0">
           <p className="text-xs font-semibold text-muted-foreground">
             {event.marketCount} market{event.marketCount === 1 ? "" : "s"}

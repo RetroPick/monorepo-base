@@ -38,6 +38,7 @@ export function useMarketsTradingWallets() {
 
     void fetch(`${apiOrigin}/api/v1/markets/me/wallets`, {
       credentials: "include",
+      cache: "no-store",
     })
       .then(async (response) => {
         if (cancelled) {

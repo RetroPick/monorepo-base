@@ -83,6 +83,7 @@ export const e2ePreviewResponse = {
 export function capabilitiesFixture(orderSubmit: boolean) {
   return {
     schemaVersion: "1",
+    intelligence: true,
     features: {
       catalog: true,
       market_detail: true,
@@ -94,6 +95,7 @@ export function capabilitiesFixture(orderSubmit: boolean) {
       catalog_signals: false,
       live_signals: false,
       order_submit: orderSubmit,
+      intelligence_whale_feed: false,
     },
     checkedAt: "2026-08-09T12:00:00Z",
     source: "e2e",
