@@ -28,14 +28,14 @@ apps/web (@retropick/markets-web) + Android (RetroPick-Android)
 | `schemas/openapi/markets-v1.yaml` | Canonical HTTP contract |
 | `docker-compose.markets-dev.yml` | Local full stack |
 | `contracts/prism/` | Future PRISM (placeholder) |
-| `archive/` | Epoch MarketEngine reference — not active runtime |
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
 ## PRISM
 
 Future structured-outcome product. Placeholder directories only; no active runtime.
 
-## Legacy epoch
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
-MarketEngine, indexer, keeper, and `cmd/api` epoch routes are **archived** under `archive/`. See [ADR-R4](engineering/adr/ADR-R4-LEGACY-ARCHIVED.md) and [ADR-R5](engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md).
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
-Historical ops docs: `archive/docs/epoch-v1/`.
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.

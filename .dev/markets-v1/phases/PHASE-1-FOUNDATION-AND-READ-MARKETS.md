@@ -43,7 +43,7 @@ Orientation for agents executing **PHASE-1 — Foundation and Read Markets**. Th
 
 - Wallet connect, order submit, CTF operations, production deploy
 - ACCOUNT follow / basic whale alerts (PHASE-2 **I4**); paper that claims venue/Polymarket fills; wallet funding
-- PRISM / legacy epoch feature work; custom exchange
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### Exit gate — what “done” means for an agent
 
@@ -121,7 +121,7 @@ PHASE-0 exit gate; ADRs accepted.
 - CTF
 - Production deploy
 - ACCOUNT follow/alerts (PHASE-2); paper claiming venue fills; wallet funding
-- PRISM and legacy epoch APIs
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

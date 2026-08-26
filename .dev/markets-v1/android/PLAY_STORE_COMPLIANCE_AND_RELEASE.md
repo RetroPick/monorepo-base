@@ -97,7 +97,7 @@ Specify Play Console declarations, release tracks, signing, SBOM, and legal gate
 
 - PRISM protocol, `contracts/prism/`, PRISM market creation, or PRISM settlement flows.
 - Direct production calls to Polymarket Gamma/CLOB from the Android client (ADR-002).
-- Legacy epoch MarketEngine APIs at `/api/v1/legacy/markets/*`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom RetroPick exchange or outcome-token issuance (ADR-001).
 - Background autonomous trading or Android-specific order semantics.
 

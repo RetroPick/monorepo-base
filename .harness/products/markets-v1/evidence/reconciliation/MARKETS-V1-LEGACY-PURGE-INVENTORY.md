@@ -35,7 +35,7 @@ Evidence-only, full-tree purge authority for the current landing head. It does n
 
 `UNCERTAIN_REVIEW`: **0**. The only classifications in this authority are `DELETE_LEGACY`, `KEEP_MARKETS`, `KEEP_SHARED`, `REWRITE_FOR_MARKETS`, and `UNCERTAIN_REVIEW`.
 
-The exact top-level × classification matrix is `top_level_classification_counts` in the companion JSON. It is recomputed from every tracked path, not a keyword-selected subset.
+The exact top-level × classification matrix is `top_level_classification_counts` in the companion JSON. It is deterministically recomputed from all 9,002 current records after every classification transition; its group totals must exactly equal the record-level matrix.
 
 ## Coverage and retained-subtree rules
 
@@ -63,9 +63,11 @@ The exact top-level × classification matrix is `top_level_classification_counts
 
 ## Rewrite authority
 
-The JSON `rewrite_list` contains exactly one object for every `REWRITE_FOR_MARKETS` record. Each object has an exact path, owner, current stale token and line-occurrence set, canonical Markets anchor, dependency wave, concrete in-place edit/preservation action, executable format-aware verification command, and postcondition. `records[].current_replacement` is byte-identical to that object's `action`; sources without an actual stale/dead dependency are retained as KEEP rather than given a no-op rewrite contract.
+The JSON `rewrite_list` contains exactly one object for every `REWRITE_FOR_MARKETS` record. Every action begins `RETAIN <path>` and selects one final operation only: it names each recorded current line/key/stanza, then prescribes either its exact canonical replacement or exact removal while preserving the retained path. Each object also has an owner, canonical Markets target, dependency wave, executable format-aware verification command, and semantic postcondition. `records[].current_replacement` is byte-identical to that object's `action`; sources without an actual stale/dead dependency are retained as KEEP rather than given a no-op rewrite contract.
 
-Terms and Privacy are preservation-only rewrites: each records its pre-relocation source SHA-256 and destination (`docs/markets-v1/legal/Terms.md` or `docs/markets-v1/legal/PrivacyPolicy.md`); verification requires the destination SHA-256 to equal that recorded source hash before old-body retirement, plus an old-path route/link check. Legal review remains separately recorded. Deletion is not an authorized outcome.
+Terms and Privacy are preservation-only rewrites: each retains the old path, records its pre-relocation source SHA-256 and destination (`docs/markets-v1/legal/Terms.md` or `docs/markets-v1/legal/PrivacyPolicy.md`), byte-copies source bytes before old-body retirement, then replaces the old body with the exact current legal-route link. Verification requires destination SHA-256 equality and the retained old-path route/link. Legal review remains separately recorded; path removal is not authorized.
+
+Structured controls have path-specific semantic postconditions: `package.json` removes exactly the obsolete archive-only script keys while preserving the named current package-manager/build/lint/typecheck/test/Markets scripts and parsing as JSON; JSON/YAML manifests retain exact reviewed replacement values and parse natively; `pnpm-lock.yaml` is regenerated with the named pnpm command and passes frozen install; `.gitmodules` remains a current-Android-only KEEP because it has no stale occurrence.
 
 ## External actions (evidence only; no credentials used)
 
@@ -76,7 +78,7 @@ Terms and Privacy are preservation-only rewrites: each records its pre-relocatio
 
 ## Validation contract
 
-The companion JSON is authoritative for programmatic validation: exact coverage, no duplicate/nontracked records, required fields, zero unresolved `UNCERTAIN_REVIEW`, archive-delete invariant, phase `PHASE-2`, exact Android gitlink, active archive-prefix closure, canonical Markets protection, and one-to-one executable `rewrite_list` equality, exact stale occurrences, zero literal `archive/` in retained active closure sources, native format checks, and legal digest-preservation proof.
+The companion JSON is authoritative for programmatic validation: exact coverage, no duplicate/nontracked records, required fields, zero unresolved `UNCERTAIN_REVIEW`, archive-delete invariant, phase `PHASE-2`, exact Android gitlink, active archive-prefix closure, canonical Markets protection, exact recomputation of the top-level classification matrix, and one-to-one executable `rewrite_list` equality. Validation rejects unresolved operation-choice words, requires every rewrite action to retain its path, checks exact stale occurrences and `current_replacement` equality, proves zero literal `archive/` in retained active closure sources, runs native format plus structured semantic checks, and proves legal digest preservation.
 
 ## R0 status
 

@@ -6,7 +6,7 @@ RetroPick **Markets V1** (active release):
 - Web client at `apps/web` (`@retropick/markets-web`) against OpenAPI `schemas/openapi/markets-v1.yaml`.
 - pnpm plus Turborepo monorepo tooling.
 
-**Epoch MarketEngine** (indexer, keeper, pool contracts) is archived under `archive/` — reference only, not live architecture.
+Current Markets V1 authority: `AGENTS.md`.
 
 External repositories are references, not replacement architecture.
 

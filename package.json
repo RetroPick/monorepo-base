@@ -6,15 +6,11 @@
     "retro": "bin/retro"
   },
   "scripts": {
-    "retropick:deployer": "bash ./archive/scripts/RETRODEPLOYER",
-    "retropick:deploy": "bash ./archive/scripts/RETRODEPLOYER deploy-all",
     "retro": "bash ./scripts/retro",
     "dev": "pnpm exec turbo run dev --parallel",
     "build": "pnpm exec turbo run build",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm smoke",
     "clean": "pnpm exec turbo run clean",
-    "contracts:build": "forge build --root archive/contracts/legacy-pool-v1",
-    "contracts:test": "forge test --root archive/contracts/legacy-pool-v1",
     "dev:web": "NEXT_PUBLIC_PRODUCT=markets pnpm --filter @retropick/markets-web dev",
     "dev:markets-stack": "bash scripts/markets-dev-up.sh",
     "dev:markets-stack:down": "bash scripts/markets-dev-down.sh",

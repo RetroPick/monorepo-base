@@ -5,6 +5,7 @@ import EventDetailPage from "../pages/EventDetailPage";
 import EventsDiscoverPage from "../pages/EventsDiscoverPage";
 import FollowingPage from "../pages/FollowingPage";
 import IntelligenceHubPage from "../pages/IntelligenceHubPage";
+import LegalDocumentPage from "../pages/LegalDocumentPage";
 import MarketDetailPage from "../pages/MarketDetailPage";
 import PaperPortfolioPage from "../pages/PaperPortfolioPage";
 import PortfolioPage from "../pages/PortfolioPage";
@@ -15,6 +16,8 @@ import { WalletConnectPage } from "../wallet/pages/WalletConnectPage";
 
 export const marketsRoutes: RouteObject[] = [
   { path: "/markets", element: <EventsDiscoverPage /> },
+  { path: "/markets/terms", element: <LegalDocumentPage kind="terms" /> },
+  { path: "/markets/privacy", element: <LegalDocumentPage kind="privacy" /> },
   { path: "/markets/search", element: <Navigate to="/markets" replace /> },
   { path: "/markets/wallet", element: <WalletConnectPage /> },
   { path: "/markets/funding", element: <FundingPage /> },

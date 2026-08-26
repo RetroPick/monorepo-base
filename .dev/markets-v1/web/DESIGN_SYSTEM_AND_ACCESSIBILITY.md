@@ -92,7 +92,7 @@ RetroPick design tokens, WCAG 2.1 AA, original visual identity — not a Polymar
 
 ### Out of scope
 
-- PRISM (`products/prism/`), legacy epoch (`products/legacy/`), custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

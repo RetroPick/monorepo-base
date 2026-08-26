@@ -8,7 +8,7 @@
 | **PRISM** | Fully collateralized structured-outcome derivatives (future) | Web |
 | **Android** | Native Markets client (Kotlin + Jetpack Compose) | Mobile |
 
-Legacy epoch v1 (MarketEngine) is **archived** under [`archive/`](archive/) — not part of the active build.
+Current Markets V1 authority: `AGENTS.md`.
 
 ## Prerequisites
 
@@ -292,7 +292,7 @@ Do **not** run two stacks that both bind **8080** at once.
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
 | Agent contract | [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) |
-| Archive (epoch v1) | [`archive/README.md`](archive/README.md) |
+Current Markets V1 authority: `AGENTS.md`.
 | Markets-only backend | [`docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md`](docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md) |
 
 ## Monorepo layout
@@ -304,7 +304,7 @@ apps/backend          Go Markets BFF (cmd/markets-api, internal/markets)
 packages/polymarket   Shared TS client + types
 schemas/openapi       Web + Android API contract
 docker-compose.markets-dev.yml   One-button Markets V1 stack
-archive/              Frozen epoch v1 code and docs
+Current Markets V1 authority: `AGENTS.md`.
 ```
 
 ## Verify (without Docker)

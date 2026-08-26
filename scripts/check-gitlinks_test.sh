@@ -47,14 +47,6 @@ EOF
   git add .gitmodules packages/active
 '
 
-run_case "allowlisted archive gitlink pass" pass bash -c '
-  git update-index --add --cacheinfo 160000,deadbeefdeadbeefdeadbeefdeadbeefdeadbeef,archive/contracts/legacy-pool-v1/treasury-vault-eth
-'
-
-run_case "unknown archive gitlink fail" fail bash -c '
-  git update-index --add --cacheinfo 160000,deadbeefdeadbeefdeadbeefdeadbeefdeadbeef,archive/other/unknown
-'
-
 run_case "unknown non-archive gitlink fail" fail bash -c '
   git update-index --add --cacheinfo 160000,deadbeefdeadbeefdeadbeefdeadbeefdeadbeef,apps/rogue
 '

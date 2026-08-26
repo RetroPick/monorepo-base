@@ -150,7 +150,7 @@ erDiagram
     ### Exclusions (MKT-P1-003)
 
     - No `intel_*` tables (Intelligence I0 is a later phase).
-    - Legacy epoch `user_watchlist` / `user_watchlist_nonce` unchanged (template_id BYTEA).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
     - No binary-float money columns; Phase-1 catalog prices remain `TEXT` (`DecimalString`).
 
     ### Phase-1 watchlist DDL (`000019`)

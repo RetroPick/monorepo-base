@@ -20,7 +20,7 @@ Mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Rea
 
 | Dimension | Intent |
 |-----------|--------|
-| **Who** | Active release agents (`rp-*` roster in `.harness/agents/README.md`). Legacy epoch agents are archived — do not route new work to them. |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **What** | Binding rules: before-you-act reading order, scope discipline, evidence/honesty, human stop conditions, implementation ordering, verification, handoff, R0–R3 repo boundaries, and §23 invariant themes. |
 | **When** | Before any Markets product or harness execution change; when resuming after `blocked`; at every task handoff; before phase exit invariant re-check. |
 | **Where** | This contract plus `implementation-manifest.yaml`, `task-graph.yaml`, phase specs under `../phases/`, `INVARIANT_CHECK.md`, root `AGENTS.md`, `docs/ARCHITECTURE.md`, `.dev/MARKETS.md`. |
@@ -36,7 +36,7 @@ Mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Rea
 
 ### Out of scope / stop conditions
 
-- PRISM (`contracts/prism/`); legacy epoch feature extension (archived with ADR-R5 — `/api/v1/legacy/*` not served by live BFF).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Editing the master prompt plan file; cross-phase “while you’re here” work.
 - Production wallets, Builder prod creds, real txs, Play prod, destructive migrations, new jurisdictions, custom contract deploy — escalate via `BLOCKERS_AND_HUMAN_APPROVALS.md` (see also §5 below).
 
@@ -69,7 +69,7 @@ Bind all implementation agents to safe, evidence-based execution of Markets V1 w
 - Remain within the authorized **phase** and **task** only.
 - Do not start cross-phase work "while you're here."
 - One owner per writable path in parallel work (see task `owned_paths` and manifest `parallelization_rules`).
-- Do not edit PRISM (`contracts/prism/`) or extend legacy epoch (`/api/v1/legacy/markets/*`).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Do not edit the master prompt plan file.
 
 ## 4. Evidence and honesty
@@ -121,7 +121,7 @@ Stop and document in [BLOCKERS_AND_HUMAN_APPROVALS.md](BLOCKERS_AND_HUMAN_APPROV
 | Area | Path | Rule |
 |------|------|------|
 | Markets BFF | `apps/backend/internal/markets/` | Greenfield Markets work |
-| Legacy epoch | `archive/apps/backend/internal/legacy/` | Reference only; restore via archive, not live extension |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Web shell | `apps/web/` | Product routes under `src/products/markets` |
 | Android | `apps/android/` | README-only at Wave 9; Compose implementation in PHASE-5 |
 | OpenAPI | `schemas/openapi/markets-v1.yaml` | Canonical web+Android contract |

@@ -232,7 +232,7 @@ Synthesis template:
 1. State the pick first.
 2. Show market-implied probability, recent move, and whale notional separately.
 3. Mention whether whales are buying YES, buying NO, or split across outcomes.
-4. Include one caveat from `quality_flags`, `errors`, or thin archive/history.
+Current Markets V1 authority: `references/polymarket/README.md`.
 5. Label confidence; for near three-way splits, default to medium-low unless one
    signal is clearly dominant.
 

@@ -117,7 +117,7 @@ PHASE-6 exit.
 - Combos without gate
 - New jurisdictions
 - Claiming Production success from Harden-only drills
-- PRISM and legacy epoch APIs
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

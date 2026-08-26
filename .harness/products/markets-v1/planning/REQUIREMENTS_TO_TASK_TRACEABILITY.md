@@ -29,7 +29,7 @@ Authoritative matrix mapping requirement IDs → docs → phase → tasks → ac
 ### In scope / out of scope (product)
 
 - **In:** RetroPick Markets V1 — web, Go BFF, native Android Jetpack Compose.
-- **Out:** PRISM protocol / `contracts/prism/`; legacy epoch MarketEngine extension; custom RetroPick exchange (ADR-001).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### What “done” means
 
@@ -64,7 +64,7 @@ Comprehensive matrix mapping requirement IDs → authoritative docs → task-gra
 ### Out of scope
 
 - PRISM protocol implementation and `contracts/prism/`.
-- Legacy epoch MarketEngine extension (`/api/v1/legacy/markets/*`).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom RetroPick exchange or outcome-token issuance (ADR-001).
 
 ## 3. Prerequisites

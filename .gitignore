@@ -35,7 +35,7 @@ apps/**/.tmp-img/
 .tmp-img/
 
 # generated repo snapshots
-archive/generated/repomix/
+Current Markets V1 authority: `AGENTS.md`.
 repomix-output.*
 
 # generated knowledge graphs and opensrc fetch logs
@@ -48,7 +48,7 @@ package/prediction-v2/logs/
 .dev/.upgrade_v3/
 
 # fe-v1 build artifact debris (app renamed to apps/web per D15)
-apps/fe-v1/
+Current Markets V1 authority: `AGENTS.md`.
 
 *.tsbuildinfo
 

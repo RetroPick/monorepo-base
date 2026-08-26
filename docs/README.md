@@ -16,8 +16,8 @@
 - [Android](../.dev/ANDROID_MARKETS.md)
 - [PRISM](../.dev/PRISM.md) (future)
 
-## Archived (epoch / MarketEngine)
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
-All epoch protocol, ops, and v3 design docs live under [`archive/docs/`](../archive/docs/) — not active instructions. Includes former `docs/archive/`, `docs/product/`, and operator feature docs.
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
-Epoch protocol Next.js site: [`archive/apps/docs/`](../archive/apps/docs/) (was `apps/docs`).
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.

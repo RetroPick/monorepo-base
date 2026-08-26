@@ -12,7 +12,7 @@ PHASE-0…PHASE-8 per master prompt §15. Each file implements §16 contract. Ph
 
 This index maps PHASE-0…PHASE-8 for RetroPick Markets V1 with a **dual track** (Markets Core + Smart Money) and **delivery bands** (Spec → Build → Harden → Production → Post-V1). It does **not** replace live `current_phase` in `implementation-manifest.yaml` or task statuses in `task-graph.yaml`.
 
-Senior reaudit: [PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md](PHASE_REASSESSMENT_AND_PRODUCTION_ROADMAP.md). Smart Money feature authority: [../intelligence/INTELLIGENCE_LAUNCH_V1.md](../intelligence/INTELLIGENCE_LAUNCH_V1.md). Prefer active `intelligence/` docs; exclude `intelligence/archive/**` from default agent load.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 V1 delivery is PHASE-0–7; PHASE-8 is post-V1 under explicit gates. Public Smart Money (I0–I3) may proceed after the PHASE-1 read shell **without** waiting for PHASE-4 portfolio/CTF.
 
@@ -189,7 +189,7 @@ flowchart TB
 1. Launch after hardening
 1. **Public Smart Money (I0–I3) after PHASE-1 shell — do not wait for PHASE-4 portfolio/CTF**
 1. Intelligence failures stay isolated from balances/settlement (ADR-008)
-1. Prefer `intelligence/` active tree; never treat `intelligence/archive/**` as default load
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Human gates (§18)
 
