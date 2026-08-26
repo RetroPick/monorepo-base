@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fail CI when the active tree references epoch runtime paths removed by ADR-R4/R5.
+# Fail CI when the active tree references retired pre-Markets runtime paths/tooling.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -37,7 +37,7 @@ check_apps() {
 
 check_runtime_paths() {
   local matches
-  matches="$(rg -l 'cmd/api|funding-worker|price-worker' \
+  matches="$(rg -l 'cmd/api|funding-worker|price-worker|tool forge|epoch contracts|foundry' \
     apps/ scripts/ deploy/ .github/ \
     docker-compose.yml docker-compose.production.yml docker-compose.markets-dev.yml docker-compose.markets-staging.yml \
     package.json \
@@ -46,7 +46,7 @@ check_runtime_paths() {
     --glob '!scripts/seed-kanban-retropick-v1.sh' \
     2>/dev/null || true)"
   if [[ -n "$matches" ]]; then
-    echo "ERROR: active legacy refs (cmd/api or epoch workers) in runtime paths:"
+    echo "ERROR: active retired runtime/tooling refs in Markets V1 runtime paths:"
     echo "$matches"
     fail=1
   fi
@@ -57,7 +57,7 @@ check_backend_internals() {
   matches="$(rg -l 'internal/indexer|internal/keeper|internal/api' apps/backend/ \
     --glob '!archive/**' 2>/dev/null || true)"
   if [[ -n "$matches" ]]; then
-    echo "ERROR: epoch internal packages still referenced under apps/backend/:"
+    echo "ERROR: retired internal packages still referenced under apps/backend/:"
     echo "$matches"
     fail=1
   fi
