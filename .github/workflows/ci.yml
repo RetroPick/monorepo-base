@@ -3,7 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, release/demo-rc-v3, production/testnet-hardening-v1]
+    branches: [main]
 
 jobs:
   ci:
