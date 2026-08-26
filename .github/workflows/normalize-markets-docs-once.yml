@@ -1,0 +1,68 @@
+name: Normalize Markets docs once
+
+on:
+  push:
+    branches:
+      - integration/markets-v1-main-cleanup
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: integration/markets-v1-main-cleanup
+          fetch-depth: 0
+      - name: Remove mechanical authority placeholders
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+
+          needle = "Current Markets V1 authority:"
+          excluded = (
+              ".harness/products/markets-v1/evidence/reconciliation/",
+              ".references/",
+          )
+
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          changed = []
+          for raw in tracked:
+              if not raw:
+                  continue
+              rel = raw.decode("utf-8")
+              if not rel.endswith(".md") or rel.startswith(excluded):
+                  continue
+              path = Path(rel)
+              try:
+                  original = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  continue
+              lines = original.splitlines(keepends=True)
+              normalized = "".join(
+                  line for line in lines if not line.strip().startswith(needle)
+              )
+              if normalized != original:
+                  path.write_text(normalized, encoding="utf-8")
+                  changed.append(rel)
+
+          print(f"normalized_files={len(changed)}")
+          for rel in changed:
+              print(rel)
+          PY
+      - name: Validate and push normalization checkpoint
+        run: |
+          if git diff --quiet; then
+            echo "No documentation normalization required."
+            exit 0
+          fi
+          git diff --check
+          git config user.name "RetroPick Harness"
+          git config user.email "harness@retropick.local"
+          git add -u
+          git commit -m "docs(markets): normalize retained documentation after legacy purge"
+          git push origin HEAD:integration/markets-v1-main-cleanup
