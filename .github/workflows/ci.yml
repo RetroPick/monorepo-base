@@ -72,7 +72,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: sqlc-dev/setup-sqlc@v4
         with:
-          sqlc-version: "1.28.0"
+          sqlc-version: "1.31.1"
       - name: Check sqlc drift
         run: |
           cd apps/backend
