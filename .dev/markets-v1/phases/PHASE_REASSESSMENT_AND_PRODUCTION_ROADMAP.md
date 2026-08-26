@@ -10,7 +10,6 @@
 
 Senior-engineer reaudit of the Markets V1 documentation corpus after Smart Money Intelligence Launch V1. This file is the **phase ownership and production-band authority** for how PHASE-0…8 relate to the Markets Core track and the Smart Money parallel track. It does **not** replace live `current_phase` in `implementation-manifest.yaml` (still `PHASE-1` until orchestrator advances it) and does **not** invent PHASE-9.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -39,7 +38,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 | ADRs | `architecture/adr/` | ADR-001 venue; ADR-008 shared engine; ADR-009 no auto-copy |
 | Polymarket ACL | `polymarket/*` | Data `/trades` attribution for whales |
 | Intelligence **Launch** | `intelligence/README`, Launch/C4/Data/Test, `01`…`10`, `testdata/` | Default agent load |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Backend / web / android / security / platform / testing | Existing trees | Unchanged by this reposition except phase pointers |
 | Harness | manifest `current_phase: PHASE-1`, task-graph | Task IDs may still say P4 whale — follow-up; **docs ownership** is Launch |
 
@@ -137,7 +135,6 @@ flowchart TB
 - Do **not** invent PHASE-9.
 - Do **not** advance `current_phase` from this documentation rewrite.
 - Do **not** auto-copy or AI→orders (ADR-009).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Do **not** claim production success without PHASE-7 human gates + smoke evidence.
 - Do **not** invent contract addresses or gambling UX copy.
 

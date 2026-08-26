@@ -11,7 +11,6 @@
 ## Out of release scope
 
 - PRISM integration
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Old pool-v1 feature expansion
 - Custom prediction-market contracts
 - Unrelated operator surfaces

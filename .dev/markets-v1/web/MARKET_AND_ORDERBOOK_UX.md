@@ -93,7 +93,6 @@ Order book, order ticket, depth visualization, stale book handling.
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

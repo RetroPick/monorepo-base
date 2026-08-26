@@ -4,7 +4,6 @@
 
 - Use pnpm from the repository root.
 - Live backend module: `apps/backend/` (`cmd/markets-api` is the product BFF).
-Current Markets V1 authority: `AGENTS.md`.
 - Do not commit secrets, deploy keys, mnemonics, local `.env` files, or generated runtime artifacts.
 
 ## Verification

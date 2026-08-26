@@ -118,7 +118,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Status v
 | 50e | [intelligence/08_BASIC_WHALE_ALERTS.md](intelligence/08_BASIC_WHALE_ALERTS.md) | intelligence | reviewed |
 | 50f | [intelligence/09_PAPER_COPY.md](intelligence/09_PAPER_COPY.md) | intelligence | reviewed |
 | 50g | [intelligence/10_QUICK_BACKTEST.md](intelligence/10_QUICK_BACKTEST.md) | intelligence | reviewed |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | 50i | [intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md](intelligence/TRADER_INTELLIGENCE_PRODUCT_SPEC.md) | intelligence | superseded (pointer) |
 | 50j | [intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md](intelligence/WHALE_AND_LARGE_TRADE_DETECTION.md) | intelligence | superseded (pointer) |
 | 50k | [intelligence/WALLET_PROFILING_AND_SMART_MONEY.md](intelligence/WALLET_PROFILING_AND_SMART_MONEY.md) | intelligence | superseded (pointer) |

@@ -6,7 +6,6 @@ RetroPick **Markets V1** (active release):
 - Web client at `apps/web` (`@retropick/markets-web`) against OpenAPI `schemas/openapi/markets-v1.yaml`.
 - pnpm plus Turborepo monorepo tooling.
 
-Current Markets V1 authority: `AGENTS.md`.
 
 External repositories are references, not replacement architecture.
 

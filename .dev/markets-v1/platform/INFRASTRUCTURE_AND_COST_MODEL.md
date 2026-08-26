@@ -72,7 +72,6 @@ Pre-funding infrastructure topology and monthly cost budget targeting **under $1
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 

@@ -1,6 +1,5 @@
 # Production operations (Markets V1)
 
-Current Markets V1 authority: `AGENTS.md`.
 
 ## Markets V1 staging
 

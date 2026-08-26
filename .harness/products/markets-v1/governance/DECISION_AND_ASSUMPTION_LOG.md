@@ -16,11 +16,8 @@ Append Decision rows with ADR/doc + task ID; Assumptions with Expiry + Revalidat
 | Type | Decision / finding | Rationale |
 |------|--------------------|-----------|
 | Decision | Execution harness migrated from `.dev/markets-v1/agent-harness/` to `.harness/products/markets-v1/` via `git mv` (single canonical copy, history preserved). Old dir holds a compatibility README only. | `.dev/markets-v1` stays product/spec docs; execution policy/evidence belongs in `.harness`. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Finding | `.harness/state/rag.sqlite` (45 MB) was Git-tracked. Removed from tracking (`git rm --cached`), `.gitignore` extended; `.harness/state` is now README-only. | Generated runtime state must not live in Git. |
 | Finding | `implementation-manifest.yaml` `current_phase` = PHASE-2 while verification evidence exists through PHASE-4 and HEAD integrates P1–P4 system proof. Docs lag execution. | Phase doc is intent, not runtime truth — Git/tests/CI/staging are truth. Reconcile before trusting labels. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Decision | Root `package.json` `dev:fe-v1` script filters `@retropick/markets-v1`, but the actual package is `@retropick/markets-web`. Manifest `commands.dev` fixed to the working filter; root package.json left untouched (product change out of scope for harness branch). | Machine consumers of the manifest get a working command; product code changes stay off the harness branch. |
 | Decision | `.dev/prompt/*.md` master prompts and `scripts/seed-kanban-retropick-v1.sh` (legacy board) preserved verbatim as historical material; ORCHESTRATOR.md banner-marked legacy. | Do not erase history; distinguish ACTIVE vs REFERENCE/LEGACY. |
 | Decision | Android gitlink (`apps/android`) = `266731c69d…` is **behind** Android upstream main (`e962490d…`); `/opt/retropick-android` not yet cloned. Gitlink updates require explicit SHA + evidence (sync-android-gitlink.sh). | Never auto-follow upstream; R0-002 reconciles this. |
@@ -36,7 +33,6 @@ Use before marking a task `done` if you made an architecture/product choice or r
 | Closure (D1 / QA-016 status dimension) | Harness-drift QA-016 **status dimension closed**: task-graph P3-002..006, P4-001, P4-003 marked `done` with `gate:` notes ("gated (phase not advanced)") + `verification_evidence` links matching the committed evidence corpus (P3: 6/6 linked, P4: 2/6). Blocker registers unified (manifest `unresolved_blockers` 6 → 10 rows matching the governance register). **ID-scheme dimension remains open**: graph 7/6/6 task sets vs the 2026-08-09 spec's 10-task IDs (P2-004/005/006, P3-003/004/006, P4-003 semantics differ) — orchestrator decision required (ratify the graph split or rebuild P2–P4 to spec IDs). | One catalogue must match specs (QA-016 acceptance); status/evidence honesty fixed now, ID alignment is a catalogue-schema decision outside W1-004 scope. |
 | Decision | Graph status vocabulary extended with an optional `gate:` field carrying "gated (phase not advanced)" notes; `current_phase` stays **PHASE-2** (REC-0/REC-14 freeze). | Status honesty without phase advance (R0-004 D2 recommendation #2). |
 | Finding (D6, not fixed) | MKT-P2-007 phase-gate exit criterion "no mounted submit routes" is stale at HEAD — `orders.RegisterRoutes` is mounted via `EligibleMarketRouteRegistrar`; safety is enforced by capability gate (`order_submit:false`) + kill switch (`MARKETS_ORDER_SUBMIT_ENABLED`) + durable journal, not route absence. Evidence file untouched; left as residual contradiction. | Safety property holds; gate wording is historical evidence, not editable per W1-004 FORBIDDEN. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Decision | Hermes kanban worktree convention (`<repo>/.worktrees/<task-id>/`) adopted as the dispatcher default; `.worktrees/` added to `.gitignore`; WORKTREE_POLICY.md now documents both conventions (`prepare-task-worktree.sh` uses `/opt/worktrees/retropick/<task-id>/`). | Kanban-spawned tasks create repo-local worktrees; keeps `main` release-state clean. |
 
 ## 0. Developer intent (5W+1H)
@@ -118,7 +114,6 @@ Chronological log of decisions and expiring assumptions. Agents MUST record non-
 |------|-------------|------------------|-----|
 | 2026-07-24 | Custom RetroPick exchange | Polymarket is venue | ADR-001 |
 | 2026-07-24 | Direct Gamma/CLOB from clients | BFF anti-corruption layer | ADR-002 |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | 2026-07-24 | Flutter/React Native for Android | Kotlin+Compose required | ADR-006 |
 | 2026-07-24 | Pixel-copy Polymarket UI | Clean-room boundary | ADR-007 |
 

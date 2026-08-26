@@ -116,7 +116,6 @@ PHASE-4/5 staging complete.
 - New features
 - Combos
 - Launch itself (PHASE-7 Production)
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

@@ -15,9 +15,3 @@
 - [Markets](../.dev/MARKETS.md)
 - [Android](../.dev/ANDROID_MARKETS.md)
 - [PRISM](../.dev/PRISM.md) (future)
-
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
-
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
-
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.

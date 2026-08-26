@@ -28,7 +28,6 @@ Web and Android consume the canonical contract. Never bypass the BFF for core Ma
 | `schemas/asyncapi/markets-realtime-v1.yaml` | Realtime contract |
 | `deploy/`, `docker/`, `ops/` | Deployment / compose / ops |
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Current release approach
 
@@ -44,7 +43,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 ## Out of release scope
 
 - PRISM integration
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Old pool-v1 feature expansion
 - Custom prediction-market contracts
 - Unrelated operator surfaces
@@ -57,7 +55,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 2. **Live execution state** — `~/.hermes/kanban.db` + `~/.local/state/retropick-harness/release-state.yaml`.
 3. **Execution policy** — `.harness/products/markets-v1/**`.
 4. **Product/architecture specification** — `.dev/markets-v1/**`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Documentation contradicting executable code → **reconciliation finding**, never a silent choice.
 

@@ -10,7 +10,6 @@
 
 This ADR records the accepted decision that `schemas/openapi/markets-v1.yaml` is the canonical Markets V1 client contract. All V1 client network calls use `/api/v1/markets/*` as specified; TypeScript and Kotlin clients are generated; the BFF conforms; CI contract-tests; breaking changes require major version / `markets-v2.yaml`.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Read this before any new Markets route or wire field, when web and Android disagree on names, or after ACL normalizer changes affecting response shape. It does not authorize ad-hoc JSON fields only in Next, a separate “Android API,” or skipping contract tests for “just a rename.”
 
@@ -28,7 +27,6 @@ Short orientation for implementers and agents. Read this before **Context / Deci
 | **What** | **Decision:** `schemas/openapi/markets-v1.yaml` is the canonical contract. All V1 client network calls use `/api/v1/markets/*` as specified; TS and Kotlin clients are generated; BFF conforms; CI contract-tests; breaking changes require major version / `markets-v2.yaml`. |
 | **When** | Before any new Markets route or wire field; when web and Android disagree on names; after ACL normalizer changes affecting response shape; when adding realtime supplements ([ADR-005](ADR-005-REALTIME-AND-RECONCILIATION.md)). |
 | **Where** | Spec → Go handlers; web codegen; Android OpenAPI Generator/Ktor models; contract tests; optional `schemas/events/markets/` for WS. Downstream of ACL normalization ([ADR-002](ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)). |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **How** | Change the spec first (or same PR as handlers); run `pnpm markets:codegen` and Android `openApiGenerate`; never hand-maintain a parallel Android DTO layer that drifts from web. |
 
 ### Worked example
@@ -46,7 +44,6 @@ Web needs `primaryFeedId` for chart subscribe.
 
 - Ad-hoc JSON fields only in the Next data layer.
 - Separate “Android API” forks of Markets.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Skipping contract tests for “just a rename.”
 
 **Agent checklist**
@@ -84,7 +81,6 @@ Without a shared contract, teams inevitably diverge:
 
 The monorepo integration rule from [docs/ARCHITECTURE.md](../../../../docs/ARCHITECTURE.md) states:
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### Forces
 

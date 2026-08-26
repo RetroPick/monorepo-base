@@ -93,7 +93,6 @@ All 18 master-prompt §10 journeys with screen-state tables.
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

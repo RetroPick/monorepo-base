@@ -14,7 +14,6 @@ This directory is the **entry index** for RetroPick **Smart Money Intelligence L
 
 Agents must treat this README and [INTELLIGENCE_LAUNCH_V1.md](INTELLIGENCE_LAUNCH_V1.md) as the scope gate. Legacy Wave-6 TI-V1 registries and broad intelligence packs are historical or archived; do not implement from them by default. **Never auto-copy** ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)). Frontend never calls Polymarket Data API directly — only RetroPick BFF surfaces.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ---
 
@@ -33,15 +32,12 @@ Short orientation for implementers and agents. Read this before consuming featur
 
 ### Worked example
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 **Agent checklist**
 
 - [ ] Launch scope = ten features only?
 - [ ] Foundations read before feature code?
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - [ ] ADR-009 respected (no auto-copy)?
 - [ ] `current_phase` still PHASE-1 unless manifest says otherwise?
 
@@ -101,7 +97,6 @@ Machine-readable fixtures under [testdata/](testdata/):
 7. Feature doc `01`–`10` for the tasked capability.
 8. Cross-cutting Markets docs only as needed: [ADR-008](../architecture/adr/ADR-008-SHARED-SIGNAL-ENGINE.md), [ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md), [API_SDK_AND_ENDPOINT_REGISTRY.md](../polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md), OpenAPI `schemas/openapi/markets-v1.yaml`.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ---
 
@@ -111,7 +106,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 |------|----------------|
 | Active foundations + `01`–`10` | Yes |
 | [testdata/](testdata/) | Yes (for tests) |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Archived material may retain useful math history (e.g. unusual-activity heuristics, relationship scanner, OSS adoption map). It is **not** Launch V1 implementation authority.
 
@@ -141,7 +135,6 @@ These are **not** Launch authority. Prefer Launch docs above.
 | `ALERT_RULES_AND_DELIVERY.md` | Narrowed into `08`; complex DSL not Launch |
 | `SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md` | Shared envelope rules migrate into data model + ProvenanceWriter; keep until feature docs absorb |
 | `MARKET_HEALTH_LIQUIDITY_AND_ORDERBOOK_ANALYTICS.md` | Not a Launch-ten feature; supporting only if holders/whale enrich needs it |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ---
 

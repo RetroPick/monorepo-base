@@ -16,7 +16,6 @@
 
 ## Reference roster (preserved, disabled)
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Responsibility boundaries
 

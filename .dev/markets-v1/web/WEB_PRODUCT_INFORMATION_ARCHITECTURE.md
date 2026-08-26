@@ -89,7 +89,6 @@ Route map, navigation hierarchy, public vs authenticated IA, SEO, deep links.
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

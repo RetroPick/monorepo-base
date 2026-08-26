@@ -2,7 +2,6 @@
 
 ## Mission
 
-Current Markets V1 authority: `AGENTS.md`.
 
 **Primary docs:** [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md)
 
@@ -18,19 +17,14 @@ flowchart LR
 
 Web and Android are clients of the **same** BFF. No separate Android backend; no bypassing the canonical contract for core Markets semantics.
 
-Current Markets V1 authority: `AGENTS.md`.
 
 
 ## Markets V1 (Polymarket product)
 
-Current Markets V1 authority: `AGENTS.md`.
 
 1. Read [.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) first.
 2. Check `current_phase` in [.harness/products/markets-v1/planning/implementation-manifest.yaml](.harness/products/markets-v1/planning/implementation-manifest.yaml).
 3. Use shared OpenAPI: [schemas/openapi/markets-v1.yaml](schemas/openapi/markets-v1.yaml).
-Current Markets V1 authority: `AGENTS.md`.
-Current Markets V1 authority: `AGENTS.md`.
-Current Markets V1 authority: `AGENTS.md`.
 
 ## Active release agent roster (rp-*)
 
@@ -46,7 +40,6 @@ Current Markets V1 authority: `AGENTS.md`.
 | `rp-sre-release` | VPS / staging / CI / release infra |
 | `rp-review-security` | Security/staff review — READ-ONLY, APPROVE/REJECT |
 
-Current Markets V1 authority: `AGENTS.md`.
 
 ## Coding rules
 
@@ -66,13 +59,11 @@ Current Markets V1 authority: `AGENTS.md`.
 
 Harness scripts: `.harness/scripts/` (reconcile-release-state, prepare-task-worktree, sync-android-gitlink, validate-harness).
 
-Current Markets V1 authority: `AGENTS.md`.
 
 ## opensrc / Graphify references
 
 When using external opensrc repositories for architecture or refactor guidance,
 read `.ai/AGENTS-opensrc.md` first. Treat external repositories as references
-Current Markets V1 authority: `AGENTS.md`.
 
 ## Learned User Preferences
 
@@ -86,7 +77,6 @@ Current Markets V1 authority: `AGENTS.md`.
 - Do not advance `current_phase` in `implementation-manifest.yaml` unless the user explicitly requests it.
 - When implementing an approved harness plan, do not edit the attached plan file; execute against it and record evidence elsewhere.
 - When phased tasks' `owned_paths` omit HTTP wiring, add minimal glue in parent modules after approval; parallel harness chats must honor frozen `owned_paths` (one writer per path).
-Current Markets V1 authority: `AGENTS.md`.
 - Live Polymarket CLOB credentials require explicit human approval; local tests and default dev paths use sandbox/httptest only (no mainnet submit claims).
 
 ## Learned Workspace Facts
@@ -99,8 +89,6 @@ Current Markets V1 authority: `AGENTS.md`.
 - Backend Markets data is projection/read models, not ownership authority, unless a doc explicitly says otherwise.
 - Canonical Markets catalog IDs use `polymarket:{kind}:{upstreamId}` (events, markets, tokens).
 - Greenfield Markets read UI lives in `apps/web/src/products/markets/` with a minimal Next.js dev shell (`pnpm dev`, port 3001); the web release surface is `apps/web` (package `@retropick/markets-web`). Local dev must call the Go BFF (`NEXT_PUBLIC_API_BASE_URL` or dev fallback `http://127.0.0.1:8080`); misconfigured base URL hits Next.js HTML and surfaces catalog `malformed` errors. Global Header `WalletButton` on markets routes is accepted PHASE-1 debt; MKT-P2-001 must quarantine it before trading UX.
-Current Markets V1 authority: `AGENTS.md`.
-Current Markets V1 authority: `AGENTS.md`.
 - `implementation-manifest.yaml` `current_phase` is **PHASE-2**. PHASE-3 trading stack in code: `orders/` preview/submit/cancel/list + `clob/` (sandbox/httptest default), `reconcile/` worker repairs `unknown`/`cancel_pending` via venue lookup and **never auto-resubmits**. OpenAPI `markets-v1.yaml` **v1.3.0**; public `order_submit` kill switch default **false** (`MARKETS_ORDER_SUBMIT_ENABLED`).
 - Markets `/me` auth gating: wallet discovery (`/me/wallets`) is auth-only; balances and transactional routes require `RequireEligible` (see AUTH §5). Post-dev infrastructure, VPS, external APIs, and secrets preflight: `.dev/markets-v1/.whatNeeded.md`.
 

@@ -11,7 +11,6 @@ This tracker holds unresolved Polymarket/Builder/legal/Android/OSS questions and
 
 Link EV-IDs and escalation paths; close only with dated evidence. Weekly sweep assumptions expiring within 14 days; every PHASE gate checklist must include an assumption ID sweep. Companion decision/assumption log: [DECISION_AND_ASSUMPTION_LOG.md](../../../.harness/products/markets-v1/governance/DECISION_AND_ASSUMPTION_LOG.md).
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -22,7 +21,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace dated as
 | Lens | Answer |
 |------|--------|
 | **Who** | Orchestrators running phase gates; implementers about to rely on an unverified upstream behavior; humans who must answer legal/Builder/Play questions agents cannot close. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **When** | Weekly (assumptions expiring within 14 days) and at every PHASE gate checklist sweep. Re-read when an assumption’s expiry date passes or evidence confidence changes. |
 | **Where** | This file + [evidence-register.yaml](evidence-register.yaml) + [BLOCKERS_AND_HUMAN_APPROVALS.md](../../../.harness/products/markets-v1/governance/BLOCKERS_AND_HUMAN_APPROVALS.md) + decision/assumption log. Do not bury new assumptions only in chat. |
 | **Why** | Silent expired assumptions become production incidents (wrong collateral, premature Combos, Play rejection). Time-boxing forces revalidation or escalation before gates turn green. |
@@ -69,7 +67,6 @@ Track unresolved upstream/product decisions and **time-boxed assumptions** that 
 ### Out of scope
 
 - PRISM protocol design.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 3. Prerequisites
 

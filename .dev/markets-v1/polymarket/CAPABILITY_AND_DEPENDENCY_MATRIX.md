@@ -78,7 +78,6 @@ This document is the **single traceability anchor** between product requirements
 ### Out of scope
 
 - PRISM protocol (`contracts/prism/`).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Polymarket Perps APIs and perpetuals trading.
 - Combos RFQ/requester trading — excluded per EV-013 and [COMBOS_CAPABILITY_GATE.md](./COMBOS_CAPABILITY_GATE.md).
 - Custom RetroPick exchange or outcome-token issuance (ADR-001).
@@ -349,7 +348,6 @@ Full log: [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN
 |----|-------|--------|------------|-------------|
 | EV-001 | CLOB V2 is production trading API (live 2026-04-28) | https://docs.polymarket.com/v2-migration | partially_verified | V2 SDK/signing only |
 | EV-002 | Markets BFF serves `/api/v1/markets/*` | `apps/backend/internal/markets/` | verified | Client integration surface |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | EV-005 | OpenAPI `markets-v1.yaml` canonical | repo | verified | Codegen/conformance |
 | EV-007 | pUSD replaces USDC.e as V2 collateral | https://docs.polymarket.com/v2-migration | partially_verified | Wrap/onramp/funding |
 | EV-008 | Official contract registry (Polygon 137) | https://docs.polymarket.com/resources/contracts | partially_verified | Load + verify at startup |

@@ -28,14 +28,7 @@ apps/web (@retropick/markets-web) + Android (RetroPick-Android)
 | `schemas/openapi/markets-v1.yaml` | Canonical HTTP contract |
 | `docker-compose.markets-dev.yml` | Local full stack |
 | `contracts/prism/` | Future PRISM (placeholder) |
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
 ## PRISM
 
 Future structured-outcome product. Placeholder directories only; no active runtime.
-
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
-
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
-
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.

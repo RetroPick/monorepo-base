@@ -13,7 +13,6 @@
 
 PHASE-8 covers post-V1 advanced capabilities under explicit ADR/flag/approval: Combos gate, manual copy-intent, professional API, execution analytics, wallet/onramp providers, AI evidence narration (verified evidence only), cross-venue research, and scope review. It is not a bundle that quietly expands V1.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Prerequisites: PHASE-7 launch **and** V1 SLOs stable 30+ days. Each `MKT-P8-*` may proceed only after its capability gate. LLM is narration-only over verified evidence; trading path isolation is mandatory. Autonomous/automatic copy trading and guaranteed-arbitrage labels remain Never-V1.
 
@@ -28,7 +27,6 @@ Orientation for agents executing **PHASE-8 — Post-V1 Advanced Capabilities**. 
 | **Who** | Per-capability feature owners; product+legal+security approvers for each gate; orchestrator preventing silent V1 scope creep. |
 | **What** | Post-V1 gated capabilities: combos, manual copy-intent, pro API, exec analytics, onramps, AI narration, optional cross-venue research. UV/relationship/complex alert DSL = archived research only unless a gate reopens them. |
 | **When** | After PHASE-7 launch **and** V1 SLOs stable 30+ days. Each `MKT-P8-*` only after its capability gate — not as a silent V1 expansion or default intel backlog. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **Why** | Combos liquidity, AI hallucination, and autonomous copy trading are high-risk. Treating archived UV/relationship as “next after launch” recreates Wave-6 scope creep. |
 | **How** | Follow the numbered procedure below; stay inside owned paths; file evidence; never mark the phase done without the exit-gate checklist. |
 
@@ -42,7 +40,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 
 - Autonomous/automatic copy trading; AI classification that invents metrics or triggers orders
 - Guaranteed arbitrage labels; silent V1 creep; PRISM/legacy; custom exchange
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### Exit gate — what “done” means for an agent
 
@@ -66,7 +63,6 @@ Until those are true, keep task statuses honest (`planned` / `ready` / `in_progr
 
 Agent on `MKT-P8-005` wires narration over signal envelopes with provenance IDs; model output cannot call order submit. Cost caps alert when exceeded.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Production path
 
@@ -108,8 +104,6 @@ PHASE-7 launch; V1 SLOs stable 30+ days.
 - Pro API
 - Exec analytics
 - Onramps
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Out of scope
 
@@ -117,14 +111,11 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 - Silent V1 creep
 - Guaranteed arb
 - AI trade signals
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected
 
 - internal/markets/advanced/
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## New modules/files expected
 
@@ -206,8 +197,6 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 | Task ID | Title | Goal | Handoff |
 |---|---|---|---|
 | MKT-P8-001 | Combos capability gate | Deliver combos capability gate (ADR-009; no guaranteed arb) | MKT-P8-004 |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | MKT-P8-004 | Cross-venue normalization | Deliver cross-venue normalization | MKT-P8-005 |
 | MKT-P8-005 | AI evidence narration | Deliver ai evidence narration | MKT-P8-006 |
 | MKT-P8-006 | Manual copy-intent | Manual copy-intent (ADR-009; preview+sign; no auto; no guaranteed arb) | MKT-P8-007 |
@@ -228,7 +217,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 
 ### MKT-P8-002 — Unusual activity heuristics
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 **Goal:** Historical / research-gated only — do not implement as default PHASE-8 backlog.
 
@@ -240,7 +228,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 
 ### MKT-P8-003 — Relationship scanner
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 **Goal:** Historical / research-gated only — do not implement as default PHASE-8 backlog.
 

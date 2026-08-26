@@ -9,7 +9,6 @@
 
 This is the single scope and capability matrix for Markets V1: upstream Polymarket support × RetroPick components (BFF / web / Android) × release tier (V1 / V1.1 / Post-V1) × phase × requirement IDs. It is the authority for “is this V1, gated V1.1, or PHASE-8?” debates.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Read Purpose and Current state before Target design — stub reality vs target tiers is the common agent mistake. Prefer web trading stability before Android parity. Runtime capability advertisement (target) is `GET /markets/capabilities` via shared OpenAPI — do not invent parallel flag paths.
 
@@ -22,7 +21,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace matrix r
 | Lens | Answer |
 |------|--------|
 | **Who** | Orchestrators settling “is this V1 / V1.1 / Post-V1?”; implementers mapping master prompt §6/§6A capabilities to BFF/W/A components; QA tracing MKT-FR IDs; reviewers blocking Combos or unusual-activity as default-on V1 without gates. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **When** | Before accepting a feature into a phase, flipping a capability flag, or arguing Android-before-web-trading. Re-read when evidence register confidence changes for Combos, NegRisk, or CLOB V2. |
 | **Where** | This file + [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md) + [research/POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md). Runtime capability advertisement (target): `GET /markets/capabilities` via shared OpenAPI — do not invent extra flag paths. Code: `internal/markets/`, web Markets product, Android after PHASE-5 authorization. |
 | **Why** | Without one matrix, agents ship gated intelligence or Combos as V1, or grow client-direct CLOB. This doc is the scope debate authority for release columns and component codes (`BFF` / `W` / `A`). |
@@ -46,7 +44,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 
 - Client-direct CLOB in production (rejected; ADR-002).
 - Android trading before web trading stable (ANDROID_MARKETS / Decisions).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Inventing OpenAPI paths not aligned with `markets-v1.yaml` growth plan.
 
 **Agent checklist**
@@ -72,7 +69,6 @@ Map every Markets capability from master prompt §6 and §6A across Polymarket u
 ### Out of scope
 
 - PRISM (`contracts/prism/`, `products/prism`).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom RetroPick exchange (ADR-001).
 
 ## 3. Prerequisites
@@ -309,7 +305,6 @@ Capability rollout via `capabilities` flags and phased releases (PHASE-1–7). R
 
 ## §6A — Trader intelligence (tiered)
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### §6A.1 Smart Money Launch V1 (ten features)
 
@@ -332,8 +327,6 @@ Adjacent Markets capabilities (watchlists, own-order alerts, resolution panel, p
 
 | Capability | Status | Reason | Cite |
 |------------|--------|--------|------|
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Full market-health dashboard | archived | Deferred; slippage rehomed to Paper | `09_PAPER_COPY.md` |
 | Complex alert DSL | archived | Launch uses basic whale/follow alerts | `08_BASIC_WHALE_ALERTS.md` |
 | Telegram / Discord / email / webhooks | V1.1 gated | Policy + abuse | product |

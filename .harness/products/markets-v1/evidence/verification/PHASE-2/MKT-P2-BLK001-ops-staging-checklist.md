@@ -164,4 +164,3 @@ Unset `MARKETS_GEOIP_*` and `MARKETS_GEOBLOCK_*`, redeploy → eligibility retur
 - [MKT-P2-002-test-output.txt](./MKT-P2-002-test-output.txt)
 - [MKT-P2-007-phase-gate.md](./MKT-P2-007-phase-gate.md) — phase advance blocked pending this checklist
 - [MKT-P2-BLK001-staging-proof.md](./MKT-P2-BLK001-staging-proof.md) — staging proof template (local rehearsal filed; live staging pending)
-
