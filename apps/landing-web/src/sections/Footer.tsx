@@ -76,9 +76,9 @@ export default function Footer() {
       <div className="border-t border-[#1a1a1a]">
         <div className="mx-auto max-w-[1200px] px-5 py-5 text-center md:px-10">
           <p className="text-xs text-rp-text-muted">
-            <a href="#" className="transition-colors hover:text-rp-text-secondary">Terms of Service</a>
+            <a href="/markets/terms" className="transition-colors hover:text-rp-text-secondary">Terms of Service</a>
             <span className="mx-2">·</span>
-            <a href="#" className="transition-colors hover:text-rp-text-secondary">Privacy Policy</a>
+            <a href="/markets/privacy" className="transition-colors hover:text-rp-text-secondary">Privacy Policy</a>
             <span className="mx-2">·</span>
             <a
               href="https://t.me/RetroPickMarket"
