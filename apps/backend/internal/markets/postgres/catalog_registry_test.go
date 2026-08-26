@@ -187,7 +187,20 @@ func TestCatalogTokenRegistryRefreshReplacesChangedRelationship(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	seedCatalogTokenMapping(t, pool, newMarket, tokenID)
+
+	// Create the replacement market without violating the catalog's UNIQUE
+	// upstream_token_id or UNIQUE (market_id, outcome_index) constraints. The
+	// relationship move itself is applied explicitly below because this test is
+	// about registry refresh behavior, not outcome-ingestion upsert semantics.
+	placeholderTokenID := "p13c001-new-market-placeholder-token"
+	seedCatalogTokenMapping(t, pool, newMarket, placeholderTokenID)
+	if _, err := pool.Exec(ctx, `DELETE FROM markets_catalog_outcomes WHERE upstream_token_id = $1`, placeholderTokenID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE markets_catalog_outcomes SET market_id = $1 WHERE upstream_token_id = $2`, newMarket, tokenID); err != nil {
+		t.Fatal(err)
+	}
+
 	if err := registry.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}
