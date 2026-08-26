@@ -8,7 +8,6 @@
 | **PRISM** | Fully collateralized structured-outcome derivatives (future) | Web |
 | **Android** | Native Markets client (Kotlin + Jetpack Compose) | Mobile |
 
-Current Markets V1 authority: `AGENTS.md`.
 
 ## Prerequisites
 
@@ -292,7 +291,6 @@ Do **not** run two stacks that both bind **8080** at once.
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
 | Agent contract | [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) |
-Current Markets V1 authority: `AGENTS.md`.
 | Markets-only backend | [`docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md`](docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md) |
 
 ## Monorepo layout
@@ -304,7 +302,6 @@ apps/backend          Go Markets BFF (cmd/markets-api, internal/markets)
 packages/polymarket   Shared TS client + types
 schemas/openapi       Web + Android API contract
 docker-compose.markets-dev.yml   One-button Markets V1 stack
-Current Markets V1 authority: `AGENTS.md`.
 ```
 
 ## Verify (without Docker)

@@ -14,7 +14,6 @@ It sits at the front of Wave 5. Code home is greenfield `apps/android-markets/` 
 
 Read this before greenfield module work or feature proposals, and when `/markets/capabilities` gains flags. Use it to say no quickly rather than expanding V1 silently.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -25,7 +24,6 @@ Short orientation for implementers and agents. Read this before the normative se
 | **Who** | Android product/engineering owners and harness agents (`fe-markets` mobile track) scoping PHASE-5; Play/compliance partners; anyone tempted to add PRISM or venue-bypass into the app. |
 | **What** | Markets-only Android product scope: jobs-to-be-done, V1 feature inventory vs V1.1+, explicit non-goals, success metrics, personas, release phases 5A–5D, and backend phase dependencies. Baseline companion: [.dev/ANDROID_MARKETS.md](../../ANDROID_MARKETS.md). |
 | **When** | Before greenfield module work or feature proposals. Re-check when `/markets/capabilities` gains flags (e.g. combos) or when web ships CTF ops that Android might lag. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **Why** | Mobile scope creep (background trading, raw keys, WebView dApps) creates security and policy failures. Android is a distribution channel for Markets—not a second exchange. Clear non-goals keep agents from “helpfully” building the wrong product. |
 | **How** | Ship 5A shell → 5B read (discovery, detail, cache, links) → 5C trading (wallet, orders, portfolio) → 5D notifications/Play packaging. Gate trading on backend PHASE-3 contract tests in staging. Prefer Compose feature modules per GRADLE_MODULE_GRAPH. Measure funnel and crash-free users—not notification spam. |
 
@@ -61,7 +59,6 @@ Use this doc to say **no** quickly. Implementation detail lives in COMPOSE_APP_A
 
 ### Explicit non-goals (repeat for agents)
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Raw key import / embedded unrestricted WebView trading
 - Android-only order semantics
 - Autonomous background trading
@@ -93,7 +90,6 @@ Define Markets-only Android product scope, metrics, and non-goals. See [.dev/AND
 
 - PRISM protocol, `contracts/prism/`, PRISM market creation, or PRISM settlement flows.
 - Direct production calls to Polymarket Gamma/CLOB from the Android client (ADR-002).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom RetroPick exchange or outcome-token issuance (ADR-001).
 - Background autonomous trading or Android-specific order semantics.
 

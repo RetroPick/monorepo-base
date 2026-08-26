@@ -416,4 +416,3 @@ Initial budgets:
 - Which CTF operations ship in first release.
 - Exact feature parity target with Markets web.
 - Whether premium analytics exist; if so, Play Billing and entitlement architecture.
-

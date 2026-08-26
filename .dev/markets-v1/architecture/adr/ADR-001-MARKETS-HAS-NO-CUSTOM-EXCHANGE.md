@@ -8,11 +8,9 @@
 
 ## Description
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 It sits at the root of the Wave 1 ADR graph: every Markets integration path (BFF ACL, OpenAPI IDs, package boundaries) assumes Polymarket-native settlement. Repo constraints include must-not-create `contracts/markets/`, Markets integration under `apps/backend/internal/markets/`, and `packages/polymarket/` as adapter types only. Rejected alternatives (custom exchange, wrappers, extend legacy) stay rejected unless this ADR is formally revised.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -24,12 +22,9 @@ Short orientation for implementers and agents. Read this before **Context / Deci
 
 | Lens | Answer |
 |------|--------|
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **When** | Binding for all Markets V1 phases (Gamma catalog → CLOB orders → launch without custom contracts). Any move toward exchange operation requires ADR revision, legal review, and decision-log entry—not a drive-by PR. |
 | **Where** | Repo constraints: **must not create** `contracts/markets/`; Markets integration in `apps/backend/internal/markets/`; `packages/polymarket/` = adapter types only; OpenAPI IDs are Polymarket-native; no Markets imports of PRISM settlement. |
 | **Why** | Context: frozen epoch v1 cost, liquidity cold-start, regulatory surface of operating an exchange, V1 timeline in months. Product is Polymarket trading + intelligence **experience**, not a new venue. Alternatives A–C (custom exchange, wrappers, extend legacy) remain **rejected**. |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### Worked example
 
@@ -68,7 +63,6 @@ Ticket: “Issue YES/NO tokens for our World Cup market on RetroPick contracts.�
 
 ## Context
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Several architectural options existed for Markets V1:
 
@@ -104,7 +98,6 @@ Specifically:
 2. No new Markets smart contracts in `contracts/` — integration only.
 3. No RetroPick-issued outcome tokens for Markets product line.
 4. PRISM (`contracts/prism/`) is a **separate product** and must not be conflated with Markets settlement.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Consequences
 
@@ -152,7 +145,6 @@ Issue RetroPick ERC-1155 positions backed by Polymarket exposure.
 | Engineering | Bridge contracts, reconciliation |
 | **Verdict** | **Rejected** for V1 |
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Continue epoch v1 for new markets.
 
@@ -181,7 +173,6 @@ Integrate via BFF; no custom exchange.
 |------|---------------------|
 | `contracts/markets/` | **Must not be created** |
 | `contracts/prism/` | PRISM only — no Markets import |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | `apps/backend/internal/markets/` | BFF integration only |
 | `packages/polymarket/` | Types and adapters — no matching logic |
 
@@ -191,7 +182,6 @@ All market identifiers in OpenAPI (`schemas/openapi/markets-v1.yaml`) reference 
 
 ### CI enforcement
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Bundle check: no epoch ABIs in `NEXT_PUBLIC_PRODUCT=markets` web build
 
 ### Phase alignment

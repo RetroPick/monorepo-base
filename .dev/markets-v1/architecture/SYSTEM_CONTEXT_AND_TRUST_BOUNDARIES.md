@@ -45,7 +45,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 - Adding `contracts/markets/` or RetroPick-issued outcome tokens for Markets.
 - Server-signing user order intent, or treating session JWT as chain authority.
 - Operators placing trades; geo treated as advisory-open.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 **Agent checklist**
 
@@ -77,7 +76,6 @@ Markets V1 is a **Polymarket-native trading and intelligence product**. RetroPic
 ### Out of scope
 
 - PRISM protocol implementation (`contracts/prism/`, `apps/web` PRISM routes)
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom RetroPick exchange or outcome-token issuance ([ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md))
 - Automated copy trading ([ADR-009](adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md))
 
@@ -390,7 +388,6 @@ All client traffic targets the BFF OpenAPI contract (`schemas/openapi/markets-v1
 | `/markets/intelligence/*` | Yes (tiered) | Degrade to empty set |
 | `/markets/alerts/*` | Yes | Queue; retry later |
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 11. Realtime Trust Boundary
 

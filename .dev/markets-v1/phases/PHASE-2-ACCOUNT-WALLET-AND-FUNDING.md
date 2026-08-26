@@ -120,7 +120,6 @@ PHASE-1 exit; auth schemas drafted.
 - CTF production
 - Android trading
 - Combos
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

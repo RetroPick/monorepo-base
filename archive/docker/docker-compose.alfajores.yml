@@ -1,6 +1,0 @@
-# Epoch Celo/Alfajores overlay (indexer, MarketEngine registry, GoodDollar) was
-# archived with the rest of the epoch backend. Markets V1 compose is
-# postgres + migrator + markets-api; see docker-compose.yml.
-#
-# Historical overlay: archive/apps/backend and git history of this file.
-services: {}

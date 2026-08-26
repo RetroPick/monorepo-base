@@ -10,7 +10,6 @@ This directory is the **agent execution / release factory** for RetroPick. It ho
 | 2 | Live execution state | `~/.hermes/kanban.db` + `~/.local/state/retropick-harness/release-state.yaml` |
 | 3 | Execution policy | `.harness/products/markets-v1/**` |
 | 4 | Product / architecture specification | `.dev/markets-v1/**` |
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Never claim a feature is complete because documentation says it is. Only executable evidence may move a gate green.
 
@@ -40,7 +39,6 @@ Never claim a feature is complete because documentation says it is. Only executa
 
 Active release fleet: `rp-release-orchestrator`, `rp-recovery-architect`, `rp-api-contract`, `rp-backend-markets`, `rp-web`, `rp-android`, `rp-qa-e2e`, `rp-sre-release`, `rp-review-security`.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Worktrees
 

@@ -92,7 +92,6 @@ RetroPick design tokens, WCAG 2.1 AA, original visual identity — not a Polymar
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

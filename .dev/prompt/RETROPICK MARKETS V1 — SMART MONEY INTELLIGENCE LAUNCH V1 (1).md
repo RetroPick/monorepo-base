@@ -51,7 +51,6 @@ is not needed to preserve a critical invariant
 then propose moving it to:
 
 ```text
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
 ```
 
 Do not delete useful historical work.
@@ -242,7 +241,6 @@ apps/backend/migrations/**
 apps/backend/sql/**
 apps/backend/internal/dbqueries/**
 
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
 
 packages/polymarket/**
 
@@ -305,7 +303,6 @@ Explain why.
 Create a proposed:
 
 ```text
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
 ```
 
 architecture.
@@ -320,7 +317,6 @@ RELATIONSHIP_AND_ARBITRAGE_SCANNER.md
 OPEN_SOURCE_ADOPTION_MAP.md
 ```
 
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
 
 ```text
 MARKET_HEALTH_LIQUIDITY_AND_ORDERBOOK_ANALYTICS.md
@@ -359,7 +355,6 @@ Not current implementation authority
 Create:
 
 ```text
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
 ```
 
 as the archive index.
@@ -630,7 +625,6 @@ INTELLIGENCE_TEST_STRATEGY.md
 09_PAPER_COPY.md
 10_QUICK_BACKTEST.md
 
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
   README.md
   ...
 ```
@@ -754,7 +748,6 @@ Distinguish CURRENT from TARGET.
 Evaluate:
 
 ```text
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
         ↓
 Markets BFF / Go API
         ↓
@@ -2858,7 +2851,6 @@ Perform a per-file mapping like:
 ```text
 OLD FILE
 → NEW OWNER
-Current Markets V1 authority: `.dev/markets-v1/intelligence/README.md`.
 ```
 
 For example, evaluate:

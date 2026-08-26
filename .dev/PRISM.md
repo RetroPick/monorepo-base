@@ -507,4 +507,3 @@ Alerts:
 ## 16. External source assumptions
 
 Polymarket positions are tokenized YES/NO outcomes and can be split, merged, and redeemed under its Conditional Token Framework integration; PRISM should consume only explicitly pinned conditions and finality evidence. See the official [positions and tokens](https://docs.polymarket.com/concepts/positions-tokens) and [resolution](https://docs.polymarket.com/concepts/resolution) documentation. Polymarket's current resolution path is an external dependency, not a PRISM governance mechanism.
-

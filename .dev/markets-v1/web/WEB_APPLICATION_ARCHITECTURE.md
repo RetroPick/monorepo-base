@@ -65,7 +65,6 @@ IA routes, design tokens, market/ticket UX, wallet UX, portfolio/funding UX, err
 - Creating `products/markets-v2` beside Markets instead of extending this tree.
 - Using `any` for OpenAPI money fields “temporarily.”
 - Auto-retrying `orders/preview` or `orders/submit` on timeout.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Shipping ticket UI before eligibility + capabilities hooks exist.
 
 ### Success signal
@@ -88,7 +87,6 @@ Define RetroPick Markets web architecture: Next.js App Router under `apps/web/sr
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

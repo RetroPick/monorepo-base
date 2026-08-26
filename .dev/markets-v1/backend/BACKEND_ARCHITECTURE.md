@@ -10,7 +10,6 @@
 
 This document is the topology and process map for the RetroPick Markets V1 **greenfield Go BFF**. It defines one horizontally scaled `cmd/markets-api` plus workers (`markets-ingest`, `signal-engine`, `alert-delivery`, `reconciliation`) sharing `apps/backend/internal/markets/`, PostgreSQL `markets.*` projections, Redis cache/queues, and OpenAPI as the contract—so implementers place features in the right process without inventing binaries or coupling trading to intelligence.
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 Read this when adding a process, package, env var, or failure mode, or when sequencing Phase 1–4 rollout. Prefer sibling docs for per-context ownership, DDL, and OpenAPI operation semantics—not for inventing new topology.
 
@@ -20,8 +19,6 @@ Short orientation for implementers and agents. Read this before the normative se
 
 | Lens | Answer |
 |------|--------|
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **When** | Wave 3 architecture is the map for all Markets backend work. Phase 1 ships catalog + eligibility + capabilities; Phase 2 wallets/funding; Phase 3 trading + intelligence + alerts; Phase 4 portfolio/withdrawals/CTF ops. Use this doc when adding a process, package, env var, or failure mode—before inventing a new binary or coupling trading to intelligence. |
 | **Where** | Spec: this file + [SERVICE_AND_MODULE_BOUNDARIES.md](./SERVICE_AND_MODULE_BOUNDARIES.md), [DATABASE_AND_MIGRATIONS.md](./DATABASE_AND_MIGRATIONS.md), [API_AND_REALTIME_CONTRACTS.md](./API_AND_REALTIME_CONTRACTS.md). Code: `apps/backend/cmd/{api,markets-ingest,signal-engine,alert-delivery,reconciliation}` and `internal/markets/{handler,service,store,domain,acl,workers,realtime}`. Contract: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). Current R3 handlers live in `internal/markets/handler.go` (Eligibility, Capabilities, ListEvents); target split is per-handler packages listed in §6. |
 | **Why** | Clients need a single BFF that projects venue state safely, degrades independently per worker, and never confuses Redis/PG cache with settlement truth. Intelligence must fail open relative to trading (ADR-008). Clear topology prevents accidental private-key custody, silent order resubmit, or importing legacy domain into `internal/markets`. |
@@ -49,7 +46,6 @@ Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPE
 ### Implementer checklist
 
 - New process? Document binary, owned tables, events, SLO, DLQ, idempotency (match worker tables in §7–10).
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Config via env vars in §13 (`MARKETS_*`); secrets in secret manager, not repo.
 - Acceptance: four workers specified; OpenAPI ops with `x-phase`; degraded modes tested.
 - Observability: `markets_*` metrics namespace; propagate trace context API → ACL → upstream.
@@ -68,7 +64,6 @@ alert-delivery, and reconciliation processes. Polymarket remains venue authority
 - Bounded contexts per master prompt §9.
 
 ### Out of scope
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 3. Prerequisites
 

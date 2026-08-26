@@ -30,11 +30,6 @@ doctor() {
       failed=1
     fi
   done
-  if command -v forge >/dev/null 2>&1; then
-    printf 'ok      tool forge (epoch contracts only)\n'
-  else
-    printf 'skip    tool forge (optional — Markets V1 does not require Foundry)\n'
-  fi
   for file in \
     scripts/markets-dev-up.sh \
     scripts/markets-dev-smoke.sh \
@@ -84,7 +79,7 @@ case "$cmd" in
       prod:down) exec "$V1_ROOT/scripts/compose-production.sh" down "$@" ;;
       prod:status) exec "$V1_ROOT/scripts/compose-production.sh" ps "$@" ;;
       prod:logs) exec "$V1_ROOT/scripts/compose-production.sh" logs "$@" ;;
-      prod:smoke) exec "$V1_ROOT/scripts/smoke-production.sh" "$@" ;;
+      prod:smoke) exec bash "$V1_ROOT/scripts/smoke-production.sh" "$@" ;;
       *) usage; exit 2 ;;
     esac
     ;;

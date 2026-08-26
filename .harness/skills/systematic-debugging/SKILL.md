@@ -68,4 +68,3 @@ If blocked for more than 45 minutes:
 2. Reduce to the smallest demo-compatible implementation.
 3. Document the limitation.
 4. Ask the Orchestrator to cut or defer stretch work.
-

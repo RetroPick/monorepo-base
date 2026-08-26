@@ -88,7 +88,6 @@ Positions, PnL, deposit, redeem, withdraw journeys.
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

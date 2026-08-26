@@ -93,7 +93,6 @@ Unit, integration, contract, E2E, a11y, visual regression for Markets web.
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 

@@ -116,7 +116,6 @@ PHASE-2 exit; CLOB V2 verified.
 - Portfolio redemption
 - Combos
 - Auto copy trade (ADR-009); market health dashboard (archived)
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected
@@ -285,7 +284,6 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P3-006 — Market health analytics (**superseded / archived**)
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 **Acceptance:** No dashboard ship; critical path continues via `MKT-P3-005` → `MKT-P3-007`.
 

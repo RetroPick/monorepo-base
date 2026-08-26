@@ -7,7 +7,6 @@
 - Go 1.26+
 - Docker (recommended for Postgres + BFF + web)
 
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
 ## Common Commands
 
@@ -16,7 +15,6 @@ Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 - `go -C apps/backend run ./cmd/markets-api`: run BFF against local Postgres.
 - `pnpm docker:up` / `pnpm docker:down`: alias to markets-dev up/down scripts.
 - `pnpm smoke`: run backend Go tests.
-Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
 ## Environment
 

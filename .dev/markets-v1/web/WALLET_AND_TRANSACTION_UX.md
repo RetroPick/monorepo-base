@@ -89,7 +89,6 @@ Connect, chain switch, preview modals, signing handoff per ADR-003.
 
 ### Out of scope
 
-Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Android ([android/](../android/)).
 
 
