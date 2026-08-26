@@ -30,11 +30,6 @@ doctor() {
       failed=1
     fi
   done
-  if command -v forge >/dev/null 2>&1; then
-    printf 'ok      tool forge (epoch contracts only)\n'
-  else
-    printf 'skip    tool forge (optional — Markets V1 does not require Foundry)\n'
-  fi
   for file in \
     scripts/markets-dev-up.sh \
     scripts/markets-dev-smoke.sh \
