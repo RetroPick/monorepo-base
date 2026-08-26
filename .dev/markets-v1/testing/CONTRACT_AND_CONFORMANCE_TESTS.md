@@ -14,7 +14,7 @@ It sits in Wave 7 with CI openapi jobs and client packages consuming generated t
 
 Read this on every schemas or handler PR that changes response shapes, intentional ACL fixture updates, and client releases. Prefer MASTER_TEST_PLAN for how contract fits the pyramid.
 
-It excludes hand-editing generated clients out of band with OpenAPI and shipping legacy epoch routes from Markets clients.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -42,7 +42,7 @@ Short orientation for implementers and agents. Read this before the normative se
 | Surface | Must prove |
 |---------|------------|
 | Web client | Uses Markets OpenAPI paths/types only |
-| Android client | Same shared API; no legacy epoch routes |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Realtime | Envelope/op codes match WS contract |
 | ACL goldens | Stable Polymarket mapping fixtures |
 
@@ -74,7 +74,7 @@ OpenAPI contract tests, Polymarket ACL golden files, and client conformance requ
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-- Legacy epoch (`/api/v1/legacy/markets/*`).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 

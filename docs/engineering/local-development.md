@@ -7,7 +7,7 @@
 - Go 1.26+
 - Docker (recommended for Postgres + BFF + web)
 
-Foundry is only required for **archived** epoch contracts under `archive/contracts/legacy-pool-v1/`.
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
 ## Common Commands
 
@@ -16,7 +16,7 @@ Foundry is only required for **archived** epoch contracts under `archive/contrac
 - `go -C apps/backend run ./cmd/markets-api`: run BFF against local Postgres.
 - `pnpm docker:up` / `pnpm docker:down`: alias to markets-dev up/down scripts.
 - `pnpm smoke`: run backend Go tests.
-- `pnpm contracts:test`: Foundry tests against `archive/contracts/legacy-pool-v1` (epoch reference only).
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 
 ## Environment
 

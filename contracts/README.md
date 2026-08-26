@@ -1,4 +1,4 @@
 # Contracts
 
 - `prism/` — future PRISM protocol
-- Legacy MarketEngine: `archive/contracts/legacy-pool-v1/`
+Current Markets V1 authority: `AGENTS.md`.

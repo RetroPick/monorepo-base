@@ -1,6 +1,6 @@
 # Production operations (Markets V1)
 
-Epoch MVP production guide moved to [`archive/docs/epoch-v1/PRODUCTION.md`](archive/docs/epoch-v1/PRODUCTION.md).
+Current Markets V1 authority: `AGENTS.md`.
 
 ## Markets V1 staging
 

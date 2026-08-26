@@ -61,8 +61,8 @@ retropick/
 │   ├── backend/                 # Go Markets BFF (cmd/markets-api)
 │   ├── android/                 # RetroPick-Android gitlink
 │   ├── landing-web/             # Marketing waitlist (separate product)
-│   └── docs/                    # stub → archive/apps/docs (epoch protocol site)
-├── archive/                     # Epoch MarketEngine, ops-web, legacy agents, epoch docs
+Current Markets V1 authority: `.dev/markets-v1/README.md`.
+Current Markets V1 authority: `.dev/markets-v1/README.md`.
 ├── contracts/
 │   └── prism/                   # PRISM placeholders (future)
 ├── packages/
@@ -76,7 +76,7 @@ retropick/
 └── .harness/products/markets-v1/
 ```
 
-The existing Go services, PostgreSQL/sqlc conventions, TypeScript packages, pnpm/Turbo web tooling, Docker development setup, indexer patterns, configuration, and operations console can be reused. The current V1 pool `MarketEngine` should not be renamed into PRISM: its economic invariants and settlement model are materially different.
+Current Markets V1 authority: `.dev/markets-v1/README.md`.
 
 Kotlin is a separate Gradle build inside the monorepo. It cannot consume TypeScript packages directly. TypeScript, Go, and Kotlin clients must instead be generated from canonical OpenAPI/JSON schemas, with shared conformance fixtures.
 
@@ -89,9 +89,9 @@ Kotlin is a separate Gradle build inside the monorepo. It cannot consume TypeScr
 | Chain/indexer/event infrastructure | Reuse generic primitives; add product-specific decoders | `packages/platform/chain`, backend indexers |
 | TypeScript shared types | Keep web-only implementation; move contracts to language-neutral schemas | `schemas/*` plus generated clients |
 | Existing `market-types`, pricing, equivalence, and resolution packages | Mine for tests/terminology; do not assume economic compatibility | new `packages/polymarket` and `packages/prism` APIs |
-| V1 upgradeable pool `MarketEngine` and yield routers | Archived epoch domain | `archive/contracts/legacy-pool-v1`, `archive/apps/backend/` |
+Current Markets V1 authority: `.dev/markets-v1/README.md`.
 | Frontend V1 | Markets web is `apps/web` | `apps/web/src/products/markets/` |
-| Ops console, Docker, CI, configuration | Reuse after product/environment credential separation | `archive/apps/ops-web`, `infra`, `tools` |
+Current Markets V1 authority: `.dev/markets-v1/README.md`.
 
 Code reuse is subordinate to invariant reuse. If a component assumes pari-mutuel pooling, shared yield, or a single price-feed outcome, it is not a safe PRISM primitive merely because its interface is convenient.
 

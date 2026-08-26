@@ -20,7 +20,7 @@
 - Order placement, builder signing, deposits, withdrawals
 - Browser-direct Gamma/CLOB/Data API calls
 - Public WebSocket realtime (deferred to Phase 1.3)
-- PRISM, Android, legacy epoch MarketEngine
+Current Markets V1 authority: `docs/ARCHITECTURE.md`.
 - Global search without a projection-backed endpoint
 
 ## 2. Functional requirements

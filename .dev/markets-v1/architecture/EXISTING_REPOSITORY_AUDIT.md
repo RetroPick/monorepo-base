@@ -7,11 +7,11 @@
 
 ## Description
 
-This document is a dated inventory of monorepo state after phases R0–R4: what exists under `internal/markets` (stub + Gamma), the web Markets shell, thin OpenAPI, `packages/polymarket`, Android scaffold, `archive/` quarantine, and example deploy env—versus what Markets V1 must still build. Its purpose is inventory, not completion certification.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 It sits in Wave 1 architecture as the “do not extend the nearest legacy thing” guardrail. Markets stays Polymarket-native and greenfield under `apps/backend/internal/markets/` (ADR-001); production upstream calls belong behind the BFF ACL (ADR-002). Stub / Shell / README-only rows are incomplete starting points, not ship claims.
 
-Read this before starting a Markets feature, choosing an import root, estimating “already done,” or deciding whether to extend a stub—and re-read when your change post-dates the Inspected column. It is not a full PRISM audit, not a landing-app inventory, and not permission to revive epoch MarketEngine inside Markets PRs.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 0. Developer intent (5W+1H)
 
@@ -23,12 +23,12 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 
 | Lens | Answer |
 |------|--------|
-| **Who** | Backend, web, and Android Markets engineers; harness agents scoping greenfield tasks; reviewers blocking revival of epoch MarketEngine inside Markets PRs. |
-| **What** | A dated inventory after R0–R4: what exists under `internal/markets` (stub + Gamma), web Markets shell, minimal `packages/polymarket`, thin OpenAPI, Android scaffold/README, `archive/` quarantine, and example `deploy/web-markets` env—versus what Markets V1 must still build. Out of scope: full PRISM audit, landing apps. |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **When** | Before starting a Markets feature, choosing an import root, estimating “already done,” or deciding whether to extend a stub. Re-read when your change post-dates the Inspected column. |
-| **Where** | Spec + evidence: this doc and research EV-025/EV-026. Live trees in §4–§5: `apps/backend/internal/markets/`, `apps/web/src/products/markets/`, `schemas/openapi/markets-v1.yaml`, `packages/polymarket/`, `apps/android/`, `archive/`. |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | **Why** | Agents extend the nearest working legacy route. The audit makes quarantine and incompleteness explicit so Markets stays Polymarket-native ([ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)) and greenfield under `internal/markets/`. |
-| **How** | Treat **Stub / Shell / README-only** as incomplete. Implement only in Markets paths; use `archive/` read-only; keep PRISM/landing out unless tasked; do not mark harness items done because a README endpoint row exists. Production upstream calls belong behind the ACL ([ADR-002](adr/ADR-002-POLYMARKET-ANTI-CORRUPTION-LAYER.md)). |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### Worked example
 
@@ -41,7 +41,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 
 **Failure / Never-V1**
 
-- Importing `MarketEngine` or epoch ABIs from `archive/` to “finish” Markets.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Growing `packages/polymarket` into matching/settlement logic.
 - Claiming trading complete while service flags still advertise trading false.
 - Duplicating work under PRISM/legacy because those trees look fuller.
@@ -50,7 +50,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 
 - [ ] Path listed in audit?
 - [ ] State stub or real?
-- [ ] Markets vs `archive/` vs PRISM?
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - [ ] OpenAPI change required?
 - [ ] Any illegal legacy import?
 
@@ -59,7 +59,7 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 
 ## 1. Purpose
 
-Inventory monorepo state after Phase R0–R4 restructure to show what exists today versus what Markets V1 must build. Prevents agents from extending legacy epoch code or duplicating paths.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 2. Scope
 
@@ -70,7 +70,7 @@ Inventory monorepo state after Phase R0–R4 restructure to show what exists tod
 - `packages/polymarket`
 - `schemas/openapi/markets-v1.yaml`
 - `apps/android`
-- `archive/` legacy quarantine
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### Out of scope
 
@@ -80,7 +80,7 @@ Inventory monorepo state after Phase R0–R4 restructure to show what exists tod
 ## 3. Prerequisites
 
 - [docs/ARCHITECTURE.md](../../../docs/ARCHITECTURE.md)
-- [archive/README.md](../../../archive/README.md)
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - [EXISTING_REPOSITORY_AUDIT evidence EV-025, EV-026](../research/evidence-register.yaml)
 
 ## 4. Authoritative sources
@@ -90,7 +90,7 @@ Inventory monorepo state after Phase R0–R4 restructure to show what exists tod
 | `docs/ARCHITECTURE.md` | R0–R4 layout | 2026-07-25 |
 | `apps/backend/internal/markets/` | Markets BFF | 2026-07-25 |
 | `schemas/openapi/markets-v1.yaml` | API contract | 2026-07-25 |
-| `archive/README.md` | Quarantine manifest | 2026-07-25 |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## 5. Current state
 
@@ -105,7 +105,7 @@ Inventory monorepo state after Phase R0–R4 restructure to show what exists tod
 | OpenAPI | `schemas/openapi/markets-v1.yaml` | **3 endpoints** | eligibility, capabilities, events |
 | Android | `apps/android/` | **README-only** | No Gradle project |
 | PRISM web | `apps/web/src/products/prism/` | Placeholder | Out of Markets scope |
-| Legacy epoch | `archive/` | **Quarantined** | No active imports |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 | Deploy | `deploy/web-markets/` | Example env | `NEXT_PUBLIC_PRODUCT=markets` |
 
 ### 5.2 Backend — `apps/backend/internal/markets/`
@@ -141,7 +141,7 @@ internal/markets/
 
 **Not present:** CLOB client, order orchestrator, portfolio DB, relayer, geoblock client, websocket hub, intelligence workers.
 
-**Adjacent backend packages (epoch-era, not Markets):** `indexer/`, `keeper/`, `marketdata/`, `funding/`, etc. remain in `internal/` for operational/historical reasons but are **not** Markets V1 paths. Epoch domain archived to `archive/apps/backend/archive/archive/apps/backend/internal/legacy/`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### 5.3 Web — `apps/web/src/products/markets/`
 
@@ -154,7 +154,7 @@ products/markets/
 └── hooks/useMarketsPlatform.ts  # React Query hooks
 ```
 
-Consumes `@retropick/polymarket` types. No wallet connect, order ticket, or order book UI. Legacy epoch UI archived under `archive/apps/web/`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### 5.4 Package — `packages/polymarket/`
 
@@ -192,19 +192,19 @@ Only documentation:
 
 No `build.gradle.kts`, no `app/` module, no Compose sources.
 
-### 5.7 Legacy quarantine — `archive/`
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
-Per `archive/README.md` (2026-07-24):
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 | Former active path | Archive path |
 |--------------------|--------------|
-| `contracts/legacy-pool-v1/` | `archive/contracts/legacy-pool-v1/` |
-| `packages/legacy/` | `archive/packages/legacy/` |
-| `apps/backend/archive/archive/apps/backend/internal/legacy/` | `archive/apps/backend/archive/archive/apps/backend/internal/legacy/` |
-| `apps/web/src/products/legacy/` | `archive/apps/web/products/legacy/` |
-| Epoch docs | `archive/docs/epoch-v1/` |
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
-**Policy:** Active code MUST NOT import from `archive/`. Legacy API was `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*` — frozen, not extended.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ### 5.8 Schemas and deploy
 
@@ -246,7 +246,7 @@ See [TARGET_MONOREPO_ARCHITECTURE.md](TARGET_MONOREPO_ARCHITECTURE.md).
 ## 8. Decisions
 
 - Markets BFF is greenfield at `internal/markets/` (EV-025).
-- Legacy frozen in `archive/` (EV-026).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - OpenAPI is canonical cross-client contract (EV-005 in prior stub → schemas file verified).
 - Android README-only until PHASE-5.
 
@@ -263,7 +263,7 @@ flowchart TB
   end
   subgraph archive [Quarantined]
     LegacyAPI[legacy markets API]
-    EpochDomain[archive/internal/legacy]
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
   end
   subgraph missing [Not built]
     CLOB[clob adapter]
@@ -309,5 +309,5 @@ Documentation-only audit. Implementation rollout per phases/README.md.
 
 - [x] Inventories all paths requested in Wave 0 task
 - [x] Documents 3 OpenAPI endpoints
-- [x] Documents legacy quarantine in archive/
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - [x] Gap analysis vs target Markets V1

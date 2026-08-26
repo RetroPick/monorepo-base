@@ -3,4 +3,4 @@
 **Status:** superseded  
 **Last updated:** 2026-08-09  
 
-Split into Launch specs: [02_WALLET_SEARCH.md](02_WALLET_SEARCH.md), [03_WALLET_PROFILE.md](03_WALLET_PROFILE.md), [04_WALLET_PERFORMANCE_METRICS.md](04_WALLET_PERFORMANCE_METRICS.md), [05_SMART_MONEY_LEADERBOARD.md](05_SMART_MONEY_LEADERBOARD.md). Historical body: [archive/WALLET_PROFILING_AND_SMART_MONEY.md](archive/WALLET_PROFILING_AND_SMART_MONEY.md).
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.

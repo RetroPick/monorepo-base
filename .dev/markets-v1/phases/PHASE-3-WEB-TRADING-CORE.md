@@ -116,7 +116,7 @@ PHASE-2 exit; CLOB V2 verified.
 - Portfolio redemption
 - Combos
 - Auto copy trade (ADR-009); market health dashboard (archived)
-- PRISM and legacy epoch APIs
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected
@@ -285,7 +285,7 @@ See BLOCKERS_AND_HUMAN_APPROVALS.md.
 
 ### MKT-P3-006 — Market health analytics (**superseded / archived**)
 
-**Goal:** ~~Implement Market health analytics~~ **Do not implement** a market health dashboard. Capability archived under [`intelligence/archive/`](../intelligence/archive/); slippage for paper lives in [`09_PAPER_COPY.md`](../intelligence/09_PAPER_COPY.md). Optional note only if task-graph still lists this ID.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 **Acceptance:** No dashboard ship; critical path continues via `MKT-P3-005` → `MKT-P3-007`.
 

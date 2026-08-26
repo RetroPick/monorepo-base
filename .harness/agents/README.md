@@ -16,7 +16,7 @@
 
 ## Reference roster (preserved, disabled)
 
-Legacy MarketEngine / epoch agents are preserved under [`../../archive/harness/agents/`](../../archive/harness/agents/) as REFERENCE / DISABLED FOR MARKETS-V1 RELEASE. Do not route Markets V1 release tasks to them.
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 
 ## Responsibility boundaries
 

@@ -113,7 +113,7 @@ PHASE-3 exit; CTF addresses verified.
 - Combos
 - Guaranteed arb labels
 - Whale feed / wallet profiles / leaderboard as P4-owned (Smart Money **I1–I3** / PHASE-1 parallel — [01_WHALE_TRADE_FEED.md](../intelligence/01_WHALE_TRADE_FEED.md), [03_WALLET_PROFILE.md](../intelligence/03_WALLET_PROFILE.md))
-- PRISM and legacy epoch APIs
+Current Markets V1 authority: `.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`.
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

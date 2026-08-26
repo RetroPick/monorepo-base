@@ -288,12 +288,12 @@ entries:
 
   - id: EV-026
     topic: legacy-epoch-frozen
-    claim: Legacy epoch v1 API at /api/v1/legacy/markets/* is frozen; Markets greenfield work lives in internal/markets only.
+    claim: Markets V1 APIs are served by the shared Go Markets BFF; new work is restricted to apps/backend/internal/markets.
     source_path: docs/ARCHITECTURE.md
     source_type: verified-repo
     retrieved: 2026-07-25
     confidence: verified
-    consequence: No new Markets features on legacy handlers; archive/ quarantine respected.
+    consequence: No new Markets features outside the shared Go Markets BFF; the active Markets V1 architecture is authoritative.
     revalidation_trigger: ADR change only via human approval.
     owner: platform-orchestrator
 
