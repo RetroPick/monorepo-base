@@ -16,7 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: integration/markets-v1-main-cleanup
-          fetch-depth: 0
+          fetch-depth: 1
       - name: Remove mechanical authority placeholders
         run: |
           python3 - <<'PY'
@@ -42,10 +42,16 @@ jobs:
                   original = path.read_text(encoding="utf-8")
               except UnicodeDecodeError:
                   continue
-              lines = original.splitlines(keepends=True)
-              normalized = "".join(
-                  line for line in lines if not line.strip().startswith(needle)
-              )
+
+              lines = [
+                  line
+                  for line in original.splitlines(keepends=True)
+                  if not line.strip().startswith(needle)
+              ]
+              while lines and not lines[-1].strip():
+                  lines.pop()
+              normalized = "".join(lines)
+
               if normalized != original:
                   path.write_text(normalized, encoding="utf-8")
                   changed.append(rel)
@@ -54,12 +60,10 @@ jobs:
           for rel in changed:
               print(rel)
           PY
-      - name: Validate and push normalization checkpoint
+      - name: Validate, remove this one-shot workflow, and push checkpoint
         run: |
-          if git diff --quiet; then
-            echo "No documentation normalization required."
-            exit 0
-          fi
+          git diff --check
+          git rm .github/workflows/normalize-markets-docs-once.yml
           git diff --check
           git config user.name "RetroPick Harness"
           git config user.email "harness@retropick.local"
