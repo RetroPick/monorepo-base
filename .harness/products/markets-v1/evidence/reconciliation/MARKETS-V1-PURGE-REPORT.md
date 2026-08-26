@@ -36,8 +36,8 @@ Authoritative bulk-purge inventory before deletion classified 6,106 `archive/**`
 
 Canonical content remains at:
 
-- `docs/markets-v1/legal/TERMS_OF_SERVICE.md`
-- `docs/markets-v1/legal/PRIVACY_POLICY.md`
+- `docs/markets-v1/legal/Terms.md`
+- `docs/markets-v1/legal/PrivacyPolicy.md`
 
 Legal API/browser surfaces:
 
