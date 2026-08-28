@@ -240,7 +240,7 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
       <div
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
-        className="relative flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-5 shadow-xl lg:col-span-8 overflow-hidden min-h-[385px] lg:h-[395px] min-w-0"
+        className="relative flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-5 shadow-xl lg:col-span-8 overflow-hidden min-h-[410px] lg:h-[420px] min-w-0"
       >
         {/* Top Header: Image + Tag + Title + Link/Bookmark Actions */}
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] pb-3.5">
@@ -334,7 +334,7 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
               </div>
             </div>
 
-            <div className="sm:col-span-7 h-[185px]">
+            <div className="sm:col-span-7 h-[200px] overflow-hidden">
               <HeroTradingViewChart
                 isLiveSports={true}
                 sportsData={{
@@ -405,8 +405,8 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
             </div>
 
             {/* Right Column: Clean Full Chart */}
-            <div className="sm:col-span-7 h-[190px] flex flex-col justify-center pl-0 sm:pl-2">
-              <div className="h-full w-full">
+            <div className="sm:col-span-7 h-[200px] flex flex-col justify-center pl-0 sm:pl-2 overflow-hidden">
+              <div className="h-full w-full overflow-hidden">
                 <HeroTradingViewChart
                   isLiveSports={false}
                   outcomeData={{
