@@ -240,7 +240,7 @@ function ChanceBadge({
       </svg>
 
       {/* Foreground Centered Number Only */}
-      <span className={cn("relative z-10 text-sm font-black font-mono leading-none tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]", isHigh ? "text-emerald-400" : "text-rose-400")}>
+      <span className={cn("relative z-10 text-sm font-bold font-mono leading-none tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]", isHigh ? "text-emerald-400" : "text-rose-400")}>
         {percentage}%
       </span>
     </div>
@@ -331,13 +331,13 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
     event.rawMarket?.volume || event.volume || derivedVolumeUsd(event.id);
 
   return (
-    <article className="group relative flex h-[195px] sm:h-[205px] w-full flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-4 shadow-sm hover:border-white/20 hover:bg-[#12192B] transition-all">
+    <article className="group relative flex h-[195px] w-full flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-4 shadow-sm hover:border-white/20 hover:bg-[#12192B] transition-all">
       <Link to={marketPath(event.id)} className="block flex-1 flex flex-col justify-between no-underline hover:no-underline">
         {/* Header: Avatar + Title + optional Circular Gauge */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <MarketAvatar event={event} className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl shrink-0 shadow-md" />
-            <h3 className="line-clamp-2 text-sm sm:text-[15px] font-bold text-white group-hover:text-blue-400 no-underline hover:no-underline transition-colors leading-snug">
+            <MarketAvatar event={event} className="h-10 w-10 rounded-xl shrink-0 shadow-md" />
+            <h3 className="line-clamp-2 text-sm font-bold text-white group-hover:text-blue-400 no-underline hover:no-underline transition-colors leading-snug">
               {event.title}
             </h3>
           </div>
@@ -360,11 +360,11 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
           <div className="mt-3 space-y-2">
             {multiOptions.map((opt, idx) => (
               <div key={idx} className="flex items-center justify-between gap-2">
-                <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate flex-1 min-w-0">
+                <span className="text-sm font-medium text-slate-200 truncate flex-1 min-w-0">
                   {opt.label}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs sm:text-sm font-bold text-white font-mono min-w-[34px] text-right">
+                  <span className="text-sm font-bold text-white font-mono min-w-[34px] text-right">
                     {opt.percentage}%
                   </span>
                   <button
@@ -399,7 +399,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex h-11 sm:h-12 items-center justify-center text-center rounded-xl bg-[#0D281E] text-sm sm:text-[15px] font-extrabold text-emerald-400 hover:bg-[#133A2C] hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
+              className="flex h-11 items-center justify-center text-center rounded-xl bg-[#0D281E] text-sm font-bold text-emerald-400 hover:bg-[#133A2C] hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
             >
               {isLiveFastMarket ? "Up" : "Yes"}
             </button>
@@ -409,7 +409,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex h-11 sm:h-12 items-center justify-center text-center rounded-xl bg-[#24151C] text-sm sm:text-[15px] font-extrabold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
+              className="flex h-11 items-center justify-center text-center rounded-xl bg-[#24151C] text-sm font-bold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
             >
               {isLiveFastMarket ? "Down" : "No"}
             </button>
@@ -419,7 +419,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
 
       {/* Footer Row: Volume / Live badge + Gift + Bookmark Icons (Borderless) */}
       <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
-        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
           {isLiveFastMarket ? (
             <span className="flex items-center gap-1.5 text-slate-300">
               <span className="relative flex h-2 w-2">
