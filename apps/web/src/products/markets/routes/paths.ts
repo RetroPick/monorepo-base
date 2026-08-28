@@ -23,11 +23,11 @@ export function fundingPath() {
 }
 
 export function intelligencePath() {
-  return "/markets/intelligence";
+  return "/markets/leaderboard";
 }
 
 export function leaderboardPath() {
-  return "/markets/intelligence";
+  return "/markets/leaderboard";
 }
 
 export function intelligenceSmartMoneyPath() {

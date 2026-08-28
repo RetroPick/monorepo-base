@@ -16,10 +16,10 @@ import { WalletConnectPage } from "../wallet/pages/WalletConnectPage";
 
 export const marketsRoutes: RouteObject[] = [
   { path: "/markets", element: <EventsDiscoverPage /> },
+  { path: "/markets/leaderboard", element: <LeaderboardPage /> },
   { path: "/markets/intelligence", element: <LeaderboardPage /> },
-  { path: "/markets/leaderboard", element: <Navigate to="/markets/intelligence" replace /> },
-  { path: "/markets/traders", element: <Navigate to="/markets/intelligence?tab=traders" replace /> },
-  { path: "/markets/whales", element: <Navigate to="/markets/intelligence?tab=whales" replace /> },
+  { path: "/markets/traders", element: <Navigate to="/markets/leaderboard?tab=traders" replace /> },
+  { path: "/markets/whales", element: <Navigate to="/markets/leaderboard?tab=whales" replace /> },
   { path: "/markets/paper-trade", element: <Navigate to="/markets/portfolio?tab=paper" replace /> },
   { path: "/markets/wallet", element: <WalletConnectPage /> },
   { path: "/markets/funding", element: <FundingPage /> },

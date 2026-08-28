@@ -47,7 +47,7 @@ export function DrawerMenu({ open, onClose, onCategorySelect, onSearchChange }: 
 
   const navItems = [
     { label: "Markets", path: discoverPath(), icon: TrendingUp },
-    { label: "Intelligence", path: intelligencePath(), icon: Sparkles },
+    { label: "Leaderboard", path: leaderboardPath(), icon: Award },
     { label: "Portfolio", path: portfolioPath(), icon: PieChart },
   ];
 

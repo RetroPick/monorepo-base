@@ -8,12 +8,13 @@ import {
   ChevronDown,
   PieChart,
   Sparkles,
+  Trophy,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useMarketsWalletConnect } from "../../wallet/hooks/useMarketsWalletConnect";
 import { useMarketsWalletSession } from "../../wallet/hooks/useMarketsWalletSession";
 import { truncateAddress } from "../../wallet/lib/truncateAddress";
-import { portfolioPath, discoverPath } from "../../routes/paths";
+import { portfolioPath, discoverPath, leaderboardPath } from "../../routes/paths";
 
 export function MarketsUserMenu() {
   const { address, disconnect } = useMarketsWalletConnect();
@@ -112,12 +113,23 @@ export function MarketsUserMenu() {
             </Link>
 
             <Link
+              to={leaderboardPath()}
+              onClick={() => setIsOpen(false)}
+              className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
+            >
+              <div className="flex items-center gap-2.5">
+                <Trophy className="h-4 w-4 text-amber-400" />
+                <span>Leaderboard (Top Traders)</span>
+              </div>
+            </Link>
+
+            <Link
               to={discoverPath()}
               onClick={() => setIsOpen(false)}
               className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/5 hover:text-white transition-colors"
             >
               <div className="flex items-center gap-2.5">
-                <Sparkles className="h-4 w-4 text-amber-400" />
+                <Sparkles className="h-4 w-4 text-emerald-400" />
                 <span>Prediction Markets</span>
               </div>
             </Link>

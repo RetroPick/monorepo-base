@@ -1,18 +1,18 @@
-import { Compass, BarChart3, Briefcase, Zap } from "lucide-react";
+import { Compass, BarChart3, Briefcase, Trophy } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { cn } from "@/shared/lib/utils";
 import {
   discoverPath,
-  intelligencePath,
+  leaderboardPath,
   portfolioPath,
 } from "../../routes/paths";
 import type { MarketsNavTab } from "./types";
 
-const ITEMS: { id: MarketsNavTab; label: string; icon: typeof Zap; href: string }[] = [
+const ITEMS: { id: MarketsNavTab; label: string; icon: typeof Trophy; href: string }[] = [
   { id: "explore", label: "Explore", icon: Compass, href: `${discoverPath()}?tab=explore` },
   { id: "markets", label: "Markets", icon: BarChart3, href: `${discoverPath()}?tab=markets` },
-  { id: "intelligence", label: "Intelligence", icon: Zap, href: intelligencePath() },
+  { id: "intelligence", label: "Leaderboard", icon: Trophy, href: leaderboardPath() },
   { id: "portfolio", label: "Portfolio", icon: Briefcase, href: portfolioPath() },
 ];
 
