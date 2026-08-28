@@ -112,7 +112,7 @@ export function HeroTradingViewChart({
   onSelectOutcome,
 }: HeroTradingViewChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 440, height: 195 });
+  const [dimensions, setDimensions] = useState({ width: 440, height: 200 });
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
   const sampleCount = 60;
@@ -134,8 +134,8 @@ export function HeroTradingViewChart({
     return () => ro.disconnect();
   }, []);
 
-  // Strict chart margins ensuring no overflow
-  const chartMargin = { top: 12, bottom: 16, left: 8, right: 42 };
+  // Generous margins with 28px bottom clearance ensuring bottom pills NEVER get clipped
+  const chartMargin = { top: 8, bottom: 26, left: 6, right: 38 };
   const plotWidth = Math.max(10, dimensions.width - chartMargin.left - chartMargin.right);
   const plotHeight = Math.max(10, dimensions.height - chartMargin.top - chartMargin.bottom);
 
@@ -225,21 +225,20 @@ export function HeroTradingViewChart({
 
   // Calculate clean non-overlapping endpoint badge Y-positions on the right edge
   const endpointBadges = useMemo(() => {
-    // Sort lines by actual current value descending to assign non-overlapping slots
     const sorted = [...computedLines].sort((a, b) => b.current - a.current);
-    const minSpacing = 20;
+    const minSpacing = 19;
     const placedY: number[] = [];
 
     return sorted.map((line) => {
       let idealY = line.lastPt.y;
-      idealY = Math.max(chartMargin.top + 10, Math.min(chartMargin.top + plotHeight - 10, idealY));
+      idealY = Math.max(chartMargin.top + 8, Math.min(chartMargin.top + plotHeight - 2, idealY));
 
       for (const py of placedY) {
         if (Math.abs(idealY - py) < minSpacing) {
           idealY = idealY < py ? py - minSpacing : py + minSpacing;
         }
       }
-      idealY = Math.max(chartMargin.top + 8, Math.min(chartMargin.top + plotHeight - 8, idealY));
+      idealY = Math.max(chartMargin.top + 8, Math.min(chartMargin.top + plotHeight - 2, idealY));
       placedY.push(idealY);
 
       return {
@@ -264,43 +263,38 @@ export function HeroTradingViewChart({
 
   const currentHoverTime = hoverIndex !== null ? timestamps[hoverIndex] : null;
 
+  // Selected item info for clean top-right display
+  const activeLine = computedLines.find((l) => l.isSelected) || computedLines[0];
+
   // Grid percentage levels (0%, 25%, 50%, 75%, 100%)
   const gridLevels = [100, 75, 50, 25, 0];
 
   return (
     <div ref={containerRef} className="relative w-full h-full flex flex-col justify-between select-none overflow-hidden">
-      {/* Top Header: Compact Legend Dots & Hover Time */}
-      <div className="flex items-center justify-between gap-2 px-1 mb-1 text-[11px] h-5 shrink-0">
-        <div className="flex items-center gap-3 overflow-hidden">
-          {computedLines.map((line) => {
-            const displayVal = hoverIndex !== null && line.points[hoverIndex]
-              ? line.points[hoverIndex].value
-              : line.current;
-            return (
-              <button
-                key={`legend-${line.id}`}
-                type="button"
-                onClick={() => onSelectOutcome?.(line.lineIdx)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 transition-colors cursor-pointer text-[11px] truncate shrink-0",
-                  line.isSelected ? "text-white font-bold" : "text-slate-400 hover:text-slate-200 font-medium"
-                )}
-              >
-                <span
-                  className="h-1.5 w-1.5 rounded-full shrink-0"
-                  style={{ backgroundColor: line.color }}
-                />
-                <span className="truncate max-w-[80px]">{line.label}</span>
-                <span className="font-mono font-bold" style={{ color: line.color }}>
-                  {displayVal}%
-                </span>
-              </button>
-            );
-          })}
+      {/* Top Header: Clean Non-Colliding Status Bar */}
+      <div className="flex items-center justify-between px-1 mb-1 text-[11px] h-4 shrink-0">
+        {/* Left: Active outcome indicator or simple live status */}
+        <div className="flex items-center gap-1.5 text-slate-400">
+          {activeLine && (
+            <div className="flex items-center gap-1.5">
+              <span
+                className="h-2 w-2 rounded-full shrink-0"
+                style={{ backgroundColor: activeLine.color }}
+              />
+              <span className="font-semibold text-white truncate max-w-[140px]">
+                {activeLine.label}
+              </span>
+              <span className="font-mono font-bold" style={{ color: activeLine.color }}>
+                {hoverIndex !== null && activeLine.points[hoverIndex]
+                  ? activeLine.points[hoverIndex].value
+                  : activeLine.current}%
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Hover Date / Time or Last Updated */}
-        <div className="text-[10px] font-mono text-slate-500 shrink-0 font-medium ml-auto">
+        {/* Right: Clean date / time */}
+        <div className="text-[10px] font-mono text-slate-500 shrink-0 font-medium">
           {currentHoverTime || (timestamps[timestamps.length - 1] ?? "")}
         </div>
       </div>
@@ -314,14 +308,14 @@ export function HeroTradingViewChart({
         >
           <defs>
             {computedLines.map((line) => (
-              <linearGradient key={`grad-${line.id}`} id={`hero-grad-v2-${line.id}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={line.color} stopOpacity={line.isSelected ? 0.25 : 0.05} />
+              <linearGradient key={`grad-${line.id}`} id={`hero-grad-v3-${line.id}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={line.color} stopOpacity={line.isSelected ? 0.25 : 0.04} />
                 <stop offset="100%" stopColor={line.color} stopOpacity="0.0" />
               </linearGradient>
             ))}
           </defs>
 
-          {/* Dotted Horizontal Gridlines & Y-Axis Labels */}
+          {/* Dotted Horizontal Gridlines & Y-Axis Scale */}
           {gridLevels.map((lvl) => {
             const y = chartMargin.top + (1 - lvl / 100) * plotHeight;
             return (
@@ -356,13 +350,13 @@ export function HeroTradingViewChart({
               <path
                 key={`area-${line.id}`}
                 d={line.areaPath}
-                fill={`url(#hero-grad-v2-${line.id})`}
+                fill={`url(#hero-grad-v3-${line.id})`}
                 className="transition-all duration-300 pointer-events-none"
               />
             );
           })}
 
-          {/* Selected Line Guideline */}
+          {/* Selected Line Dotted Guideline */}
           {computedLines.map((line) => {
             if (!line.isSelected) return null;
             return (
@@ -423,12 +417,12 @@ export function HeroTradingViewChart({
             );
           })}
 
-          {/* Clean Right-Edge Endpoint Badges (De-duplicated & Never overlapping) */}
+          {/* Clean Right-Edge Endpoint Badges (Cleanly spaced & perfectly unclipped) */}
           {endpointBadges.map((line) => {
             const isSel = line.isSelected;
-            const badgeW = 38;
-            const badgeH = 18;
-            const badgeX = chartMargin.left + plotWidth - badgeW - 4;
+            const badgeW = 34;
+            const badgeH = 17;
+            const badgeX = chartMargin.left + plotWidth - badgeW - 3;
             const badgeY = line.badgeY - badgeH / 2;
 
             return (
@@ -451,10 +445,10 @@ export function HeroTradingViewChart({
                 />
                 <text
                   x={badgeX + badgeW / 2}
-                  y={badgeY + 12}
+                  y={badgeY + 11.5}
                   textAnchor="middle"
                   fill={isSel ? "#FFFFFF" : line.color}
-                  fontSize={10}
+                  fontSize={9.5}
                   fontWeight={isSel ? 800 : 700}
                   fontFamily="ui-monospace, monospace"
                   className="select-none pointer-events-none"
