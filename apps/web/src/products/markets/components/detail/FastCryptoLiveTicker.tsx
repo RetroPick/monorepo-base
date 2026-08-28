@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { cn } from "@/shared/lib/utils";
 import { ChevronDown, BarChart2, TrendingUp } from "lucide-react";
 
@@ -28,6 +28,24 @@ export function FastCryptoLiveTicker({
   initialTargetPrice,
   isUp = false,
 }: FastCryptoLiveTickerProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(640);
+
+  // Dynamic container resize observer to make chart 100% flexible on any screen size
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateSize = () => {
+      if (containerRef.current) {
+        const w = containerRef.current.clientWidth;
+        if (w > 0) setContainerWidth(w);
+      }
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
   // Coin Symbol Icon & Color Theme
   const coinIcon =
     assetSymbol === "ETH"
@@ -72,7 +90,7 @@ export function FastCryptoLiveTicker({
   // Candlestick data points for Candle mode
   const [candles, setCandles] = useState<CandleData[]>(() => {
     const list: CandleData[] = [];
-    const candleCount = 12;
+    const candleCount = 14;
     let prevClose = basePrice - basePrice * 0.0005;
     for (let i = 0; i < candleCount; i++) {
       const open = prevClose;
@@ -140,15 +158,15 @@ export function FastCryptoLiveTicker({
   const gradientStart = isWinning ? "rgba(16, 185, 129, 0.35)" : "rgba(245, 158, 11, 0.32)";
   const gradientStop = isWinning ? "rgba(16, 185, 129, 0.00)" : "rgba(245, 158, 11, 0.00)";
 
-  // Dynamic Chart Coordinate Dimensions
-  const width = 640;
-  const height = 190;
+  // Dynamic Responsive Chart Dimensions
+  const width = Math.max(320, containerWidth);
+  const height = 195;
   const chartTop = 15;
-  const chartBottom = 165;
+  const chartBottom = 160;
   const chartHeight = chartBottom - chartTop;
-  const chartLeft = 10;
-  const chartRight = width - 65;
-  const chartWidth = chartRight - chartLeft;
+  const chartLeft = 12;
+  const chartRight = width - 62; // Dedicated 62px margin on the right for unclipped price labels
+  const chartWidth = Math.max(10, chartRight - chartLeft);
 
   // Auto-scaled dynamic price bounds with balanced padding
   const allValues = useMemo(() => [...points, currentPrice, targetPrice, priceToBeat], [points, currentPrice, targetPrice, priceToBeat]);
@@ -194,7 +212,7 @@ export function FastCryptoLiveTicker({
 
     const last = coords[coords.length - 1];
     const first = coords[0];
-    const area = `${d} L ${last.x.toFixed(1)},${chartBottom + 10} L ${first.x.toFixed(1)},${chartBottom + 10} Z`;
+    const area = `${d} L ${last.x.toFixed(1)},${chartBottom + 5} L ${first.x.toFixed(1)},${chartBottom + 5} Z`;
 
     return { splinePath: d, areaPath: area };
   }, [coords, chartBottom]);
@@ -289,12 +307,12 @@ export function FastCryptoLiveTicker({
         </div>
       </div>
 
-      {/* MAIN CHART CONTAINER */}
-      <div className="relative mt-2.5 h-[195px] w-full select-none">
+      {/* MAIN CHART CONTAINER - Dynamically Measured & 100% Flexible */}
+      <div ref={containerRef} className="relative mt-2.5 h-[195px] w-full select-none overflow-hidden">
         {chartMode === "line" && (
           <svg
             viewBox={`0 0 ${width} ${height}`}
-            className="h-full w-full overflow-visible"
+            className="h-full w-full block"
             onMouseLeave={() => setHoverIndex(null)}
           >
             <defs>
@@ -417,6 +435,26 @@ export function FastCryptoLiveTicker({
               </g>
             )}
 
+            {/* Perfectly Aligned X-Axis Timestamps directly inside SVG */}
+            {timestamps.map((t, idx) => {
+              const x = chartLeft + (idx / (timestamps.length - 1)) * chartWidth;
+              const anchor = idx === 0 ? "start" : idx === timestamps.length - 1 ? "end" : "middle";
+              return (
+                <text
+                  key={idx}
+                  x={x}
+                  y={height - 5}
+                  fill="#64748B"
+                  fontSize="9.5"
+                  fontFamily="monospace"
+                  textAnchor={anchor}
+                  className="select-none"
+                >
+                  {t}
+                </text>
+              );
+            })}
+
             {/* Invisible Hover Rectangles for Smooth Crosshair Hover Interaction */}
             {coords.map((c, i) => {
               const sliceW = chartWidth / coords.length;
@@ -499,13 +537,6 @@ export function FastCryptoLiveTicker({
             </span>
           </div>
         )}
-      </div>
-
-      {/* X-Axis Dynamic Timestamps */}
-      <div className="flex items-center justify-between px-2 text-[10px] font-mono text-slate-500 mt-1">
-        {timestamps.map((t, idx) => (
-          <span key={idx}>{t}</span>
-        ))}
       </div>
 
       {/* Bottom Chart Footer Controls & Time Pills */}
