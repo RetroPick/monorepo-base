@@ -226,7 +226,7 @@ function ChanceBadge({
   }, [percentage, isHigh]);
 
   return (
-    <div className="relative flex items-center justify-center shrink-0 w-[54px] h-[28px] overflow-hidden">
+    <div className="relative flex items-center justify-center shrink-0 w-[54px] h-[28px] rounded-lg overflow-hidden">
       {/* Background SVG Mini Chart Wave */}
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 54 28" preserveAspectRatio="none">
         <defs>
