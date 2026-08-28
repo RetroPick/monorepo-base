@@ -373,7 +373,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    className="inline-flex h-7 min-w-[42px] items-center justify-center rounded-lg bg-[#0D281E] border border-emerald-500/25 px-2 text-[11px] font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer text-center"
+                    className="inline-flex h-7 min-w-[42px] items-center justify-center rounded-lg bg-[#0D281E] px-2 text-[11px] font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer text-center"
                   >
                     Yes
                   </button>
@@ -383,7 +383,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    className="inline-flex h-7 min-w-[42px] items-center justify-center rounded-lg bg-[#24151C] border border-rose-500/20 px-2 text-[11px] font-bold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 transition-colors cursor-pointer text-center"
+                    className="inline-flex h-7 min-w-[42px] items-center justify-center rounded-lg bg-[#24151C] px-2 text-[11px] font-bold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 transition-colors cursor-pointer text-center"
                   >
                     No
                   </button>
@@ -399,7 +399,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex h-9 items-center justify-center text-center rounded-xl bg-[#0D281E] border border-emerald-500/25 py-2 text-xs font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer shadow-sm"
+              className="flex h-9 items-center justify-center text-center rounded-xl bg-[#0D281E] py-2 text-xs font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer shadow-sm"
             >
               {isLiveFastMarket ? "Up" : "Yes"}
             </button>
@@ -409,7 +409,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex h-9 items-center justify-center text-center rounded-xl bg-[#24151C] border border-rose-500/20 py-2 text-xs font-bold text-rose-400/90 hover:bg-[#351C26] transition-colors cursor-pointer shadow-sm"
+              className="flex h-9 items-center justify-center text-center rounded-xl bg-[#24151C] py-2 text-xs font-bold text-rose-400/90 hover:bg-[#351C26] transition-colors cursor-pointer shadow-sm"
             >
               {isLiveFastMarket ? "Down" : "No"}
             </button>
@@ -417,8 +417,8 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
         )}
       </Link>
 
-      {/* Footer Row: Volume / Live badge + Gift + Bookmark Icons */}
-      <div className="flex items-center justify-between border-t border-white/[0.06] pt-2 mt-2 text-xs text-slate-400">
+      {/* Footer Row: Volume / Live badge + Gift + Bookmark Icons (Borderless) */}
+      <div className="flex items-center justify-between pt-1.5 mt-1 text-xs text-slate-400">
         <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
           {isLiveFastMarket ? (
             <span className="flex items-center gap-1.5 text-slate-300">
