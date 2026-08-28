@@ -99,18 +99,18 @@ export function IntelligenceHubPage() {
   return (
     <MarketsAppShell title="Intelligence - RetroPick">
       <div className="mx-auto max-w-5xl space-y-5">
-        {/* Simple Clean Header Row: Title + 2-Tab Switcher */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4 pt-1">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <Zap className="h-6 w-6 text-amber-400" />
-              <h1 className="font-display text-2xl sm:text-3xl font-black text-white">
-                Market Intelligence
-              </h1>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Live whale order flow tracking and high-conviction Smart Money directory.
-            </p>
+        {/* Top Control Bar: Search Input Box + 2 Tabs */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+          {/* Search Input Box */}
+          <div className="relative w-full sm:max-w-md">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search wallet, ENS (whale.eth), or market..."
+              className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1424] py-2 pl-10 pr-4 text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all focus:border-blue-500 focus:bg-[#131B2E]"
+            />
           </div>
 
           {/* 2 Tabs: Whales & Smart Money */}
@@ -145,20 +145,9 @@ export function IntelligenceHubPage() {
           </div>
         </div>
 
-        {/* Search & Filter Controls */}
+        {/* Quick Sizing, Direction & Category Filters */}
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-            {/* Search Input Box */}
-            <div className="relative w-full sm:max-w-md">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search wallet, ENS (whale.eth), or market..."
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#0E1424] py-2 pl-10 pr-4 text-xs font-semibold text-white placeholder:text-slate-500 outline-none transition-all focus:border-blue-500 focus:bg-[#131B2E]"
-              />
-            </div>
 
             {/* Quick Sizing & Direction Filters (Whales mode) */}
             {activeTab === "whales" && (
