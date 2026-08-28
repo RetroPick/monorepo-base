@@ -73,7 +73,6 @@ Define **failure domains**, **blast radius**, and **degraded operating modes** f
 
 ### Out of scope
 
-- Legacy epoch failure modes (frozen system)
 - PRISM-specific failures
 - Detailed incident response playbooks ([security/INCIDENT_RESPONSE.md](../security/INCIDENT_RESPONSE.md))
 

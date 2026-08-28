@@ -116,7 +116,6 @@ PHASE-4/5 staging complete.
 - New features
 - Combos
 - Launch itself (PHASE-7 Production)
-- PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

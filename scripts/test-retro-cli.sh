@@ -10,14 +10,13 @@ assert_help_from() {
   local cwd="${1:?}"
   (
     cd "$cwd"
-    "$RETRO" contracts estimate --help >"$TMP/help.out"
+    "$RETRO" doctor >"$TMP/help.out"
   )
-  grep -Fq -- "--rpc-url" "$TMP/help.out"
-  grep -Fq -- "--color" "$TMP/help.out"
+  grep -Fq -- "RetroPick root: $ROOT" "$TMP/help.out"
+  grep -Fq -- "tool bash" "$TMP/help.out"
 }
 
 assert_help_from "$ROOT"
-assert_help_from "$ROOT/archive/contracts/legacy-pool-v1"
 assert_help_from "$ROOT/apps/backend"
 
 ln -s "$RETRO" "$TMP/retro"
@@ -25,7 +24,8 @@ ln -s "$RETRO" "$TMP/retro"
   cd "$TMP"
   PATH="$TMP:$PATH" retro --help >"$TMP/path-help.out"
 )
-grep -Fq -- "costs estimate" "$TMP/path-help.out"
+grep -Fq -- "doctor" "$TMP/path-help.out"
 grep -Fq -- "stack prod" "$TMP/path-help.out"
+grep -Fq -- "db restore-drill" "$TMP/path-help.out"
 
 echo "retro CLI cwd tests passed"

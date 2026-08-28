@@ -11,7 +11,6 @@
 
 This is the executive product definition for RetroPick Markets V1: a discovery, execution, portfolio, and analytics **client** over official Polymarket APIs via a Go BFF anti-corruption layer (ADR-002), shared OpenAPI (ADR-004), Compose Android (ADR-006), and deterministic intelligence (ADR-008) — with **no** autonomous copy trading (ADR-009). Positions are Polymarket positions, not PRISM.
 
-It freezes venue transparency, non-custody wallets, preview-before-sign, Builder fee disclosure before signature, and explicit Never-V1 fences (custom exchange, epoch MarketEngine extension, geoblock bypass, silent backend signing). Use it before user-facing copy, custody/signing debates, or phase scoping.
 
 Trace features to MKT-FR IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md). Code homes (later): `apps/backend/internal/markets/`, `apps/web/src/products/markets/`, `apps/android/`, `schemas/openapi/markets-v1.yaml`. Companion scope fence: [02_SCOPE_AND_CAPABILITY_MATRIX.md](02_SCOPE_AND_CAPABILITY_MATRIX.md).
 
@@ -27,7 +26,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 | **What** | Executive product definition: Markets is a discovery, execution, portfolio, and analytics **client** over official Polymarket APIs via Go BFF ACL (ADR-002), shared OpenAPI (ADR-004), Compose Android (ADR-006), deterministic intelligence (ADR-008), **no** autonomous copy trading (ADR-009). Positions are Polymarket positions — not PRISM. |
 | **When** | Before writing any user-facing Markets copy, choosing custody/signing posture, debating custom exchange features, or scoping a phase. Re-read when Builder fee disclosure, geoblock, or PRISM routing debates reopen. |
 | **Where** | Spec authority: this file. Boundaries: [02_SCOPE_AND_CAPABILITY_MATRIX.md](02_SCOPE_AND_CAPABILITY_MATRIX.md), ADRs under `architecture/adr/`, research [POLYMARKET_CURRENT_STATE.md](research/POLYMARKET_CURRENT_STATE.md). Code homes (later): `apps/backend/internal/markets/`, `apps/web/src/products/markets/`, `apps/android/`, `schemas/openapi/markets-v1.yaml`. |
-| **Why** | Agents default to building an exchange, obscuring venue, or extending epoch MarketEngine. This PRD freezes venue transparency, wallet non-custody, preview-before-sign, and “what Markets is not” so implementation cannot silently invent RetroPick-issued outcomes or geoblock bypass. |
 | **How** | Implement only capabilities consistent with §2–§4; disclose Polymarket + chain; fetch/disclose Builder fees before signature (never hardcode); route structured RetroPick payoffs to separately branded PRISM; keep keys out of RetroPick custody. Trace features to MKT-FR IDs in [04_REQUIREMENTS_AND_TRACEABILITY.md](04_REQUIREMENTS_AND_TRACEABILITY.md). |
 
 ### Worked example
@@ -47,7 +45,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 **Failure / Never-V1**
 
 - Custom matching, AMM, or RetroPick outcome tokens for Markets.
-- Extending `/api/v1/legacy/markets/*` or importing `archive/` MarketEngine.
 - Custody of raw private keys; silent backend order signing.
 - VPN/proxy guidance as a product feature to evade geoblock.
 - Auto copy trading or AI→order execution (ADR-009).
@@ -80,7 +77,6 @@ Markets competes on clarity, speed, mobile continuity, operational reliability, 
 ### 2.2 What Markets is not
 
 - Not a structured-outcome issuer or custom exchange.
-- Not an extension of legacy epoch APIs (`/api/v1/legacy/markets/*`).
 - Not custodian of user private keys.
 - Not a bypass for geographic restrictions.
 

@@ -2,7 +2,7 @@
 
 Target-architecture read routes for RetroPick Markets V1. Consumes the Go BFF via `@retropick/polymarket` only (ADR-002).
 
-UI/UX matches fe-v1 prediction-market chrome via the parent `apps/web` Next.js shell (`src/shared/`).
+UI chrome lives in the parent `apps/web` Next.js shell (`src/shared/`).
 
 ## Routes (IA)
 
@@ -33,4 +33,4 @@ cd apps/web
 pnpm test:markets
 ```
 
-Deploy today may still use `apps/fe-v1` until PHASE-6 cutover; this tree is the greenfield target.
+Production web surface: `apps/web` (Dockerfile + Vercel via `deploy/web-markets/`).

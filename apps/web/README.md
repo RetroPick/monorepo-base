@@ -1,6 +1,6 @@
 # Markets web (Next.js shell)
 
-Greenfield RetroPick Markets V1 web app with fe-v1 prediction-market UI/UX.
+Greenfield RetroPick Markets V1 web app (Polymarket-native BFF client).
 
 ## Routes
 
@@ -65,6 +65,6 @@ go -C apps/backend run ./cmd/markets-seed -scenario populated
 go -C apps/backend run ./cmd/markets-api
 ```
 
-Legacy fe-v1 + host BFF: `bash scripts/markets-v1-bff-dev.sh populated` (Vite on `:5173`).
+Host-only BFF dev: `bash scripts/markets-v1-bff-dev.sh populated` then `pnpm dev:web`.
 
 Deploy env template: [`deploy/web-markets/.env.example`](../../deploy/web-markets/.env.example).

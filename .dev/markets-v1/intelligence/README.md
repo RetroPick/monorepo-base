@@ -14,7 +14,6 @@ This directory is the **entry index** for RetroPick **Smart Money Intelligence L
 
 Agents must treat this README and [INTELLIGENCE_LAUNCH_V1.md](INTELLIGENCE_LAUNCH_V1.md) as the scope gate. Legacy Wave-6 TI-V1 registries and broad intelligence packs are historical or archived; do not implement from them by default. **Never auto-copy** ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)). Frontend never calls Polymarket Data API directly — only RetroPick BFF surfaces.
 
-`archive/**` is **NOT** default agent load. Open archived docs only when explicitly tasked to migrate formulas or compare historical scope.
 
 ---
 
@@ -27,21 +26,18 @@ Short orientation for implementers and agents. Read this before consuming featur
 | **Who** | Orchestrator sequencing INTEL-DOC / I0–I6; `be-api` / intelligence workers; `fe-markets`; QA; security reviewing Never-V1. Not traders executing orders from this tree alone. |
 | **What** | Index + consume order for Smart Money Intelligence Launch V1: foundations + feature specs `01`–`10`. Scope is ten features + shared architecture. Not Markets PHASE advancement. Not auto-copy. |
 | **When** | Before any intelligence implementation task; when deciding PUBLIC vs ACCOUNT gate; when choosing whether a Wave-6 sibling is still authoritative. Re-read after archive moves. |
-| **Where** | This tree: `.dev/markets-v1/intelligence/`. Runtime compute target: `apps/backend/internal/markets/intelligence/` (ADR-008). Client: `apps/fe-v1` via BFF only. Manifest phase: `../../../.harness/products/markets-v1/planning/implementation-manifest.yaml`. |
+| **Where** | This tree: `.dev/markets-v1/intelligence/`. Runtime compute target: `apps/backend/internal/markets/intelligence/` (ADR-008). Client: `apps/web` via BFF only. Manifest phase: `../../../.harness/products/markets-v1/planning/implementation-manifest.yaml`. |
 | **Why** | Without a single Launch index, agents reload archived UV/arb scanners, invent endpoints, or treat INTEL-DOC as PHASE-2/4 exit. Index enforces growth-loop scope and ADR-009. |
 | **How** | Follow consume order below; implement only SM-I-* Launch IDs; gate ACCOUNT features behind flags + auth; keep money as BIGINT; prove with [INTELLIGENCE_TEST_STRATEGY.md](INTELLIGENCE_TEST_STRATEGY.md) + `testdata/`. |
 
 ### Worked example
 
-**Happy path.** Agent tasked with whale feed reads this README → [INTELLIGENCE_LAUNCH_V1.md](INTELLIGENCE_LAUNCH_V1.md) (SM-I-001) → [POLYMARKET_INTELLIGENCE_DATA_SOURCES.md](POLYMARKET_INTELLIGENCE_DATA_SOURCES.md) (`/trades` authority) → [INTELLIGENCE_C4_MODEL.md](INTELLIGENCE_C4_MODEL.md) (`TradeIngestor` / `WhaleClassifier`) → feature doc `01_WHALE_TRADE_FEED.md` when present → writes tests against `testdata/whale_feed_vectors.yaml`. Does not touch `archive/`, does not bump `current_phase`.
 
-**Failure / Never.** Loading `archive/RELATIONSHIP_AND_ARBITRAGE_SCANNER.md` as Launch scope. Shipping auto-copy. Calling `data-api.polymarket.com` from `fe-v1`. Claiming Markets is in PHASE-4 because intelligence docs exist.
 
 **Agent checklist**
 
 - [ ] Launch scope = ten features only?
 - [ ] Foundations read before feature code?
-- [ ] `archive/**` skipped unless tasked?
 - [ ] ADR-009 respected (no auto-copy)?
 - [ ] `current_phase` still PHASE-1 unless manifest says otherwise?
 
@@ -101,7 +97,6 @@ Machine-readable fixtures under [testdata/](testdata/):
 7. Feature doc `01`–`10` for the tasked capability.
 8. Cross-cutting Markets docs only as needed: [ADR-008](../architecture/adr/ADR-008-SHARED-SIGNAL-ENGINE.md), [ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md), [API_SDK_AND_ENDPOINT_REGISTRY.md](../polymarket/API_SDK_AND_ENDPOINT_REGISTRY.md), OpenAPI `schemas/openapi/markets-v1.yaml`.
 
-Do **not** start with `archive/**` or the historical TI-V1 broad registry unless the task is explicitly archival migration.
 
 ---
 
@@ -111,7 +106,6 @@ Do **not** start with `archive/**` or the historical TI-V1 broad registry unless
 |------|----------------|
 | Active foundations + `01`–`10` | Yes |
 | [testdata/](testdata/) | Yes (for tests) |
-| [archive/](archive/) | **No** — not default agent context |
 
 Archived material may retain useful math history (e.g. unusual-activity heuristics, relationship scanner, OSS adoption map). It is **not** Launch V1 implementation authority.
 
@@ -141,7 +135,6 @@ These are **not** Launch authority. Prefer Launch docs above.
 | `ALERT_RULES_AND_DELIVERY.md` | Narrowed into `08`; complex DSL not Launch |
 | `SIGNAL_PROVENANCE_CALIBRATION_AND_RETRACTIONS.md` | Shared envelope rules migrate into data model + ProvenanceWriter; keep until feature docs absorb |
 | `MARKET_HEALTH_LIQUIDITY_AND_ORDERBOOK_ANALYTICS.md` | Not a Launch-ten feature; supporting only if holders/whale enrich needs it |
-| `archive/*` | Archived — not default load |
 
 ---
 

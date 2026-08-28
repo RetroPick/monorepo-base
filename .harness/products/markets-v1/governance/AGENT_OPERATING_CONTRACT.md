@@ -10,17 +10,16 @@
 
 This is the mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Read it before selecting a task or editing product code. It binds reading order, scope discipline, evidence honesty, human stop conditions, implementation ordering, verification, handoff, R0–R3 repo boundaries, and §23 invariant themes.
 
-Executable product work is sequenced by live `current_phase` in `implementation-manifest.yaml` (confirm the file — harness materials reference PHASE-1 as first executable after Wave 9). Without this contract, agents invent addresses/test greens, edit PRISM/legacy, collide on paths, or jump phases.
+Executable product work is sequenced by live `current_phase` in `implementation-manifest.yaml` — **always read the file**; do not assume a phase from stale prose in this contract.
 
 Execute: checklist → one ready task → `owned_paths` only → smallest coherent change → run commands → evidence + decision log + handoff → invariant greps at exits. Production wallets, Builder prod creds, real txs, Play prod, and similar §18 gates escalate via blockers — never improvise clearance.
 
 ## 0. Developer intent (5W+1H)
 
-Mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Read this before selecting a task or editing product code. Wave 9 harness completion is recorded in harness metadata; executable product work is sequenced by `current_phase` in `implementation-manifest.yaml` (confirm the live value — harness materials reference PHASE-1 as the first executable product phase after Wave 9).
+Mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Read this before selecting a task or editing product code. Wave 9 harness completion is recorded in harness metadata; executable product work is sequenced by `current_phase` in `implementation-manifest.yaml` — read the live value from that file.
 
 | Dimension | Intent |
 |-----------|--------|
-| **Who** | All implementation agents (`be-*`, `fe-*`, `qa-*`, `devops-sre`, `security`, Android owners, orchestrator when sequencing). |
 | **What** | Binding rules: before-you-act reading order, scope discipline, evidence/honesty, human stop conditions, implementation ordering, verification, handoff, R0–R3 repo boundaries, and §23 invariant themes. |
 | **When** | Before any Markets product or harness execution change; when resuming after `blocked`; at every task handoff; before phase exit invariant re-check. |
 | **Where** | This contract plus `implementation-manifest.yaml`, `task-graph.yaml`, phase specs under `../phases/`, `INVARIANT_CHECK.md`, root `AGENTS.md`, `docs/ARCHITECTURE.md`, `.dev/MARKETS.md`. |
@@ -36,7 +35,6 @@ Mandatory pre-flight and execution contract for RetroPick Markets V1 agents. Rea
 
 ### Out of scope / stop conditions
 
-- PRISM (`contracts/prism/`); legacy epoch feature extension (`/api/v1/legacy/markets/*`).
 - Editing the master prompt plan file; cross-phase “while you’re here” work.
 - Production wallets, Builder prod creds, real txs, Play prod, destructive migrations, new jurisdictions, custom contract deploy — escalate via `BLOCKERS_AND_HUMAN_APPROVALS.md` (see also §5 below).
 
@@ -46,7 +44,7 @@ Verification evidence + handoff filed; `owned_paths` match the diff; no new §23
 
 ### Worked example
 
-Agent reads the manifest (`current_phase: PHASE-1`), selects `MKT-P1-002` (Gamma client), confirms no path conflict with parallel tasks, implements cache/circuit-breaker hardening, runs graph commands, fills verification evidence and handoff, updates traceability if mappings changed, and refuses to start WalletConnect (PHASE-2) in the same session even if the UI looks incomplete without it.
+Agent reads the manifest (e.g. `current_phase: PHASE-2`), selects an authorized ready task, confirms no path conflict with parallel tasks, implements within `owned_paths`, runs verification commands, fills evidence and handoff, and refuses cross-phase work in the same session.
 
 
 ## 1. Purpose
@@ -57,7 +55,7 @@ Bind all implementation agents to safe, evidence-based execution of Markets V1 w
 
 1. Read [README.md](../README.md) and [00_DOCUMENT_MAP.md](../00_DOCUMENT_MAP.md).
 2. Read this contract and [INVARIANT_CHECK.md](INVARIANT_CHECK.md) (28 §23 invariants).
-3. Read [implementation-manifest.yaml](implementation-manifest.yaml) — note `current_phase` (PHASE-1).
+3. Read [implementation-manifest.yaml](implementation-manifest.yaml) — note live `current_phase` from the file.
 4. Select exactly one task from [task-graph.yaml](task-graph.yaml) in `planned` or `ready` status.
 5. Confirm requirement mapping in [REQUIREMENTS_TO_TASK_TRACEABILITY.md](REQUIREMENTS_TO_TASK_TRACEABILITY.md).
 6. Read the task's phase spec under [phases/](../phases/), relevant ADRs, and owned `.dev/markets-v1/` docs.
@@ -69,7 +67,6 @@ Bind all implementation agents to safe, evidence-based execution of Markets V1 w
 - Remain within the authorized **phase** and **task** only.
 - Do not start cross-phase work "while you're here."
 - One owner per writable path in parallel work (see task `owned_paths` and manifest `parallelization_rules`).
-- Do not edit PRISM (`contracts/prism/`) or extend legacy epoch (`/api/v1/legacy/markets/*`).
 - Do not edit the master prompt plan file.
 
 ## 4. Evidence and honesty
@@ -121,7 +118,6 @@ Stop and document in [BLOCKERS_AND_HUMAN_APPROVALS.md](BLOCKERS_AND_HUMAN_APPROV
 | Area | Path | Rule |
 |------|------|------|
 | Markets BFF | `apps/backend/internal/markets/` | Greenfield Markets work |
-| Legacy epoch | `apps/backend/internal/legacy/` | Quarantine; no new Markets features |
 | Web shell | `apps/web/` | Product routes under `src/products/markets` |
 | Android | `apps/android/` | README-only at Wave 9; Compose implementation in PHASE-5 |
 | OpenAPI | `schemas/openapi/markets-v1.yaml` | Canonical web+Android contract |

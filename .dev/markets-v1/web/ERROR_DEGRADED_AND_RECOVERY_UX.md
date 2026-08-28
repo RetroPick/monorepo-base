@@ -93,7 +93,6 @@ All 18 master-prompt §10 journeys with screen-state tables.
 
 ### Out of scope
 
-- PRISM (`products/prism/`), legacy epoch (`products/legacy/`), custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Android ([android/](../android/)).
 
 

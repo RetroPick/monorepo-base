@@ -2,7 +2,7 @@
 set -eu
 
 : "${API_HOST:?API_HOST is required}"
-API_UPSTREAM="${API_UPSTREAM:-api:8080}"
+API_UPSTREAM="${API_UPSTREAM:-markets-api:8080}"
 
 template="/etc/nginx/templates/default.conf.template"
 output="/etc/nginx/conf.d/default.conf"
@@ -21,7 +21,7 @@ server {
   ssl_certificate_key /etc/letsencrypt/live/${APP_HOST}/privkey.pem;
 
   location / {
-    proxy_pass http://web:3000;
+    proxy_pass http://markets-web:3001;
     proxy_http_version 1.1;
     proxy_set_header Host \$host;
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

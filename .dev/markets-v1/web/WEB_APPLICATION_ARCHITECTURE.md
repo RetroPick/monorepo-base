@@ -65,7 +65,6 @@ IA routes, design tokens, market/ticket UX, wallet UX, portfolio/funding UX, err
 - Creating `products/markets-v2` beside Markets instead of extending this tree.
 - Using `any` for OpenAPI money fields “temporarily.”
 - Auto-retrying `orders/preview` or `orders/submit` on timeout.
-- Importing legacy epoch clients into Markets providers.
 - Shipping ticket UI before eligibility + capabilities hooks exist.
 
 ### Success signal
@@ -88,7 +87,6 @@ Define RetroPick Markets web architecture: Next.js App Router under `apps/web/sr
 
 ### Out of scope
 
-- PRISM (`products/prism/`), legacy epoch (`products/legacy/`), custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Android ([android/](../android/)).
 
 

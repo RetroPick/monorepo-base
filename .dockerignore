@@ -14,16 +14,16 @@ coverage
 .env.*
 apps/backend/tmp
 apps/public
-package/prediction-v2/cache
-package/prediction-v2/out
-package/prediction-v2/broadcast
+Current Markets V1 authority: `AGENTS.md`.
+Current Markets V1 authority: `AGENTS.md`.
+Current Markets V1 authority: `AGENTS.md`.
 graphify-out
-apps/fe-v1
-apps/ops-web
+Current Markets V1 authority: `AGENTS.md`.
+Current Markets V1 authority: `AGENTS.md`.
 android
 contracts
 docs
 .dev
-archive/**
-!archive/packages/legacy/abi/**
+Current Markets V1 authority: `AGENTS.md`.
+Current Markets V1 authority: `AGENTS.md`.
 *.md

@@ -72,7 +72,6 @@ Pre-funding infrastructure topology and monthly cost budget targeting **under $1
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-- Legacy epoch (`/api/v1/legacy/markets/*`).
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 
@@ -158,7 +157,7 @@ Pre-funding: all workers on same VM as API (systemd or docker-compose).
 
 | Process | vCPU share | Memory |
 |---------|------------|--------|
-| cmd/api | 1.0 | 1.5 GB |
+| cmd/markets-api | 1.0 | 1.5 GB |
 | markets-ingest | 0.5 | 512 MB |
 | signal-engine | 0.5 | 512 MB |
 | alert-delivery | 0.25 | 256 MB |

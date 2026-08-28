@@ -74,7 +74,6 @@ Defines secret storage, key rotation, RBAC for operators, and separation between
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-- Legacy epoch (`/api/v1/legacy/markets/*`).
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 
@@ -149,7 +148,7 @@ Defines secret storage, key rotation, RBAC for operators, and separation between
 
 ## 9. Builder / relayer key handling
 
-- Stored as T3 restricted; access limited to `cmd/api` runtime identity.
+- Stored as T3 restricted; access limited to `cmd/markets-api` runtime identity.
 - Separate keys per environment.
 - Usage metered; alert on anomalous volume ([ABUSE_FRAUD_AND_RATE_LIMITS.md](./ABUSE_FRAUD_AND_RATE_LIMITS.md)).
 - Cannot sign CLOB orders without user signature.

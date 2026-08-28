@@ -115,7 +115,6 @@ PHASE-3/4 APIs stable; codegen documented.
 
 - Combos
 - On-device wallet classification / client-side intelligence scoring (ADR-008)
-- PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

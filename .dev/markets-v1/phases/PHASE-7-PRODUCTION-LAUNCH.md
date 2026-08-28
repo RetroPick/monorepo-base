@@ -117,7 +117,6 @@ PHASE-6 exit.
 - Combos without gate
 - New jurisdictions
 - Claiming Production success from Harden-only drills
-- PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

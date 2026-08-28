@@ -8,7 +8,6 @@
 | **PRISM** | Fully collateralized structured-outcome derivatives (future) | Web |
 | **Android** | Native Markets client (Kotlin + Jetpack Compose) | Mobile |
 
-Legacy epoch v1 (MarketEngine) is **archived** under [`archive/`](archive/) — not part of the active build.
 
 ## Prerequisites
 
@@ -28,7 +27,7 @@ On **WSL2**, install Docker Desktop on Windows and enable **WSL integration** fo
 
 ## Run with Docker (Markets V1 — recommended)
 
-The greenfield Markets product (`apps/web` + `markets-api`) has a **one-command** dev stack. It does **not** use the legacy root [`docker-compose.yml`](docker-compose.yml) (that stack runs epoch `cmd/api`, indexer, and fe-v1).
+The greenfield Markets product (`apps/web` + `markets-api`) has a **one-command** dev stack via [`docker-compose.markets-dev.yml`](docker-compose.markets-dev.yml). Root [`docker-compose.yml`](docker-compose.yml) is a simplified Markets alias (postgres + markets-api + web).
 
 ### Start everything
 
@@ -94,7 +93,7 @@ See [`compose.desktop-hairpin.env`](compose.desktop-hairpin.env) — routes cont
 | Symptom | Fix |
 |---------|-----|
 | `Cannot connect to Docker daemon` | Start Docker Desktop; enable WSL integration; run `docker info` |
-| `port 8080 is already in use` | Stop legacy [`docker-compose.yml`](docker-compose.yml) `api` service or other process on 8080/3001/5433 |
+| `port 8080 is already in use` | Stop other processes on 8080/3001/5433 or run `pnpm dev:markets-stack:down` |
 | Discover shows API errors | Confirm BFF: `curl -s http://127.0.0.1:8080/api/v1/markets/events \| head` returns JSON, not HTML |
 | Empty catalog after wipe | `pnpm dev:markets-stack:down -- -v` then `pnpm dev:markets-stack -- --build` |
 
@@ -265,18 +264,18 @@ Use `pnpm dev` in the browser for faster UI work; use the native build when you 
 
 ---
 
-## Legacy full stack (`docker-compose.yml`)
+## Simplified local stack (`docker-compose.yml`)
 
-Root [`docker-compose.yml`](docker-compose.yml) runs the **archived epoch** backend (`cmd/api`), indexer, price-worker, fe-v1, and ops-web — not Markets V1 `markets-api`.
+Root [`docker-compose.yml`](docker-compose.yml) is a **Markets alias** (postgres + `markets-api` + `apps/web`). Prefer the seeded stack:
 
 ```bash
-pnpm docker:up              # postgres + legacy api on :8080 (conflicts with markets stack)
-pnpm docker:up:desktop      # hairpin variant
-pnpm docker:down            # down with volume wipe
-retro stack dev up
+pnpm dev:markets-stack
+pnpm docker:up              # alias → markets-dev-up.sh
+pnpm docker:down            # alias → markets-dev-down.sh
+retro stack dev up            # same as docker-compose.yml
 ```
 
-Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at the same time — both bind **8080**.
+Do **not** run two stacks that both bind **8080** at once.
 
 ---
 
@@ -288,23 +287,21 @@ Do **not** run legacy `docker compose up api` and `pnpm dev:markets-stack` at th
 | Markets V1 harness | [`.dev/markets-v1/`](.dev/markets-v1/) |
 | Markets web app | [`apps/web/README.md`](apps/web/README.md) |
 | Android product spec | [`.dev/ANDROID_MARKETS.md`](.dev/ANDROID_MARKETS.md) |
-| BFF architecture | [`docs/architecture/fe-v1-markets-bff-dev.md`](docs/architecture/fe-v1-markets-bff-dev.md) |
+| BFF architecture | [`apps/backend/internal/markets/README.md`](apps/backend/internal/markets/README.md) |
 | Architecture | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
 | OpenAPI | [`schemas/openapi/markets-v1.yaml`](schemas/openapi/markets-v1.yaml) |
 | Agent contract | [`.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md`](.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md) |
-| Archive (epoch v1) | [`archive/README.md`](archive/README.md) |
+| Markets-only backend | [`docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md`](docs/engineering/adr/ADR-R5-MARKETS-ONLY-BACKEND.md) |
 
 ## Monorepo layout
 
 ```text
 apps/web              Markets Next.js shell (Discover on :3001)
-apps/fe-v1            Legacy Markets UI (Vite; until PHASE-6 cutover)
-apps/android          Markets Android prototype (Capacitor + Next.js submodule)
-apps/backend          Go API — Markets BFF (internal/markets)
+apps/android          Markets Android gitlink (RetroPick-Android)
+apps/backend          Go Markets BFF (cmd/markets-api, internal/markets)
 packages/polymarket   Shared TS client + types
 schemas/openapi       Web + Android API contract
 docker-compose.markets-dev.yml   One-button Markets V1 stack
-archive/              Frozen epoch v1 code and docs
 ```
 
 ## Verify (without Docker)

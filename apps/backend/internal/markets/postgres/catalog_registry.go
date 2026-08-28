@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"retropick/apps/backend/internal/dbqueries"
@@ -17,6 +16,7 @@ import (
 var (
 	ErrTokenNotInCatalog = errors.New("token not in catalog")
 	ErrRegistryDB        = errors.New("catalog registry database error")
+	ErrRegistryNotReady  = errors.New("catalog registry not bootstrapped")
 )
 
 // CatalogTokenRegistry provides catalog-backed token→market resolution.
@@ -25,7 +25,8 @@ type CatalogTokenRegistry struct {
 	queries *dbqueries.Queries
 	mu      sync.RWMutex
 	tokens  map[string]string
-	ready   bool
+	ready        bool
+	bootstrapped bool
 	lastRefresh atomic.Int64
 	refreshErrors atomic.Uint64
 	pageSize int32
@@ -60,6 +61,11 @@ func (r *CatalogTokenRegistry) Bootstrap(ctx context.Context, limit int32) error
 		})
 		if err != nil {
 			r.refreshErrors.Add(1)
+			r.mu.Lock()
+			if r.bootstrapped {
+				r.ready = false
+			}
+			r.mu.Unlock()
 			return fmt.Errorf("bootstrap catalog token registry: %w", err)
 		}
 		for _, row := range rows {
@@ -74,6 +80,7 @@ func (r *CatalogTokenRegistry) Bootstrap(ctx context.Context, limit int32) error
 	}
 	r.mu.Lock()
 	r.tokens = next
+	r.bootstrapped = true
 	r.ready = len(next) > 0
 	r.mu.Unlock()
 	r.lastRefresh.Store(time.Now().UnixNano())
@@ -116,35 +123,28 @@ func (r *CatalogTokenRegistry) MarketForToken(tokenID string) (string, bool) {
 	return marketID, ok
 }
 
-// LookupMarket validates exact token/market relationship (fail-closed).
+// Bootstrapped reports whether a full bootstrap/refresh completed successfully.
+func (r *CatalogTokenRegistry) Bootstrapped() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.bootstrapped
+}
+
+// LookupMarket resolves a token from the in-memory bootstrap snapshot only.
 func (r *CatalogTokenRegistry) LookupMarket(ctx context.Context, tokenID string) (string, bool, error) {
 	if tokenID == "" {
 		return "", false, nil
 	}
-	if marketID, ok := r.MarketForToken(tokenID); ok {
-		return marketID, true, nil
-	}
-	row, err := r.queries.GetMarketIDByUpstreamToken(ctx, tokenID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return "", false, nil
-		}
-		r.refreshErrors.Add(1)
-		return "", false, ErrRegistryDB
-	}
-	r.mu.Lock()
-	r.tokens[tokenID] = row
-	r.ready = true
-	r.mu.Unlock()
-	return row, true, nil
+	marketID, ok := r.MarketForToken(tokenID)
+	return marketID, ok, nil
 }
 
-// ValidateToken ensures marketId/tokenId pair matches eligible catalog mapping.
+// ValidateToken ensures marketId/tokenId pair matches the bootstrapped catalog snapshot.
 func (r *CatalogTokenRegistry) ValidateToken(ctx context.Context, marketID, tokenID string) error {
-	found, ok, err := r.LookupMarket(ctx, tokenID)
-	if err != nil {
-		return err
+	if !r.Bootstrapped() || !r.Ready() {
+		return fmt.Errorf("%w", ErrRegistryNotReady)
 	}
+	found, ok := r.MarketForToken(tokenID)
 	if !ok {
 		return fmt.Errorf("%w", ErrTokenNotInCatalog)
 	}

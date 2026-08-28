@@ -6,6 +6,8 @@ vi.mock("../../wallet/config/runtimeEnv", () => ({
 
 import {
   cancelOrder,
+  getMyPortfolioSummary,
+  listMyActivity,
   listMyFills,
   listMyPositions,
   previewCancelOrder,
@@ -29,9 +31,11 @@ describe("tradingApiClient lifecycle endpoints", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses the authenticated BFF for fills and positions", async () => {
+  it("uses authenticated no-store BFF reads for private lifecycle projections", async () => {
     await listMyFills();
     await listMyPositions();
+    await getMyPortfolioSummary();
+    await listMyActivity();
 
     expect(fetch).toHaveBeenNthCalledWith(
       1,
@@ -41,7 +45,17 @@ describe("tradingApiClient lifecycle endpoints", () => {
     expect(fetch).toHaveBeenNthCalledWith(
       2,
       `${API_BASE}/me/positions`,
-      expect.objectContaining({ method: "GET", credentials: "include" }),
+      expect.objectContaining({ method: "GET", credentials: "include", cache: "no-store" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      `${API_BASE}/me/portfolio/summary`,
+      expect.objectContaining({ method: "GET", credentials: "include", cache: "no-store" }),
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      `${API_BASE}/me/activity`,
+      expect.objectContaining({ method: "GET", credentials: "include", cache: "no-store" }),
     );
   });
 

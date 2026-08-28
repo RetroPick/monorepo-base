@@ -37,7 +37,7 @@ export function OrderPreviewModal({
       <div className="w-full max-w-md space-y-4 rounded-2xl border border-border bg-card p-5 shadow-lg">
         <header>
           <h3 id="order-preview-title" className="text-lg font-semibold text-foreground">
-            {ORDER_PREVIEW_MODAL_TITLE}
+            {orderSubmitEnabled ? ORDER_PREVIEW_MODAL_TITLE : "Review order preview"}
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
             {humanSummary.action} {humanSummary.outcome} · {humanSummary.market}
@@ -52,17 +52,19 @@ export function OrderPreviewModal({
 
         {!orderSubmitEnabled ? (
           <p className="text-xs text-amber-500">
-            Order submission is disabled on this environment. You can still review the preview; signing
-            will not submit to the venue.
+            Order submission is disabled on this environment. This preview cannot be signed or submitted
+            to the venue.
           </p>
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" disabled={busy} onClick={() => void onConfirm()}>
-            {busy ? "Working…" : ORDER_PREVIEW_MODAL_CONFIRM}
-          </Button>
+          {orderSubmitEnabled ? (
+            <Button type="button" size="sm" disabled={busy} onClick={() => void onConfirm()}>
+              {busy ? "Working…" : ORDER_PREVIEW_MODAL_CONFIRM}
+            </Button>
+          ) : null}
           <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onCancel}>
-            {ORDER_PREVIEW_MODAL_CANCEL}
+            {orderSubmitEnabled ? ORDER_PREVIEW_MODAL_CANCEL : "Close preview"}
           </Button>
         </div>
       </div>

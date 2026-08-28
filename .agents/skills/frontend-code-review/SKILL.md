@@ -70,4 +70,3 @@ If you use Template A (i.e., there are issues to fix) and at least one issue req
 ## Code review
 No issues found.
 ```
-

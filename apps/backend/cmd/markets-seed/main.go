@@ -1,5 +1,5 @@
 // Command markets-seed seeds deterministic Polymarket projection fixtures
-// for local fe-v1 ↔ Go BFF ↔ PostgreSQL integration testing.
+// for local apps/web ↔ Go BFF ↔ PostgreSQL integration testing.
 package main
 
 import (

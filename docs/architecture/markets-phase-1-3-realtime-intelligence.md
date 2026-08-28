@@ -13,7 +13,7 @@
 | Signal observatory | `internal/markets/signals` | Deterministic price/liquidity rules |
 | Public WS hub | `internal/markets/realtime` | BFF fan-out, backpressure, security |
 | Persistence | `internal/markets/postgres` | Observations, signals, evidence |
-| Frontend client | `apps/fe-v1`, `packages/polymarket` | Connect-on-demand, honest labels |
+| Frontend client | `apps/web`, `packages/polymarket` | Connect-on-demand, honest labels |
 
 ## Upstream protocol evidence
 
@@ -84,7 +84,7 @@ All rules deterministic, versioned, idempotent via canonical idempotency keys.
 
 ## Security boundaries
 
-- No Polymarket credentials in `apps/fe-v1`.
+- No Polymarket credentials in `apps/web`.
 - Public market channel only (no user-channel auth).
 - Origin allowlist on public hub.
 - Catalog-backed token validation (reject arbitrary token IDs).

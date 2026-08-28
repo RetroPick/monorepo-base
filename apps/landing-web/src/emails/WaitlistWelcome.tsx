@@ -41,7 +41,7 @@ export function WaitlistWelcomeEmail({ email }: WaitlistWelcomeEmailProps) {
 
           <Text style={text}>You&apos;re now on the RetroPick priority list.</Text>
           <Text style={text}>
-            We&apos;ll send early access updates for epoch-based markets, source evidence, paper trading, and USDC settlement.
+            We&apos;ll send early access updates for Polymarket-native markets, source evidence, and portfolio tools.
           </Text>
           <Text style={text}>No daily promotions. No unrelated announcements.</Text>
 

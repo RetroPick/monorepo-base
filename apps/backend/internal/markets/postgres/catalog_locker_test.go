@@ -176,9 +176,14 @@ func integrationPool(t *testing.T) *pgxpool.Pool {
 	if err := db.RunMigrations(databaseURL); err != nil {
 		t.Fatalf("RunMigrations: %v", err)
 	}
+	unlock := LockIntegrationDB()
+	t.Cleanup(unlock)
 	pool, err := pgxpool.New(context.Background(), databaseURL)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if err := ResetIntegrationMarketsDB(context.Background(), pool); err != nil {
+		t.Fatalf("ResetIntegrationMarketsDB: %v", err)
 	}
 	t.Cleanup(pool.Close)
 	return pool

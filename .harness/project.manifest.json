@@ -4,7 +4,7 @@
     "name": "retropick",
     "type": "markets-prediction-bff",
     "root": ".",
-    "description": "RetroPick Markets V1 \u2014 Polymarket-native; Web (apps/web) + Android (RetroPick-Android) on a shared Go Markets BFF (apps/backend). Legacy epoch MarketEngine archived under archive/."
+    "description": "RetroPick Markets V1 \u2014 Polymarket-native; Web (apps/web) + Android (RetroPick-Android) on a shared Go Markets BFF (apps/backend)."
   },
   "harness": {
     "mode": "release-factory",

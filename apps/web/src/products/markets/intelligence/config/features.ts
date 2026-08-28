@@ -2,7 +2,7 @@
 export const INTELLIGENCE_FIXTURES_ENABLED =
   typeof process !== "undefined" &&
   process.env.NODE_ENV !== "production" &&
-  process.env.NEXT_PUBLIC_MARKETS_INTELLIGENCE_FIXTURES !== "0";
+  process.env.NEXT_PUBLIC_MARKETS_INTELLIGENCE_FIXTURES === "1";
 
 export const INTELLIGENCE_SIMULATION_BANNER =
   "Simulated intelligence preview — not venue fills or live whale data.";

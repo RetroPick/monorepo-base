@@ -1,9 +1,0 @@
-[
-  { "slug": "index", "title": "Welcome" },
-  { "slug": "getting-started", "title": "Getting started" },
-  { "slug": "how-it-works", "title": "How it works" },
-  { "slug": "market-types", "title": "Market types" },
-  { "slug": "oracles-and-fairness", "title": "Oracles & fairness" },
-  { "slug": "technical-overview", "title": "Technical overview" },
-  { "slug": "faq", "title": "FAQ & safety" }
-]

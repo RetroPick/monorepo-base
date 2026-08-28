@@ -1,5 +1,6 @@
 import { getMarketsClient } from "../api/marketsClient";
 import { marketsKeys } from "./marketsKeys";
+import type { HistoryInterval } from "@retropick/polymarket";
 
 const STALE_CATALOG = 90_000;
 const STALE_DETAIL = 45_000;
@@ -39,6 +40,20 @@ export const marketsQueryOptions = {
     staleTime: 3_000,
     refetchInterval: (fetchEnabled && pollingEnabled ? POLL_ORDERBOOK : false) as number | false,
     refetchIntervalInBackground: false,
+    enabled: fetchEnabled && marketId.length > 0 && tokenId.length > 0,
+  }),
+  priceHistory: (marketId: string, tokenId: string, interval: HistoryInterval, fetchEnabled = true) => ({
+    queryKey: marketsKeys.priceHistory(marketId, tokenId, interval),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchData(getMarketsClient().getPriceHistory(marketId, { tokenId, interval }, { signal })),
+    staleTime: STALE_DETAIL,
+    enabled: fetchEnabled && marketId.length > 0 && tokenId.length > 0,
+  }),
+  marketHealth: (marketId: string, tokenId: string, fetchEnabled = true) => ({
+    queryKey: marketsKeys.marketHealth(marketId, tokenId),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchData(getMarketsClient().getMarketHealth(marketId, tokenId, { signal })),
+    staleTime: 8_000,
     enabled: fetchEnabled && marketId.length > 0 && tokenId.length > 0,
   }),
   eventsInfinite: {

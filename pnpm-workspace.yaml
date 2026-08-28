@@ -1,5 +1,6 @@
 packages:
   - 'apps/*'
+  - '!apps/docs'
   - '!apps/retropick-landing-standalone'
   - '!apps/android'
   - 'packages/*'

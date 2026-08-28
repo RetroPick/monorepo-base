@@ -5,7 +5,6 @@ set -euo pipefail
 # Only explicitly reviewed paths may bypass registration.
 readonly -a ALLOWLISTED_UNREGISTERED_GITLINKS=(
   # Legacy treasury vault contract snapshot; archived and not required for Markets CI.
-  "archive/contracts/legacy-pool-v1/treasury-vault-eth"
 )
 
 mapfile -t gitlinks < <(git ls-files --stage | awk '$1 == "160000" { print $4 }')

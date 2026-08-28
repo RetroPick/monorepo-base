@@ -2,9 +2,8 @@
 
 ## Workflows
 
-- `ci.yml`: installs pnpm dependencies, runs lint, typecheck, tests, build, and Go tests.
-- `contracts.yml`: runs Foundry build and tests from `contracts/legacy-pool-v1`.
+- [`ci.yml`](../../.github/workflows/ci.yml): pnpm lint, typecheck, tests, build; Go build/test; Markets OpenAPI/AsyncAPI drift; [`scripts/check-active-legacy-refs.sh`](../../scripts/check-active-legacy-refs.sh); migration-markets job (Postgres).
 
 ## Production Notes
 
-Production needs persistent services: Postgres, API, indexer, keeper, funding worker, price worker, and realtime. API-only Vercel deployments are non-production experiments.
+Markets V1 production stack: Postgres + `markets-api` + `apps/web` (see [`docker-compose.production.yml`](../../docker-compose.production.yml) and [`PRODUCTION.md`](../../PRODUCTION.md)).

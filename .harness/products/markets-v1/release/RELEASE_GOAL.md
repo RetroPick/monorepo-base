@@ -11,7 +11,6 @@
 ## Out of release scope
 
 - PRISM integration
-- Legacy epoch MarketEngine (archived under `archive/`)
 - Old pool-v1 feature expansion
 - Custom prediction-market contracts
 - Unrelated operator surfaces

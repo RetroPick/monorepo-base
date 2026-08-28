@@ -117,7 +117,6 @@ Markets V1 ADRs are **product-specific**. They complement monorepo restructure A
 | Repo ADR | Relationship |
 |----------|--------------|
 | ADR-R0 Monorepo product restructure | Defines Markets / PRISM / Legacy split |
-| ADR-R1 Legacy quarantine | `internal/legacy/` frozen; Markets greenfield |
 | ADR-R4 Legacy archived | Markets is primary active product line |
 
 ## When to Write a New ADR

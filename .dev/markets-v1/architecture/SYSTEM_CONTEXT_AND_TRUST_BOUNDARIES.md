@@ -45,7 +45,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 - Adding `contracts/markets/` or RetroPick-issued outcome tokens for Markets.
 - Server-signing user order intent, or treating session JWT as chain authority.
 - Operators placing trades; geo treated as advisory-open.
-- Conflating PRISM or legacy epoch trust models with Markets routes.
 
 **Agent checklist**
 
@@ -77,7 +76,6 @@ Markets V1 is a **Polymarket-native trading and intelligence product**. RetroPic
 ### Out of scope
 
 - PRISM protocol implementation (`contracts/prism/`, `apps/web` PRISM routes)
-- Legacy epoch MarketEngine (`/api/v1/legacy/markets/*`, `archive/`, `packages/legacy/`)
 - Custom RetroPick exchange or outcome-token issuance ([ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md))
 - Automated copy trading ([ADR-009](adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md))
 
@@ -185,7 +183,7 @@ C4Container
 |-----------|-------------------|----------|------------------------|
 | Web app | `apps/web` + `deploy/web-markets/` | HTTPS to BFF | Client → BFF |
 | Android app | `apps/android-markets` (proposed) | HTTPS to BFF | Client → BFF |
-| Markets API | `apps/backend/cmd/api` | HTTP :8080 | BFF → venue |
+| Markets API | `apps/backend/cmd/markets-api` | HTTP :8080 | BFF → venue |
 | Realtime hub | `apps/backend/internal/realtime`, `wshub` | WSS | BFF → clients |
 | Signal engine | `apps/backend/internal/markets/intelligence` | Internal | BFF internal |
 | Postgres | `deploy/backend/` | SQL | BFF data plane |
@@ -390,7 +388,6 @@ All client traffic targets the BFF OpenAPI contract (`schemas/openapi/markets-v1
 | `/markets/intelligence/*` | Yes (tiered) | Degrade to empty set |
 | `/markets/alerts/*` | Yes | Queue; retry later |
 
-Legacy epoch routes (`/api/v1/legacy/markets/*`) are **frozen** and must not appear in Markets client builds.
 
 ## 11. Realtime Trust Boundary
 

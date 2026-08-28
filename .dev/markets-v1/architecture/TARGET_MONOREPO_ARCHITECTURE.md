@@ -8,7 +8,6 @@
 
 ## Description
 
-This document defines the target monorepo layout for RetroPick Markets V1 within the broader RetroPick repository: directory ownership, import boundaries, package dependencies, and isolation among Markets, PRISM, and frozen legacy epoch. Markets issues no RetroPick outcome tokens and must not create `contracts/markets/`.
 
 It sits in Wave 1 architecture freeze aligned with `docs/ARCHITECTURE.md` phases R0–R4 and ADRs for shared OpenAPI (ADR-004), Compose Android (ADR-006), and the Polymarket ACL (ADR-002). Clients share OpenAPI—not UI. Markets code belongs only in Markets paths; Markets→legacy/PRISM settlement imports are forbidden.
 
@@ -25,7 +24,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 | Lens | Answer |
 |------|--------|
 | **Who** | Monorepo owners; Markets web/BFF/Android; package and codegen maintainers; agents choosing directories and dependency edges for new files. |
-| **What** | Target layout after R0–R4: Markets trees (`products/markets`, `internal/markets`, `android-markets`, `packages/polymarket`, `schemas/openapi/markets-v1.yaml`, Markets deploy units) isolated from PRISM (`contracts/prism`, prism packages/routes) and frozen legacy (`archive/`, `internal/legacy`). Markets issues **no** RetroPick outcome tokens. |
 | **When** | When creating packages, moving modules, writing import boundaries, reviewing cross-product PRs, or aligning with [docs/ARCHITECTURE.md](../../../docs/ARCHITECTURE.md). Apply at Wave 1 freeze and whenever structure drifts. |
 | **Where** | Spec: this file. Physical tree under `retropick/apps`, `packages`, `schemas`, `deploy`, `contracts` (PRISM/legacy only). Clients share **OpenAPI**, not UI ([ADR-004](adr/ADR-004-SHARED-WEB-ANDROID-API.md), [ADR-006](adr/ADR-006-ANDROID-JETPACK-COMPOSE.md)). |
 | **Why** | Shared toolchain ≠ shared product. Without hard boundaries, Markets inherits epoch settlement or PRISM contracts—violating [ADR-001](adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)—or duplicates APIs per client. |
@@ -38,12 +36,10 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 1. Add a catalog field to `schemas/openapi/markets-v1.yaml`.
 2. Implement normalizer/handler in `internal/markets/`; regenerate TS and Kotlin clients.
 3. Render in `products/markets` and Compose screens.
-4. No PRISM contract touch; no `archive/` import.
 
 **Failure / Never-V1**
 
 - Creating `contracts/markets/` or matching logic in `packages/polymarket`.
-- Importing `packages/legacy` / MarketEngine into Markets trading paths.
 - Sharing React UI into Android as a substitute for OpenAPI parity.
 - Calling Gamma/CLOB directly from Next in production to skip the BFF.
 
@@ -60,7 +56,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace Purpose,
 
 ## 1. Purpose
 
-Define the **target monorepo layout** for RetroPick Markets V1 within the broader RetroPick repository. This document specifies directory ownership, import boundaries, package dependencies, and isolation rules between **Markets**, **PRISM**, and **legacy epoch v1** product lines.
 
 The layout implements monorepo phases **R0–R4** documented in [docs/ARCHITECTURE.md](../../../docs/ARCHITECTURE.md).
 
@@ -76,7 +71,6 @@ The layout implements monorepo phases **R0–R4** documented in [docs/ARCHITECTU
 ### Out of scope
 
 - PRISM smart contract design (`contracts/prism/`)
-- Legacy epoch claim-only UX details (`archive/`)
 - Infrastructure provisioning (see [platform/INFRASTRUCTURE_AND_COST_MODEL.md](../platform/INFRASTRUCTURE_AND_COST_MODEL.md))
 
 ## 3. Product Line Overview
@@ -87,7 +81,6 @@ RetroPick is **three separate products** sharing a monorepo toolchain:
 |---------|----------------|---------|---------------|
 | **Markets** | Polymarket | `apps/web` (Markets), `apps/android-markets` | None (integration only) |
 | **PRISM** | RetroPick PRISM contracts | `apps/web` (PRISM routes) | `contracts/prism/` |
-| **Legacy epoch v1** | `MarketEngine` (frozen) | None (claim-only) | `contracts/legacy-pool-v1/` → `archive/` |
 
 **Markets does not issue RetroPick outcome tokens.** PRISM does not use Polymarket as settlement. Legacy is not extended.
 
@@ -108,9 +101,7 @@ flowchart TB
         end
         subgraph Legacy["Legacy (frozen)"]
             LW[apps/web/src/products/legacy]
-            LB[apps/backend/internal/legacy]
             LP[packages/legacy]
-            AR[archive/]
         end
     end
     MP --> MB
@@ -203,8 +194,6 @@ retropick/
 │   └── contracts/                    # Contract deploy (PRISM only)
 ├── contracts/
 │   ├── prism/                        # PRISM Foundry project
-│   └── legacy-pool-v1/               # Frozen (reference only)
-├── archive/                          # Graveyard for removed legacy code (R4)
 ├── docker/                           # Local dev compose
 ├── docs/
 │   ├── ARCHITECTURE.md               # R0–R4 monorepo overview
@@ -220,10 +209,8 @@ retropick/
 | Phase | Date | Monorepo change | Markets impact |
 |-------|------|-----------------|----------------|
 | **R0** | 2026-07-24 | Product line split in `docs/ARCHITECTURE.md` | Markets declared Polymarket-native |
-| **R1** | 2026-07-24 | `internal/markets/` placeholder; legacy → `internal/legacy/` | Greenfield BFF directory |
 | **R2** | 2026-07-24 | `schemas/openapi/markets-v1.yaml` stub | Contract-first development |
 | **R3** | 2026-07-24 | Gamma read path in BFF; web product routes | Catalog behind BFF |
-| **R4** | 2026-07-24 | Legacy archived to `archive/` | Markets primary active line |
 
 Repo-wide ADRs: `docs/engineering/adr/ADR-R0-MONOREPO-PRODUCT-RESTRUCTURE.md`, `ADR-R1-LEGACY-QUARANTINE.md`, `ADR-R4-LEGACY-ARCHIVED.md`.
 
@@ -277,29 +264,23 @@ Current scaffold lives at `apps/android/`. Target state renames or duplicates to
 ```mermaid
 flowchart TB
     Router[internal/api/router] --> MH[internal/markets/handler]
-    Router --> LH[internal/legacy/handler]
     MH --> MS[internal/markets/service]
     MS --> MG[internal/markets/gamma]
     MS --> MC[internal/markets/clob]
     MS --> MI[internal/markets/intelligence]
-    LH --> LD[internal/legacy/domain]
     MS --> PL[internal/platform/*]
     LD --> PL
 ```
 
 | Package | May import | Must not import |
 |---------|------------|-----------------|
-| `internal/markets/*` | `internal/platform/*`, `packages/polymarket` (via codegen/types) | `internal/legacy/*` |
-| `internal/legacy/*` | `internal/platform/*` | `internal/markets/*` |
-| `internal/platform/*` | stdlib, third-party | `internal/markets/*`, `internal/legacy/*` |
 
 Route registration:
 - Markets: `/api/v1/markets/*`
-- Legacy (frozen): `/api/v1/legacy/markets/*`
+- Legacy (frozen): `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*`
 
-### 6.4 `apps/ops-web` and `apps/landing-web`
 
-Out of Markets V1 critical path. Ops console has read-only views into BFF metrics and audit logs. No trading or signing.
+Out of Markets V1 critical path. The epoch ops console is archived; any future admin surface must not share Markets signing keys.
 
 ## 7. Package Boundaries
 
@@ -394,15 +375,12 @@ flowchart TB
 
 ## 11. Legacy Isolation Rules
 
-Legacy epoch v1 is **frozen** per R4. No new features.
 
 | Artifact | Status | Markets interaction |
 |----------|--------|---------------------|
-| `/api/v1/legacy/markets/*` | Frozen handlers | None — separate prefix |
-| `internal/legacy/domain/` | Quarantined | No imports from markets |
+| `/api/v1/legacy/markets (archived with epoch stack — not served by live BFF)/*` | Frozen handlers | None — separate prefix |
 | `packages/legacy/` | Claim-only TS | Not in Markets bundle |
 | `apps/web/src/products/legacy/` | To be removed | Not in `NEXT_PUBLIC_PRODUCT=markets` build |
-| `archive/` | Historical reference | No runtime dependency |
 
 CI check: `rg 'internal/legacy' apps/backend/internal/markets` must return zero hits.
 
@@ -516,7 +494,7 @@ Automated gates in Phase 6:
 flowchart LR
     DEV[Developer machine]
     DEV --> WEB[pnpm dev:web:markets]
-    DEV --> API[go run cmd/api]
+    DEV --> API[go run cmd/markets-api]
     DEV --> DB[(Docker Postgres)]
     DEV --> REDIS[(Docker Redis)]
     WEB --> API
@@ -565,7 +543,6 @@ See [research/OPEN_QUESTIONS_AND_EXPIRING_ASSUMPTIONS.md](../research/OPEN_QUEST
 | `packages/polymarket/**` | backend-markets + web-markets | legal (OSS) |
 | `schemas/openapi/markets-v1.yaml` | platform-orchestrator | all client teams |
 | `deploy/web-markets/**` | platform/SRE | security |
-| `internal/legacy/**` | maintenance only | explicit approval |
 
 ## Appendix B — Naming Conventions
 

@@ -5,6 +5,7 @@ vi.mock("../../wallet/config/runtimeEnv", () => ({
 }));
 
 import {
+  getBalances,
   linkExistingWallet,
   previewAccountWallet,
   relayAccountWallet,
@@ -43,6 +44,7 @@ describe("fundingApiClient OpenAPI alignment", () => {
     );
     const init = vi.mocked(fetch).mock.calls[0]?.[1];
     expect(init?.headers).not.toHaveProperty("Idempotency-Key");
+    expect(init?.cache).toBe("no-store");
   });
 
   it("previewAccountWallet defaults to empty body", async () => {
@@ -71,6 +73,18 @@ describe("fundingApiClient OpenAPI alignment", () => {
     );
   });
 
+  it("fails closed when cryptographic UUID generation is unavailable", async () => {
+    vi.stubGlobal("crypto", {});
+
+    await expect(
+      linkExistingWallet({
+        accountWallet: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        walletType: "GNOSIS_SAFE",
+      }),
+    ).rejects.toMatchObject({ code: "unavailable", message: expect.stringMatching(/cryptographic/i) });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("relayAccountWallet sends accountWallet body with Idempotency-Key", async () => {
     await relayAccountWallet({
       accountWallet: "0xdddddddddddddddddddddddddddddddddddddddd",
@@ -89,6 +103,19 @@ describe("fundingApiClient OpenAPI alignment", () => {
         headers: expect.objectContaining({
           "Idempotency-Key": "11111111-1111-4111-8111-111111111111",
         }),
+      }),
+    );
+  });
+
+  it("reads private collateral with no-store cache semantics", async () => {
+    await getBalances();
+
+    expect(fetch).toHaveBeenCalledWith(
+      `${API_BASE}/me/balances`,
+      expect.objectContaining({
+        method: "GET",
+        credentials: "include",
+        cache: "no-store",
       }),
     );
   });

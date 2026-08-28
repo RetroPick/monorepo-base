@@ -10,8 +10,6 @@ COPY apps/backend/go.mod apps/backend/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY apps/backend .
-# Prefer canonical ABIs from archive/packages/legacy/abi (overwrites apps/backend/internal/abis copies).
-COPY archive/packages/legacy/abi/IMarketEngine.json archive/packages/legacy/abi/MarketEngineDispatcher.json internal/abis/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/markets-api ./cmd/markets-api && \

@@ -5,6 +5,8 @@ import {
   ORDER_FEE_UNAVAILABLE,
   ORDER_MAX_LOSS_LABEL,
   ORDER_NEG_RISK_LABEL,
+  ORDER_PARTIAL_FILL_DISCLOSURE,
+  ORDER_PREVIEW_EXPIRY_LABEL,
 } from "../lib/tradingCopy";
 import type { OrderPreviewResponse } from "../lib/tradingApiClient";
 
@@ -50,6 +52,14 @@ export function FeeDisclosure({ preview }: FeeDisclosureProps) {
       <div>
         <dt className="text-muted-foreground">Price</dt>
         <dd className="font-mono">{formatPrice(humanSummary.price)}</dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">{ORDER_PREVIEW_EXPIRY_LABEL}</dt>
+        <dd className="font-mono text-xs">{preview.expiresAt}</dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Partial fills</dt>
+        <dd className="text-xs text-muted-foreground">{ORDER_PARTIAL_FILL_DISCLOSURE}</dd>
       </div>
       <div>
         <dt className="text-muted-foreground">{ORDER_CONTENT_HASH_LABEL}</dt>

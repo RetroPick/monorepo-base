@@ -51,7 +51,6 @@ is not needed to preserve a critical invariant
 then propose moving it to:
 
 ```text
-.dev/markets-v1/intelligence/archive/**
 ```
 
 Do not delete useful historical work.
@@ -242,7 +241,6 @@ apps/backend/migrations/**
 apps/backend/sql/**
 apps/backend/internal/dbqueries/**
 
-apps/fe-v1/**
 
 packages/polymarket/**
 
@@ -305,7 +303,6 @@ Explain why.
 Create a proposed:
 
 ```text
-.dev/markets-v1/intelligence/archive/
 ```
 
 architecture.
@@ -320,7 +317,6 @@ RELATIONSHIP_AND_ARBITRAGE_SCANNER.md
 OPEN_SOURCE_ADOPTION_MAP.md
 ```
 
-Possible archive/rewrite candidates:
 
 ```text
 MARKET_HEALTH_LIQUIDITY_AND_ORDERBOOK_ANALYTICS.md
@@ -359,7 +355,6 @@ Not current implementation authority
 Create:
 
 ```text
-intelligence/archive/README.md
 ```
 
 as the archive index.
@@ -630,7 +625,6 @@ INTELLIGENCE_TEST_STRATEGY.md
 09_PAPER_COPY.md
 10_QUICK_BACKTEST.md
 
-archive/
   README.md
   ...
 ```
@@ -754,7 +748,6 @@ Distinguish CURRENT from TARGET.
 Evaluate:
 
 ```text
-apps/fe-v1
         ↓
 Markets BFF / Go API
         ↓
@@ -2858,7 +2851,6 @@ Perform a per-file mapping like:
 ```text
 OLD FILE
 → NEW OWNER
-→ ARCHIVE/KEEP
 ```
 
 For example, evaluate:

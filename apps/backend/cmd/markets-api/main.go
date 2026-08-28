@@ -164,6 +164,9 @@ func main() {
 				return nil
 			}
 			if err := tokenRegistry.Refresh(ctx); err != nil {
+				if rtRuntime != nil {
+					rtRuntime.SetRegistryReady(false)
+				}
 				return err
 			}
 			if rtRuntime != nil {

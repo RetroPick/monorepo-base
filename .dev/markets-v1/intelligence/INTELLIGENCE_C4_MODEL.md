@@ -25,7 +25,7 @@ Compute lives in the existing modular monolith under `apps/backend/internal/mark
 | **Who** | Backend architects wiring intelligence modules; fe-markets integrating BFF only; devops sizing workers; security reviewing trust boundaries; agents placing features into components. |
 | **What** | One C4 authority: L1 actors/systems, L2 containers, L3 named components, L4 flows (whale attribution, follow→alert, paper fill, backtest job), deployment. Hard rule: fe ↛ Data API. |
 | **When** | Before adding workers/endpoints; when a feature doc’s “C4 Placement” section is written; when proposing Redis/Kafka/new services. |
-| **Where** | This file. Runtime packages under `apps/backend/internal/markets/intelligence/` (+ polymarket adapters). Client: `apps/fe-v1`. Data: Postgres projections in [INTELLIGENCE_DATA_MODEL.md](INTELLIGENCE_DATA_MODEL.md). |
+| **Where** | This file. Runtime packages under `apps/backend/internal/markets/intelligence/` (+ polymarket adapters). Client: `apps/web`. Data: Postgres projections in [INTELLIGENCE_DATA_MODEL.md](INTELLIGENCE_DATA_MODEL.md). |
 | **Why** | Ten conflicting diagrams cause duplicate pollers and leaked upstream schemas to the client. One model keeps cost and trust boundaries coherent. |
 | **How** | Shared ingest → normalize → project → feature engines → BFF DTOs → fe. Provenance on every published signal. Account stores isolated. No order submit from intelligence components. |
 
@@ -89,7 +89,7 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  FE[apps/fe-v1]
+  FE[apps/web]
   BFF[Markets BFF / Go API]
   INTEL[Intelligence modules + workers]
   PG[(PostgreSQL)]
@@ -106,7 +106,7 @@ flowchart TB
 
 | Container | Responsibility |
 |-----------|----------------|
-| `apps/fe-v1` | Render intelligence UX states; never hold upstream credentials or call Data/Gamma/CLOB for intel |
+| `apps/web` | Render intelligence UX states; never hold upstream credentials or call Data/Gamma/CLOB for intel |
 | Markets BFF | Authz, rate limits, DTO shaping, OpenAPI contract |
 | Intelligence modules/workers | Ingest, classify, aggregate, rank, alert eval, paper, backtest |
 | PostgreSQL | Projections + user intel data (follows, alerts, paper, backtests) |

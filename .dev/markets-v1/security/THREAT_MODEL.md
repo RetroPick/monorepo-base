@@ -10,7 +10,7 @@
 
 This document is the STRIDE threat model for RetroPick Markets V1 across trust boundaries: client→BFF, BFF→Polymarket, BFF→Postgres/Redis, user→wallet, and operator→ops. It scores likelihood×impact, records residual-risk acceptance (score >12 needs written accept), and ties mitigations to fail-closed eligibility/geo, preview-before-sign integrity, session hardening, and no user key custody.
 
-It sits in Wave 7 as security-spec authority, with boundary definitions in architecture trust-boundary docs and mitigations in sibling security and backend docs. Decomposition includes web, Android, cmd/api middleware, workers, markets.*, Redis, Polymarket Gamma/CLOB, and user wallets—not a custom-exchange or PRISM/legacy model.
+It sits in Wave 7 as security-spec authority, with boundary definitions in architecture trust-boundary docs and mitigations in sibling security and backend docs. Decomposition includes web, Android, cmd/markets-api middleware, workers, markets.*, Redis, Polymarket Gamma/CLOB, and user wallets—not a custom-exchange or PRISM/legacy model.
 
 Read this before designing or changing auth, trading, eligibility, builder-key usage, or ops surfaces; on Wave 7 reviews; and before pen-test scope freeze and launch sign-off. Prefer SECURITY_TEST_AND_REVIEW_PLAN to trace high residuals to SEC-T cases.
 
@@ -25,7 +25,7 @@ Short orientation for implementers and agents. Read this before the normative se
 | **Who** | Security owners and architects applying STRIDE across Markets trust boundaries; BFF middleware owners (auth, eligibility, rate-limit); web/Android engineers who keep signing in the user wallet; ops/incident responders scoring residual risk; pen-testers and agents mapping threats before PHASE-7. Not custodians—RetroPick never holds user EOA/seed material. |
 | **What** | Markets V1 threat model: STRIDE per trust-boundary crossing (client→BFF, BFF→Polymarket, BFF→Postgres/Redis, user→wallet, operator→ops), likelihood×impact scoring, residual-risk acceptance (score >12 needs explicit accept), and mitigations aligned to **fail-closed** eligibility/geo, preview-before-sign integrity, session hardening, and **no user key custody**. Covers spoofing, preview tampering, session theft, geo bypass, builder-key abuse, DoS—not a custom-exchange or PRISM/legacy model. |
 | **When** | Before designing or changing auth, trading, eligibility, builder-key usage, or ops surfaces; on every wave-7 security review; when residual risk changes after a mitigation lands; before pen-test scope freeze and launch sign-off. Re-score when a new worker, third party, or client surface appears. |
-| **Where** | Spec authority: this file. Boundary definitions: [SYSTEM_CONTEXT_AND_TRUST_BOUNDARIES.md](../architecture/SYSTEM_CONTEXT_AND_TRUST_BOUNDARIES.md). Mitigations: sibling security docs (secrets, signing, abuse, incidents) plus backend auth/rate-limit docs. Decomposition includes `apps/web`, `apps/android`, `cmd/api` middleware, workers, `markets.*`, Redis, Polymarket Gamma/CLOB, user wallets. |
+| **Where** | Spec authority: this file. Boundary definitions: [SYSTEM_CONTEXT_AND_TRUST_BOUNDARIES.md](../architecture/SYSTEM_CONTEXT_AND_TRUST_BOUNDARIES.md). Mitigations: sibling security docs (secrets, signing, abuse, incidents) plus backend auth/rate-limit docs. Decomposition includes `apps/web`, `apps/android`, `cmd/markets-api` middleware, workers, `markets.*`, Redis, Polymarket Gamma/CLOB, user wallets. |
 | **Why** | Polymarket-native Markets still faces real STRIDE threats even without custodian fund vaults. Explicit modeling stops “we don’t hold keys so we’re safe.” Fail-closed geo and integrity controls protect users and the operator when policy, GeoIP, or upstream state is unknown. Residual scoring makes launch risk a decision, not a vibe. |
 | **How** | Decompose the system; enumerate STRIDE per boundary; score L×I; attach mitigations (TLS, HttpOnly sessions, server GeoIP + Polymarket geoblock, `contentHash` preview bind, Redis rate limits fail-closed on writes, least-privilege DB roles, audited break-glass). Never store EOA/seed server-side. Residual >12 → written acceptance or block launch. Trace each high residual to a case in SECURITY_TEST_AND_REVIEW_PLAN. |
 
@@ -73,7 +73,6 @@ STRIDE threat model for Markets V1 custody, signing, eligibility, upstream integ
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-- Legacy epoch (`/api/v1/legacy/markets/*`).
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 
@@ -120,7 +119,7 @@ flowchart TB
     Attacker[Attacker]
   end
   subgraph dmz [BFF trust zone]
-    API[cmd/api]
+    API[cmd/markets-api]
     MW[auth eligibility rate-limit]
   end
   subgraph data [Data zone]

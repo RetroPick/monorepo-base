@@ -104,7 +104,11 @@ function newIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
     return crypto.randomUUID();
   }
-  return `idem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  throw new FundingApiError(
+    "unavailable",
+    "Cryptographic request identifiers are unavailable in this client.",
+    0,
+  );
 }
 
 async function parseApiError(response: Response): Promise<FundingApiError> {
@@ -173,6 +177,7 @@ async function postJson<T>(
   const response = await fetch(marketsUrl(path), {
     method: "POST",
     credentials: "include",
+    cache: "no-store",
     headers,
     body: JSON.stringify(body),
     signal: options?.signal,
@@ -187,6 +192,7 @@ export async function getBalances(signal?: AbortSignal): Promise<BalancesListRes
   const response = await fetch(marketsUrl("/me/balances"), {
     method: "GET",
     credentials: "include",
+    cache: "no-store",
     signal,
   });
   if (!response.ok) {

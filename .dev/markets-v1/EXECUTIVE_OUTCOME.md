@@ -46,7 +46,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 
 - Claiming staging-live or production trading from documentation alone.
 - Clearing BLK-010/011 without registry pull + smoke proof.
-- Extending legacy epoch to bypass greenfield Markets work.
 - Shipping auto copy trading despite Never-V1 intelligence row.
 
 **Agent checklist**
@@ -71,7 +70,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 
 ## Recommended architecture
 
-- **Three products, one monorepo:** Markets (Polymarket), PRISM (future), Legacy epoch v1 (frozen).
 - **Markets BFF:** Go `apps/backend/internal/markets/` as anti-corruption layer; clients use `schemas/openapi/markets-v1.yaml`.
 - **Web:** `apps/web` with `NEXT_PUBLIC_PRODUCT=markets` for Markets-only deploy.
 - **Android:** Native Kotlin + Jetpack Compose; consumes same OpenAPI as web (PHASE-5 scaffold).
@@ -82,7 +80,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace blocker 
 | Area | Reusable | Notes |
 |------|----------|-------|
 | Monorepo layout (R0–R3) | Yes | `apps/web`, `apps/backend`, `packages/polymarket` |
-| Legacy epoch stack | Reference only | Quarantined; not extended for Markets |
 | Android app | No | README only; greenfield in PHASE-5 |
 | Markets BFF | Extensive | Gamma catalog + P1–P4 modules (orders/clob/reconcile/positions/intelligence); positions glue not yet mounted |
 

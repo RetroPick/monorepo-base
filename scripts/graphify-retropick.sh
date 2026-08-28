@@ -27,14 +27,8 @@ case "$MODE" in
       "apps/backend"
       "apps/backend/internal/markets"
       "apps/web"
-      "apps/docs/app"
-      "apps/docs/components"
-      "apps/docs/contents"
       ".harness/products/markets-v1"
       "schemas"
-      "archive/contracts/legacy-pool-v1/src"
-      "archive/contracts/legacy-pool-v1/script"
-      "archive/contracts/legacy-pool-v1/test"
     )
     ;;
   backend)
@@ -43,20 +37,7 @@ case "$MODE" in
   frontend)
     TARGETS=(
       "apps/web"
-      "apps/docs/app"
-      "apps/docs/components"
-      "apps/docs/contents"
       "apps/landing-web/src"
-    )
-    ;;
-  contracts)
-    TARGETS=(
-      "archive/contracts/legacy-pool-v1/src"
-      "archive/contracts/legacy-pool-v1/script"
-      "archive/contracts/legacy-pool-v1/test"
-      "archive/contracts/legacy-pool-v1/treasury-vault-eth/src"
-      "archive/contracts/legacy-pool-v1/treasury-vault-eth/script"
-      "archive/contracts/legacy-pool-v1/treasury-vault-eth/test"
     )
     ;;
   docs)
@@ -88,17 +69,8 @@ case "$MODE" in
       "apps/backend"
       "apps/backend/internal/markets"
       "apps/web"
-      "apps/docs/app"
-      "apps/docs/components"
-      "apps/docs/contents"
       "apps/landing-web/src"
       "packages"
-      "archive/contracts/legacy-pool-v1/src"
-      "archive/contracts/legacy-pool-v1/script"
-      "archive/contracts/legacy-pool-v1/test"
-      "archive/contracts/legacy-pool-v1/treasury-vault-eth/src"
-      "archive/contracts/legacy-pool-v1/treasury-vault-eth/script"
-      "archive/contracts/legacy-pool-v1/treasury-vault-eth/test"
       "docs"
       ".dev"
       ".harness"
@@ -130,9 +102,6 @@ is_excluded_path() {
 
   case "$path" in
     */graphify-out/*|*/.references/*|*/node_modules/*|*/.next/*|*/dist/*|*/build/*|*/target/*|*/out/*|*/cache/*|*/broadcast/*|*/coverage/*|*/.turbo/*|*/.vercel/*)
-      return 0
-      ;;
-    */archive/contracts/legacy-pool-v1/lib/*|*/archive/contracts/legacy-pool-v1/treasury-vault-eth/lib/*)
       return 0
       ;;
     */apps/*/sources/*)

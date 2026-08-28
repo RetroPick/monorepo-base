@@ -9,6 +9,10 @@ const nextConfig = {
   transpilePackages: ["@retropick/polymarket"],
   experimental: {
     optimizePackageImports: ["lucide-react"],
+    outputFileTracingRoot: path.join(__dirname, "../.."),
+    outputFileTracingIncludes: {
+      "/api/markets/legal/*": ["../../docs/markets-v1/legal/*.md"],
+    },
   },
   webpack(config) {
     config.resolve.alias = {

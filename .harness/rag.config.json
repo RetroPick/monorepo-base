@@ -31,7 +31,6 @@
     "**/*.sqlite",
     "**/*.db",
     "**/*.log",
-    "archive/**",
     "contracts/**",
     "apps/android/**",
     ".harness/state/**"
@@ -43,5 +42,5 @@
     "obsidian": 4,
     "code": 5
   },
-  "note": "Markets V1 release tasks prioritize .harness/** and .dev/markets-v1/** sources. Legacy MarketEngine/contracts are excluded from Markets release RAG."
+  "note": "Markets V1 release tasks prioritize .harness/** and .dev/markets-v1/** sources."
 }

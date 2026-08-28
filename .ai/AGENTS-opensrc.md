@@ -1,12 +1,11 @@
 # RetroPick opensrc Reference Rules
 
-RetroPick already has:
-- On-chain MarketEngine with oracle-driven epoch lifecycle.
-- Go backend with indexer, keeper, price-worker, funding-worker, alert, and reporter services.
-- Postgres projections and durable realtime events.
-- WebSocket fanout from Postgres NOTIFY.
-- Next/React frontends with wallet writes and indexed API reads.
+RetroPick **Markets V1** (active release):
+- Go BFF at `apps/backend/cmd/markets-api` with Postgres projections.
+- Polymarket Gamma/CLOB/WS adapters under `apps/backend/internal/markets/`.
+- Web client at `apps/web` (`@retropick/markets-web`) against OpenAPI `schemas/openapi/markets-v1.yaml`.
 - pnpm plus Turborepo monorepo tooling.
+
 
 External repositories are references, not replacement architecture.
 
@@ -37,7 +36,7 @@ Before editing API or SDK surfaces:
 Before editing frontend:
 - Inspect `TanStack/query` for server-state and invalidation.
 - Inspect `wevm/viem` and `wevm/wagmi` for wallet and contract writes.
-- UI default reads must come from indexed API, not live RPC.
+- UI default reads must come from the Markets BFF, not live Polymarket RPC from the browser.
 
 Before editing ops dashboards:
 - Inspect `TanStack/table`, `react-hook-form`, `zod`, `shadcn-ui/ui`, and `radix-ui/primitives`.
@@ -58,12 +57,8 @@ Before editing market or protocol design:
 
 ```bash
 opensrc path vercel/next.js
-opensrc path Polymarket/ctf-exchange-v2
+opensrc path TanStack/query
 opensrc path sqlc-dev/sqlc
-
-./scripts/opensrc-rg.sh Polymarket/ctf-exchange-v2 EIP712
-./scripts/opensrc-rg.sh vercel/ai useChat
-./scripts/opensrc-rg.sh TanStack/query invalidateQueries
-./scripts/opensrc-rg.sh riverqueue/river "INSERT"
-./scripts/opensrc-rg.sh OpenZeppelin/openzeppelin-contracts-upgradeable UUPSUpgradeable
 ```
+
+See `.ai/opensrc-*-pack.txt` for curated repository lists.

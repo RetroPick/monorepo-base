@@ -28,7 +28,6 @@ The 5W+1H table below is a **navigation aid** only. It does not replace the agen
 | **When** | First file to open before any Markets implementation task. Re-read when `current_phase` changes in the manifest, when Wave status or phase tables are updated, or after a harness invariant failure. |
 | **Where** | This README at `.dev/markets-v1/README.md`. Pointer for humans: [docs/markets-v1/README.md](../../docs/markets-v1/README.md). Next hops: [00_DOCUMENT_MAP.md](00_DOCUMENT_MAP.md), [../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md](../../.harness/products/markets-v1/governance/AGENT_OPERATING_CONTRACT.md), [../../.harness/products/markets-v1/planning/implementation-manifest.yaml](../../.harness/products/markets-v1/planning/implementation-manifest.yaml), [phases/](phases/). |
 | **Why** | Without a single entry point, agents invent scope, skip PHASE-1 readiness checks, or treat docs as product code. This README freezes the consume order (Orient → Contract → Phase → Task → Trace → Spec → Verify → Escalate) so Markets stays Polymarket-native and harness-gated. |
-| **How** | Follow the numbered agent order below. Select exactly one `planned`/`ready` task from `task-graph.yaml`. Confirm requirement mapping before coding. Capture verification via templates. Escalate blockers; do not mark tasks complete because a README row exists. Never extend `archive/` epoch paths for Markets. |
 
 ### Worked example
 
@@ -152,7 +151,6 @@ All 28 master-prompt invariants are enumerated in [../../.harness/products/marke
 
 - **Markets V1** integrates Polymarket; does not issue RetroPick outcome tokens.
 - **PRISM** is a separate product; out of scope except boundary statements.
-- **Legacy epoch v1** is frozen at `/api/v1/legacy/markets/*`.
 
 ## Android build prompt
 

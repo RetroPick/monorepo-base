@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -14,7 +13,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+
 	"retropick/apps/backend/internal/markets/origin"
+	"retropick/apps/backend/internal/markets/postgres"
 )
 
 // TokenValidator checks catalog membership for token subscriptions.
@@ -265,11 +266,13 @@ func (h *Handler) handleSubscribe(ctx context.Context, client *Client, cmd clien
 		h.sendError(client, "subscription_limit", "max subscriptions exceeded")
 		return
 	}
-	if h.cfg.Validator != nil {
-		if err := h.cfg.Validator.ValidateToken(ctx, cmd.MarketID, cmd.TokenID); err != nil {
-			h.sendError(client, "invalid_token", "token not in catalog")
+	if h.cfg.Validator == nil {
+			h.sendError(client, "validation_unavailable", "token validation unavailable")
 			return
-		}
+	}
+	if err := h.cfg.Validator.ValidateToken(ctx, cmd.MarketID, cmd.TokenID); err != nil {
+			h.sendError(client, SubscribeErrorCode(err), subscribeErrorMessage(err))
+			return
 	}
 	h.cfg.Hub.Subscribe(client, cmd.MarketID, cmd.TokenID)
 	if h.cfg.Planner != nil {
@@ -309,14 +312,24 @@ type CatalogTokenValidator struct {
 
 func (v CatalogTokenValidator) ValidateToken(ctx context.Context, marketID, tokenID string) error {
 	if v.Lookup == nil {
-		return nil
+		return ErrValidationUnavailable
 	}
 	foundMarket, ok, err := v.Lookup(ctx, tokenID)
 	if err != nil {
 		return err
 	}
 	if !ok || foundMarket != marketID {
-		return fmt.Errorf("%w: token not in catalog", errors.New("invalid"))
+		return ErrInvalidCatalogToken
 	}
 	return nil
+}
+
+func subscribeErrorMessage(err error) string {
+	if errors.Is(err, ErrInvalidCatalogToken) || errors.Is(err, postgres.ErrTokenNotInCatalog) {
+		return "token not in catalog"
+	}
+	if errors.Is(err, ErrValidationUnavailable) {
+		return "token validation unavailable"
+	}
+	return "token validation unavailable"
 }

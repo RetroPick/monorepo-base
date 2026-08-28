@@ -28,7 +28,6 @@ Web and Android consume the canonical contract. Never bypass the BFF for core Ma
 | `schemas/asyncapi/markets-realtime-v1.yaml` | Realtime contract |
 | `deploy/`, `docker/`, `ops/` | Deployment / compose / ops |
 
-> Note: `apps/fe-v1` and `apps/ops-web` do **not** exist in the current tree — `fe-v1` was renamed to `apps/web` (DECISIONS D15). All references must use `apps/web`.
 
 ## Current release approach
 
@@ -44,7 +43,6 @@ Web and Android consume the canonical contract. Never bypass the BFF for core Ma
 ## Out of release scope
 
 - PRISM integration
-- Legacy epoch MarketEngine (archived under `archive/`)
 - Old pool-v1 feature expansion
 - Custom prediction-market contracts
 - Unrelated operator surfaces
@@ -57,7 +55,6 @@ Web and Android consume the canonical contract. Never bypass the BFF for core Ma
 2. **Live execution state** — `~/.hermes/kanban.db` + `~/.local/state/retropick-harness/release-state.yaml`.
 3. **Execution policy** — `.harness/products/markets-v1/**`.
 4. **Product/architecture specification** — `.dev/markets-v1/**`.
-5. **Historical/legacy** — `archive/**`, legacy material.
 
 Documentation contradicting executable code → **reconciliation finding**, never a silent choice.
 

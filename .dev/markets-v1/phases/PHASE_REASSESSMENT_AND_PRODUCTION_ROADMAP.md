@@ -10,7 +10,6 @@
 
 Senior-engineer reaudit of the Markets V1 documentation corpus after Smart Money Intelligence Launch V1. This file is the **phase ownership and production-band authority** for how PHASE-0…8 relate to the Markets Core track and the Smart Money parallel track. It does **not** replace live `current_phase` in `implementation-manifest.yaml` (still `PHASE-1` until orchestrator advances it) and does **not** invent PHASE-9.
 
-Use this when sequencing work, resolving “is whale PHASE-4?” debates, or explaining Spec → Build → Harden → Production → Post-V1. Prefer active [intelligence/](../intelligence/) docs; do not load [intelligence/archive/](../intelligence/archive/) by default.
 
 ## 0. Developer intent (5W+1H)
 
@@ -39,7 +38,6 @@ Use this when sequencing work, resolving “is whale PHASE-4?” debates, or exp
 | ADRs | `architecture/adr/` | ADR-001 venue; ADR-008 shared engine; ADR-009 no auto-copy |
 | Polymarket ACL | `polymarket/*` | Data `/trades` attribution for whales |
 | Intelligence **Launch** | `intelligence/README`, Launch/C4/Data/Test, `01`…`10`, `testdata/` | Default agent load |
-| Intelligence **archive** | `intelligence/archive/*` | UV, relationship, OSS map, old whale/wallet/DSL/health/provenance — not Launch authority |
 | Backend / web / android / security / platform / testing | Existing trees | Unchanged by this reposition except phase pointers |
 | Harness | manifest `current_phase: PHASE-1`, task-graph | Task IDs may still say P4 whale — follow-up; **docs ownership** is Launch |
 
@@ -137,7 +135,6 @@ flowchart TB
 - Do **not** invent PHASE-9.
 - Do **not** advance `current_phase` from this documentation rewrite.
 - Do **not** auto-copy or AI→orders (ADR-009).
-- Do **not** treat `intelligence/archive/**` as implementation authority.
 - Do **not** claim production success without PHASE-7 human gates + smoke evidence.
 - Do **not** invent contract addresses or gambling UX copy.
 

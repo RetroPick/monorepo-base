@@ -8,11 +8,11 @@ import (
 func TestMarketsV1MigrationDeclaresRequiredProjections(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000016_markets_v1_foundation.up.sql")
+	up, err := Files.ReadFile("000001_markets_v1_foundation.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000016_markets_v1_foundation.down.sql")
+	down, err := Files.ReadFile("000001_markets_v1_foundation.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,11 +44,11 @@ func TestMarketsV1MigrationDeclaresRequiredProjections(t *testing.T) {
 func TestMarketsV1CatalogWatchlistExpandMigration(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000019_markets_v1_catalog_watchlist_expand.up.sql")
+	up, err := Files.ReadFile("000004_markets_v1_catalog_watchlist_expand.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000019_markets_v1_catalog_watchlist_expand.down.sql")
+	down, err := Files.ReadFile("000004_markets_v1_catalog_watchlist_expand.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +117,11 @@ func TestMarketsV1CatalogWatchlistExpandMigration(t *testing.T) {
 func TestMarketsV1WalletAccountsMigration(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000020_markets_v1_wallet_accounts.up.sql")
+	up, err := Files.ReadFile("000005_markets_v1_wallet_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000020_markets_v1_wallet_accounts.down.sql")
+	down, err := Files.ReadFile("000005_markets_v1_wallet_accounts.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,11 +171,11 @@ func TestMarketsV1WalletAccountsMigration(t *testing.T) {
 func TestMarketsV1OrdersFillsPreviewsMigration(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000021_markets_v1_orders_fills_previews.up.sql")
+	up, err := Files.ReadFile("000006_markets_v1_orders_fills_previews.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000021_markets_v1_orders_fills_previews.down.sql")
+	down, err := Files.ReadFile("000006_markets_v1_orders_fills_previews.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,11 +228,11 @@ func TestMarketsV1OrdersFillsPreviewsMigration(t *testing.T) {
 func TestMarketsV1PositionsActivityMigration(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000022_markets_v1_positions_activity.up.sql")
+	up, err := Files.ReadFile("000007_markets_v1_positions_activity.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000022_markets_v1_positions_activity.down.sql")
+	down, err := Files.ReadFile("000007_markets_v1_positions_activity.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,11 +286,11 @@ func TestMarketsV1PositionsActivityMigration(t *testing.T) {
 func TestMarketsV1OrderMutationJournalExpandsExistingOrderTables(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000023_markets_v1_order_mutation_journal.up.sql")
+	up, err := Files.ReadFile("000008_markets_v1_order_mutation_journal.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := Files.ReadFile("000023_markets_v1_order_mutation_journal.down.sql")
+	down, err := Files.ReadFile("000008_markets_v1_order_mutation_journal.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +348,7 @@ func TestMarketsV1OrderMutationJournalExpandsExistingOrderTables(t *testing.T) {
 func TestMarketsV1MigrationBoundsRawPayloadRetention(t *testing.T) {
 	t.Parallel()
 
-	up, err := Files.ReadFile("000016_markets_v1_foundation.up.sql")
+	up, err := Files.ReadFile("000001_markets_v1_foundation.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -90,7 +90,6 @@ Specify FCM, WorkManager jobs, notification categories, and Glance widgets (V1.1
 
 - PRISM protocol, `contracts/prism/`, PRISM market creation, or PRISM settlement flows.
 - Direct production calls to Polymarket Gamma/CLOB from the Android client (ADR-002).
-- Legacy epoch MarketEngine APIs at `/api/v1/legacy/markets/*`.
 - Custom RetroPick exchange or outcome-token issuance (ADR-001).
 - Background autonomous trading or Android-specific order semantics.
 
@@ -258,7 +257,7 @@ flowchart TB
     Android[apps/android-markets]
   end
   subgraph bff [Markets BFF]
-    API[cmd/api /api/v1/markets]
+    API[cmd/markets-api /api/v1/markets]
   end
   subgraph venue [Venue]
     Gamma[Polymarket Gamma]

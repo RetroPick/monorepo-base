@@ -88,7 +88,6 @@ Positions, PnL, deposit, redeem, withdraw journeys.
 
 ### Out of scope
 
-- PRISM (`products/prism/`), legacy epoch (`products/legacy/`), custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Android ([android/](../android/)).
 
 

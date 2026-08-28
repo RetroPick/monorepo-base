@@ -72,7 +72,6 @@ Security testing gates: SAST, DAST, dependency scan, penetration test scope, and
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-- Legacy epoch (`/api/v1/legacy/markets/*`).
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 

@@ -89,7 +89,6 @@ Route map, navigation hierarchy, public vs authenticated IA, SEO, deep links.
 
 ### Out of scope
 
-- PRISM (`products/prism/`), legacy epoch (`products/legacy/`), custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Android ([android/](../android/)).
 
 
@@ -122,11 +121,11 @@ Route map, navigation hierarchy, public vs authenticated IA, SEO, deep links.
 
 **Phase-1 read module:** [`apps/web/src/products/markets/`](../../../apps/web/src/products/markets/) — greenfield product package (`@retropick/markets-web-product`) with discover, event detail, and market detail pages, TanStack Query hooks against `@retropick/polymarket`, and `routes/marketsRoutes.tsx` for React Router integration.
 
-**Deploy surface (interim):** Production web still ships from [`apps/fe-v1/`](../../../apps/fe-v1/) (`@retropick/markets-v1`). The product module is **not** wired into fe-v1 in PHASE-1; shell integration is deferred to **PHASE-6** (Next.js / App Router migration).
+**Deploy surface (interim):** Production web still ships from [`apps/web/`](../../../apps/web/) (`@retropick/markets-v1`). The product module is **not** wired into fe-v1 in PHASE-1; shell integration is deferred to **PHASE-6** (Next.js / App Router migration).
 
 **PHASE-1 scope in product module:** Read-only catalog and order book (REST polling when realtime capability is off). No wallet connect, no order preview/submit, no gambling UX copy.
 
-**PHASE-6 integration:** Mount `marketsRoutes` from `apps/web/src/products/markets/routes/marketsRoutes.tsx` in the Next.js App Router shell (or equivalent), wrapping pages with `QueryClientProvider` and the shared Markets layout. Route params must remain canonical (`polymarket:event:*`, `polymarket:market:*`) with `encodeURIComponent` in links. Do not import from `apps/fe-v1` in owned product code.
+**PHASE-6 integration:** Mount `marketsRoutes` from `apps/web/src/products/markets/routes/marketsRoutes.tsx` in the Next.js App Router shell (or equivalent), wrapping pages with `QueryClientProvider` and the shared Markets layout. Route params must remain canonical (`polymarket:event:*`, `polymarket:market:*`) with `encodeURIComponent` in links. Do not import from `apps/web` in owned product code.
 
 
 ## 6. Target design

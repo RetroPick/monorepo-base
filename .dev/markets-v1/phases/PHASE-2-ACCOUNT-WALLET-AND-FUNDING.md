@@ -120,7 +120,6 @@ PHASE-1 exit; auth schemas drafted.
 - CTF production
 - Android trading
 - Combos
-- PRISM and legacy epoch APIs
 - Custom exchange (ADR-001)
 
 ## Repository areas affected

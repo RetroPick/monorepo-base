@@ -72,7 +72,6 @@ Environment tiers, configuration variables, feature flags, and secrets binding f
 ### Out of scope
 
 - PRISM (`contracts/prism/`).
-- Legacy epoch (`/api/v1/legacy/markets/*`).
 - Custom exchange ([ADR-001](../architecture/adr/ADR-001-MARKETS-HAS-NO-CUSTOM-EXCHANGE.md)).
 - Auto copy trading ([ADR-009](../architecture/adr/ADR-009-NO-AUTO-COPY-TRADING-V1.md)).
 
@@ -172,7 +171,7 @@ Exposed via `GET /api/v1/markets/capabilities`:
 ```bash
 # Example — values from local .env.example only
 docker compose up -d postgres redis
-cd apps/backend && go run ./cmd/api
+cd apps/backend && go run ./cmd/markets-api
 cd apps/web && NEXT_PUBLIC_PRODUCT=markets pnpm dev
 ```
 

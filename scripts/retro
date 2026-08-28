@@ -11,23 +11,12 @@ usage() {
 Usage: retro <command>
 
   doctor
-  costs estimate [estimator args]
   stack dev  up|down|status|logs [compose args]
   stack markets up|down|status|logs|smoke [args]
   stack prod config|up|down|status|logs|smoke [compose args]
   db backup [output-dir]
   db restore-drill <dump-file>
-  market <RETRODEPLOYER args>
-  contracts test [forge args]
-  contracts estimate [estimator args]
-  contracts verify [verify args]
-
-Legacy RETRODEPLOYER commands are accepted as top-level commands for compatibility.
 EOF
-}
-
-run_estimator() {
-  exec python3 "$V1_ROOT/archive/contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py" "$@"
 }
 
 doctor() {
@@ -41,22 +30,12 @@ doctor() {
       failed=1
     fi
   done
-  if command -v forge >/dev/null 2>&1; then
-    printf 'ok      tool forge\n'
-  else
-    printf 'warn    tool forge (required for contract tests and deploy simulation)\n'
-  fi
-  if [[ -f "$V1_ROOT/archive/contracts/legacy-pool-v1/foundry.toml" ]]; then
-    printf 'ok      contracts archive/contracts/legacy-pool-v1\n'
-  else
-    printf 'missing contracts archive/contracts/legacy-pool-v1\n'
-    failed=1
-  fi
   for file in \
-    scripts/lib/load-env.sh \
-    archive/contracts/legacy-pool-v1/scripts/estimate_deploy_and_epoch_costs.py \
+    scripts/markets-dev-up.sh \
+    scripts/markets-dev-smoke.sh \
+    scripts/smoke-production.sh \
     scripts/compose-production.sh \
-    scripts/smoke-production.sh; do
+    docker-compose.markets-dev.yml; do
     if [[ -f "$V1_ROOT/$file" ]]; then
       printf 'ok      file %s\n' "$file"
     else
@@ -64,19 +43,9 @@ doctor() {
       failed=1
     fi
   done
-  for file in \
-    scripts/market/prepare-upsert-template.sh \
-    scripts/market/prepare-ops-tx.sh \
-    scripts/market/broadcast-prepared-ops-tx.sh; do
-    if [[ -f "$V1_ROOT/$file" ]]; then
-      printf 'ok      file %s\n' "$file"
-    else
-      printf 'missing file %s\n' "$file"
-      failed=1
-    fi
-  done
+
   if [[ -n "${RETROPICK_API_BASE:-}" ]]; then
-    if curl -fsS --max-time 3 "${RETROPICK_API_BASE%/}/api/v1/livez" >/dev/null; then
+    if curl -fsS --max-time 3 "${RETROPICK_API_BASE%/}/api/v1/health/live" >/dev/null; then
       printf 'ok      api %s\n' "${RETROPICK_API_BASE%/}"
     else
       printf 'missing api %s\n' "${RETROPICK_API_BASE%/}"
@@ -93,10 +62,6 @@ cmd="${1:-help}"
 case "$cmd" in
   help|-h|--help) usage ;;
   doctor) doctor "$@" ;;
-  costs)
-    sub="${1:-help}"; [[ $# -eq 0 ]] || shift
-    case "$sub" in estimate) run_estimator "$@" ;; *) usage; exit 2 ;; esac
-    ;;
   stack)
     target="${1:-}"; action="${2:-}"; [[ $# -lt 1 ]] || shift; [[ $# -lt 1 ]] || shift
     case "$target:$action" in
@@ -114,7 +79,7 @@ case "$cmd" in
       prod:down) exec "$V1_ROOT/scripts/compose-production.sh" down "$@" ;;
       prod:status) exec "$V1_ROOT/scripts/compose-production.sh" ps "$@" ;;
       prod:logs) exec "$V1_ROOT/scripts/compose-production.sh" logs "$@" ;;
-      prod:smoke) exec "$V1_ROOT/scripts/smoke-production.sh" "$@" ;;
+      prod:smoke) exec bash "$V1_ROOT/scripts/smoke-production.sh" "$@" ;;
       *) usage; exit 2 ;;
     esac
     ;;
@@ -126,15 +91,5 @@ case "$cmd" in
       *) usage; exit 2 ;;
     esac
     ;;
-  contracts)
-    sub="${1:-}"; [[ $# -eq 0 ]] || shift
-    case "$sub" in
-      test) cd "$V1_ROOT/archive/contracts/legacy-pool-v1"; exec forge test "$@" ;;
-      estimate) run_estimator "$@" ;;
-      verify) cd "$V1_ROOT/archive/contracts/legacy-pool-v1"; exec ./scripts/verify-base-sepolia-contracts.sh "$@" ;;
-      *) usage; exit 2 ;;
-    esac
-    ;;
-  market) exec bash "$V1_ROOT/scripts/RETRODEPLOYER" "$@" ;;
-  *) exec bash "$V1_ROOT/scripts/RETRODEPLOYER" "$cmd" "$@" ;;
+  *) usage; exit 2 ;;
 esac

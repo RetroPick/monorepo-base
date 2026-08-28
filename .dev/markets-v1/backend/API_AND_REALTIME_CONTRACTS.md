@@ -20,7 +20,7 @@ Short orientation for implementers and agents. Read this before the normative se
 
 | Lens | Answer |
 |------|--------|
-| **Who** | `be-api` / `be-realtime` implementing `cmd/api` and WebSocket hub; web and Android client authors; contract-test owners of `internal/markets/contract_test.go`; agents adding operations only when present in OpenAPI. |
+| **Who** | `be-api` / `be-realtime` implementing `cmd/markets-api` and WebSocket hub; web and Android client authors; contract-test owners of `internal/markets/contract_test.go`; agents adding operations only when present in OpenAPI. |
 | **What** | Semantics overlay for the Markets HTTP + realtime surface: operation inventory (eligibility, capabilities, catalog, me/*, account-wallet/approvals preview+relay, funding quote/track, withdrawals, orders preview/submit/cancel, portfolio positions/activity/summary, position ops, watchlists, intelligence, alerts, journal, execution-quality), shared components (`MoneyAmount`, `DecimalString`, `ApiError`, `Idempotency-Key`, `x-phase`), WS channels (`market.<id>.book|trades`, `user.orders|fills|positions`, `alerts.inbox`), error envelope, idempotency store, `/api/v1` versioning, timeout budgets. **Canonical schemas live in YAML—this doc does not invent paths.** |
 | **When** | Before implementing or calling any Markets endpoint or channel. Phase gates (`x-phase`) decide which ops are live. Mutating POSTs always carry idempotency from day one of that op. Breaking shape changes require v2 + parallel run; feature discovery via `GET /markets/capabilities`. |
 | **Where** | Authority: [schemas/openapi/markets-v1.yaml](../../../schemas/openapi/markets-v1.yaml). Realtime wire: [schemas/asyncapi/markets-realtime-v1.yaml](../../../schemas/asyncapi/markets-realtime-v1.yaml). This file: auth/realtime/timeouts/idempotency semantics. Handlers under `apps/backend/internal/markets/handler*` and `apps/backend/internal/markets/realtime/`. Idempotency persistence: `markets.idempotency_keys` (or Redis with PG backing). WS endpoint: `GET /api/v1/markets/realtime` (WSS); heartbeat ping 30s. Auth/eligibility gates: [AUTH_SESSION_AND_ELIGIBILITY.md](./AUTH_SESSION_AND_ELIGIBILITY.md). |
@@ -376,12 +376,12 @@ Per [ADR-004](../architecture/adr/ADR-004-SHARED-WEB-ANDROID-API.md), both clien
 
 ### Web (TypeScript)
 
-PHASE-1 interim: hand client at `apps/fe-v1/src/features/markets/api/marketsClient.ts`. Generated types become mandatory before PHASE-2 wallet work.
+PHASE-1 interim: hand client at `apps/web/src/features/markets/api/marketsClient.ts`. Generated types become mandatory before PHASE-2 wallet work.
 
 ```bash
 # From repo root (wire script in MKT-P1-004 / PHASE-6 CI)
 pnpm exec openapi-typescript schemas/openapi/markets-v1.yaml \
-  -o apps/fe-v1/src/features/markets/api/generated/schema.d.ts
+  -o apps/web/src/features/markets/api/generated/schema.d.ts
 ```
 
 Target wrapper pattern: `openapi-fetch` with auth middleware and `Idempotency-Key` on mutating POSTs (PHASE-3+).
