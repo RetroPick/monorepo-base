@@ -169,24 +169,21 @@ function GiftIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-// Sleek Mini Sparkline Chart Badge with Centered Percentage Number
+// Sleek Borderless Mini Sparkline Chart with Centered Percentage Number
 function ChanceBadge({
   percentage,
-  label = "chance",
 }: {
   percentage: number;
-  label?: string;
 }) {
   const isHigh = percentage >= 50;
   const strokeColor = isHigh ? "#10B981" : "#F43F5E";
   const gradId = `spark-grad-${percentage}-${isHigh ? "up" : "down"}`;
 
   const { splinePath, areaPath } = useMemo(() => {
-    // Generate 6 smooth deterministic sparkline trend points ending at target percentage
-    const delta1 = isHigh ? -10 : 8;
-    const delta2 = isHigh ? -4 : 6;
-    const delta3 = isHigh ? -8 : 10;
-    const delta4 = isHigh ? -2 : 3;
+    const delta1 = isHigh ? -8 : 6;
+    const delta2 = isHigh ? -3 : 4;
+    const delta3 = isHigh ? -6 : 7;
+    const delta4 = isHigh ? -1 : 2;
 
     const rawPoints = [
       Math.max(5, Math.min(95, percentage + delta1)),
@@ -196,16 +193,16 @@ function ChanceBadge({
       percentage,
     ];
 
-    const minP = Math.min(...rawPoints) - 6;
-    const maxP = Math.max(...rawPoints) + 6;
+    const minP = Math.min(...rawPoints) - 5;
+    const maxP = Math.max(...rawPoints) + 5;
     const rangeP = Math.max(1, maxP - minP);
 
-    const w = 58;
-    const h = 34;
+    const w = 48;
+    const h = 26;
 
     const coords = rawPoints.map((p, i) => {
-      const x = 3 + (i / (rawPoints.length - 1)) * (w - 6);
-      const y = h - 3 - ((p - minP) / rangeP) * (h - 6);
+      const x = 2 + (i / (rawPoints.length - 1)) * (w - 4);
+      const y = h - 2 - ((p - minP) / rangeP) * (h - 4);
       return { x, y };
     });
 
@@ -229,12 +226,12 @@ function ChanceBadge({
   }, [percentage, isHigh]);
 
   return (
-    <div className="relative flex items-center justify-center shrink-0 w-[58px] h-[34px] rounded-xl border border-white/[0.08] bg-[#0A0F1D] overflow-hidden shadow-inner">
+    <div className="relative flex items-center justify-center shrink-0 w-[48px] h-[26px] overflow-hidden">
       {/* Background SVG Mini Chart Wave */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 58 34" preserveAspectRatio="none">
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 48 26" preserveAspectRatio="none">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.32" />
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.38" />
             <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
           </linearGradient>
         </defs>
@@ -242,18 +239,14 @@ function ChanceBadge({
         <path d={splinePath} fill="none" stroke={strokeColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
 
-      {/* Foreground Centered Number + Label */}
-      <div className="relative z-10 flex flex-col items-center justify-center text-center">
-        <span className={cn("text-[12px] font-black font-mono leading-none tracking-tight", isHigh ? "text-emerald-400" : "text-rose-400")}>
-          {percentage}%
-        </span>
-        <span className="text-[8px] font-bold text-slate-400 leading-none mt-0.5 uppercase tracking-wider">
-          {label}
-        </span>
-      </div>
+      {/* Foreground Centered Number Only */}
+      <span className={cn("relative z-10 text-[13px] font-black font-mono leading-none tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]", isHigh ? "text-emerald-400" : "text-rose-400")}>
+        {percentage}%
+      </span>
     </div>
   );
 }
+
 
 export function PolymarketCard({ event }: PolymarketCardProps) {
   const { isWatchlisted, toggleWatchlist } = useUserPortfolio();
@@ -351,13 +344,10 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
 
           {!isMultiOutcome &&
             (probYes != null ? (
-              <ChanceBadge
-                percentage={probYes}
-                label={isLiveFastMarket ? "Up" : "chance"}
-              />
+              <ChanceBadge percentage={probYes} />
             ) : (
               <div
-                className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 text-xs font-mono text-slate-500 bg-white/5"
+                className="flex h-7 w-10 shrink-0 items-center justify-center text-xs font-mono text-slate-500"
                 aria-label="Probability unavailable"
               >
                 —
