@@ -40,9 +40,6 @@ function WalletBadge({ wallet }: { wallet: string }) {
 export function IntelligenceHubPage() {
   const [activeTab, setActiveTab] = useState<"whales" | "smart_money">("whales");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [sizeFilter, setSizeFilter] = useState<"all" | "50k" | "100k">("all");
-  const [sideFilter, setSideFilter] = useState<"all" | "YES" | "NO">("all");
   const [following, setFollowing] = useState<Record<string, boolean>>({});
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null);
 
@@ -59,20 +56,6 @@ export function IntelligenceHubPage() {
   const filteredWhales = useMemo(() => {
     let list: WhaleFeedItem[] = FIXTURE_WHALE_FEED;
 
-    if (selectedCategory !== "all") {
-      list = list.filter((w) => w.category === selectedCategory);
-    }
-
-    if (sizeFilter === "50k") {
-      list = list.filter((w) => w.sizeUsd >= 50000);
-    } else if (sizeFilter === "100k") {
-      list = list.filter((w) => w.sizeUsd >= 100000);
-    }
-
-    if (sideFilter !== "all") {
-      list = list.filter((w) => w.side === sideFilter);
-    }
-
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(
@@ -83,7 +66,7 @@ export function IntelligenceHubPage() {
       );
     }
     return list;
-  }, [selectedCategory, sizeFilter, sideFilter, searchQuery]);
+  }, [searchQuery]);
 
   const filteredSmartMoney = useMemo(() => {
     if (!searchQuery.trim()) return FIXTURE_SMART_MONEY;
@@ -98,8 +81,8 @@ export function IntelligenceHubPage() {
 
   return (
     <MarketsAppShell title="Intelligence - RetroPick">
-      <div className="mx-auto max-w-5xl space-y-5">
-        {/* Top Control Bar: Search Input Box + 2 Tabs */}
+      <div className="mx-auto max-w-5xl space-y-4">
+        {/* Single Clean Control Bar: Search Wallet + 2 Tabs */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           {/* Search Input Box */}
           <div className="relative w-full sm:max-w-md">
@@ -143,86 +126,6 @@ export function IntelligenceHubPage() {
               <span>Smart Money</span>
             </button>
           </div>
-        </div>
-
-        {/* Quick Sizing, Direction & Category Filters */}
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-
-            {/* Quick Sizing & Direction Filters (Whales mode) */}
-            {activeTab === "whales" && (
-              <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar">
-                {/* Size Filter */}
-                <div className="flex items-center rounded-xl bg-[#0E1424] border border-white/10 p-1 text-xs font-bold">
-                  {(["all", "50k", "100k"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSizeFilter(s)}
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg transition-all cursor-pointer",
-                        sizeFilter === s
-                          ? "bg-blue-600 text-white shadow-sm"
-                          : "text-slate-400 hover:text-white",
-                      )}
-                    >
-                      {s === "all" ? "All Sizes" : s === "50k" ? "$50K+" : "$100K+ ⚡"}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Side Filter */}
-                <div className="flex items-center rounded-xl bg-[#0E1424] border border-white/10 p-1 text-xs font-bold">
-                  {(["all", "YES", "NO"] as const).map((side) => (
-                    <button
-                      key={side}
-                      type="button"
-                      onClick={() => setSideFilter(side)}
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg transition-all cursor-pointer",
-                        sideFilter === side
-                          ? side === "YES"
-                            ? "bg-emerald-600 text-white"
-                            : side === "NO"
-                            ? "bg-rose-600 text-white"
-                            : "bg-blue-600 text-white"
-                          : "text-slate-400 hover:text-white",
-                      )}
-                    >
-                      {side === "all" ? "All Sides" : `Buy ${side}`}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Category Filter Chips for Whales */}
-          {activeTab === "whales" && (
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-              {[
-                { id: "all", label: "All Categories" },
-                { id: "crypto", label: "₿ Crypto" },
-                { id: "macro", label: "🏛 Macro" },
-                { id: "tech", label: "🚀 Tech & AI" },
-                { id: "sports", label: "🏆 Sports" },
-              ].map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-lg border text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
-                    selectedCategory === cat.id
-                      ? "bg-white/15 border-white/30 text-white font-bold"
-                      : "border-white/10 bg-white/[0.02] text-slate-400 hover:text-white hover:bg-white/5",
-                  )}
-                >
-                  {cat.label}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* ============================================================ */}
