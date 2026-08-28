@@ -353,7 +353,7 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
           <div className="mt-3.5 grid grid-cols-1 gap-4 sm:grid-cols-12 items-center flex-1">
             {/* Left Column: Clean Minimalist Text Rows + News/Comment */}
             <div className="sm:col-span-5 h-[190px] flex flex-col justify-between pr-2">
-              <div className="space-y-2.5">
+              <div className="space-y-1.5">
                 {slide.outcomes?.map((out, idx) => {
                   const isSelected = selectedOutcomeIdx === idx;
                   return (
@@ -361,20 +361,28 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
                       key={idx}
                       type="button"
                       onClick={() => setSelectedOutcomeIdx(idx)}
-                      className="w-full flex items-center justify-between text-left group cursor-pointer"
+                      className={cn(
+                        "w-full flex items-center justify-between text-left px-2.5 py-1.5 rounded-xl transition-all cursor-pointer",
+                        isSelected
+                          ? "bg-white/10 shadow-sm"
+                          : "hover:bg-white/5 text-slate-300",
+                      )}
                     >
-                      <span
-                        className={cn(
-                          "text-sm font-semibold transition-colors pb-0.5",
-                          isSelected
-                            ? "text-white font-bold border-b-2"
-                            : "text-slate-300 group-hover:text-white border-b-2 border-transparent",
-                        )}
-                        style={isSelected ? { borderColor: out.color } : {}}
-                      >
-                        {out.label}
-                      </span>
-                      <span className="font-mono text-base font-extrabold text-white">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="h-2 w-2 rounded-full shrink-0"
+                          style={{ backgroundColor: out.color }}
+                        />
+                        <span
+                          className={cn(
+                            "text-sm font-semibold truncate",
+                            isSelected ? "text-white font-bold" : "text-slate-300",
+                          )}
+                        >
+                          {out.label}
+                        </span>
+                      </div>
+                      <span className="font-mono text-sm font-bold text-white">
                         {out.percentage}%
                       </span>
                     </button>
@@ -383,7 +391,7 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
               </div>
 
               {/* Bottom Left: Comment / News Snippet + Volume */}
-              <div className="pt-1 text-[11px] text-slate-400 space-y-0.5">
+              <div className="pt-2 text-[11px] text-slate-400 space-y-0.5 border-t border-white/[0.04]">
                 {slide.commentUser && (
                   <p className="line-clamp-1 text-slate-400">
                     <span className="font-bold text-slate-300">{slide.commentUser}: </span>
