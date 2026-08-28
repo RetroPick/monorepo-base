@@ -222,23 +222,6 @@ export function PolymarketTradeBox({
           </div>
         </div>
 
-        {/* Balance & Deposit Quick Access Bar */}
-        <div className="flex items-center justify-between rounded-xl bg-white/[0.03] border border-white/[0.06] px-3 py-2 text-xs">
-          <span className="text-slate-400 font-medium">Tradeable USDC</span>
-          <div className="flex items-center gap-2">
-            <span className="font-mono font-black text-emerald-400">
-              ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </span>
-            <button
-              type="button"
-              onClick={() => setDepositOpen(true)}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-600/20 border border-blue-500/30 px-2 py-0.5 text-[11px] font-bold text-blue-300 hover:bg-blue-600 hover:text-white transition-all cursor-pointer"
-            >
-              <ArrowDownToLine className="h-3 w-3" />
-              <span>Deposit</span>
-            </button>
-          </div>
-        </div>
 
         {/* Row 2: Buy / Sell Tabs + Order Type Dropdown (Market / Limit) */}
         <div className="flex items-center justify-between border-b border-white/[0.06] pb-2.5">
