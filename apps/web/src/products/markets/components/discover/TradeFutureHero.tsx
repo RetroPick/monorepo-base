@@ -441,24 +441,32 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
             ))}
           </div>
 
-          {/* Prev / Next Topic Pills */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={prevSlide}
-              className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#161D2E] px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
-            >
-              <ChevronLeft className="h-3 w-3" />
-              <span>{slide.prevTopic}</span>
-            </button>
-            <button
-              type="button"
-              onClick={nextSlide}
-              className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#161D2E] px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
-            >
-              <span>{slide.nextTopic}</span>
-              <ChevronRight className="h-3 w-3" />
-            </button>
+          {/* Right: Source tag + Prev/Next Topic Pills */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-slate-500 font-mono">
+              <span>⇄ Monthly</span>
+              <span>·</span>
+              <span>Polymarket</span>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={prevSlide}
+                className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#161D2E] px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+              >
+                <ChevronLeft className="h-3 w-3" />
+                <span>{slide.prevTopic}</span>
+              </button>
+              <button
+                type="button"
+                onClick={nextSlide}
+                className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#161D2E] px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+              >
+                <span>{slide.nextTopic}</span>
+                <ChevronRight className="h-3 w-3" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
