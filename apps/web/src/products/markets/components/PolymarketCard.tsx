@@ -170,7 +170,7 @@ function GiftIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-// Squared Probability Badge matching modern boxy design
+// Semi-Circle Arch Gauge matching Image 2 (speedometer dome arc)
 function ChanceBadge({
   percentage,
   label = "chance",
@@ -179,25 +179,45 @@ function ChanceBadge({
   label?: string;
 }) {
   const isHigh = percentage >= 50;
+  const strokeColor = isHigh ? "#4E8752" : "#EF4444";
+  const arcLength = 53.4; // pi * 17
+  const strokeDashoffset = arcLength * (1 - Math.min(100, Math.max(0, percentage)) / 100);
 
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center shrink-0 rounded-xl px-2.5 py-1 min-w-[50px] border shadow-sm transition-all",
-        isHigh
-          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-          : "bg-rose-500/10 border-rose-500/30 text-rose-400",
-      )}
-    >
-      <span className="text-xs font-black font-mono leading-tight tracking-tight">
-        {percentage}%
-      </span>
-      <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none mt-0.5">
-        {label}
-      </span>
+    <div className="relative flex flex-col items-center justify-center shrink-0 w-[46px] h-[36px]">
+      <svg className="w-[46px] h-[36px]" viewBox="0 0 44 34">
+        {/* Background Track Arc */}
+        <path
+          d="M 5,28 A 17,17 0 0,1 39,28"
+          fill="none"
+          stroke="rgba(255, 255, 255, 0.16)"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+        />
+        {/* Foreground Progress Arc */}
+        <path
+          d="M 5,28 A 17,17 0 0,1 39,28"
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeDasharray={arcLength}
+          strokeDashoffset={strokeDashoffset}
+          className="transition-all duration-500 ease-out"
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-end pb-0 text-center">
+        <span className="text-[12px] font-black text-white leading-tight font-sans tracking-tight">
+          {percentage}%
+        </span>
+        <span className="text-[9px] font-medium text-slate-400 leading-none capitalize mt-0.5">
+          {label}
+        </span>
+      </div>
     </div>
   );
 }
+
 
 
 export function PolymarketCard({ event }: PolymarketCardProps) {
