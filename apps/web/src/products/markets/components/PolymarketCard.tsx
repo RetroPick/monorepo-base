@@ -170,54 +170,35 @@ function GiftIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-// Circular Probability Gauge matching top-right of Polymarket Binary Cards
-function CircularChanceGauge({
+// Squared Probability Badge matching modern boxy design
+function ChanceBadge({
   percentage,
   label = "chance",
 }: {
   percentage: number;
   label?: string;
 }) {
-  const radius = 16;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
-  const strokeColor = percentage >= 50 ? "#22C55E" : "#EF4444";
+  const isHigh = percentage >= 50;
 
   return (
-    <div className="relative flex flex-col items-center justify-center shrink-0 w-12 h-12">
-      <svg className="w-12 h-12 -rotate-90 transform" viewBox="0 0 40 40">
-        <circle
-          cx="20"
-          cy="20"
-          r={radius}
-          stroke="rgba(255, 255, 255, 0.12)"
-          strokeWidth="3.5"
-          fill="transparent"
-        />
-        <circle
-          cx="20"
-          cy="20"
-          r={radius}
-          stroke={strokeColor}
-          strokeWidth="3.5"
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          fill="transparent"
-          className="transition-all duration-500 ease-out"
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-[11px] font-black text-white leading-none font-mono">
-          {percentage}%
-        </span>
-        <span className="text-[8px] font-semibold text-slate-400 leading-none mt-0.5">
-          {label}
-        </span>
-      </div>
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center shrink-0 rounded-xl px-2.5 py-1 min-w-[50px] border shadow-sm transition-all",
+        isHigh
+          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+          : "bg-rose-500/10 border-rose-500/30 text-rose-400",
+      )}
+    >
+      <span className="text-xs font-black font-mono leading-tight tracking-tight">
+        {percentage}%
+      </span>
+      <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-wider leading-none mt-0.5">
+        {label}
+      </span>
     </div>
   );
 }
+
 
 export function PolymarketCard({ event }: PolymarketCardProps) {
   const { isWatchlisted, toggleWatchlist } = useUserPortfolio();
@@ -315,13 +296,13 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
 
           {!isMultiOutcome &&
             (probYes != null ? (
-              <CircularChanceGauge
+              <ChanceBadge
                 percentage={probYes}
                 label={isLiveFastMarket ? "Up" : "chance"}
               />
             ) : (
               <div
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs font-mono text-slate-500"
+                className="flex h-9 w-12 shrink-0 items-center justify-center rounded-xl border border-white/10 text-xs font-mono text-slate-500 bg-white/5"
                 aria-label="Probability unavailable"
               >
                 —
