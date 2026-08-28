@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Bookmark } from "lucide-react";
 import type { EventSummary, MarketSummary } from "@retropick/polymarket";
@@ -128,7 +128,6 @@ export function MarketAvatar({
 }
 
 // Reusable SVG Swap Icon (⇄) matching Polymarket footer
-// Reusable SVG Swap Icon (⇄) matching Polymarket footer
 function SwapIcon({ className = "h-3 w-3" }: { className?: string }) {
   return (
     <svg
@@ -170,7 +169,7 @@ function GiftIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
-// Semi-Circle Arch Gauge matching Image 2 (speedometer dome arc)
+// Sleek Mini Sparkline Chart Badge with Centered Percentage Number
 function ChanceBadge({
   percentage,
   label = "chance",
@@ -179,46 +178,82 @@ function ChanceBadge({
   label?: string;
 }) {
   const isHigh = percentage >= 50;
-  const strokeColor = isHigh ? "#4E8752" : "#EF4444";
-  const arcLength = 53.4; // pi * 17
-  const strokeDashoffset = arcLength * (1 - Math.min(100, Math.max(0, percentage)) / 100);
+  const strokeColor = isHigh ? "#10B981" : "#F43F5E";
+  const gradId = `spark-grad-${percentage}-${isHigh ? "up" : "down"}`;
+
+  const { splinePath, areaPath } = useMemo(() => {
+    // Generate 6 smooth deterministic sparkline trend points ending at target percentage
+    const delta1 = isHigh ? -10 : 8;
+    const delta2 = isHigh ? -4 : 6;
+    const delta3 = isHigh ? -8 : 10;
+    const delta4 = isHigh ? -2 : 3;
+
+    const rawPoints = [
+      Math.max(5, Math.min(95, percentage + delta1)),
+      Math.max(5, Math.min(95, percentage + delta2)),
+      Math.max(5, Math.min(95, percentage + delta3)),
+      Math.max(5, Math.min(95, percentage + delta4)),
+      percentage,
+    ];
+
+    const minP = Math.min(...rawPoints) - 6;
+    const maxP = Math.max(...rawPoints) + 6;
+    const rangeP = Math.max(1, maxP - minP);
+
+    const w = 58;
+    const h = 34;
+
+    const coords = rawPoints.map((p, i) => {
+      const x = 3 + (i / (rawPoints.length - 1)) * (w - 6);
+      const y = h - 3 - ((p - minP) / rangeP) * (h - 6);
+      return { x, y };
+    });
+
+    let d = `M ${coords[0].x.toFixed(1)},${coords[0].y.toFixed(1)}`;
+    for (let i = 0; i < coords.length - 1; i++) {
+      const p0 = coords[i === 0 ? i : i - 1];
+      const p1 = coords[i];
+      const p2 = coords[i + 1];
+      const p3 = coords[i + 2] ?? p2;
+
+      const cp1x = p1.x + (p2.x - p0.x) / 5;
+      const cp1y = p1.y + (p2.y - p0.y) / 5;
+      const cp2x = p2.x - (p3.x - p1.x) / 5;
+      const cp2y = p2.y - (p3.y - p1.y) / 5;
+
+      d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+    }
+
+    const area = `${d} L ${coords[coords.length - 1].x.toFixed(1)},${h} L ${coords[0].x.toFixed(1)},${h} Z`;
+    return { splinePath: d, areaPath: area };
+  }, [percentage, isHigh]);
 
   return (
-    <div className="relative flex flex-col items-center justify-center shrink-0 w-[46px] h-[36px]">
-      <svg className="w-[46px] h-[36px]" viewBox="0 0 44 34">
-        {/* Background Track Arc */}
-        <path
-          d="M 5,28 A 17,17 0 0,1 39,28"
-          fill="none"
-          stroke="rgba(255, 255, 255, 0.16)"
-          strokeWidth="3.5"
-          strokeLinecap="round"
-        />
-        {/* Foreground Progress Arc */}
-        <path
-          d="M 5,28 A 17,17 0 0,1 39,28"
-          fill="none"
-          stroke={strokeColor}
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeDasharray={arcLength}
-          strokeDashoffset={strokeDashoffset}
-          className="transition-all duration-500 ease-out"
-        />
+    <div className="relative flex items-center justify-center shrink-0 w-[58px] h-[34px] rounded-xl border border-white/[0.08] bg-[#0A0F1D] overflow-hidden shadow-inner">
+      {/* Background SVG Mini Chart Wave */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 58 34" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={strokeColor} stopOpacity="0.32" />
+            <stop offset="100%" stopColor={strokeColor} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        <path d={areaPath} fill={`url(#${gradId})`} />
+        <path d={splinePath} fill="none" stroke={strokeColor} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-end pb-0 text-center">
-        <span className="text-[12px] font-black text-white leading-tight font-sans tracking-tight">
+
+      {/* Foreground Centered Number + Label */}
+      <div className="relative z-10 flex flex-col items-center justify-center text-center">
+        <span className={cn("text-[12px] font-black font-mono leading-none tracking-tight", isHigh ? "text-emerald-400" : "text-rose-400")}>
           {percentage}%
         </span>
-        <span className="text-[9px] font-medium text-slate-400 leading-none capitalize mt-0.5">
+        <span className="text-[8px] font-bold text-slate-400 leading-none mt-0.5 uppercase tracking-wider">
           {label}
         </span>
       </div>
     </div>
   );
 }
-
-
 
 export function PolymarketCard({ event }: PolymarketCardProps) {
   const { isWatchlisted, toggleWatchlist } = useUserPortfolio();
