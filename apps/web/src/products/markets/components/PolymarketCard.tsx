@@ -197,8 +197,8 @@ function ChanceBadge({
     const maxP = Math.max(...rawPoints) + 5;
     const rangeP = Math.max(1, maxP - minP);
 
-    const w = 48;
-    const h = 26;
+    const w = 54;
+    const h = 28;
 
     const coords = rawPoints.map((p, i) => {
       const x = 2 + (i / (rawPoints.length - 1)) * (w - 4);
@@ -218,7 +218,7 @@ function ChanceBadge({
       const cp2x = p2.x - (p3.x - p1.x) / 5;
       const cp2y = p2.y - (p3.y - p1.y) / 5;
 
-      d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+      d += ` C ${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.x.toFixed(1)}`;
     }
 
     const area = `${d} L ${coords[coords.length - 1].x.toFixed(1)},${h} L ${coords[0].x.toFixed(1)},${h} Z`;
@@ -226,9 +226,9 @@ function ChanceBadge({
   }, [percentage, isHigh]);
 
   return (
-    <div className="relative flex items-center justify-center shrink-0 w-[48px] h-[26px] overflow-hidden">
+    <div className="relative flex items-center justify-center shrink-0 w-[54px] h-[28px] overflow-hidden">
       {/* Background SVG Mini Chart Wave */}
-      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 48 26" preserveAspectRatio="none">
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 54 28" preserveAspectRatio="none">
         <defs>
           <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={strokeColor} stopOpacity="0.38" />
@@ -240,7 +240,7 @@ function ChanceBadge({
       </svg>
 
       {/* Foreground Centered Number Only */}
-      <span className={cn("relative z-10 text-[13px] font-black font-mono leading-none tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]", isHigh ? "text-emerald-400" : "text-rose-400")}>
+      <span className={cn("relative z-10 text-sm font-black font-mono leading-none tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]", isHigh ? "text-emerald-400" : "text-rose-400")}>
         {percentage}%
       </span>
     </div>
@@ -331,13 +331,13 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
     event.rawMarket?.volume || event.volume || derivedVolumeUsd(event.id);
 
   return (
-    <article className="group relative flex h-[190px] w-full flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-3.5 shadow-sm hover:border-white/20 hover:bg-[#12192B] transition-all">
+    <article className="group relative flex h-[195px] sm:h-[205px] w-full flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-4 shadow-sm hover:border-white/20 hover:bg-[#12192B] transition-all">
       <Link to={marketPath(event.id)} className="block flex-1 flex flex-col justify-between no-underline hover:no-underline">
         {/* Header: Avatar + Title + optional Circular Gauge */}
-        <div className="flex items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-            <MarketAvatar event={event} className="h-9 w-9 rounded-xl shrink-0" />
-            <h3 className="line-clamp-2 text-xs sm:text-[13px] font-bold text-white group-hover:text-blue-400 no-underline hover:no-underline transition-colors leading-snug">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <MarketAvatar event={event} className="h-10 w-10 sm:h-11 sm:w-11 rounded-xl shrink-0 shadow-md" />
+            <h3 className="line-clamp-2 text-sm sm:text-[15px] font-bold text-white group-hover:text-blue-400 no-underline hover:no-underline transition-colors leading-snug">
               {event.title}
             </h3>
           </div>
@@ -357,14 +357,14 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
 
         {/* Middle Body: Multi-outcome rows OR Large Yes/No buttons */}
         {isMultiOutcome ? (
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-3 space-y-2">
             {multiOptions.map((opt, idx) => (
               <div key={idx} className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-slate-200 truncate flex-1 min-w-0">
+                <span className="text-xs sm:text-sm font-semibold text-slate-200 truncate flex-1 min-w-0">
                   {opt.label}
                 </span>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-xs font-bold text-white font-mono min-w-[32px] text-right">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-xs sm:text-sm font-bold text-white font-mono min-w-[34px] text-right">
                     {opt.percentage}%
                   </span>
                   <button
@@ -373,7 +373,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    className="inline-flex h-7 min-w-[42px] items-center justify-center rounded-lg bg-[#0D281E] px-2 text-[11px] font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer text-center"
+                    className="inline-flex h-8 min-w-[46px] items-center justify-center rounded-lg bg-[#0D281E] px-2.5 text-xs font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer text-center"
                   >
                     Yes
                   </button>
@@ -383,7 +383,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                       e.preventDefault();
                       e.stopPropagation();
                     }}
-                    className="inline-flex h-7 min-w-[42px] items-center justify-center rounded-lg bg-[#24151C] px-2 text-[11px] font-bold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 transition-colors cursor-pointer text-center"
+                    className="inline-flex h-8 min-w-[46px] items-center justify-center rounded-lg bg-[#24151C] px-2.5 text-xs font-bold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 transition-colors cursor-pointer text-center"
                   >
                     No
                   </button>
@@ -392,14 +392,14 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 mt-2">
+          <div className="grid grid-cols-2 gap-2.5 mt-3">
             <button
               type="button"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex h-9 items-center justify-center text-center rounded-xl bg-[#0D281E] py-2 text-xs font-bold text-emerald-400 hover:bg-[#133A2C] transition-colors cursor-pointer shadow-sm"
+              className="flex h-11 sm:h-12 items-center justify-center text-center rounded-xl bg-[#0D281E] text-sm sm:text-[15px] font-extrabold text-emerald-400 hover:bg-[#133A2C] hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
             >
               {isLiveFastMarket ? "Up" : "Yes"}
             </button>
@@ -409,7 +409,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="flex h-9 items-center justify-center text-center rounded-xl bg-[#24151C] py-2 text-xs font-bold text-rose-400/90 hover:bg-[#351C26] transition-colors cursor-pointer shadow-sm"
+              className="flex h-11 sm:h-12 items-center justify-center text-center rounded-xl bg-[#24151C] text-sm sm:text-[15px] font-extrabold text-rose-400/90 hover:bg-[#351C26] hover:text-rose-300 hover:brightness-110 active:scale-[0.98] transition-all cursor-pointer shadow-sm"
             >
               {isLiveFastMarket ? "Down" : "No"}
             </button>
@@ -418,7 +418,7 @@ export function PolymarketCard({ event }: PolymarketCardProps) {
       </Link>
 
       {/* Footer Row: Volume / Live badge + Gift + Bookmark Icons (Borderless) */}
-      <div className="flex items-center justify-between pt-1.5 mt-1 text-xs text-slate-400">
+      <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
         <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
           {isLiveFastMarket ? (
             <span className="flex items-center gap-1.5 text-slate-300">
