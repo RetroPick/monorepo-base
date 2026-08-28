@@ -22,7 +22,7 @@ interface MarketsTopBarProps {
 
 const TOP_NAV_LINKS = [
   { label: "Markets", path: discoverPath() },
-  { label: "Leaderboard", path: leaderboardPath() },
+  { label: "Intelligence", path: intelligencePath() },
   { label: "Portfolio", path: portfolioPath() },
 ];
 

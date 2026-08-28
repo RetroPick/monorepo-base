@@ -749,16 +749,9 @@ function WalletBadge({ wallet }: { wallet: string }) {
 }
 
 export function LeaderboardPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const rawTab = searchParams.get("tab");
-  const activeTab =
-    rawTab === "whales"
-      ? "whales"
-      : rawTab === "smart_money"
-      ? "smart_money"
-      : "traders";
-
   const [searchQuery, setSearchQuery] = useState("");
+  const [timeframe, setTimeframe] = useState<"all" | "30d" | "7d" | "24h">("all");
+  const [sortBy, setSortBy] = useState<"pnl" | "winRate" | "volume">("pnl");
   const [following, setFollowing] = useState<Record<string, boolean>>({});
   const [copiedWallet, setCopiedWallet] = useState<string | null>(null);
 
@@ -772,43 +765,70 @@ export function LeaderboardPage() {
     setTimeout(() => setCopiedWallet(null), 2000);
   };
 
-  const handleTabChange = (tab: "traders" | "whales" | "smart_money") => {
-    setSearchParams({ tab });
-  };
-
   const filteredTraders = useMemo(() => {
-    if (!searchQuery.trim()) return TOP_TRADERS;
-    const q = searchQuery.trim().toLowerCase();
-    return TOP_TRADERS.filter(
-      (t) =>
-        t.wallet.toLowerCase().includes(q) ||
-        t.topMarket.toLowerCase().includes(q),
-    );
-  }, [searchQuery]);
+    let list = [...TOP_TRADERS];
 
-  const filteredWhales = useMemo(() => {
-    if (!searchQuery.trim()) return WHALE_TRADES;
-    const q = searchQuery.trim().toLowerCase();
-    return WHALE_TRADES.filter(
-      (w) =>
-        w.wallet.toLowerCase().includes(q) ||
-        w.marketTitle.toLowerCase().includes(q),
-    );
-  }, [searchQuery]);
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.wallet.toLowerCase().includes(q) ||
+          t.topMarket.toLowerCase().includes(q),
+      );
+    }
 
-  const filteredSmartMoney = useMemo(() => {
-    if (!searchQuery.trim()) return SMART_MONEY;
-    const q = searchQuery.trim().toLowerCase();
-    return SMART_MONEY.filter((s) => s.wallet.toLowerCase().includes(q));
-  }, [searchQuery]);
+    if (sortBy === "winRate") {
+      list.sort((a, b) => b.winRatePercent - a.winRatePercent);
+    } else if (sortBy === "volume") {
+      list.sort((a, b) => parseFloat(b.totalVolumeUsd.replace(/[^0-9.]/g, "")) - parseFloat(a.totalVolumeUsd.replace(/[^0-9.]/g, "")));
+    } else {
+      list.sort((a, b) => b.pnlUsd - a.pnlUsd);
+    }
+
+    return list;
+  }, [searchQuery, sortBy]);
 
   return (
-    <MarketsAppShell title="Intelligence - RetroPick">
-      <div className="mx-auto max-w-5xl space-y-4">
-        {/* Top Control Bar: Search Wallet + Tabs */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
-          {/* Left: Search Wallet Input Box */}
-          <div className="relative w-full md:max-w-sm">
+    <MarketsAppShell title="Leaderboard - RetroPick">
+      <div className="mx-auto max-w-5xl space-y-5">
+        {/* Header Hero Banner */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-4 pt-1">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <Trophy className="h-6 w-6 text-amber-400" />
+              <h1 className="font-display text-2xl sm:text-3xl font-black text-white">
+                Trader Leaderboard
+              </h1>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1">
+              Top performing prediction market traders ranked by verified on-chain profit and win rate.
+            </p>
+          </div>
+
+          {/* Timeframe Filter Pills */}
+          <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#0E1424] p-1 text-xs font-bold shrink-0">
+            {(["all", "30d", "7d", "24h"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTimeframe(t)}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg transition-all cursor-pointer uppercase",
+                  timeframe === t
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-slate-400 hover:text-white",
+                )}
+              >
+                {t === "all" ? "All-Time" : t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Search & Sort Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Search Wallet Input Box */}
+          <div className="relative w-full sm:max-w-sm">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="search"
@@ -819,307 +839,144 @@ export function LeaderboardPage() {
             />
           </div>
 
-          {/* Right: Tab Switcher */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => handleTabChange("traders")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer",
-                activeTab === "traders"
-                  ? "bg-white/10 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5",
-              )}
-            >
-              <Trophy className={cn("h-4 w-4", activeTab === "traders" ? "text-amber-400" : "text-slate-500")} />
-              <span>Top Traders</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleTabChange("whales")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer",
-                activeTab === "whales"
-                  ? "bg-white/10 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5",
-              )}
-            >
-              <Zap className={cn("h-4 w-4", activeTab === "whales" ? "text-cyan-400" : "text-slate-500")} />
-              <span>Whales</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleTabChange("smart_money")}
-              className={cn(
-                "flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-bold transition-all cursor-pointer",
-                activeTab === "smart_money"
-                  ? "bg-white/10 text-white shadow-sm"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-white/5",
-              )}
-            >
-              <Crown className={cn("h-4 w-4", activeTab === "smart_money" ? "text-amber-300" : "text-slate-500")} />
-              <span>Smart Money</span>
-            </button>
+          {/* Sort By Pills */}
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-slate-400 font-medium">Rank by:</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSortBy("pnl")}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer",
+                  sortBy === "pnl"
+                    ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                    : "border-white/10 text-slate-400 hover:text-white",
+                )}
+              >
+                Highest PnL
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortBy("winRate")}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer",
+                  sortBy === "winRate"
+                    ? "bg-blue-500/15 border-blue-500/40 text-blue-400"
+                    : "border-white/10 text-slate-400 hover:text-white",
+                )}
+              >
+                Win Rate
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortBy("volume")}
+                className={cn(
+                  "px-2.5 py-1 rounded-lg border text-xs font-bold transition-all cursor-pointer",
+                  sortBy === "volume"
+                    ? "bg-purple-500/15 border-purple-500/40 text-purple-400"
+                    : "border-white/10 text-slate-400 hover:text-white",
+                )}
+              >
+                Volume
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* ============================================================ */}
-        {/* TAB 1: TOP TRADERS                                           */}
-        {/* ============================================================ */}
-        {activeTab === "traders" && (
-          <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0E1424]">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-white/[0.08] bg-white/[0.02] text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3 w-14">Rank</th>
-                    <th className="px-4 py-3">Wallet</th>
-                    <th className="px-4 py-3">PnL</th>
-                    <th className="px-4 py-3">Win Rate</th>
-                    <th className="px-4 py-3">Volume</th>
-                    <th className="px-4 py-3">Top Market</th>
-                    <th className="px-4 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {filteredTraders.map((trader) => (
-                    <tr
-                      key={trader.wallet}
-                      className="hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="px-4 py-3 font-mono font-bold text-slate-400">
+        {/* Top Traders Ranking Table */}
+        <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0E1424] shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-white/[0.08] bg-white/[0.02] text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <tr>
+                  <th className="px-4 py-3 w-14">Rank</th>
+                  <th className="px-4 py-3">Wallet</th>
+                  <th className="px-4 py-3">PnL</th>
+                  <th className="px-4 py-3">Win Rate</th>
+                  <th className="px-4 py-3">Volume</th>
+                  <th className="px-4 py-3">Top Market</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04]">
+                {filteredTraders.map((trader) => (
+                  <tr
+                    key={trader.wallet}
+                    className="hover:bg-white/[0.02] transition-colors"
+                  >
+                    <td className="px-4 py-3 font-mono font-bold text-slate-400">
+                      <span
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-md px-1.5 py-0.5 text-xs font-bold font-mono",
+                          trader.rank === 1 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40" :
+                          trader.rank === 2 ? "bg-slate-300/20 text-slate-200 border border-slate-300/40" :
+                          trader.rank === 3 ? "bg-amber-700/20 text-amber-400 border border-amber-700/40" :
+                          "text-slate-400"
+                        )}
+                      >
                         #{trader.rank}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <WalletBadge wallet={trader.wallet} />
-                          <Link
-                            to={walletProfilePath(trader.wallet)}
-                            className="font-mono text-xs font-bold text-white hover:text-blue-400 transition-colors"
-                            title={trader.wallet}
-                          >
-                            {shortWallet(trader.wallet)}
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(trader.wallet)}
-                            className="text-slate-500 hover:text-slate-300 p-0.5 transition-colors cursor-pointer"
-                            title="Copy address"
-                          >
-                            {copiedWallet === trader.wallet ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono font-bold text-emerald-400">
-                        +${trader.pnlUsd.toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 font-mono font-bold text-blue-400">
-                        {trader.winRatePercent}%
-                      </td>
-                      <td className="px-4 py-3 font-mono font-medium text-slate-300">
-                        {trader.totalVolumeUsd}
-                      </td>
-                      <td className="px-4 py-3">
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <WalletBadge wallet={trader.wallet} />
                         <Link
-                          to={`/markets/m/${trader.marketId}`}
-                          className="font-medium text-slate-300 hover:text-blue-400 transition-colors truncate max-w-[200px] block"
+                          to={walletProfilePath(trader.wallet)}
+                          className="font-mono text-xs font-bold text-white hover:text-blue-400 transition-colors"
+                          title={trader.wallet}
                         >
-                          {trader.topMarket}
+                          {shortWallet(trader.wallet)}
                         </Link>
-                      </td>
-                      <td className="px-4 py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => toggleFollow(trader.wallet)}
-                          className={cn(
-                            "rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer",
-                            following[trader.wallet]
-                              ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
-                              : "bg-white/10 text-white hover:bg-blue-600",
-                          )}
+                          onClick={() => copyToClipboard(trader.wallet)}
+                          className="text-slate-500 hover:text-slate-300 p-0.5 transition-colors cursor-pointer"
+                          title="Copy address"
                         >
-                          {following[trader.wallet] ? "Following" : "Follow"}
+                          {copiedWallet === trader.wallet ? (
+                            <Check className="h-3 w-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3 w-3" />
+                          )}
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* TAB 2: WHALE TRACKER                                         */}
-        {/* ============================================================ */}
-        {activeTab === "whales" && (
-          <div className="space-y-2.5">
-            {filteredWhales.map((trade) => (
-              <div
-                key={trade.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-white/[0.08] bg-[#0E1424] p-3.5 transition-all hover:border-blue-500/30"
-              >
-                <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                  <WalletBadge wallet={trade.wallet} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Link
-                        to={walletProfilePath(trade.wallet)}
-                        className="font-mono text-xs font-bold text-blue-400 hover:underline"
-                      >
-                        {shortWallet(trade.wallet)}
-                      </Link>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 font-mono font-bold text-emerald-400">
+                      +${trader.pnlUsd.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 font-mono font-semibold text-blue-400">
+                      {trader.winRatePercent}%
+                    </td>
+                    <td className="px-4 py-3 font-mono text-slate-300">
+                      {trader.totalVolumeUsd}
+                    </td>
+                    <td className="px-4 py-3 max-w-xs truncate text-slate-300">
+                      {trader.topMarket}
+                    </td>
+                    <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => copyToClipboard(trade.wallet)}
-                        className="text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
-                        title="Copy wallet"
-                      >
-                        {copiedWallet === trade.wallet ? (
-                          <Check className="h-3 w-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
+                        onClick={() => toggleFollow(trader.wallet)}
+                        className={cn(
+                          "rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer",
+                          following[trader.wallet]
+                            ? "border border-blue-500/30 bg-blue-500/20 text-blue-300 hover:bg-rose-500/20 hover:text-rose-300 hover:border-rose-500/30"
+                            : "border border-white/10 bg-white/5 text-slate-200 hover:bg-white/15 hover:text-white",
                         )}
+                      >
+                        {following[trader.wallet] ? "Following" : "Follow"}
                       </button>
-                      <span className="text-[11px] text-slate-500 font-mono">
-                        · {trade.timeAgo}
-                      </span>
-                    </div>
-                    <Link
-                      to={`/markets/m/${trade.marketId}`}
-                      className="text-xs font-semibold text-slate-200 hover:text-blue-300 line-clamp-1 mt-0.5 block"
-                    >
-                      {trade.marketTitle}
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t sm:border-t-0 border-white/5 pt-2 sm:pt-0">
-                  <span
-                    className={cn(
-                      "rounded-md px-2 py-0.5 text-xs font-bold font-mono",
-                      trade.side === "YES"
-                        ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                        : "bg-rose-500/20 text-rose-400 border border-rose-500/30",
-                    )}
-                  >
-                    {trade.side} @ {trade.priceShares}¢
-                  </span>
-
-                  <div className="text-right">
-                    <span className="font-mono text-sm font-black text-white">
-                      ${trade.amountUsd.toLocaleString()}
-                    </span>
-                    <span className="block text-[10px] text-slate-500 uppercase font-bold">
-                      USDC
-                    </span>
-                  </div>
-
-                  <Link
-                    to={`/markets/m/${trade.marketId}`}
-                    className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-600/20 hover:text-white transition-colors"
-                    title="View Market"
-                  >
-                    <ArrowUpRight className="h-4 w-4" />
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ============================================================ */}
-        {/* TAB 3: SMART MONEY                                           */}
-        {/* ============================================================ */}
-        {activeTab === "smart_money" && (
-          <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-[#0E1424]">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-white/[0.08] bg-white/[0.02] text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  <tr>
-                    <th className="px-4 py-3 w-14">Rank</th>
-                    <th className="px-4 py-3">Smart Wallet</th>
-                    <th className="px-4 py-3">ROI</th>
-                    <th className="px-4 py-3">Win Rate</th>
-                    <th className="px-4 py-3">Volume</th>
-                    <th className="px-4 py-3">Score</th>
-                    <th className="px-4 py-3 text-right">Action</th>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-white/[0.04]">
-                  {filteredSmartMoney.map((row) => (
-                    <tr
-                      key={row.wallet}
-                      className="hover:bg-white/[0.02] transition-colors"
-                    >
-                      <td className="px-4 py-3 font-mono font-bold text-slate-400">
-                        #{row.rank}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <WalletBadge wallet={row.wallet} />
-                          <Link
-                            to={walletProfilePath(row.wallet)}
-                            className="font-mono text-xs font-bold text-blue-400 hover:underline"
-                          >
-                            {shortWallet(row.wallet)}
-                          </Link>
-                          <button
-                            type="button"
-                            onClick={() => copyToClipboard(row.wallet)}
-                            className="text-slate-500 hover:text-slate-300 p-0.5 cursor-pointer"
-                            title="Copy wallet"
-                          >
-                            {copiedWallet === row.wallet ? (
-                              <Check className="h-3 w-3 text-emerald-400" />
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono font-bold text-emerald-400">
-                        {row.roi}
-                      </td>
-                      <td className="px-4 py-3 font-mono font-bold text-white">
-                        {row.winRate}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-slate-300">
-                        {row.volumeUsd}
-                      </td>
-                      <td className="px-4 py-3 font-mono font-bold text-cyan-400">
-                        {row.score}/100
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => toggleFollow(row.wallet)}
-                          className={cn(
-                            "rounded-md px-2.5 py-1 text-xs font-bold transition-all cursor-pointer",
-                            following[row.wallet]
-                              ? "bg-emerald-600/20 text-emerald-300 border border-emerald-500/30"
-                              : "bg-white/10 text-white hover:bg-blue-600",
-                          )}
-                        >
-                          {following[row.wallet] ? "Following" : "Follow"}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </div>
     </MarketsAppShell>
   );
 }
 
 export default LeaderboardPage;
+

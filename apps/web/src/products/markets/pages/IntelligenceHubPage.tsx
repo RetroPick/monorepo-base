@@ -223,34 +223,20 @@ export function IntelligenceHubPage() {
         </div>
       </div>
 
-      {/* 3. Section Switcher Tabs (All, Whale Feed, Smart Money, AI Alpha) */}
+      {/* 3. Section Switcher Tabs (Whales, Smart Money) */}
       <div className="mb-6 flex items-center gap-2 border-b border-white/[0.06] pb-3 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          onClick={() => setActiveView("all")}
-          className={cn(
-            "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shrink-0",
-            activeView === "all"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-              : "text-slate-400 hover:text-white hover:bg-white/5",
-          )}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          <span>All Feeds</span>
-        </button>
-
         <button
           type="button"
           onClick={() => setActiveView("whales")}
           className={cn(
             "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shrink-0",
-            activeView === "whales"
+            activeView === "whales" || activeView === "all"
               ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
               : "text-slate-400 hover:text-white hover:bg-white/5",
           )}
         >
           <Zap className="h-3.5 w-3.5 text-amber-400" />
-          <span>Whales</span>
+          <span>Whales Feed</span>
         </button>
 
         <button
@@ -265,20 +251,6 @@ export function IntelligenceHubPage() {
         >
           <Crown className="h-3.5 w-3.5 text-yellow-400" />
           <span>Smart Money</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveView("ai_signals")}
-          className={cn(
-            "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shrink-0",
-            activeView === "ai_signals"
-              ? "bg-blue-600 text-white shadow-md shadow-blue-600/30"
-              : "text-slate-400 hover:text-white hover:bg-white/5",
-          )}
-        >
-          <Sparkles className="h-3.5 w-3.5 text-cyan-400" />
-          <span>AI Alpha Signals</span>
         </button>
       </div>
 

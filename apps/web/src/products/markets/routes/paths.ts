@@ -23,7 +23,7 @@ export function fundingPath() {
 }
 
 export function intelligencePath() {
-  return "/markets/leaderboard";
+  return "/markets/intelligence";
 }
 
 export function leaderboardPath() {
