@@ -16,40 +16,17 @@ import { isDegradedFreshness } from "../lib/freshness";
 const GRID_CLASS =
   "grid grid-cols-1 items-stretch gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4";
 
-const CATEGORY_KEYWORD_MAP: Record<string, string[]> = {
-  // Topic Categories
-  crypto: ["btc", "eth", "sol", "crypto", "bitcoin", "ethereum", "solana", "l2", "base", "arbitrum", "dex", "defi"],
-  economics: ["fed", "rate", "cpi", "inflation", "gdp", "recession", "interest", "economy", "economics", "jobs", "blockade", "iran"],
-  financials: ["ipo", "stock", "nvda", "nvidia", "apple", "meta", "s&p", "nasdaq", "banking", "treasury", "gold", "finance", "stocks"],
-  sports: [
-    "sports",
-    "tennis",
-    "atp",
-    "wta",
-    "swiatek",
-    "sakkari",
-    "tirante",
-    "landaluce",
-    "blockx",
-    "cobolli",
-    "real madrid",
-    "man city",
-    "enzo",
-    "chelsea",
-    "world cup",
-    "football",
-    "soccer",
-    "f1",
-    "verstappen",
-    "nba",
-    "ufc",
-  ],
-  tech_science: ["tech", "spacex", "starship", "apple", "m5", "chips", "semiconductor", "ev", "tesla", "byd", "science", "fusion"],
-  ai: ["ai", "anthropic", "openai", "gpt", "gemini", "claude", "grok", "deepseek", "llm", "intelligence", "nvidia"],
-  climate: ["climate", "green energy", "carbon", "weather", "temperature", "emission", "solar", "hurricane", "environment"],
-  culture: ["culture", "movie", "music", "entertainment", "oscar", "grammy"],
-  space: ["space", "spacex", "starship", "booster", "mars", "moon", "nasa"],
-  gaming: ["game", "esports", "cs2", "lol", "t1", "geng", "natus", "heretics"],
+const CATEGORY_CANONICAL_MAP: Record<string, string[]> = {
+  crypto: ["crypto"],
+  economics: ["economics", "economy"],
+  financials: ["financials", "finance", "stocks"],
+  sports: ["sports", "football", "soccer"],
+  tech_science: ["tech", "science", "tech & science", "tech_science"],
+  ai: ["ai", "artificial intelligence"],
+  climate: ["climate", "green energy"],
+  culture: ["culture", "entertainment"],
+  space: ["space"],
+  gaming: ["gaming", "esports"],
 };
 
 export function EventsDiscoverPage() {
@@ -82,7 +59,18 @@ export function EventsDiscoverPage() {
       ? nonPolitical.filter((e) => e.title.toLowerCase().includes(query))
       : [...nonPolitical];
 
-    // 1. Filter by Market Mechanism / Type if not "all"
+    // 1. Filter strictly by Topic Category if not "all" (Strict Isolation)
+    if (activeCategory !== "all") {
+      const allowedCategories = CATEGORY_CANONICAL_MAP[activeCategory] ?? [activeCategory];
+      filtered = filtered.filter((e: any) => {
+        const catLower = (e.category ?? "").toLowerCase();
+        if (allowedCategories.includes(catLower)) return true;
+        const tagsLower = (e.tags ?? []).map((t: string) => t.toLowerCase());
+        return tagsLower.some((t: string) => allowedCategories.includes(t));
+      });
+    }
+
+    // 2. Filter by Market Mechanism / Sub-Type if not "all"
     if (activeMarketType !== "all") {
       switch (activeMarketType) {
         case "direction":
@@ -161,7 +149,7 @@ export function EventsDiscoverPage() {
           filtered = filtered.filter((e: any) => /\b(earnings|revenue|profit|eps|guidance|q1|q2|q3|q4|growth)\b/i.test(e.title));
           break;
         case "stock_price":
-          filtered = filtered.filter((e: any) => /\b(stock|shares|nasdaq|nyse|nvda|aapl|msft|tsla|price)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(stock|shares|nasdaq|nyse|nvda|aapl|msft|tsla|price|above)\b/i.test(e.title));
           break;
         case "ipo":
           filtered = filtered.filter((e: any) => /\b(ipo|listing|public offering|debut|spac)\b/i.test(e.title));
@@ -172,7 +160,7 @@ export function EventsDiscoverPage() {
 
         // Crypto sub-types
         case "etf_l2":
-          filtered = filtered.filter((e: any) => /\b(etf|l2|layer 2|base|arbitrum|optimism|zksync|solana|sui|tvl)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(etf|l2|layer 2|base|arbitrum|optimism|zksync|solana|sui|tvl|defi)\b/i.test(e.title));
           break;
 
         // Economics sub-types
@@ -200,12 +188,12 @@ export function EventsDiscoverPage() {
           filtered = filtered.filter((e: any) => /\b(total|over|under|o\/u|goals|points)\b/i.test(e.title));
           break;
         case "championship":
-          filtered = filtered.filter((e: any) => /\b(champion|cup|super bowl|world cup|finals|title|ballon)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(champion|cup|super bowl|world cup|finals|title|ballon|championship)\b/i.test(e.title));
           break;
 
         // AI sub-types
         case "model_release":
-          filtered = filtered.filter((e: any) => /\b(release|gpt-5|gpt-6|claude|gemini|deepseek|launch|model|openai)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(release|gpt-5|gpt-6|claude|gemini|deepseek|launch|model|openai|anthropic)\b/i.test(e.title));
           break;
         case "benchmark":
           filtered = filtered.filter((e: any) => /\b(benchmark|reasoning|arc|mmlu|humaneval|score|leaderboard)\b/i.test(e.title));
@@ -219,13 +207,13 @@ export function EventsDiscoverPage() {
 
         // Tech & Science sub-types
         case "semiconductors":
-          filtered = filtered.filter((e: any) => /\b(chip|chips|semiconductor|tsmc|nvidia|intel|amd|gpu)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(chip|chips|semiconductor|tsmc|nvidia|intel|amd|gpu|hardware)\b/i.test(e.title));
           break;
         case "space":
-          filtered = filtered.filter((e: any) => /\b(space|mars|moon|nasa|spacex|starship|rocket)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(space|mars|moon|nasa|spacex|starship|rocket|orbit)\b/i.test(e.title));
           break;
         case "hardware":
-          filtered = filtered.filter((e: any) => /\b(hardware|device|quantum|robot|phone)\b/i.test(e.title));
+          filtered = filtered.filter((e: any) => /\b(hardware|device|quantum|robot|phone|computer)\b/i.test(e.title));
           break;
 
         // Climate sub-types
@@ -239,30 +227,6 @@ export function EventsDiscoverPage() {
           filtered = filtered.filter((e: any) => /\b(temperature|warmest|heat|record|climate)\b/i.test(e.title));
           break;
       }
-    }
-
-    // 2. Filter by Topic Category if not "all"
-    if (activeCategory !== "all") {
-      const keywords = CATEGORY_KEYWORD_MAP[activeCategory] ?? [activeCategory];
-      filtered = filtered.filter((e: any) => {
-        const catLower = (e.category ?? "").toLowerCase();
-        if (
-          catLower === activeCategory ||
-          (activeCategory === "economics" && (catLower === "economy" || catLower === "finance")) ||
-          (activeCategory === "financials" && (catLower === "finance" || catLower === "economics")) ||
-          (activeCategory === "sports" && (catLower === "sports" || catLower === "football" || catLower === "soccer")) ||
-          (activeCategory === "tech_science" && (catLower === "tech" || catLower === "science"))
-        ) {
-          return true;
-        }
-        const tagsLower = (e.tags ?? []).map((t: string) => t.toLowerCase());
-        if (tagsLower.some((t: string) => t.includes(activeCategory))) {
-          return true;
-        }
-        const titleLower = e.title.toLowerCase();
-        const slugLower = (e.slug ?? "").toLowerCase();
-        return keywords.some((kw) => titleLower.includes(kw) || slugLower.includes(kw));
-      });
     }
 
     // 3. Sort by selected Sort Option

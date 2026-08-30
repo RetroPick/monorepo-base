@@ -820,22 +820,6 @@ export const MARKETS: Market[] = [
     ]
   },
   {
-    id: 'nvidia-market-cap-5t',
-    question: 'Will NVIDIA reach $5 Trillion market cap in 2026?',
-    category: 'Financials',
-    marketType: 'UP_OR_DOWN',
-    yes: 68,
-    volume: '$24.5M Vol.',
-    liquidity: '$6.2M',
-    image: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=200&auto=format&fit=crop&q=80',
-    participants: '34.2K',
-    timeLeft: 'Dec 31, 2026',
-    trend: 'up',
-    chart: series(68, true),
-    verified: true,
-    icon: 'NVDA',
-  },
-  {
     id: 'solana-tvl-15b',
     question: 'Solana DeFi TVL above $15B before Q4 2026?',
     category: 'Crypto',

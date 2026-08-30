@@ -139,6 +139,7 @@ const INITIAL_BREAKING_NEWS: BreakingNewsItem[] = [
 export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedOutcomeIdx, setSelectedOutcomeIdx] = useState(0);
+  const [hoveredOutcomeIdx, setHoveredOutcomeIdx] = useState<number | null>(null);
   const [activeTeamTab, setActiveTeamTab] = useState<"team1" | "team2">("team1");
   const [isPaused, setIsPaused] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -208,11 +209,13 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % FEATURED_SLIDES.length);
     setSelectedOutcomeIdx(0);
+    setHoveredOutcomeIdx(null);
   };
 
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + FEATURED_SLIDES.length) % FEATURED_SLIDES.length);
     setSelectedOutcomeIdx(0);
+    setHoveredOutcomeIdx(null);
   };
 
   const handleCopy = () => {
@@ -235,195 +238,230 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
   return (
     <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-12 items-stretch">
       {/* ============================================================ */}
-      {/* LEFT: Clean Minimalist Hero Card (Col 8 / 12)                */}
+      {/* LEFT: Clean Minimalist Hero Card + Outside Controls (Col 8/12) */}
       {/* ============================================================ */}
-      <div
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        className="relative flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-5 shadow-xl lg:col-span-8 overflow-hidden min-h-[410px] lg:h-[420px] min-w-0"
-      >
-        {/* Top Header: Image + Tag + Title + Link/Bookmark Actions */}
-        <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] pb-3.5">
-          <div className="flex items-center gap-3.5 min-w-0 flex-1">
-            <div className="h-12 w-12 rounded-2xl overflow-hidden bg-[#121929] border border-white/10 shrink-0 shadow-sm flex items-center justify-center">
-              <img
-                src={slide.image}
-                alt={slide.title}
-                className="h-full w-full object-cover"
-              />
-            </div>
-            <div className="min-w-0 flex-1 space-y-0.5">
-              <div className="text-xs font-semibold text-slate-400">{slide.tag}</div>
-              <Link
-                to={`/markets/m/${slide.id}`}
-                className="font-display text-lg sm:text-xl font-extrabold text-white hover:text-blue-400 transition-colors leading-snug line-clamp-1 block"
-              >
-                {slide.title}
-              </Link>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1 text-slate-400 shrink-0 pt-1">
-            <button
-              type="button"
-              onClick={handleCopy}
-              title={copied ? "Copied!" : "Copy Link"}
-              className={cn(
-                "rounded-xl p-1.5 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
-                copied && "text-emerald-400",
-              )}
-            >
-              <Link2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setBookmarked(!bookmarked)}
-              title="Bookmark Market"
-              className="rounded-xl p-1.5 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
-            >
-              <Bookmark className={cn("h-4 w-4", bookmarked ? "fill-white text-white" : "")} />
-            </button>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        {slide.isLiveSports ? (
-          /* Live Sports Slide */
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-12 items-center flex-1">
-            <div className="sm:col-span-5 space-y-3 h-[185px] flex flex-col justify-between">
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveTeamTab("team1")}
-                  className={cn(
-                    "rounded-xl py-2 text-center text-xs font-black transition-all cursor-pointer border",
-                    activeTeamTab === "team1"
-                      ? "border-blue-500/50 bg-blue-600/20 text-blue-400"
-                      : "border-white/5 bg-[#101726]/80 text-slate-400 hover:text-white",
-                  )}
+      <div className="flex flex-col gap-3 lg:col-span-8 min-w-0">
+        <div
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          className="relative flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-6 shadow-2xl min-w-0"
+        >
+          {/* Top Header: Image + Tag + Title + Link/Bookmark Actions */}
+          <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] pb-4">
+            <div className="flex items-center gap-4 min-w-0 flex-1">
+              <div className="h-14 w-14 rounded-2xl overflow-hidden bg-[#121929] border border-white/10 shrink-0 shadow-md flex items-center justify-center">
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <div className="text-xs sm:text-sm font-semibold text-slate-400">{slide.tag}</div>
+                <Link
+                  to={`/markets/m/${slide.id}`}
+                  className="font-display text-lg sm:text-2xl font-black text-white hover:text-blue-400 transition-colors leading-snug line-clamp-1 block"
                 >
-                  Dodgers 95%
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTeamTab("team2")}
-                  className={cn(
-                    "rounded-xl py-2 text-center text-xs font-black transition-all cursor-pointer border",
-                    activeTeamTab === "team2"
-                      ? "border-purple-500/50 bg-purple-600/20 text-purple-400"
-                      : "border-white/5 bg-[#101726]/80 text-slate-400 hover:text-white",
-                  )}
-                >
-                  Rockies 6%
-                </button>
-              </div>
-
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center justify-between text-slate-400 font-bold">
-                  <span>Spread</span>
-                  <span className="text-white font-mono">LAD -2.5 (2.5)</span>
-                </div>
-                <div className="flex items-center justify-between text-slate-400 font-bold">
-                  <span>Total</span>
-                  <span className="text-white font-mono">O 12.5 (12.5)</span>
-                </div>
-              </div>
-
-              <div className="text-xs text-slate-400 font-mono font-bold pt-1">
-                {slide.volume}
+                  {slide.title}
+                </Link>
               </div>
             </div>
 
-            <div className="sm:col-span-7 h-[200px] overflow-hidden">
-              <HeroTradingViewChart
-                isLiveSports={true}
-                sportsData={{
-                  team1: slide.team1!,
-                  team2: slide.team2!,
-                  historyTeam1: slide.historyTeam1,
-                  historyTeam2: slide.historyTeam2,
-                  timestamps: slide.timestamps,
-                }}
-                activeTeamTab={activeTeamTab}
-              />
-            </div>
-          </div>
-        ) : (
-          /* Multi-Outcome Slide */
-          <div className="mt-3.5 grid grid-cols-1 gap-4 sm:grid-cols-12 items-center flex-1">
-            {/* Left Column: Clean Minimalist Text Rows + News/Comment */}
-            <div className="sm:col-span-5 h-[190px] flex flex-col justify-between pr-2">
-              <div className="space-y-1.5">
-                {slide.outcomes?.map((out, idx) => {
-                  const isSelected = selectedOutcomeIdx === idx;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setSelectedOutcomeIdx(idx)}
-                      className={cn(
-                        "w-full flex items-center justify-between text-left px-2.5 py-1.5 rounded-xl transition-all cursor-pointer",
-                        isSelected
-                          ? "bg-white/10 shadow-sm"
-                          : "hover:bg-white/5 text-slate-300",
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className="h-2 w-2 rounded-full shrink-0"
-                          style={{ backgroundColor: out.color }}
-                        />
-                        <span
-                          className={cn(
-                            "text-sm font-semibold truncate",
-                            isSelected ? "text-white font-bold" : "text-slate-300",
-                          )}
-                        >
-                          {out.label}
-                        </span>
-                      </div>
-                      <span className="font-mono text-sm font-bold text-white">
-                        {out.percentage}%
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Bottom Left: Comment / News Snippet + Volume */}
-              <div className="pt-2 text-[11px] text-slate-400 space-y-0.5 border-t border-white/[0.04]">
-                {slide.commentUser && (
-                  <p className="line-clamp-1 text-slate-400">
-                    <span className="font-bold text-slate-300">{slide.commentUser}: </span>
-                    <span>{slide.commentText}</span>
-                  </p>
+            <div className="flex items-center gap-1.5 text-slate-400 shrink-0 pt-1">
+              <button
+                type="button"
+                onClick={handleCopy}
+                title={copied ? "Copied!" : "Copy Link"}
+                className={cn(
+                  "rounded-xl p-2 hover:bg-white/10 hover:text-white transition-colors cursor-pointer",
+                  copied && "text-emerald-400",
                 )}
-                <div className="text-xs font-mono font-bold text-slate-400 pt-0.5">
+              >
+                <Link2 className="h-4.5 w-4.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookmarked(!bookmarked)}
+                title="Bookmark Market"
+                className="rounded-xl p-2 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+              >
+                <Bookmark className={cn("h-4.5 w-4.5", bookmarked ? "fill-white text-white" : "")} />
+              </button>
+            </div>
+          </div>
+
+          {/* Main Content Area (Enlarged) */}
+          {slide.isLiveSports ? (
+            /* Live Sports Slide */
+            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-12 items-center flex-1">
+              <div className="sm:col-span-5 space-y-3.5 h-[280px] sm:h-[295px] flex flex-col justify-between">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTeamTab("team1");
+                      setSelectedOutcomeIdx(0);
+                    }}
+                    onMouseEnter={() => setHoveredOutcomeIdx(0)}
+                    onMouseLeave={() => setHoveredOutcomeIdx(null)}
+                    className={cn(
+                      "rounded-xl py-2.5 text-center text-xs sm:text-sm font-black transition-all cursor-pointer border",
+                      activeTeamTab === "team1"
+                        ? "border-blue-500/50 bg-blue-600/20 text-blue-400 shadow-sm"
+                        : "border-white/5 bg-[#101726]/80 text-slate-400 hover:text-white",
+                    )}
+                  >
+                    Dodgers 95%
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTeamTab("team2");
+                      setSelectedOutcomeIdx(1);
+                    }}
+                    onMouseEnter={() => setHoveredOutcomeIdx(1)}
+                    onMouseLeave={() => setHoveredOutcomeIdx(null)}
+                    className={cn(
+                      "rounded-xl py-2.5 text-center text-xs sm:text-sm font-black transition-all cursor-pointer border",
+                      activeTeamTab === "team2"
+                        ? "border-purple-500/50 bg-purple-600/20 text-purple-400 shadow-sm"
+                        : "border-white/5 bg-[#101726]/80 text-slate-400 hover:text-white",
+                    )}
+                  >
+                    Rockies 6%
+                  </button>
+                </div>
+
+                <div className="space-y-1.5 text-xs sm:text-sm">
+                  <div className="flex items-center justify-between text-slate-400 font-bold">
+                    <span>Spread</span>
+                    <span className="text-white font-mono">LAD -2.5 (2.5)</span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-400 font-bold">
+                    <span>Total</span>
+                    <span className="text-white font-mono">O 12.5 (12.5)</span>
+                  </div>
+                </div>
+
+                <div className="text-sm font-mono font-bold text-slate-300 pt-1">
                   {slide.volume}
                 </div>
               </div>
-            </div>
 
-            {/* Right Column: Clean Full Chart */}
-            <div className="sm:col-span-7 h-[200px] flex flex-col justify-center pl-0 sm:pl-2 overflow-hidden">
-              <div className="h-full w-full overflow-hidden">
+              <div className="sm:col-span-7 h-[280px] sm:h-[295px] overflow-hidden">
                 <HeroTradingViewChart
-                  isLiveSports={false}
-                  outcomeData={{
-                    outcomes: slide.outcomes,
+                  isLiveSports={true}
+                  sportsData={{
+                    team1: slide.team1!,
+                    team2: slide.team2!,
+                    historyTeam1: slide.historyTeam1,
+                    historyTeam2: slide.historyTeam2,
+                    timestamps: slide.timestamps,
                   }}
                   selectedOutcomeIdx={selectedOutcomeIdx}
-                  onSelectOutcome={(idx) => setSelectedOutcomeIdx(idx)}
+                  hoveredOutcomeIdx={hoveredOutcomeIdx}
+                  onSelectOutcome={(idx) => {
+                    setSelectedOutcomeIdx(idx);
+                    setActiveTeamTab(idx === 0 ? "team1" : "team2");
+                  }}
+                  onHoverOutcome={(idx) => setHoveredOutcomeIdx(idx)}
+                  activeTeamTab={activeTeamTab}
+                  volume={slide.volume}
                 />
               </div>
             </div>
-          </div>
-        )}
+          ) : (
+            /* Multi-Outcome Slide */
+            <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-12 items-center flex-1">
+              {/* Left Column: Clean Minimalist Text Rows + News/Comment */}
+              <div className="sm:col-span-5 h-[280px] sm:h-[295px] flex flex-col justify-between pr-2">
+                <div className="space-y-2">
+                  {slide.outcomes?.map((out, idx) => {
+                    const isSelected = selectedOutcomeIdx === idx;
+                    const isHovered = hoveredOutcomeIdx === idx;
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setSelectedOutcomeIdx(idx)}
+                        onMouseEnter={() => setHoveredOutcomeIdx(idx)}
+                        onMouseLeave={() => setHoveredOutcomeIdx(null)}
+                        className={cn(
+                          "w-full flex items-center justify-between text-left px-3.5 py-2.5 rounded-xl transition-all cursor-pointer border",
+                          isSelected
+                            ? "bg-white/[0.1] border-white/15 shadow-md"
+                            : isHovered
+                              ? "bg-white/5 border-white/[0.08] text-white"
+                              : "border-transparent hover:bg-white/5 text-slate-300",
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0 transition-transform"
+                            style={{
+                              backgroundColor: out.color,
+                              boxShadow: isSelected || isHovered ? `0 0 8px ${out.color}` : "none",
+                              transform: isSelected || isHovered ? "scale(1.2)" : "scale(1)",
+                            }}
+                          />
+                          <span
+                            className={cn(
+                              "text-sm sm:text-base font-bold truncate transition-colors",
+                              isSelected || isHovered ? "text-white font-extrabold" : "text-slate-300",
+                            )}
+                          >
+                            {out.label}
+                          </span>
+                        </div>
+                        <span
+                          className="font-mono text-base sm:text-lg font-black"
+                          style={{ color: isSelected || isHovered ? out.color : "#FFFFFF" }}
+                        >
+                          {out.percentage}%
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-        {/* Carousel Bottom Bar */}
-        <div className="mt-3 flex items-center justify-between border-t border-white/[0.06] pt-2.5">
+                {/* Bottom Left: Comment / News Snippet + Volume */}
+                <div className="pt-2.5 text-xs text-slate-400 space-y-1 border-t border-white/[0.06]">
+                  {slide.commentUser && (
+                    <p className="line-clamp-1 text-slate-400">
+                      <span className="font-bold text-slate-300">{slide.commentUser}: </span>
+                      <span>{slide.commentText}</span>
+                    </p>
+                  )}
+                  <div className="text-sm font-mono font-bold text-slate-300 pt-0.5">
+                    {slide.volume}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Clean Full Chart (Enlarged) */}
+              <div className="sm:col-span-7 h-[280px] sm:h-[295px] flex flex-col justify-center pl-0 sm:pl-2 overflow-hidden">
+                <div className="h-full w-full overflow-hidden">
+                  <HeroTradingViewChart
+                    isLiveSports={false}
+                    outcomeData={{
+                      outcomes: slide.outcomes,
+                    }}
+                    selectedOutcomeIdx={selectedOutcomeIdx}
+                    hoveredOutcomeIdx={hoveredOutcomeIdx}
+                    onSelectOutcome={(idx) => setSelectedOutcomeIdx(idx)}
+                    onHoverOutcome={(idx) => setHoveredOutcomeIdx(idx)}
+                    volume={slide.volume}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Carousel Bottom Bar — OUTSIDE OF THE BOX */}
+        <div className="flex items-center justify-between px-1.5 text-xs">
           {/* Pagination Indicators */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             {FEATURED_SLIDES.map((_, idx) => (
               <button
                 key={idx}
@@ -431,40 +469,41 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
                 onClick={() => {
                   setCurrentSlide(idx);
                   setSelectedOutcomeIdx(0);
+                  setHoveredOutcomeIdx(null);
                 }}
                 title={`Slide ${idx + 1}`}
                 className={cn(
-                  "h-1 rounded-full transition-all cursor-pointer",
-                  currentSlide === idx ? "w-6 bg-blue-500" : "w-1.5 bg-white/20 hover:bg-white/40",
+                  "h-1.5 rounded-full transition-all cursor-pointer",
+                  currentSlide === idx ? "w-8 bg-blue-500 shadow-sm" : "w-2 bg-white/20 hover:bg-white/40",
                 )}
               />
             ))}
           </div>
 
           {/* Right: Source tag + Prev/Next Topic Pills */}
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-medium text-slate-500 font-mono">
+          <div className="flex items-center gap-3.5">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs font-medium text-slate-500 font-mono">
               <span>⇄ Monthly</span>
               <span>·</span>
               <span>Polymarket</span>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={prevSlide}
-                className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#161D2E] px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#161D2E] px-3.5 py-1.5 text-xs sm:text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer shadow-sm"
               >
-                <ChevronLeft className="h-3 w-3" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 <span>{slide.prevTopic}</span>
               </button>
               <button
                 type="button"
                 onClick={nextSlide}
-                className="flex items-center gap-1 rounded-xl border border-white/10 bg-[#161D2E] px-3 py-1 text-xs font-semibold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer"
+                className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#161D2E] px-3.5 py-1.5 text-xs sm:text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white transition-all cursor-pointer shadow-sm"
               >
                 <span>{slide.nextTopic}</span>
-                <ChevronRight className="h-3 w-3" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -474,30 +513,30 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
       {/* ============================================================ */}
       {/* RIGHT: Breaking News & Hot Topics Sidebar (Col 4 / 12)       */}
       {/* ============================================================ */}
-      <div className="flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-5 shadow-xl lg:col-span-4 transition-all min-h-[385px] lg:h-[395px]">
+      <div className="flex flex-col justify-between rounded-2xl border border-white/[0.08] bg-[#0E1422] p-6 shadow-2xl lg:col-span-4 transition-all min-h-[440px] lg:h-[455px]">
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3.5">
             <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
+              <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
               </span>
-              <span className="text-xs font-black uppercase tracking-wider text-white">
+              <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-white">
                 Breaking News ›
               </span>
             </div>
-            <span className="rounded bg-rose-500/15 border border-rose-500/30 px-1.5 py-0.5 text-[9px] font-bold font-mono text-rose-400 animate-pulse">
+            <span className="rounded-md bg-rose-500/15 border border-rose-500/30 px-2 py-0.5 text-[10px] font-bold font-mono text-rose-400 animate-pulse">
               LIVE
             </span>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {breakingNews.map((item, idx) => {
               return (
                 <Link
                   key={item.id || idx}
                   to={`/markets/m/${item.id}`}
-                  className="group flex items-start justify-between gap-2.5 text-xs p-2 rounded-xl border border-transparent transition-all hover:bg-blue-600/10 hover:border-white/5"
+                  className="group flex items-start justify-between gap-3 text-xs sm:text-sm p-2.5 rounded-xl border border-transparent transition-all hover:bg-blue-600/10 hover:border-white/5"
                 >
                   <div className="flex items-start gap-2.5 min-w-0">
                     <span className="font-mono text-slate-500 font-bold mt-0.5">
@@ -508,13 +547,13 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
                     </span>
                   </div>
                   <div className="flex flex-col items-end shrink-0 pl-1">
-                    <span className="font-mono font-black text-xs transition-colors text-white">
+                    <span className="font-mono font-black text-xs sm:text-sm transition-colors text-white">
                       {item.prob}%
                     </span>
                     {item.delta != null ? (
                       <span
                         className={cn(
-                          "text-[10px] font-bold font-mono",
+                          "text-[10.5px] font-bold font-mono",
                           item.delta >= 0 ? "text-emerald-400" : "text-rose-400",
                         )}
                       >
@@ -528,14 +567,14 @@ export function TradeFutureHero({ onExploreClick }: TradeFutureHeroProps) {
           </div>
         </div>
 
-        <div className="mt-3 border-t border-white/[0.06] pt-3">
-          <div className="flex items-center justify-between mb-2 text-xs font-bold text-slate-400">
+        <div className="mt-4 border-t border-white/[0.06] pt-3.5">
+          <div className="flex items-center justify-between mb-2.5 text-xs sm:text-sm font-bold text-slate-400">
             <span className="hover:text-white cursor-pointer">Hot topics ›</span>
           </div>
           <button
             type="button"
             onClick={onExploreClick}
-            className="w-full rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white hover:bg-blue-500 transition-all cursor-pointer text-center shadow-lg shadow-blue-600/25"
+            className="w-full rounded-xl bg-blue-600 py-3 text-xs sm:text-sm font-bold text-white hover:bg-blue-500 transition-all cursor-pointer text-center shadow-lg shadow-blue-600/25"
           >
             Explore all
           </button>
