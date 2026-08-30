@@ -65,3 +65,12 @@ Current Markets V1 authority: `AGENTS.md`.
 
 # Hermes kanban linked worktrees (repo-local) — never commit
 .worktrees/
+
+# Android build output & Gradle cache
+android/**/.gradle/
+android/**/build/
+android/**/local.properties
+android/**/captures/
+.gradle/
+build/
+local.properties
