@@ -1,0 +1,7 @@
+label,market,market_id,condition_id,outcome,token_id,best_bid,best_ask,spread,bid_depth,ask_depth,source,liquidity_metadata,volume_metadata
+A,Fixture A: macro catalyst,fixture-1,fixture-condition-1,YES,fixture-A-yes,0.614,0.626,0.012,78100.0,78100.0,deterministic synthetic CLOB fixture,55000,550000
+A,Fixture A: macro catalyst,fixture-1,fixture-condition-1,NO,fixture-A-no,0.374,0.386,0.012,71852.0,71852.0,deterministic synthetic CLOB fixture,55000,550000
+B,Fixture B: crypto catalyst,fixture-2,fixture-condition-2,YES,fixture-B-yes,0.404,0.416,0.012,59640.0,59640.0,deterministic synthetic CLOB fixture,42000,420000
+B,Fixture B: crypto catalyst,fixture-2,fixture-condition-2,NO,fixture-B-no,0.584,0.596,0.012,54868.8,54868.8,deterministic synthetic CLOB fixture,42000,420000
+C,Fixture C: policy/technology catalyst,fixture-3,fixture-condition-3,YES,fixture-C-yes,0.544,0.556,0.012,96560.0,96560.0,deterministic synthetic CLOB fixture,68000,680000
+C,Fixture C: policy/technology catalyst,fixture-3,fixture-condition-3,NO,fixture-C-no,0.444,0.456,0.012,88835.2,88835.2,deterministic synthetic CLOB fixture,68000,680000

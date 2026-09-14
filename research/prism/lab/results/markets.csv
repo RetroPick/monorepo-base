@@ -1,4 +1,0 @@
-event,name,source,midpoint,best_bid,best_ask,spread,liquidity,volume,market_id,yes_token_id
-A,Fixture A: macro event,synthetic fallback fixture,0.62,0.614,0.626,0.01200000000000001,50000,500000,fixture-1,fixture-token-1
-B,Fixture B: crypto event,synthetic fallback fixture,0.41,0.40399999999999997,0.416,0.01200000000000001,50000,500000,fixture-2,fixture-token-2
-C,Fixture C: policy/technology event,synthetic fallback fixture,0.55,0.544,0.556,0.01200000000000001,50000,500000,fixture-3,fixture-token-3

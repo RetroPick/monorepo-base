@@ -1,0 +1,6 @@
+product,feasible,max_abs_payoff_error,top_ask_objective,certificate
+Thematic Basket,True,0.0,0.535,"{""A_YES"": 0.4, ""B_YES"": 0.35, ""C_YES"": 0.25}"
+Relative Event Spread,True,0.0,0.611,"{""A_YES"": 0.5, ""B_NO"": 0.5}"
+70% Protected Event Note,True,0.0,0.8563,"{""A_YES"": 0.15000000000000002, ""B_YES"": 0.15000000000000002, ""CASH"": 0.7}"
+Defensive Barbell,True,0.0,0.409,"{""A_NO"": 0.5, ""B_YES"": 0.3, ""C_NO"": 0.2}"
+Cross-Market Blend,True,0.0,0.5555,"{""A_YES"": 0.25, ""B_NO"": 0.25, ""CASH"": 0.25}"
