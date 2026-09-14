@@ -1,0 +1,15 @@
+test,metric,threshold,pass
+Marginal calibration event 1,1.4765966227514582e-14,1e-08,True
+Marginal calibration event 2,2.1649348980190553e-15,1e-08,True
+Marginal calibration event 3,0.0,1e-08,True
+Complete-set identity 1_AND_A_B,0.0,1e-10,True
+Complete-set identity 2_XOR_A_B,0.0,1e-10,True
+Complete-set identity 3_OR_A_B,0.0,1e-10,True
+Complete-set identity 4_2_OF_3,0.0,1e-10,True
+Complete-set identity 5_TAIL_TRANCHE,0.0,1e-10,True
+Claim algebra A∧B = A + B - (A∨B),0.0,1e-10,True
+Cost-function path independence,0.0,1e-09,True
+Round-trip cost returns to zero,0.0,1e-09,True
+Claim prices remain within payoff convex hull,0.0,1e-10,True
+Seed reserve bound keeps solvency buffer nonnegative,296.25726867341655,-1e-08,True
+Observed worst-case loss <= analytic reserve bound,-296.2572686734168,1e-08,True
