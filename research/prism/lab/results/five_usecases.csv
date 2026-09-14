@@ -1,6 +1,0 @@
-use_case,description,initial_price,min_payoff,max_payoff
-1_AND_A_B,Joint-event claim: pays $1 only if A and B both resolve YES.,0.28407783352349397,0.0,1.0
-2_XOR_A_B,Divergence claim: pays $1 if exactly one of A or B resolves YES.,0.46184433295302896,0.0,1.0
-3_OR_A_B,Broad event exposure: pays $1 if A or B (or both) resolves YES.,0.7459221664765229,0.0,1.0
-4_2_OF_3,"Basket/parlay primitive: pays $1 if at least two of A,B,C resolve YES.",0.5372539252649238,0.0,1.0
-5_TAIL_TRANCHE,Structured tranche: payout rises 0/.20/.60/1.00 with 0/1/2/3 YES outcomes.,0.460817445577922,0.0,1.0

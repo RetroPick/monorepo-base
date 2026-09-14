@@ -1,0 +1,25 @@
+test,metric,threshold,pass
+thematic_basket: canonical recipe exactly replicates payoff,0.0,1e-10,True
+thematic_basket: spanning solver finds exact external backing,0.0,1e-07,True
+thematic_basket: statewise backing >= liability,0.0,-1e-10,True
+relative_event_spread: canonical recipe exactly replicates payoff,0.0,1e-10,True
+relative_event_spread: spanning solver finds exact external backing,0.0,1e-07,True
+relative_event_spread: statewise backing >= liability,0.0,-1e-10,True
+principal_protected_note: canonical recipe exactly replicates payoff,0.0,1e-10,True
+principal_protected_note: spanning solver finds exact external backing,0.0,1e-07,True
+principal_protected_note: statewise backing >= liability,0.0,-1e-10,True
+defensive_barbell: canonical recipe exactly replicates payoff,0.0,1e-10,True
+defensive_barbell: spanning solver finds exact external backing,0.0,1e-07,True
+defensive_barbell: statewise backing >= liability,0.0,-1e-10,True
+cross_market_blend: canonical recipe exactly replicates payoff,0.0,1e-10,True
+cross_market_blend: spanning solver finds exact external backing,0.0,1e-07,True
+cross_market_blend: statewise backing >= liability,0.0,-1e-10,True
+A: YES + NO = CASH in every state,0.0,1e-12,True
+B: YES + NO = CASH in every state,0.0,1e-12,True
+C: YES + NO = CASH in every state,0.0,1e-12,True
+"negative control: AND(A,B) rejected without joint-state instrument",0.3333333333333333,1e-06,True
+thematic_basket: nonzero external executable depth,170400.0,1.0,True
+relative_event_spread: nonzero external executable depth,109737.6,1.0,True
+principal_protected_note: nonzero external executable depth,397600.0,1.0,True
+defensive_barbell: nonzero external executable depth,143704.0,1.0,True
+cross_market_blend: nonzero external executable depth,219475.2,1.0,True
